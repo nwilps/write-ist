@@ -13,8 +13,8 @@ producing workflow tuning, it has become the new v1.
 - [x] Install Matt Pocock's skills (25 skills, user scope, `mattpocock-skills@mattpocock` v1.2.3)
 - [x] Create fresh `write-ist` git repo, local
 - [x] This checklist
-- [ ] `gh auth login` (Noah — needs a browser)
-- [ ] Create the GitHub repo and push `main`
+- [x] `gh auth login` (as `nwilps`)
+- [x] Create the GitHub repo and push `main` — <https://github.com/nwilps/write-ist> (private)
 - [ ] Restart Claude Code so the plugin skills load
 - [ ] Run `/setup-matt-pocock-skills` in this repo — tracker = **local files**, not GitHub Issues
 
