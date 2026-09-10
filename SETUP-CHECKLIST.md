@@ -15,8 +15,8 @@ producing workflow tuning, it has become the new v1.
 - [x] This checklist
 - [x] `gh auth login` (as `nwilps`)
 - [x] Create the GitHub repo and push `main` — <https://github.com/nwilps/write-ist> (private)
-- [ ] Restart Claude Code so the plugin skills load
-- [ ] Run `/setup-matt-pocock-skills` in this repo — tracker = **GitHub Issues** (native dependency
+- [x] Restart Claude Code so the plugin skills load
+- [x] Run `/setup-matt-pocock-skills` in this repo — tracker = **GitHub Issues** (native dependency
       edges are UI-visible; a dependency graph is a picture of "the whole"). Docs stay in-repo:
       `CONTEXT.md` + `docs/adr/` at root, single-context.
 
