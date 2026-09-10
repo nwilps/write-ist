@@ -1,0 +1,18 @@
+# Generated snapshots of the live feature catalog — the Artifact is the source of truth
+.catalog-snapshot/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node (for when there is code)
+node_modules/
+dist/
+build/
+out/
+*.log
+.env
+.env.local
