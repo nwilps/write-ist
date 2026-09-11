@@ -22,17 +22,24 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 1 — See the whole
 
-- [ ] **Write `CONTEXT.md`** — the shared glossary. *This is the "I can't see the whole" deliverable.*
+- [x] **Write `CONTEXT.md`** — the shared glossary. *First pass: 22 terms.* *This is the "I can't see the whole" deliverable.*
       Source it from `docs/PLANNING.md` plus the catalog's 101 load-bearing notes.
       Terms already in play: surface, format, manifest, sidecar, bundle, anchor,
       manuscript, element, workspace, round-trip, project.
-- [ ] **Convert locked decisions into ADRs** — one record each, with its forcing reason:
-    - [ ] Fountain is the source of truth
-    - [ ] Surfaces vs formats
-    - [ ] Formats set defaults, never restrictions
-    - [ ] Poetry is a prose format, not a surface
-    - [ ] Recipes and chord layers cut
-    - [ ] Home and Open Project are separate screens
+- [x] **Convert locked decisions into ADRs** — one record each, with its forcing reason:
+    - [x] Fountain is the source of truth — ADR-0004
+    - [x] Surfaces vs formats — ADR-0005
+    - [x] Formats set defaults, never restrictions — ADR-0006
+    - [x] Poetry is a prose format, not a surface — *folded into ADR-0005.* It is a
+          consequence of surfaces-vs-formats plus a one-line mechanism, not a separate
+          hard-to-reverse decision.
+    - [x] Recipes and chord layers cut — ADR-0007
+    - [x] Home and Open Project are separate screens — *deliberately not an ADR.* Easy to
+          reverse, unsurprising, no real trade-off; it fails all three tests. It stays a
+          product decision in the catalog.
+    - [x] Two ADRs the checklist didn't anticipate: **ADR-0003** (local-first and readable
+          without the app — the values constraint that forces Fountain) and **ADR-0008**
+          (sidecar integrity, the six rules the v1 bug forces).
     - [x] **Which desktop platforms are supported** — new; the catalog says answer it
           *before* the editor question. Should take five minutes.
 
