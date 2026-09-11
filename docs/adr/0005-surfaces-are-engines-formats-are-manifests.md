@@ -16,8 +16,10 @@ cheap enough to be generous with.
   breaks, poetry costs a flag rather than an engine. Song lyrics ride poetry — viable only
   because chord layers are out (ADR-0007).
 - **Workspaces use the same shape.** The shell hosts them through a uniform registry; each
-  declares itself — name, where it docks, which formats want it — and the shell hosts it
-  without knowing what it is. Get this right and a new workspace is a manifest; get it wrong
+  declares itself — its name, its place in the workspace bar, which formats show it by
+  default — and the shell hosts it without knowing what it is. This matters more than it
+  first appears: the set of workspaces is deliberately open, and new ones will keep being
+  invented after v2 ships. Get this right and a new workspace is a manifest; get it wrong
   and every workspace is surgery in the shell.
 - **Changing format within a surface is free** (short story to novel: a label and config
   swap). **Changing surface after creation is refused** — prose to screenplay is a real

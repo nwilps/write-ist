@@ -43,9 +43,9 @@ _Avoid_: save, checkpoint, snapshot, backup
 
 **Line**:
 The chain of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
-2a is being written, leaving 3 and 4 set aside. Membership is computed from where work is happening now, never stored on a
-draft, so resuming from a different locked draft redraws the line without renaming or
-rewriting anything.
+2a is being written, leaving 3 and 4 set aside. Membership is computed from where work is
+happening now, never stored on a draft, so resuming from a different locked draft redraws
+the line without renaming or rewriting anything.
 _Avoid_: branch, trunk, mainline, path, history
 
 **Set aside**:
@@ -90,7 +90,7 @@ _Avoid_: project type, template, genre, document type
 
 **Manifest**:
 The data that declares a format or a workspace to the shell — what it is called, what it
-runs on or docks into, and what it defaults to. A manifest is data, never a branch in code.
+runs on or where it sits in the workspace bar, and what it defaults to. A manifest is data, never a branch in code.
 _Avoid_: config, schema, descriptor, definition
 
 **Element**:
@@ -118,14 +118,24 @@ workspace, which is why they never share a word.
 _Avoid_: planned page, estimated page, goal
 
 **Shell**:
-The application frame that hosts a surface and its workspaces without knowing what any of
-them are.
+The application frame that hosts the workspaces and the workspace bar without knowing what
+any workspace is. The surface runs inside the Editor workspace.
 _Avoid_: app, chrome, frame, layout
 
 **Workspace**:
-A planning space hosted alongside the manuscript — Notes, Plan, Log, Outline, Characters.
-Each declares itself to the shell through a manifest.
-_Avoid_: panel, pane, tab, tool, sidebar
+A full screen the writer switches to, one at a time. The Editor, where the in-progress
+draft is written, is a workspace like any other. Notes, Plan, Log, Outline and Characters
+are candidates rather than a fixed set: the set is open, and new workspaces are added as
+they prove useful. Each declares itself to the shell through a manifest.
+_Avoid_: panel, pane, tab, tool, sidebar, view
+
+**Workspace bar**:
+The floating bar at the top of the screen listing the workspaces a project shows, in order.
+A format sets the default selection; the writer can add or remove any workspace the app
+offers. It is persistent: workspaces stay in it as standing options rather than being opened and closed
+like tabs. The writer reaches a workspace from the bar, by its keybinding, or by stepping
+left and right through the bar's order.
+_Avoid_: tab bar, toolbar, dock, menu
 
 ### Integrity
 

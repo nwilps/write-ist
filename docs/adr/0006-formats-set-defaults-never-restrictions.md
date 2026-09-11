@@ -10,5 +10,9 @@ Fountain does not gate elements by format, so the parser cannot either. A file a
 another tool may contain anything the surface understands, and refusing to represent it
 would mean losing the writer's text.
 
+The same rule covers **workspaces**. A format decides which workspaces a new project shows
+in its workspace bar; the writer can add or remove any workspace the app offers, whatever
+the format. A format that could withhold a workspace would be a restriction by another name.
+
 Recorded because it is the kind of rule a reasonable person will try to "fix" — gating act
 breaks out of a novel format looks like tidiness and is actually data loss.
