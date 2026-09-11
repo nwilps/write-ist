@@ -15,6 +15,10 @@ v1 shipped and works: home screen, create/open projects, a screenplay-only editi
 raw-text export. A complete feature screenplay was written in it. Its editor is slow, locked
 to single-line edits and selections, and has no spellcheck, undo/redo, or rich text.
 
+v1's stack: **Tauri v2, React + TypeScript on Vite, with some Rust in the backend.** Worth
+noting what failed and what didn't: the rewrite is forced by the parse/serialise engine and
+the editing surface, not by the shell, the platform layer, or the language choices.
+
 **v2 is a full rewrite**, because v1's screenplay parse/serialise engine isn't good enough.
 The writing surface is the most important part of the app.
 

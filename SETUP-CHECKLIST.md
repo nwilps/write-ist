@@ -33,7 +33,7 @@ producing workflow tuning, it has become the new v1.
     - [ ] Poetry is a prose format, not a surface
     - [ ] Recipes and chord layers cut
     - [ ] Home and Open Project are separate screens
-    - [ ] **Which desktop platforms are supported** — new; the catalog says answer it
+    - [x] **Which desktop platforms are supported** — new; the catalog says answer it
           *before* the editor question. Should take five minutes.
 
 ## Phase 2 — Evidence
@@ -72,3 +72,9 @@ producing workflow tuning, it has become the new v1.
   current goal is understanding the whole yourself; an unattended loop defeats that.
 - **Migrating the feature catalog.** It works, it's edited between sessions, and it
   becomes an *input* to `CONTEXT.md` — not a casualty of it.
+
+  **But it has a sunset.** Decided 2026-09-10: as implementation approaches, the repo
+  becomes the single source of truth. The catalog is scaffolding for *deciding*, not a
+  system of record to maintain in parallel — a second store that drifts is exactly the
+  staleness problem the anchor rules exist to prevent. Once its load-bearing content has
+  landed in `CONTEXT.md`, the ADRs, and the tracker, retire it rather than syncing it.
