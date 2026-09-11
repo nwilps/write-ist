@@ -3,7 +3,8 @@
 For screenplay documents, the Fountain plain-text file **is** the manuscript — not an export
 format, not a serialisation of some richer internal model. Anything the app knows that is not
 manuscript text lives beside it in a sidecar, and a project is therefore a **folder bundle**
-rather than a single file.
+rather than a single file. The prose surface's counterparts are ADR-0010 (one file per draft)
+and ADR-0011 (Pandoc Markdown).
 
 This follows from ADR-0003: a manuscript that must stay readable without the app has to be
 plain text, and plain text cannot hold notes, plan cards or log entries.

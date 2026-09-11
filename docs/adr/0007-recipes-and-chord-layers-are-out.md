@@ -18,5 +18,6 @@ design was simplified by discarding.
 - **A structured-data surface is rejected**, not deferred. Nothing left in the app needs one.
 - **Song lyrics remain viable** as a poetry configuration — but only because chords are gone.
   Chords would need a layer aligned to character positions, which is a different model.
-- The same logic rejects research clippings and any other feature whose real requirement is
-  binary assets or aligned non-text layers.
+- The same logic rejects any other feature whose real requirement is an aligned non-text
+  layer. Research clippings, and anything else that needs binary files, are out on a separate
+  and stronger ground: a bundle holds only text (ADR-0009).

@@ -52,7 +52,8 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 3 — The blocker
 
-- [ ] **`/grill-with-docs` on the document model** — typed elements over Fountain.
+- [ ] **`/grill-with-docs` on the document model** — typed elements over Fountain and
+      Pandoc Markdown.
       The agreed next step and the thing everything else waits on.
       Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
 

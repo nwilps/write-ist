@@ -72,7 +72,8 @@ _Avoid_: metadata, database, index
 
 **Bundle**:
 The on-disk form of a project — a folder holding the manuscript and its sidecar, rather
-than a single file.
+than a single file. Everything in a bundle is text; it never holds images or other binary
+files.
 _Avoid_: package, archive, container
 
 ### The editing model
@@ -102,8 +103,20 @@ _Avoid_: node, block, token, line
 Screenplay-surface vocabulary: the range from one scene heading to the next. A scene is a
 range of elements, not a single element — so anchoring to one means anchoring to a span.
 A continuous dramatic beat that crosses locations is several scenes, because each new
-location needs its own heading.
+location needs its own heading. Prose has no scenes: a novel's structure is parts and
+chapters.
 _Avoid_: slug, slugline (those name the heading, not the range), beat
+
+**Chapter**:
+Prose-surface vocabulary: the range from one chapter heading to the next. Chapters, grouped
+into optional parts, are the whole of a prose manuscript's structure.
+_Avoid_: section, scene
+
+**Scene break**:
+A typographic mark inside a prose chapter signalling a jump in time or place. It is a real
+element of the manuscript, so it survives print and export, but it is not a boundary of
+anything: prose has no scenes.
+_Avoid_: scene divider, section break
 
 **Page**:
 A unit of paginated output, computed from the manuscript by our own pagination engine.

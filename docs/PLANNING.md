@@ -136,7 +136,8 @@ anchoring problem for them stops existing rather than being solved.
 
 ## Open questions
 
-1. **The document model** — typed elements over Fountain. Not yet designed. This is next.
+1. **The document model** — typed elements over Fountain (screenplay) and Pandoc Markdown
+   (prose, ADR-0011). Not yet designed. This is next.
 2. **Editor rendering**: buffer-first (Fountain text is the live buffer, decorated) vs
    model-first (parse to an element tree, serialise on save). Undecided. v2 must support
    multi-line selection, copy/paste, editing and delete — the thing v1 couldn't do.
