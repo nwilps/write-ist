@@ -16,4 +16,6 @@ out/
 *.log
 .env
 .env.local
+
+# Agent worktrees and local session state
 .claude/
