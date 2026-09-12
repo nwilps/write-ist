@@ -60,12 +60,21 @@ producing workflow tuning, it has become the new v1.
       The agreed next step and the thing everything else waits on.
       Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
 
+      **Phase 4's map runs first.** Its whole destination is to set this up — the document
+      model has to know what it is modelling, and what a bundle holds on day one is decided
+      over there. The phase numbers are now out of order; the work order is 4 then 3.
+
 ## Phase 4 — Chart the rest
 
-- [ ] **`/wayfinder`** over the remaining open questions → decision tickets, resolved in order.
-      Nine came out of the Phase 2 review; three of the originally listed items are already
-      answered:
-    - [ ] Live pagination matching the PDF — *still open*
+- [x] **`/wayfinder`** over the remaining open questions — charted 2026-09-12 as
+      [**What v2 writes to disk on day one**](https://github.com/nwilps/write-ist/issues/1):
+      five decision tickets with their blocking edges, destination *"Phase 3 can start without
+      stopping to decide something."*
+
+      **The map is the only home for open questions.** This list does not restate them —
+      that is how `PLANNING.md` became a second store. Two of the originally listed items were
+      answered by the Phase 2 fold and are closed here; live pagination and three others are
+      recorded on the map as out of scope, each with its reason.
     - [x] The sidecar anchoring scheme (ids in Fountain `[[ ]]` notes?) — **answered.**
           ADR-0008 rule 1 now records the mechanism as confirmed rather than likely.
     - [x] Whether log tasks/notes link to scenes — **answered: they don't,** and neither does
