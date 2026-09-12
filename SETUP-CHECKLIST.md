@@ -22,7 +22,7 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 1 — See the whole
 
-- [x] **Write `CONTEXT.md`** — the shared glossary. *First pass: 22 terms.* *This is the "I can't see the whole" deliverable.*
+- [x] **Write `CONTEXT.md`** — the shared glossary. *First pass: 25 terms.* *This is the "I can't see the whole" deliverable.*
       Source it from `docs/PLANNING.md` plus the catalog's 101 load-bearing notes.
       Terms already in play: surface, format, manifest, sidecar, bundle, anchor,
       manuscript, element, workspace, round-trip, project.
