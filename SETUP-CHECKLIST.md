@@ -45,10 +45,13 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 2 — Evidence
 
-- [ ] **Review the prototypes together** (Plan, Log) — deliberately *after* Phase 1, so
+- [x] **Review the prototypes together** (Plan, Log) — deliberately *after* Phase 1, so
       they're read against a written standard instead of becoming a gravity well.
       Withheld on purpose so the plan wouldn't be reverse-justified from existing code;
       that risk drops once the decisions are written down and dated.
+      → `docs/reviews/2026-09-11-prototype-review.md`, against `nwilps/write-ist-ng@3812312`.
+      Two Phase 4 questions come back answered (in-band scene ids; buffer-first vs
+      model-first), and §5 of the review lists four holes it opened in the ADRs.
 
 ## Phase 3 — The blocker
 
