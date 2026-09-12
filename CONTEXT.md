@@ -94,11 +94,19 @@ _Avoid_: project identity, uuid, key, path
 
 **Registry**:
 The record Write-ist keeps outside every bundle, holding pointers to the bundles the writer
-has moved out of the default location — and nothing else. It never holds any of the writer's
-work, so losing it costs some re-pointing and never a word. The writer never sees or manages
-it; they occasionally re-point a project they moved. App preferences live outside every bundle
-too, but in their own file: they are not part of the registry.
+has moved out of the default location. It never holds any of the writer's work, so losing it
+costs some re-pointing and never a word. The writer never sees or manages it; they
+occasionally re-point a project they moved. The ledger and the app's preferences sit outside
+every bundle too, each in its own file; neither is part of the registry.
 _Avoid_: database, store, cache, index (that is the project-level index, inside a bundle)
+
+**Ledger**:
+The append-only record of what the writer produced each day — words and pages per project, and
+how long each session lasted. It sits outside every bundle and spans all of them, because it
+is a record of the writer's days rather than a property of any one work, and it outlives a
+project that is deleted. It holds no work: losing it costs a chart, never a word.
+_Avoid_: log (that is the Log workspace), history, metrics (that is the view of it), analytics,
+event log
 
 ### The editing model
 

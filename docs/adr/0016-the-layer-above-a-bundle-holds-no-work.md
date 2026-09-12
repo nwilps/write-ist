@@ -9,7 +9,13 @@ files, two contracts:
   than to any one work — theme, their own name and contact details. Losing it means falling
   back to defaults.
 
-Nothing else lives up there, now or later, and the rule that keeps it narrow is this:
+> **Widened by [ADR-0017](0017-the-ledger-records-the-writers-days.md).** "Nothing else lives
+> up there" was true when written and is now one item wider: the **ledger**, an append-only
+> record of the writer's days, sits beside the registry under the same contract. The invariant
+> below survives unchanged — a ledger is not work, and losing it costs a chart rather than a
+> word. Everything else in this ADR stands as written.
+
+The rule that keeps the layer narrow is this:
 
 > **The layer above a bundle holds no work, ever.** Delete all of it and the writer loses some
 > re-pointing and some preferences. They never lose a word they wrote, because every word is
@@ -76,8 +82,9 @@ The evidence for both, and for everything in Considered options, is
   the `try`, and the next save writes the empty dict over the good file.
 - **Losing the record is bounded, by construction.** If absence is wrong — a badly restored
   home directory — the cost is that relocated projects are not listed until the writer points
-  at them again. The bundles are untouched. This is what makes an invisible, unmanaged store
-  safe to have.
+  at them again, and, since ADR-0017, that the ledger starts again from that day. The bundles
+  are untouched and no word is lost. This is what makes an invisible, unmanaged store safe to
+  have.
 - **Every record carries a human breadcrumb.** The natural key is the project id, which is a
   UUID, and a store keyed only by UUID reproduces VS Code's failure exactly: an orphaned entry
   nobody can attribute to anything, under a name nobody can decode. So each entry carries the
