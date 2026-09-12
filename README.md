@@ -16,16 +16,16 @@ screenplay parse/serialise engine isn't good enough — the editor is slow, lock
 single-line edits and selections, and has no undo/redo, spellcheck, or rich text.
 **v1, jank and all, produced a finished screenplay. That is the bar.**
 
-## Anchor decisions
+## Decisions
 
-- **Fountain is the source of truth** for screenplays. The manuscript is plain text, so
-  everything else lives in a sidecar and a project is a folder bundle, not a file.
-- **Surfaces are editing engines** (screenplay, prose — expensive, few).
-  **Formats are manifests** — a label plus defaults, running on a surface.
-- **Formats set defaults, never restrictions.**
-- **Fully local, works entirely offline.**
+Every decision, with its forcing reason, is in [`docs/adr/`](docs/adr/). The spine runs 0003
+(local-first) → 0004 (Fountain) → 0010 and 0011 (prose), with 0008 (sidecar integrity)
+explaining why v2 is a rewrite rather than a refactor. Start there; nothing is summarised
+here, because a summary is a copy and a copy drifts.
 
-Full reasoning, the v1 post-mortem, and the open questions: [`docs/PLANNING.md`](docs/PLANNING.md).
+The rules that are not decisions are in [`docs/STANDARDS.md`](docs/STANDARDS.md), the v1
+post-mortem in [`docs/PLANNING.md`](docs/PLANNING.md), and the open questions in this repo's
+GitHub Issues.
 
 ## The feature catalog
 

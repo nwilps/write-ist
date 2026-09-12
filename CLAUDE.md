@@ -1,7 +1,8 @@
 # Write-ist
 
 A fully local, offline writing application. See [`README.md`](README.md) for the shape of the
-project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem and open questions.
+project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem. Open questions are
+GitHub Issues, never a doc.
 
 **Status: v2, pre-implementation.** No application code yet.
 
@@ -17,7 +18,7 @@ Read these before proposing anything, in this order:
    produced it. Short; read it whole.
 4. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is
    timeboxed.
-5. **`docs/PLANNING.md`** — the v1 post-mortem and the open questions.
+5. **`docs/PLANNING.md`** — the v1 post-mortem, and how to read the feature catalog.
 6. **`docs/research/`** — the evidence behind ADR-0010 and ADR-0011, and the editor-shape
    spike that Phase 3 decides with.
 
