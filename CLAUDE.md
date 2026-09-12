@@ -13,10 +13,13 @@ Read these before proposing anything, in this order:
 2. **`docs/adr/`** — the decisions, each with its forcing reason. The spine runs
    0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose), with 0008 (sidecar
    integrity) explaining why v2 is a rewrite.
-3. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is
+3. **`docs/STANDARDS.md`** — the rules, which are not decisions. Each one names the bug that
+   produced it. Short; read it whole.
+4. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is
    timeboxed.
-4. **`docs/PLANNING.md`** — the v1 post-mortem and the open questions.
-5. **`docs/research/`** — the evidence behind ADR-0010 and ADR-0011.
+5. **`docs/PLANNING.md`** — the v1 post-mortem and the open questions.
+6. **`docs/research/`** — the evidence behind ADR-0010 and ADR-0011, and the editor-shape
+   spike that Phase 3 decides with.
 
 The live feature catalog is a published Artifact (URL and access in `PLANNING.md`). Always
 read the store, never a copy of it. It is scaffolding for deciding, and it is being retired
