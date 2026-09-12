@@ -25,3 +25,20 @@ wrong about it.
   database files. Legible means a person can open it and see what it says.
 - **Which file formats implement this is decided with the document model.** This ADR sets only
   the standard those formats must meet.
+
+## The split, worked through
+
+Plan and the Log were built as prototypes before this ADR existed, and they divide along the
+line cleanly enough to be worth recording as the first example:
+
+| The writer's words — a readable document | Structure the app maintains — plain structured text |
+|---|---|
+| A plan card's label and description | Its target, its target length, which lane it is in |
+| A log entry's text | Which day it sits on, whether it is done, its due date, which push it belongs to |
+| A push's name | Its first and last day |
+
+The useful thing the table shows is the proportion. Almost everything is bookkeeping, and the
+writer's words are a handful of free-text fields — so the readable-document obligation is
+narrow and cheap, and there is no excuse for the whole file being opaque because part of it is
+structured.
+
