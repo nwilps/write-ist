@@ -158,6 +158,17 @@ _Avoid_: tab bar, toolbar, dock, menu
 
 ### The planning workspaces
 
+**Plan card**:
+Something the writer intends to happen, placed on the Plan grid at a target and given a
+target length. A card exists only in Plan: it names no part of the manuscript, and nothing
+in the manuscript creates one.
+_Avoid_: scene card, beat card, index card, tile
+
+**Lane**:
+One of the rows a plan card sits in. Lanes keep cards from overlapping; which lane a card
+is in carries no meaning.
+_Avoid_: row, track, swimlane
+
 **Structure sheet**:
 A named set of structure beats — Save the Cat, the Hero's Journey — held as fractions of the
 whole, so a sheet keeps its shape at any length.
@@ -167,6 +178,16 @@ _Avoid_: template, framework, paradigm
 One position on a structure sheet: a moment at a single fraction, or a span between two.
 Always said in full; a bare "beat" names nothing here.
 _Avoid_: beat unqualified, plot point
+
+**Band**:
+A group of structure beats belonging to one frame of thinking. Sheets stack band by band,
+so one sheet's beats are never fragmented by another's.
+_Avoid_: row, group, layer
+
+**Push**:
+A named stretch of days in the Log that tasks are worked against, reporting the pace needed
+to clear them. A deadline is a push with nothing in it yet.
+_Avoid_: sprint, milestone, goal, deadline (that is a push, not a second thing)
 
 ### Integrity
 
