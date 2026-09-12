@@ -92,6 +92,14 @@ bundle never records its own location. Duplicating a project in the app mints a 
 the copy is a new project from that moment.
 _Avoid_: project identity, uuid, key, path
 
+**Registry**:
+The record Write-ist keeps outside every bundle, holding pointers to the bundles the writer
+has moved out of the default location — and nothing else. It never holds any of the writer's
+work, so losing it costs some re-pointing and never a word. The writer never sees or manages
+it; they occasionally re-point a project they moved. App preferences live outside every bundle
+too, but in their own file: they are not part of the registry.
+_Avoid_: database, store, cache, index (that is the project-level index, inside a bundle)
+
 ### The editing model
 
 **Surface**:

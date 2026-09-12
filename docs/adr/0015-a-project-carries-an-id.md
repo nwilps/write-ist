@@ -59,8 +59,8 @@ Evidence for all four: `docs/research/project-identity-and-cross-project-state.m
   once opened.
 - **Only a relocated bundle needs remembering, and where that memory lives is not decided
   here.** A bundle the writer has moved to a cloud drive cannot be found by scanning, so
-  something outside every bundle has to point at it. That store is the subject of its own
-  decision. What this ADR fixes is the direction of authority: **the id is authoritative over
+  something outside every bundle has to point at it. That store is the **registry**, decided in
+  [ADR-0016](0016-the-layer-above-a-bundle-holds-no-work.md). What this ADR fixes is the direction of authority: **the id is authoritative over
   the path, never the reverse.** A bundle never records its own location — a self-recorded
   path is wrong the instant the folder moves, wrong in the worst way because it looks
   authoritative, and necessarily wrong for a bundle synced between two machines that mount the

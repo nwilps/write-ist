@@ -31,5 +31,9 @@ cheap, backups small, and ADR-0008's integrity rules about text alone.
 - **Export can produce binary files** — PDF, EPUB, DOCX — written wherever the writer chooses,
   outside the bundle. No copy of any export is kept. An ebook cover image is chosen from disk
   at export time and never stored in the bundle.
+- **This rule binds inside a bundle only.**
+  [ADR-0016](0016-the-layer-above-a-bundle-holds-no-work.md) re-derived it for the layer above
+  and did not extend it: the forcing argument here is that locking copies the sidecar, and
+  nothing outside a bundle is ever copied by a lock.
 - **App resources are not project content.** The bundled Courier Prime font (ADR-0001) and
   spellcheck dictionaries ship with the application, not inside each project.

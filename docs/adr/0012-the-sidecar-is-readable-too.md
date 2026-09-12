@@ -23,6 +23,10 @@ wrong about it.
   as readable text, never escaped past recognition or encoded.
 - **"Data" is not permission to be opaque.** No binary formats (ADR-0009), no compression, no
   database files. Legible means a person can open it and see what it says.
+- **This reaches outside a bundle too.**
+  [ADR-0016](0016-the-layer-above-a-bundle-holds-no-work.md) re-derived it for the registry and
+  found it applies more strongly there: the writer never sees that file, so when the app is
+  wrong about it there is no in-app recourse and the file is the only place to look.
 - **Which file formats implement this is decided with the document model.** This ADR sets only
   the standard those formats must meet.
 
