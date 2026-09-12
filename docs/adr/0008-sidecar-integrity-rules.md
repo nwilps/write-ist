@@ -13,9 +13,14 @@ than debugged. Meanwhile the notes file, which anchors to nothing, survived inta
 ## The rules
 
 1. **An anchor exists on both sides, or is derivable from content.** An identifier held only
-   by the sidecar is not an anchor. The likely mechanism is ids written into the Fountain
-   itself — its `[[ ]]` note syntax is ignored by other Fountain tools and stripped on
-   export, so an id smuggled there travels *with* the text and survives re-parsing.
+   by the sidecar is not an anchor. The mechanism is ids written into the Fountain itself —
+   its `[[ ]]` note syntax is ignored by other Fountain tools and stripped on export, so an
+   id smuggled there travels *with* the text and survives re-parsing. **Confirmed rather
+   than assumed:** a prototype carried `.INT. KITCHEN - DAY [[wi-scene:a7f3c1]]` across all
+   181 scenes of the v1 manuscript, unique and stable across saves, with the round-trip
+   still byte-exact. Prose does the same job with ADR-0011's attribute syntax. One known
+   detail, not a blocker: copying a scene duplicates its id, so ids are regenerated on paste
+   when they collide with one already in the document.
 2. **Store the annotations, not the lines.** One record per line guarantees drift, because
    the line count changes on every edit and the record count does not.
 3. **A failed load never authorises a write.** The silent-destruction pattern is a failed

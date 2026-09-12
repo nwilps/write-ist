@@ -45,10 +45,13 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 2 — Evidence
 
-- [ ] **Review the prototypes together** (Plan, Log) — deliberately *after* Phase 1, so
+- [x] **Review the prototypes together** (Plan, Log) — deliberately *after* Phase 1, so
       they're read against a written standard instead of becoming a gravity well.
       Withheld on purpose so the plan wouldn't be reverse-justified from existing code;
       that risk drops once the decisions are written down and dated.
+      → `docs/reviews/2026-09-11-prototype-review.md`, against `nwilps/write-ist-ng@3812312`.
+      Two Phase 4 questions come back answered (in-band scene ids; buffer-first vs
+      model-first), and §5 of the review lists four holes it opened in the ADRs.
 
 ## Phase 3 — The blocker
 
@@ -57,15 +60,30 @@ producing workflow tuning, it has become the new v1.
       The agreed next step and the thing everything else waits on.
       Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
 
+      **Phase 4's map runs first.** Its whole destination is to set this up — the document
+      model has to know what it is modelling, and what a bundle holds on day one is decided
+      over there. The phase numbers are now out of order; the work order is 4 then 3.
+
 ## Phase 4 — Chart the rest
 
-- [ ] **`/wayfinder`** over the remaining open questions → decision tickets, resolved in order:
-    - [ ] Live pagination matching the PDF
-    - [ ] The sidecar anchoring scheme (ids in Fountain `[[ ]]` notes?)
-    - [ ] Whether log tasks/notes link to scenes — *current recommendation: don't*
-- [ ] **`/prototype` the buffer-first vs model-first spike.**
-      Not an argue-it-out question. Acceptance test is already written:
-      **lossless Fountain round-trip of the 170 KB manuscript.**
+- [x] **`/wayfinder`** over the remaining open questions — charted 2026-09-12 as
+      [**What v2 writes to disk on day one**](https://github.com/nwilps/write-ist/issues/1):
+      five decision tickets with their blocking edges, destination *"Phase 3 can start without
+      stopping to decide something."*
+
+      **The map is the only home for open questions.** This list does not restate them —
+      that is how `PLANNING.md` became a second store. Two of the originally listed items were
+      answered by the Phase 2 fold and are closed here; live pagination and three others are
+      recorded on the map as out of scope, each with its reason.
+    - [x] The sidecar anchoring scheme (ids in Fountain `[[ ]]` notes?) — **answered.**
+          ADR-0008 rule 1 now records the mechanism as confirmed rather than likely.
+    - [x] Whether log tasks/notes link to scenes — **answered: they don't,** and neither does
+          Plan. ADR-0013.
+- [x] **`/prototype` the buffer-first vs model-first spike.** Run, in `write-ist-ng`, against
+      the acceptance test this list named: **lossless Fountain round-trip of the 170 KB
+      manuscript.** A model-first prototype met it. Evidence in
+      `docs/research/editor-shape-spike.md`; the *decision* waits for Phase 3, which decides
+      with it in hand.
 
 ## Phase 5 — Build
 

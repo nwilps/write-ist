@@ -6,6 +6,11 @@ together, permanently. At the moment of locking the writer says whether what fol
 *revision* of the same draft (1 becomes 1.1) or a new *draft* (1.1 becomes 2). Locking is
 the only thing that mints a number, and numbers are never reused or rewritten.
 
+> **Narrowed by [ADR-0014](0014-anchoring-decides-what-freezes.md).** "Manuscript and sidecar
+> together" was too broad. What freezes is the manuscript plus the sidecar content *anchored
+> into it*; sidecar content that anchors to nothing — Plan, the Log, notes, project metadata —
+> is project-level and never freezes. Everything else in this ADR stands as written.
+
 A locked draft is **read, never restored**. Work always continues forward into a new draft;
 nothing ever overwrites live work with older content.
 

@@ -21,7 +21,7 @@ draft is locked. Work continues into a new draft rather than reopening a locked 
 draft is only ever read once it is locked — never restored over live work. A draft's name
 records its lineage: plain numbers run along the trunk (1, 2, 3) and a letter marks a
 departure from a locked draft, so 2a and 2b are two departures from draft 2.
-_Avoid_: snapshot, version, pass, copy
+_Avoid_: snapshot, version, pass, copy, Draft as the name of a workspace (that is the Editor)
 
 **Lock**:
 Declaring a draft finished. Locking is permanent and archival: the draft's manuscript and
@@ -66,10 +66,18 @@ survives the app disappearing. Plain text.
 _Avoid_: script, copy, body
 
 **Sidecar**:
-Everything known about a manuscript that is not the manuscript: notes, plan cards, log
-entries, project metadata. The writer's own words in it come back as readable documents if
-the app is gone; the app's bookkeeping around them is plain structured text.
+Everything in a bundle that is not a manuscript: comments, notes, plan cards, log entries,
+project metadata. The writer's own words in it come back as readable documents if the app is
+gone; the app's bookkeeping around them is plain structured text. Only the part of it that
+*anchors* into a manuscript freezes when a draft locks; the rest is project-level and there
+is one of it per project.
 _Avoid_: metadata, database, index
+
+**Comment**:
+Something the writer says about a place in the manuscript, anchored to the span it was left
+on and shown beside the text. A comment is sidecar, not manuscript, and it anchors — so it
+belongs to one draft and freezes with it.
+_Avoid_: note (that anchors to nothing), annotation, highlight
 
 **Bundle**:
 The on-disk form of a project — a folder holding the manuscript and its sidecar, rather
@@ -106,7 +114,7 @@ range of elements, not a single element — so anchoring to one means anchoring 
 A continuous dramatic beat that crosses locations is several scenes, because each new
 location needs its own heading. Prose has no scenes: a novel's structure is parts and
 chapters.
-_Avoid_: slug, slugline (those name the heading, not the range), beat
+_Avoid_: slug, slugline (those name the heading, not the range), beat unqualified
 
 **Chapter**:
 Prose-surface vocabulary: the range from one chapter heading to the next. Chapters, grouped
@@ -143,6 +151,11 @@ are candidates rather than a fixed set: the set is open, and new workspaces are 
 they prove useful. Each declares itself to the shell through a manifest.
 _Avoid_: panel, pane, tab, tool, sidebar, view
 
+**Editor**:
+The workspace the in-progress draft is written in, running the project's surface. A
+workspace like any other, not a frame around the others.
+_Avoid_: Draft, draft view, writing mode
+
 **Workspace bar**:
 The floating bar at the top of the screen listing the workspaces a project shows, in order.
 A format sets the default selection; the writer can add or remove any workspace the app
@@ -150,6 +163,39 @@ offers. It is persistent: workspaces stay in it as standing options rather than 
 like tabs. The writer reaches a workspace from the bar, by its keybinding, or by stepping
 left and right through the bar's order.
 _Avoid_: tab bar, toolbar, dock, menu
+
+### The planning workspaces
+
+**Plan card**:
+Something the writer intends to happen, placed on the Plan grid at a target and given a
+target length. A card exists only in Plan: it names no part of the manuscript, and nothing
+in the manuscript creates one.
+_Avoid_: scene card, beat card, index card, tile
+
+**Lane**:
+One of the rows a plan card sits in. Lanes keep cards from overlapping; which lane a card
+is in carries no meaning.
+_Avoid_: row, track, swimlane
+
+**Structure sheet**:
+A named set of structure beats — Save the Cat, the Hero's Journey — held as fractions of the
+whole, so a sheet keeps its shape at any length.
+_Avoid_: template, framework, paradigm
+
+**Structure beat**:
+One position on a structure sheet: a moment at a single fraction, or a span between two.
+Always said in full; a bare "beat" names nothing here.
+_Avoid_: beat unqualified, plot point
+
+**Band**:
+A group of structure beats belonging to one frame of thinking. Sheets stack band by band,
+so one sheet's beats are never fragmented by another's.
+_Avoid_: row, group, layer
+
+**Push**:
+A named stretch of days in the Log that tasks are worked against, reporting the pace needed
+to clear them. A deadline is a push with nothing in it yet.
+_Avoid_: sprint, milestone, goal, deadline (that is a push, not a second thing)
 
 ### Integrity
 

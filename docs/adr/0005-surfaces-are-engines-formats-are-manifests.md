@@ -21,6 +21,12 @@ cheap enough to be generous with.
   first appears: the set of workspaces is deliberately open, and new ones will keep being
   invented after v2 ships. Get this right and a new workspace is a manifest; get it wrong
   and every workspace is surgery in the shell.
+- **The testable form of that rule: the shell source must not contain the string
+  `"screenplay"` anywhere.** A declared seam is not a seam. v1's own architecture document
+  already said modes must never be hard-coded into the shell, and v1 still produced a
+  3,535-line `Draft.tsx`. Stating the rule is what failed last time, so the rule needs a
+  form a test can fail on. Once the shell knows one surface's name it knows all of them, and
+  the registry becomes decoration.
 - **Changing format within a surface is free** (short story to novel: a label and config
   swap). **Changing surface after creation is refused** — prose to screenplay is a real
   document conversion, and refusing it outright is a legitimate answer.
