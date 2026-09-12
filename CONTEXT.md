@@ -67,7 +67,8 @@ _Avoid_: script, copy, body
 
 **Sidecar**:
 Everything known about a manuscript that is not the manuscript: notes, plan cards, log
-entries, project metadata.
+entries, project metadata. The writer's own words in it come back as readable documents if
+the app is gone; the app's bookkeeping around them is plain structured text.
 _Avoid_: metadata, database, index
 
 **Bundle**:
