@@ -24,5 +24,7 @@ being stranded.
 - **The parser cannot gate elements by format**, because Fountain does not. See ADR-0006.
 - **Write a format version into the bundle from day one.** It costs one field now and is
   unrecoverable later — there is no way to migrate files that never said what they were.
+  [ADR-0015](0015-a-project-carries-an-id.md) puts the **project id** in the same file, and
+  records why the id is *not* the same shape as this instruction.
 - Everything the sidecar says about the manuscript must be anchored to it, which is the
   entire subject of ADR-0008.

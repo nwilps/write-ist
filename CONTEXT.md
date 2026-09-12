@@ -85,6 +85,13 @@ than a single file. Everything in a bundle is text; it never holds images or oth
 files.
 _Avoid_: package, archive, container
 
+**Project id**:
+The identifier a bundle carries for itself, minted when the project is created and never
+changed. It says *which* project a bundle is; it never says where the bundle lives, and a
+bundle never records its own location. Duplicating a project in the app mints a fresh one, so
+the copy is a new project from that moment.
+_Avoid_: project identity, uuid, key, path
+
 ### The editing model
 
 **Surface**:
