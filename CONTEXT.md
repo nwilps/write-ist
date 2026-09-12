@@ -21,7 +21,7 @@ draft is locked. Work continues into a new draft rather than reopening a locked 
 draft is only ever read once it is locked — never restored over live work. A draft's name
 records its lineage: plain numbers run along the trunk (1, 2, 3) and a letter marks a
 departure from a locked draft, so 2a and 2b are two departures from draft 2.
-_Avoid_: snapshot, version, pass, copy
+_Avoid_: snapshot, version, pass, copy, Draft as the name of a workspace (that is the Editor)
 
 **Lock**:
 Declaring a draft finished. Locking is permanent and archival: the draft's manuscript and
@@ -106,7 +106,7 @@ range of elements, not a single element — so anchoring to one means anchoring 
 A continuous dramatic beat that crosses locations is several scenes, because each new
 location needs its own heading. Prose has no scenes: a novel's structure is parts and
 chapters.
-_Avoid_: slug, slugline (those name the heading, not the range), beat
+_Avoid_: slug, slugline (those name the heading, not the range), beat unqualified
 
 **Chapter**:
 Prose-surface vocabulary: the range from one chapter heading to the next. Chapters, grouped
@@ -143,6 +143,11 @@ are candidates rather than a fixed set: the set is open, and new workspaces are 
 they prove useful. Each declares itself to the shell through a manifest.
 _Avoid_: panel, pane, tab, tool, sidebar, view
 
+**Editor**:
+The workspace the in-progress draft is written in, running the project's surface. A
+workspace like any other, not a frame around the others.
+_Avoid_: Draft, draft view, writing mode
+
 **Workspace bar**:
 The floating bar at the top of the screen listing the workspaces a project shows, in order.
 A format sets the default selection; the writer can add or remove any workspace the app
@@ -150,6 +155,18 @@ offers. It is persistent: workspaces stay in it as standing options rather than 
 like tabs. The writer reaches a workspace from the bar, by its keybinding, or by stepping
 left and right through the bar's order.
 _Avoid_: tab bar, toolbar, dock, menu
+
+### The planning workspaces
+
+**Structure sheet**:
+A named set of structure beats — Save the Cat, the Hero's Journey — held as fractions of the
+whole, so a sheet keeps its shape at any length.
+_Avoid_: template, framework, paradigm
+
+**Structure beat**:
+One position on a structure sheet: a moment at a single fraction, or a span between two.
+Always said in full; a bare "beat" names nothing here.
+_Avoid_: beat unqualified, plot point
 
 ### Integrity
 
