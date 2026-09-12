@@ -62,13 +62,19 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 4 — Chart the rest
 
-- [ ] **`/wayfinder`** over the remaining open questions → decision tickets, resolved in order:
-    - [ ] Live pagination matching the PDF
-    - [ ] The sidecar anchoring scheme (ids in Fountain `[[ ]]` notes?)
-    - [ ] Whether log tasks/notes link to scenes — *current recommendation: don't*
-- [ ] **`/prototype` the buffer-first vs model-first spike.**
-      Not an argue-it-out question. Acceptance test is already written:
-      **lossless Fountain round-trip of the 170 KB manuscript.**
+- [ ] **`/wayfinder`** over the remaining open questions → decision tickets, resolved in order.
+      Nine came out of the Phase 2 review; three of the originally listed items are already
+      answered:
+    - [ ] Live pagination matching the PDF — *still open*
+    - [x] The sidecar anchoring scheme (ids in Fountain `[[ ]]` notes?) — **answered.**
+          ADR-0008 rule 1 now records the mechanism as confirmed rather than likely.
+    - [x] Whether log tasks/notes link to scenes — **answered: they don't,** and neither does
+          Plan. ADR-0013.
+- [x] **`/prototype` the buffer-first vs model-first spike.** Run, in `write-ist-ng`, against
+      the acceptance test this list named: **lossless Fountain round-trip of the 170 KB
+      manuscript.** A model-first prototype met it. Evidence in
+      `docs/research/editor-shape-spike.md`; the *decision* waits for Phase 3, which decides
+      with it in hand.
 
 ## Phase 5 — Build
 
