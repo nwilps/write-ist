@@ -54,11 +54,15 @@ byte-identical. That is invisible to the writer and is not a product constraint.
 
 ## Consequences
 
-- **The editor must be model-first, and this closes that question.** Only an editor holding a
-  comment as a mark on the model can render it as a margin card instead of as text. A
-  buffer-first editor showing raw syntax is exactly the version that cannot do this. ADR-0011
-  already flagged raw-syntax visibility as an input to the buffer-first versus model-first
-  decision, and the spike already returned a GO verdict on a model-first editor at 3,457 blocks.
+- **This is a strong input to buffer-first versus model-first, and does not settle it.** Never
+  showing syntax rules out the naive buffer-first editor — the one that puts raw text in front
+  of the writer — but not buffer-first as such: a buffer-first editor can hide syntax behind
+  decorations and widgets. What it does is raise the cost of that path, since every comment
+  delimiter must be suppressed and every margin card positioned from a buffer offset rather
+  than read off the model. ADR-0011 already named raw-syntax visibility as an input to this
+  decision and ADR-0001 named the reflow trap; the spike returned a GO verdict on a model-first
+  editor at 3,457 blocks. `SETUP-CHECKLIST.md` keeps the decision in Phase 3, which now has
+  three inputs rather than two.
 - **Comment data is in the manuscript; comments are not in the rendered manuscript.** They are
   stripped before pagination (ADR-0001 — anything occupying space moves a page break, and a
   page break that moves is a correctness bug), before word and page counts (ADR-0017 — counts
