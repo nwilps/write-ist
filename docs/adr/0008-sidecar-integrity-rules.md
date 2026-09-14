@@ -41,3 +41,7 @@ There is a cheaper move than solving anchoring, and it should be preferred where
 v1's highlights were used as *work tracking* — "this scene needs work" — not as formatting.
 Work markers living inline in the manuscript as Fountain notes make the anchoring problem
 **stop existing** rather than being solved.
+
+> **Satisfied by [ADR-0018](0018-comments-are-the-text.md).** Comments are themselves inline
+> notes rendered as margin cards, so a work marker is a comment whose text says the scene needs
+> work. There is no separate work-marker affordance, and the term is retired.

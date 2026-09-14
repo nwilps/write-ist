@@ -66,8 +66,9 @@ survives the app disappearing. Plain text.
 _Avoid_: script, copy, body
 
 **Sidecar**:
-Everything in a bundle that is not a manuscript: comments, notes, plan cards, log entries,
-project metadata. The writer's own words in it come back as readable documents if the app is
+Everything in a bundle that is not the work itself: comments, notes, plan cards, log entries,
+project metadata. Most of it sits in its own files; a comment is the exception, stored inline
+in the manuscript file so that it cannot come adrift from the text it is about. The writer's own words in it come back as readable documents if the app is
 gone; the app's bookkeeping around them is plain structured text. Only the part of it that
 *anchors* into a manuscript freezes when a draft locks; the rest is project-level and there
 is one of it per project.
@@ -75,9 +76,11 @@ _Avoid_: metadata, database, index
 
 **Comment**:
 Something the writer says about a place in the manuscript, anchored to the span it was left
-on and shown beside the text. A comment is sidecar, not manuscript, and it anchors — so it
-belongs to one draft and freezes with it.
-_Avoid_: note (that anchors to nothing), annotation, highlight
+on and shown beside the text as a floating card. Its text is stored inline in the manuscript
+file, delimited in band and matched by id — but it is not part of the work: it is stripped
+before pagination, before word and page counts, and before export, and the writer never sees
+its syntax. A comment anchors, so it belongs to one draft and freezes with it.
+_Avoid_: note (that anchors to nothing), annotation, highlight, work marker
 
 **Bundle**:
 The on-disk form of a project — a folder holding the manuscript and its sidecar, rather

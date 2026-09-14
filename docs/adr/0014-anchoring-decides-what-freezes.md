@@ -71,4 +71,5 @@ The split as it stands:
   app.** Margin comments tied to a place in the text are the same feature class as v1's
   highlights: 5,784 records against 5,788 lines, 532 KB describing nothing, abandoned rather
   than debugged. They must be designed against ADR-0008 rule 1 from the first line. How they
-  are stored, and what a lock does to the live ones, is not decided here.
+  are stored, and what a lock does to the live ones, is decided in
+  [ADR-0018](0018-comments-are-the-text.md).
