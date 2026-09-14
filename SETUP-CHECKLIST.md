@@ -60,16 +60,28 @@ producing workflow tuning, it has become the new v1.
       The agreed next step and the thing everything else waits on.
       Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
 
-      **Phase 4's map runs first.** Its whole destination is to set this up — the document
-      model has to know what it is modelling, and what a bundle holds on day one is decided
-      over there. The phase numbers are now out of order; the work order is 4 then 3.
+      **Phase 4's map ran first and is complete.** Its whole destination was to set this up —
+      the document model has to know what it is modelling, and what a bundle holds on day one
+      was decided over there. The phase numbers went out of order; the work order was 4 then 3.
+
+      **Unblocked as of 2026-09-14.** All seven tickets closed, landing ADR-0014 through
+      ADR-0018. Phase 3 starts with these already settled: what a bundle carries (ADR-0015),
+      what lives outside every bundle (ADR-0016, ADR-0017), how comments are stored
+      (ADR-0018), and what freezes at a lock (ADR-0014). Three inputs now feed the
+      buffer-first vs model-first call rather than two — the spike's GO verdict, ADR-0001's
+      reflow trap, and ADR-0018's never-show-syntax requirement.
 
 ## Phase 4 — Chart the rest
 
 - [x] **`/wayfinder`** over the remaining open questions — charted 2026-09-12 as
-      [**What v2 writes to disk on day one**](https://github.com/nwilps/write-ist/issues/1):
-      five decision tickets with their blocking edges, destination *"Phase 3 can start without
-      stopping to decide something."*
+      [**What v2 writes to disk on day one**](https://github.com/nwilps/write-ist/issues/1),
+      destination *"Phase 3 can start without stopping to decide something."*
+      **Closed 2026-09-14**, seven tickets for seven decisions: what freezes at a lock
+      (ADR-0014), project identity (ADR-0015), the layer above a bundle (ADR-0016), the ledger
+      (ADR-0017), comments (ADR-0018), the default bundle location, and the research that
+      unblocked two of them. `CONTEXT.md` gained **Comment**, **Project id**, **Registry** and
+      **Ledger**. What is left on the map is fog that Phase 3 *produces* rather than needs:
+      the sidecar's file formats, and retention for locked drafts.
 
       **The map is the only home for open questions.** This list does not restate them —
       that is how `PLANNING.md` became a second store. Two of the originally listed items were
