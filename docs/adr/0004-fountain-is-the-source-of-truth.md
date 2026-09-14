@@ -64,6 +64,13 @@ in hand:
   right property, since a file carrying ids is a different file from the source. But the
   corpus as ADR-0008 rule 1 requires it to be written has never been pinned to a number.
 
+> **Answered by [ADR-0020](0020-what-write-ist-may-change-in-a-writers-file.md).** The gate
+> moves into this repo and writes a real file, so it compares bytes rather than in-memory
+> characters. It asserts *fidelity* on first import — source in, an enumerated list of
+> normalizations applied, bytes compared — and *idempotence* thereafter on a file the
+> application itself wrote. The Unicode question raised immediately below is decided there:
+> **NFC, never NFKC, applied at import and at input.**
+
 **An input to the document model, not decided here:** Unicode normalization form. A round-trip
 that preserves characters while silently renormalizing `é` between NFC and NFD would change
 the bytes on disk without failing a character comparison. That is the same family of silent

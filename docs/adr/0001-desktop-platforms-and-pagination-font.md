@@ -42,3 +42,11 @@ system; a fraction-of-a-point difference in advance width moves a page break.
 - This constrains the still-open **buffer-first vs model-first** question: a buffer-first
   editor that leans on native `contenteditable` reflow is the version of this that goes
   wrong.
+
+> **Narrowed by [ADR-0024](0024-the-engine-owns-the-count-the-webview-draws.md).** The
+> requirement above — one engine owning the count, shared by screen and export — stands
+> unchanged and is met in full. What is narrower than it reads here is the mechanism: the
+> danger is *asking* the webview where text wraps and treating the answer as the count, not
+> letting the webview draw. ADR-0024 lets CSS lay out text while the engine holds the number,
+> and records the measurement on the acceptance corpus that decided it. ADR-0019 settles the
+> buffer-first vs model-first question as model-first.

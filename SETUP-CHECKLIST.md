@@ -55,8 +55,13 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 3 — The blocker
 
-- [ ] **`/grill-with-docs` on the document model** — typed elements over Fountain and
-      Pandoc Markdown.
+- [x] **`/grill-with-docs` on the document model** — typed elements over Fountain and
+      Pandoc Markdown. **Done 2026-09-14**, landing ADR-0019 through ADR-0025 and amending
+      ADR-0001, ADR-0004, ADR-0008. The buffer-first vs model-first question is closed
+      (model-first, ADR-0019). `CONTEXT.md` gained **Mark**, **Synopsis**, **Tag**,
+      **Boneyard**, **Passthrough** and **Element identity**, and sharpened **Round-trip**,
+      **Anchor**, **Element** and **Page**. Issue #9 closed as no longer applicable: v2
+      writes no scene ids, so there is no ids-present corpus to pin.
       The agreed next step and the thing everything else waits on.
       Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
 

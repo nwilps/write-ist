@@ -1,0 +1,81 @@
+# The prose surface's vocabulary, and what it writes into the file
+
+The prose surface's element vocabulary is the list ADR-0011 derived from the publishing
+research, made explicit: **paragraph**, part and chapter **headings**, **scene break**,
+**epigraph**, **block quote**, **verse**, **small caps**, **front and back matter**, and the
+inline marks italic, bold and underline. Plus ADR-0020's **passthrough**, for Pandoc Markdown
+outside the subset Write-ist specifies.
+
+Two things it writes into the file, which ADR-0018 and ADR-0011 named as inputs to the
+document model rather than deciding:
+
+- **Non-printing content — comments, and prose's counterpart to the boneyard — is carried in
+  HTML comments**, `<!-- … -->`.
+- **Paragraph indentation is a rendered style, never characters in the file.**
+
+## HTML comments as the non-printing vehicle
+
+Fountain hands the screenplay surface two ready-made constructs for content that is in the file
+and absent from the output: `[[ ]]` notes and `/* */`. **Pandoc Markdown has neither.** ADR-0018
+flagged this explicitly, guessed at HTML comments, and left it here.
+
+HTML comments are the one construct in the Markdown world universally understood to mean
+present-in-the-file, absent-from-the-output — which is exactly the contract. The alternatives
+both cost something real:
+
+- **A Pandoc fenced div** (`::: comment … :::`) is native and *renders as visible text in a
+  plain CommonMark viewer*, which breaks ADR-0003's promise in the small — a stranger opening
+  the file sees the writer's private remarks inline in the prose.
+- **Our own delimiter** forfeits the one thing borrowing Pandoc's syntax was supposed to buy.
+
+ADR-0011 already establishes that Write-ist specifies its own subset and writes its own parser,
+so it can simply say that an HTML comment carrying our id prefix is a Write-ist comment and
+everything else is a passthrough.
+
+## Indentation means two different things
+
+A **typed indent** is tab or space characters the writer put in the file. A **rendered
+first-line indent** is a typographic style applied to every paragraph, with no character
+existing in the text. Standard manuscript format uses the second: every paragraph indents on
+screen and in the exported `.docx`, and the file has no leading whitespace at all.
+
+Conflating them is dangerous in Markdown specifically, because **leading whitespace is syntax
+there** — four spaces at the start of a line is a code block in Pandoc. "Preserve leading
+whitespace" and "paragraphs are indented" are different instructions, and treating them as one
+produces a file where the writer's prose parses as code.
+
+So: **paragraphs get a rendered indent and carry no whitespace in the file. Literal leading
+whitespace is preserved only inside verse**, where it is authored and meaningful — which is
+the mechanism ADR-0005 says poetry runs on, making it load-bearing rather than decorative.
+
+## Footnotes: the syntax, not the feature
+
+ADR-0011's comparison table names footnotes as something Pandoc has and Fountain lacks, which
+reads as an intention to support them. The catalog triages *"Footnotes and endnotes"* as
+`someday`, with the note: *"Notes anchored in text that also paginate. Same anchoring question
+as comments."*
+
+The catalog is right, and the two halves separate cleanly:
+
+- **The syntax is in the subset**, so a file containing footnotes parses, round-trips and is
+  never destroyed. This is required by ADR-0020 regardless of whether the feature exists.
+- **The authoring feature stays `someday`.** A footnote is not a parsing problem; it is a
+  pagination problem, because the note must land on the same page as its marker. That is real
+  work for a `someday` item.
+
+## Consequences
+
+- **Prose has no scenes, and this vocabulary says so.** A scene break is an element of the text
+  and a boundary of nothing, exactly as ADR-0010 requires. The catalog's own note is the reason
+  it is an element rather than blank lines: *"a blank-line break is lost at the top of a printed
+  page."*
+- **The prose surface has no corpus, no fixture and no round-trip gate.** ADR-0004's acceptance
+  test is named for Fountain and the 170 KB screenplay; everything here is specified against
+  evidence about *publishing requirements* and nothing against a real prose manuscript. ADR-0011
+  states outright that Write-ist writes its own lossless parser because *"no Markdown tool
+  round-trips byte for byte."* This is the largest untested claim in the design and it is
+  tracked as its own open question.
+- **Markdown export is nearly free** and `.docx` export goes through the route ADR-0011
+  researched. Neither is affected by anything decided here.
+- **The sidecar files use this same subset and this same parser** (ADR-0025), so there is one
+  prose parser in the application rather than two.
