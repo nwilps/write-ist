@@ -12,8 +12,10 @@ Read these before proposing anything, in this order:
 
 1. **`CONTEXT.md`** — the glossary. Use its terms; don't drift to synonyms it tells you to avoid.
 2. **`docs/adr/`** — the decisions, each with its forcing reason. The spine runs
-   0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose), with 0008 (sidecar
-   integrity) explaining why v2 is a rewrite.
+   0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose) → 0019 and 0020 (the
+   document model, and what the app may change in a writer's file), with 0008 (sidecar
+   integrity) explaining why v2 is a rewrite. 0019–0025 are the newest and the most
+   load-bearing for implementation.
 3. **`docs/STANDARDS.md`** — the rules, which are not decisions. Each one names the bug that
    produced it. Short; read it whole.
 4. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is

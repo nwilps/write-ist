@@ -41,17 +41,18 @@ Writing the in-progress draft to disk without the writer asking. Autosave preser
 present; it never creates a draft and never appears in history.
 _Avoid_: save, checkpoint, snapshot, backup
 
-**Line**:
-The chain of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
+**Chain**:
+The sequence of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
 2a is being written, leaving 3 and 4 set aside. Membership is computed from where work is
 happening now, never stored on a draft, so resuming from a different locked draft redraws
-the line without renaming or rewriting anything.
-_Avoid_: branch, trunk, mainline, path, history
+the chain without renaming or rewriting anything.
+_Avoid_: line (that is a line of text, and pagination needs the word), branch, trunk,
+mainline, path, history
 
 **Set aside**:
-A locked draft that is not on the current line. Being set aside is a relationship to present
+A locked draft that is not on the current chain. Being set aside is a relationship to present
 work, not a verdict on the draft and not a permanent state — resuming from a set-aside draft
-makes it current and sets aside whatever line was running before.
+makes it current and sets aside whatever chain was running before.
 _Avoid_: superseded, abandoned, deprecated, obsolete, dead
 
 **Revision**:
@@ -131,8 +132,41 @@ _Avoid_: config, schema, descriptor, definition
 
 **Element**:
 A unit of the manuscript that a surface recognises — scene heading, action, character,
-dialogue. The element vocabulary belongs to the surface, never to the format.
+dialogue. The element vocabulary belongs to the surface, never to the format. Elements form
+a flat sequence and never contain one another; everything that looks like nesting — a scene,
+a chapter, a part — is a *range* computed from the sequence.
 _Avoid_: node, block, token, line
+
+**Mark**:
+Inline formatting carried on a span of text — italic, bold, underline, small caps. Marks are
+a *set*, not a tree: two marks over the same characters have no order, so the order they are
+written in is chosen by the serialiser rather than remembered from the file. Anything
+carrying an id is exempt, which is why a comment may nest and cross and bold may not.
+_Avoid_: style, formatting, span, decoration
+
+**Synopsis**:
+A line the writer authors summarising the scene that follows, stored in the manuscript on
+Fountain's standard `=`. Authored, unlike everything else the scene list shows, which is
+derived from the text.
+_Avoid_: summary, logline, description, note
+
+**Tag**:
+One open `name: value` line the writer may put on a scene, carrying whatever single axis
+that writer has adopted — storyline, POV, status. Deliberately not a schema: writers adopt
+one axis wholesale, and different writers adopt different ones.
+_Avoid_: field, property, attribute, label, category
+
+**Boneyard**:
+Text the writer has taken out of the screenplay without deleting it, wrapped in Fountain's
+`/* */`. It is in the file and absent from everything computed off the manuscript — the page
+count, the word count, the export. Shown collapsed, expandable in place.
+_Avoid_: comment (that is a remark *about* text), cut, omitted, deleted
+
+**Passthrough**:
+A block of Pandoc Markdown outside the subset Write-ist specifies, kept as an exact copy of
+its own text and written back unchanged. It exists on the prose surface only: Fountain has
+no unrecognisable text, because anything matching nothing else is action.
+_Avoid_: unknown, raw, unparsed, fallback
 
 **Scene**:
 Screenplay-surface vocabulary: the range from one scene heading to the next. A scene is a
@@ -154,9 +188,10 @@ anything: prose has no scenes.
 _Avoid_: scene divider, section break
 
 **Page**:
-A unit of paginated output, computed from the manuscript by our own pagination engine.
-Always a fact, never authored. For screenplay it is semantic — roughly one minute of screen
-time — so a page count is a claim about the work, not a display detail.
+A unit of paginated output, computed from the manuscript by our own pagination engine, for
+the screen and the export alike. Always a fact, never authored, and never read back off what
+the screen happens to have drawn. For screenplay it is semantic — roughly one minute of
+screen time — so a page count is a claim about the work, not a display detail.
 _Avoid_: sheet, leaf, screen
 
 **Target**:
@@ -229,10 +264,21 @@ _Avoid_: sprint, milestone, goal, deadline (that is a push, not a second thing)
 A reference from sidecar data to a place in the manuscript. An anchor must exist on both
 sides, or be derivable from the manuscript's content — an identifier held only by the
 sidecar is not an anchor. Anchors are scoped to a draft: the same anchor in two drafts
-refers to two different places.
+refers to two different places. In v2 exactly one thing anchors: a comment. Everything else
+is either derived from the manuscript or stored inside it.
 _Avoid_: link, reference, pointer, id
+
+**Element identity**:
+The handle the editor holds on an element while the project is open, so that it can redraw
+incrementally and hold a comment card still while text above it changes. It is created on
+parse, it dies when the project closes, and it is never written to a file. It is not an
+*anchor* and the two must not be confused.
+_Avoid_: id, element id, node id, key
 
 **Round-trip**:
 Parsing a manuscript into elements and serialising it back, with the result identical to
-what was read. The acceptance test for any document model.
+what was read — compared as *bytes on disk*, not as characters in memory. The acceptance test
+for any document model. It holds in two strengths: on a file Write-ist has never seen, the
+result equals the source after an enumerated list of normalisations and nothing else; on a
+file Write-ist itself wrote, the result is identical, always.
 _Avoid_: parse cycle, reparse, import/export

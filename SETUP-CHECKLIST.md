@@ -55,21 +55,29 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 3 — The blocker
 
-- [ ] **`/grill-with-docs` on the document model** — typed elements over Fountain and
-      Pandoc Markdown.
-      The agreed next step and the thing everything else waits on.
-      Updates `CONTEXT.md` and ADRs as it goes, so output lands somewhere durable.
+- [x] **`/grill-with-docs` on the document model** — typed elements over Fountain and
+      Pandoc Markdown. **Done 2026-09-14.**
 
-      **Phase 4's map ran first and is complete.** Its whole destination was to set this up —
-      the document model has to know what it is modelling, and what a bundle holds on day one
-      was decided over there. The phase numbers went out of order; the work order was 4 then 3.
+      **Landed:** ADR-0019 (model-first, flat typed elements, marks as a set) · ADR-0020
+      (what Write-ist may change in a writer's file — the round-trip contract) · ADR-0021
+      (the screenplay surface implements all of Fountain) · ADR-0022 (scene metadata is
+      derived or inline; v2 writes no scene ids) · ADR-0023 (the prose surface's vocabulary
+      and syntax) · ADR-0024 (the engine owns the count; the webview draws) · ADR-0025 (what
+      a bundle holds on disk). Amended in place: ADR-0001, ADR-0004, ADR-0008. Evidence in
+      `docs/research/scene-metadata-in-other-tools.md` and `docs/research/wrap-divergence.md`.
 
-      **Unblocked as of 2026-09-14.** All seven tickets closed, landing ADR-0014 through
-      ADR-0018. Phase 3 starts with these already settled: what a bundle carries (ADR-0015),
-      what lives outside every bundle (ADR-0016, ADR-0017), how comments are stored
-      (ADR-0018), and what freezes at a lock (ADR-0014). Three inputs now feed the
-      buffer-first vs model-first call rather than two — the spike's GO verdict, ADR-0001's
-      reflow trap, and ADR-0018's never-show-syntax requirement.
+      **The buffer-first vs model-first question is closed** — model-first, ADR-0019, decided
+      with the spike's GO verdict, ADR-0001's reflow trap and ADR-0018's never-show-syntax
+      requirement all in hand, as this list intended.
+
+      `CONTEXT.md` gained **Mark**, **Synopsis**, **Tag**, **Boneyard**, **Passthrough** and
+      **Element identity**, sharpened **Round-trip**, **Anchor**, **Element** and **Page**,
+      and **renamed the draft `Line` to `Chain`** — pagination needs the word "line" for a
+      line of text, and one word could not carry both.
+
+      Issue #9 closed as no longer applicable (no scene ids means no ids-present corpus to
+      pin). Issue #10 opened: the prose surface has no corpus, no fixture and no round-trip
+      gate — the largest untested claim in the design.
 
 ## Phase 4 — Chart the rest
 

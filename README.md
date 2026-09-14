@@ -19,9 +19,10 @@ single-line edits and selections, and has no undo/redo, spellcheck, or rich text
 ## Decisions
 
 Every decision, with its forcing reason, is in [`docs/adr/`](docs/adr/). The spine runs 0003
-(local-first) → 0004 (Fountain) → 0010 and 0011 (prose), with 0008 (sidecar integrity)
-explaining why v2 is a rewrite rather than a refactor. Start there; nothing is summarised
-here, because a summary is a copy and a copy drifts.
+(local-first) → 0004 (Fountain) → 0010 and 0011 (prose) → 0019 and 0020 (the document model,
+and what the app may change in a writer's file), with 0008 (sidecar integrity) explaining why
+v2 is a rewrite rather than a refactor. Start there; nothing is summarised here, because a
+summary is a copy and a copy drifts.
 
 The rules that are not decisions are in [`docs/STANDARDS.md`](docs/STANDARDS.md), the v1
 post-mortem in [`docs/PLANNING.md`](docs/PLANNING.md), and the open questions in this repo's

@@ -21,6 +21,13 @@ than debugged. Meanwhile the notes file, which anchors to nothing, survived inta
    still byte-exact. Prose does the same job with ADR-0011's attribute syntax. One known
    detail, not a blocker: copying a scene duplicates its id, so ids are regenerated on paste
    when they collide with one already in the document.
+   > **Scope narrowed by [ADR-0022](0022-scene-metadata-is-derived-or-inline.md).** The rule is
+   > unchanged and still governs every anchor v2 writes. What changed is how many there are:
+   > **comments, and nothing else.** Scene metadata is derived from the manuscript or stored
+   > inline in it, so v2 writes no `[[wi-scene:…]]` ids and no chapter ids. The mechanism above
+   > stays documented as confirmed, for the first feature that genuinely needs to name a place
+   > in the text from outside it.
+
 2. **Store the annotations, not the lines.** One record per line guarantees drift, because
    the line count changes on every edit and the record count does not.
 3. **A failed load never authorises a write.** The silent-destruction pattern is a failed
