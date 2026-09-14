@@ -83,7 +83,7 @@ a rule with no failing test is a preference.
   is invisible. Guessing is permitted; mutating is not.
 - **A passthrough element exists on the prose surface and not on the screenplay surface.**
   ADR-0011 has Write-ist specifying its own *subset* of Pandoc Markdown, so Markdown outside
-  that subset genuinely exists — tables, definition lists, raw HTML. Such a block is kept as an
+  that subset genuinely exists — tables, definition lists, raw HTML. Such a construct is kept as an
   exact, untouched copy of its own text and written back byte-for-byte. ADR-0008 rule 4 is the
   governing precedent: report and keep, never discard silently. Fountain needs no such
   mechanism, and giving it one would be a second path for a case that cannot occur.

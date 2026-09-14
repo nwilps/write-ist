@@ -6,7 +6,7 @@ serialiser and consumed by a parser. The writer never edits text-with-syntax, on
 surface.
 
 The structure is **a flat sequence of elements with no container nodes**. Scenes and chapters
-are computed as ranges — this heading through the block before the next — exactly as
+are computed as ranges — this heading through the element before the next — exactly as
 `CONTEXT.md` already defines them. Nothing nests.
 
 Inline formatting is carried as a **set of marks** per span, not a tree. `_**x**_` and
@@ -75,5 +75,5 @@ rather than inferred, which is why comments may nest and cross while bold and it
   list, an Outline workspace and reordering are all range operations over the flat sequence.
   Derived data must be computed incrementally or on demand and never for the whole document on
   every keystroke — `docs/STANDARDS.md`'s *"Measure the measurer"* names the exact defect,
-  where a readout walked every block and ran a word count per keystroke while reporting itself
+  where a readout walked every element and ran a word count per keystroke while reporting itself
   as free.
