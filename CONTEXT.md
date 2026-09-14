@@ -41,17 +41,18 @@ Writing the in-progress draft to disk without the writer asking. Autosave preser
 present; it never creates a draft and never appears in history.
 _Avoid_: save, checkpoint, snapshot, backup
 
-**Line**:
-The chain of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
+**Chain**:
+The sequence of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
 2a is being written, leaving 3 and 4 set aside. Membership is computed from where work is
 happening now, never stored on a draft, so resuming from a different locked draft redraws
-the line without renaming or rewriting anything.
-_Avoid_: branch, trunk, mainline, path, history
+the chain without renaming or rewriting anything.
+_Avoid_: line (that is a line of text, and pagination needs the word), branch, trunk,
+mainline, path, history
 
 **Set aside**:
-A locked draft that is not on the current line. Being set aside is a relationship to present
+A locked draft that is not on the current chain. Being set aside is a relationship to present
 work, not a verdict on the draft and not a permanent state — resuming from a set-aside draft
-makes it current and sets aside whatever line was running before.
+makes it current and sets aside whatever chain was running before.
 _Avoid_: superseded, abandoned, deprecated, obsolete, dead
 
 **Revision**:

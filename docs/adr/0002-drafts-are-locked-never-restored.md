@@ -41,10 +41,10 @@ Constraints that keep this from becoming a tree to maintain:
   already exist locks as 2a, and a second departure from draft 2 locks as 2b. Drafts 3 and 4
   keep their names: a plain number means trunk, a letter means departure, so the asymmetry
   carries meaning rather than being an artifact of ordering. A draft tree shows where each
-  line sits, which is what keeps 2a from reading as older than 4.
-- **Nothing is renamed or restamped when the line moves.** Whether a draft is on the current
-  **line** or **set aside** is computed from where work is happening now, so resuming from a
-  set-aside draft simply redraws the line. Locked drafts are immutable on disk, which is what
+  chain sits, which is what keeps 2a from reading as older than 4.
+- **Nothing is renamed or restamped when the chain moves.** Whether a draft is on the current
+  **chain** or **set aside** is computed from where work is happening now, so resuming from a
+  set-aside draft simply redraws the chain. Locked drafts are immutable on disk, which is what
   makes locking trustworthy.
 
 ## Consequences

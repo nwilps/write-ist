@@ -83,8 +83,8 @@ usage argument rests on vendor documentation, third-party walkthroughs and file 
   ids present*, because "the corpus as the design requires it to be written has never been
   pinned to a number". The design no longer requires ids to be written, so the ids-present
   corpus is not a thing v2 produces. Its second observation — that the prose surface has no
-  corpus, no fixture and no gate of any kind — is real, survives this, and is re-raised
-  separately.
+  corpus, no fixture and no gate of any kind — is real, survives this, and is re-raised as
+  [issue #10](https://github.com/nwilps/write-ist/issues/10).
 - **Derivation must be incremental.** Cast and location for every scene, recomputed across the
   whole document on every keystroke, is precisely the defect `docs/STANDARDS.md` records under
   *"Measure the measurer"*. Derived data is computed on demand or incrementally, and any readout

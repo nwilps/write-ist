@@ -53,7 +53,7 @@ The split as it stands:
 - **A draft's own bookkeeping lives in a project-level index**, not beside the frozen draft —
   its number, its lock date, whether a revision or a new draft follows. It is presentation:
   it shapes how the draft tree is drawn and a stranger reading the screenplay needs none of
-  it. `CONTEXT.md`'s **Line** already required this, saying membership is "computed from where
+  it. `CONTEXT.md`'s **Chain** already required this, saying membership is "computed from where
   work is happening now, never stored on a draft".
   - **The guard that makes this safe:** a locked draft is stored under its own name, so its
     identity is self-evident and the index holds only presentation. Losing or corrupting the

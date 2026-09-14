@@ -73,8 +73,8 @@ The catalog is right, and the two halves separate cleanly:
   test is named for Fountain and the 170 KB screenplay; everything here is specified against
   evidence about *publishing requirements* and nothing against a real prose manuscript. ADR-0011
   states outright that Write-ist writes its own lossless parser because *"no Markdown tool
-  round-trips byte for byte."* This is the largest untested claim in the design and it is
-  tracked as its own open question.
+  round-trips byte for byte."* This is the largest untested claim in the design and is tracked
+  as [issue #10](https://github.com/nwilps/write-ist/issues/10).
 - **Markdown export is nearly free** and `.docx` export goes through the route ADR-0011
   researched. Neither is affected by anything decided here.
 - **The sidecar files use this same subset and this same parser** (ADR-0025), so there is one
