@@ -59,10 +59,12 @@ for fidelity is cheap and correct; building anything on top of it would formalis
 Collapsed-by-default with expansion on demand is the chosen middle: quieter than Slugline's
 always-visible blue, and never hiding content the writer cannot get back.
 
-## Two places where the surface goes past the spec
+## Two places where the spec's prose is narrower than the format
 
-Recorded because "implements all of Fountain" is the title of this ADR, and both of these are
-*more* than Fountain, not less. Each is a deliberate extension with a cost.
+Recorded because "implements all of Fountain" is the title of this ADR, and in both of these the
+written spec is narrower than what Fountain files actually contain — including the spec's own
+reference scripts. Neither is an invention of ours; both were found by parsing real screenplays
+and discovering the rule as written did not fit them.
 
 ### Every combined interior/exterior heading form
 
@@ -77,27 +79,60 @@ This is not really an extension so much as the spec read generously, and it cost
 
 ### Transitions that do not end in `TO:`
 
-Fountain requires a transition to be uppercase and **end in `TO:`**. That rule misses
-transitions writers actually write — `FADE OUT.`, `CUT TO BLACK.`, `DISSOLVE:` — and Fountain's
-own answer is that the writer should force them with `>`. **Write-ist recognises them without
-forcing**, from a closed vocabulary:
+Fountain's prose says a transition is uppercase, alone between blank lines, and **ends in
+`TO:`** — and *the format's own reference script breaks that rule on its last page.* `Big Fish`,
+written by one of Fountain's co-creators, ends:
 
-`FADE IN:` · `FADE OUT.` · `FADE TO BLACK.` · `CUT TO BLACK.` · `DISSOLVE:` · `IRIS IN:` ·
-`IRIS OUT.` · `WIPE:` · `SMASH CUT.` · `INTERCUT:`
+```
+The fish passes us with a SPLASH.
 
-**A closed vocabulary rather than a rule, and that is the whole decision.** The tempting rule —
-an uppercase line, alone between blanks, ending in a period — is unavailable, because it is
-also the shape of ordinary action. *Big Fish* contains `A RIVER.`, `THE BEAST.` and
-`ON WILL AND SANDRA`, all action, all matching it. So the surface may only recognise phrases it
-knows by name, and the list above is the decision surface: adding to it is a deliberate act,
-here, in this file.
+CUT TO BLACK.
 
-**The cost is rendering, not readability.** Another Fountain tool reads `CUT TO BLACK.` as
-action and sets it left rather than right. The text is identical either way, and ADR-0011
-already settled the principle for the prose surface: *"the text itself is always intact;
-ADR-0003 is about reading, not rendering."* We do **not** write a `>` into the file to make the
-classification portable — that would change a writer's file to serve another program, and
-ADR-0020's list exists to prevent exactly that.
+> _**THE END**_ <
+```
+
+Unforced — on the line immediately before a `>`-forced centered title, so the author plainly knew
+the forcing syntax and chose not to use it. A strictly spec-conformant parser renders the final
+transition of Big Fish as left-aligned action.
+
+**The tooling resolved this long ago, and Write-ist matches it rather than inventing.** Nima
+Yousefi's original parser hardcodes a three-phrase whitelist beside the generic rule, and the
+JavaScript lineage inherited it:
+
+| Tool | Recognises unforced | Phrases |
+|---|---|---|
+| Yousefi `Fountain` (the origin) | yes | `FADE OUT.` `CUT TO BLACK.` `FADE TO BLACK.` |
+| afterwriting (`aw-parser`) | yes | the same three |
+| `fountain-js` (npm) | yes | the same three |
+| Beat | partly | any `…IN:` suffix, no phrase list |
+| Jouvence, screenplain | no | strict spec |
+
+**So the vocabulary is exactly three phrases, with the trailing period required:**
+
+`FADE OUT.` · `FADE TO BLACK.` · `CUT TO BLACK.`
+
+**Not a phrase more.** `DISSOLVE:`, `IRIS OUT.` and `WIPE:` look like they belong and are
+recognised by **no** parser surveyed; adding them would produce a file that renders differently
+in Write-ist than anywhere else, which is the failure this decision exists to avoid. `DISSOLVE
+TO:` needs no special case — it ends in `TO:`.
+
+**We copy their vocabulary and not their bug.** afterwriting's generic branch, `.+ TO\:`, is not
+uppercase-gated, so a line of prose ending in the word "to" followed by a colon is typed as a
+transition. The spec requires uppercase and Write-ist keeps that gate.
+
+**A closed vocabulary rather than a rule, and that is the whole decision.** The rule that would
+cover these — an uppercase line, alone between blanks, ending in a period — is unavailable,
+because it is also the shape of ordinary action. *Big Fish* contains `A RIVER.`, `THE BEAST.`
+and `ON WILL AND SANDRA`, all action, all matching it. The surface may only recognise phrases it
+knows by name, and the three above are the decision surface: adding a fourth is a deliberate act,
+here, in this file, with evidence that some other tool already recognises it.
+
+**What is not portable, and why we do not fix it.** The Python lineage — Jouvence, screenplain —
+follows the spec strictly, so `CUT TO BLACK.` is action there. The only fully portable spelling
+is the forced `> CUT TO BLACK.`, and Write-ist does **not** write that `>` into a writer's file:
+changing someone's manuscript so a third-party tool agrees with us is exactly what ADR-0020's
+enumerated list exists to prevent. The text is identical either way, and ADR-0011 already settled
+the principle — *"the text itself is always intact; ADR-0003 is about reading, not rendering."*
 
 ## What the round-trip gate cannot see
 
