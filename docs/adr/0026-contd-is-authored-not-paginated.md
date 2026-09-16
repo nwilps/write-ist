@@ -55,6 +55,17 @@ That is the argument for adding missing ones rather than offering to. If John Au
 production draft misses a fifth of them, nobody is keeping this straight by hand, and a file
 without them is out of date rather than making a point.
 
+**And the acceptance corpus is worse, which settled the default.** Measured by the
+implementation, 2026-09-16: `script.fountain` authors **3** extensions and is missing **201**.
+Its writer used the convention on 1.5% of the cues that call for it. Asked about it, he said he
+had lost sight of it while writing and wanted them added — which is the case for this being a
+normalisation rather than an opt-in, made by the person whose file it is. Adding them grows the
+file from 170,642 to **172,451** bytes.
+
+This is also why the switch turns the behaviour *off* rather than on. An implementation briefly
+made it opt-in, on the reasoning that 201 was a lot of change to a writer's file; the number is
+the reason to do it, not the reason to hesitate.
+
 So the convention is written into the file by working screenwriters, and the pagination markers
 are not. A tool that renders `(CONT'D)` instead of writing it would export a `.fountain` that
 looks wrong to every reader and every other tool.

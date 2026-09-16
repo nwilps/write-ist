@@ -52,8 +52,34 @@ flagged that the spike reports `EXACT — 170,679 bytes identical` against a fix
   — **characters, not bytes** — and the single `é` makes those differ by one. The headline
   number is mislabelled, not wrong.
 
-Two further properties of the gate, which Phase 3 should know before it decides with the spike
-in hand:
+### Superseded by the real implementation, 2026-09-16
+
+The numbers above are the **prototype's**, and they are internally inconsistent in a way that
+only became visible once a real gate existed. The prototype declares trailing-whitespace
+trimming as part of its normalization, and its 170,680 does not account for it: the corpus has
+**38 lines carrying one trailing space each**, so a normalization that genuinely trimmed them
+could not have landed on 170,680. The declared list and the reported number disagreed, and
+nobody noticed because the gate never wrote a file.
+
+The gate now lives in this repo and writes real files. Measured against
+`test/fixtures/script.fountain`:
+
+| | Bytes | |
+|---|---|---|
+| On disk | **170,682** | 170,681 characters — the `é` |
+| After the four *text* normalisations | **170,642** | 38 trailing spaces + 2 stray blank lines = 40 bytes |
+| **What import actually produces** | **172,451** | plus 201 × 9 bytes of ` (CONT'D)` |
+
+**172,451 is the number this acceptance test is about**, because import applies all of
+ADR-0020's list, and ADR-0026 put `(CONT'D)` maintenance on it. The corpus authors three
+extensions and omits **201** — which is the evidence that decided that ADR's default, recorded
+in full there.
+
+The two collapsed runs are at **line 4,084** and at end of file. The prototype reported 4086;
+the difference is a counting convention, not a disagreement about the file.
+
+Two further properties of the **prototype's** gate, which Phase 3 needed to know before it
+decided with the spike in hand, and which the implementation above has now answered:
 
 - **It never writes a file, so it does not test byte serialization.** It compares two
   in-memory strings. The claim it actually establishes is character equality after a lossy
