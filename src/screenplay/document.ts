@@ -23,20 +23,20 @@ export type ElementType =
   | "synopsis"
   | "page-break"
   | "note"
-  | "boneyard";
+  | "boneyard-start"
+  | "boneyard-end";
 
 /**
  * One element, occupying exactly one line (ADR-0019). Blank lines are not
  * elements: where one falls on the way out is derived from the pair of types
  * either side of it.
  *
- * **`boneyard` is the exception, and it is the second one.** ADR-0019 names
- * the title page as "the one exception, and it is not really an exception",
- * because it is fields rather than a text element. A `/* … *​/` block is a text
- * element and does span lines: ADR-0021 requires it "preserved exactly in the
- * file", and the corpus contains one with a blank line inside it, which a
- * model that does not store blank lines cannot hold any other way. Its `text`
- * therefore carries its own newlines.
+ * Nothing here is an exception to that, the boneyard included. Its `/*` and
+ * closing delimiter are an element each, and what lies between them is
+ * ordinary elements carrying `omitted`. The boneyard is therefore a *range*
+ * over the flat sequence, computed the way a scene or a chapter is, and not a
+ * container (ADR-0021). The title page remains the one thing in the format
+ * that is not a text element at all.
  */
 export interface Element {
   readonly type: ElementType;
@@ -64,6 +64,16 @@ export interface Element {
   readonly sceneNumber?: string;
   /** A `character` cue marked for dual dialogue with a trailing `^`. */
   readonly dual?: boolean;
+  /**
+   * The element lies inside a boneyard, between the delimiters.
+   *
+   * It is a full element in every other respect: it is parsed as whatever it
+   * is, it is maintained like any other, and it is written back where it was.
+   * What the flag governs is what is left out downstream — pagination, the
+   * word and page counts, and export (ADR-0021) — which is the same set of
+   * exclusions ADR-0018 gives a comment.
+   */
+  readonly omitted?: boolean;
 }
 
 /**

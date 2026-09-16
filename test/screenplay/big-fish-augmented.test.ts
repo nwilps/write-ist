@@ -9,11 +9,13 @@
  *
  * Two of them cost a decision rather than a regex.
  *
- * The boneyard spans lines and holds a blank one, so it cannot be one element
- * per line and cannot be several elements either — blank lines are not stored.
- * It is therefore a second exception to ADR-0019, after the title page, and
- * the exception is forced by ADR-0021's requirement that the boneyard be
- * "preserved exactly in the file".
+ * The boneyard is a *range*, not a container (ADR-0021): `/*` and the closing
+ * delimiter are an element each, and everything between them is an ordinary
+ * element carrying `omitted`. Nothing spans lines, so ADR-0019 keeps its one
+ * exception; and because the material inside is ordinary, the ordinary rules
+ * reach it — a tight action run in there gains its blank line, and a cue in
+ * there has its `(CONT'D)` maintained. What `omitted` governs is what is left
+ * out of pagination, the counts and export, not what the model does with it.
  *
  * Scene numbers and the dual-dialogue caret come off the element's text, which
  * means the serialiser has to put them back. It writes one space before each,
@@ -36,10 +38,12 @@ const SOURCE_BYTES = 147_206;
 const NORMALISED_BYTES = 146_854;
 /** The blank between two adjacent centered lines, which cannot be stored. */
 const BLANKS_LOST = 1;
-const CONTINUATIONS_ADDED = 19;
+/** The tight run of two action lines inside the boneyard gains one. */
+const BLANKS_ADDED = 1;
+const CONTINUATIONS_ADDED = 20;
 const EXTENSION = " (CONT'D)";
 const IMPORTED_BYTES =
-  NORMALISED_BYTES - BLANKS_LOST + CONTINUATIONS_ADDED * EXTENSION.length;
+  NORMALISED_BYTES - BLANKS_LOST + BLANKS_ADDED + CONTINUATIONS_ADDED * EXTENSION.length;
 
 const document = (options = {}) =>
   importScreenplay(readFixtureBytes(FIXTURE), options).document;
@@ -51,20 +55,25 @@ const ofType = (type: string, options = {}) =>
   document(options).elements.filter((element) => element.type === type);
 
 describe("the augmented fixture, measured as bytes", () => {
-  it("imports to 147,024 bytes", () => {
+  it("imports to 147,034 bytes", () => {
     const bytes = writeBytesAndReadBack("big-fish-augmented.roundtrip.fountain", imported());
 
     expect(readFixtureBytes(FIXTURE).length).toBe(SOURCE_BYTES);
     expect(new TextEncoder().encode(normalisedText()).length).toBe(NORMALISED_BYTES);
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(147_024);
+    expect(IMPORTED_BYTES).toBe(147_034);
   });
 
-  it("changes one blank line and 19 cues, and nothing else", () => {
+  it("changes two blank lines and 20 cues, and nothing else", () => {
     const edits = lineEdits(normalisedText().split("\n"), output().split("\n"));
 
     const blanks = edits.filter((edit) => edit.text === "");
-    expect(blanks).toEqual([{ kind: "removed", line: 105, text: "" }]);
+    expect(blanks).toEqual([
+      // The tight action run inside the boneyard.
+      { kind: "added", line: 73, text: "" },
+      // The pair of adjacent centered lines.
+      { kind: "removed", line: 105, text: "" },
+    ]);
 
     const cues = edits.filter((edit) => edit.text !== "");
     expect(cues).toHaveLength(CONTINUATIONS_ADDED * 2);
@@ -81,57 +90,79 @@ describe("the augmented fixture, measured as bytes", () => {
   });
 });
 
-describe("the boneyard", () => {
-  const boneyard = () => {
-    const found = ofType("boneyard");
-    expect(found).toHaveLength(1);
-    return found[0]!;
+describe("the boneyard is a range, not a container", () => {
+  /** Every element from the opening delimiter to the closing one. */
+  const range = () => {
+    const elements = document().elements;
+    const start = elements.findIndex((element) => element.type === "boneyard-start");
+    const end = elements.findIndex((element) => element.type === "boneyard-end");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return elements.slice(start, end + 1);
   };
 
-  it("is one element holding every line between the delimiters", () => {
-    expect(boneyard().text).toBe(
-      [
-        "/*",
-        "CUT 2003-04-12: an earlier telling, where the Beast was the size of a man.",
-        "Kept in case the wedding scene needs it back.",
-        "",
-        "EDWARD",
-        "He was longer than the boat and twice as mean.",
-        "*/",
-      ].join("\n"),
+  it("is delimited by an element each end, with ordinary elements between", () => {
+    expect(range().map((element) => [element.type, element.text])).toEqual([
+      ["boneyard-start", "/*"],
+      ["action", "CUT 2003-04-12: an earlier telling, where the Beast was the size of a man."],
+      ["action", "Kept in case the wedding scene needs it back."],
+      ["character", "EDWARD (CONT'D)"],
+      ["dialogue", "He was longer than the boat and twice as mean."],
+      ["boneyard-end", "*/"],
+    ]);
+  });
+
+  it("marks every element in the range omitted, delimiters included", () => {
+    for (const element of range()) expect(element.omitted, element.text).toBe(true);
+    // And nothing outside it.
+    expect(document().elements.filter((element) => element.omitted === true)).toHaveLength(
+      range().length,
     );
   });
 
-  it("keeps the blank line inside it, which no other element can do", () => {
-    expect(boneyard().text).toContain("back.\n\nEDWARD");
-    expect(output()).toContain("back.\n\nEDWARD\nHe was longer");
+  it("keeps the delimiters against the material they delimit", () => {
+    // No blank line after `/*` or before `*/`; the blank lines that separate
+    // the boneyard from the script are outside the pair.
+    expect(output()).toContain("mean.\n*/\n\n= Two fishermen");
+    expect(output()).toMatch(/\n\n\/\*\nCUT 2003-04-12/);
   });
 
-  it("does not let its contents become elements", () => {
-    // Before the boneyard was read as a block, the `EDWARD` inside it became a
-    // character cue: a phantom speaker in the scene's cast.
-    const cues = ofType("character").filter(
-      (element) => element.text.startsWith("EDWARD") && element.indent === "",
-    );
-    for (const cue of cues) {
-      expect(cue.text).not.toBe("He was longer than the boat and twice as mean.");
-    }
-    expect(ofType("dialogue").map((element) => element.text)).not.toContain("*/");
+  it("spaces its contents by the ordinary rules", () => {
+    // The two action lines inside it are a tight run, so they gain a blank
+    // between them — ADR-0020's seventh normalisation, applied in here for the
+    // same reason it applies anywhere else. The blank before the cue was
+    // already there, and comes back from action-to-character.
+    expect(normalisedText()).toContain("size of a man.\nKept in case");
+    expect(output()).toContain("size of a man.\n\nKept in case");
+    expect(output()).toContain("needs it back.\n\nEDWARD");
   });
 
-  it("is never handed a (CONT'D), because cut material is not dialogue", () => {
-    // The cue inside the boneyard was being maintained — Write-ist writing
-    // words into a block ADR-0021 requires preserved exactly.
-    expect(output()).toContain("EDWARD\nHe was longer than the boat and twice as mean.");
-    expect(output()).not.toContain("EDWARD (CONT'D)\nHe was longer");
-    // And the count matches the unaugmented file: no extra cue was found.
+  it("maintains (CONT'D) on a cue inside it, like any other cue", () => {
+    // The material is omitted downstream, not exempt from the model. Edward
+    // speaks before the boneyard, the delimiter interrupts him, and he resumes
+    // inside it — so the extension is due, and ADR-0026 says the application
+    // maintains it wherever the element sequence says so.
+    const cue = range().find((element) => element.type === "character");
+
+    expect(cue?.text).toBe("EDWARD (CONT'D)");
+    expect(cue?.omitted).toBe(true);
+    expect(normalisedText()).toContain("back.\n\nEDWARD\nHe was longer");
+    expect(output()).toContain("back.\n\nEDWARD (CONT'D)\nHe was longer");
+  });
+
+  it("counts that cue in the import report", () => {
+    // 19 in the unaugmented file, plus this one.
     expect(importScreenplay(readFixtureBytes(FIXTURE)).report.applied).toContainEqual({
       kind: "continuations-added",
       count: CONTINUATIONS_ADDED,
     });
+    expect(CONTINUATIONS_ADDED).toBe(20);
   });
 
   it("falls back to ordinary text when nothing closes it", () => {
+    // An unclosed `/*` would otherwise mark the rest of the script omitted,
+    // dropping it from the page count and the export. The bytes survive either
+    // way; that classification is too expensive to get wrong.
     const unterminated = ".INT. KITCHEN - DAY\n\n/*\nCut, but never closed.";
     const parsed = parse(unterminated);
 
@@ -140,13 +171,29 @@ describe("the boneyard", () => {
       "action",
       "action",
     ]);
+    expect(parsed.elements.some((element) => element.omitted === true)).toBe(false);
     expect(serialise(parsed)).toBe(".INT. KITCHEN - DAY\n\n/*\n\nCut, but never closed.");
   });
 
-  it("reads a boneyard that opens and closes on one line", () => {
+  it("treats a delimiter sharing its line with text as text", () => {
+    // The delimiter form is a line of its own. Reading an inline `/*` as one
+    // would split a paragraph in two.
     const parsed = parse("/* cut */");
-    expect(parsed.elements.map((element) => element.type)).toEqual(["boneyard"]);
+
+    expect(parsed.elements.map((element) => element.type)).toEqual(["action"]);
+    expect(parsed.elements[0]?.omitted).toBeUndefined();
     expect(serialise(parsed)).toBe("/* cut */");
+  });
+
+  it("round-trips an empty boneyard", () => {
+    const parsed = parse(".INT. KITCHEN - DAY\n\n/*\n*/");
+
+    expect(parsed.elements.map((element) => element.type)).toEqual([
+      "scene-heading",
+      "boneyard-start",
+      "boneyard-end",
+    ]);
+    expect(serialise(parsed)).toBe(".INT. KITCHEN - DAY\n\n/*\n*/");
   });
 });
 
@@ -272,11 +319,12 @@ describe("the whole element vocabulary is exercised", () => {
 
     expect([...census.entries()].sort()).toEqual(
       [
-        ["action", 864],
-        ["boneyard", 1],
+        ["action", 866],
+        ["boneyard-end", 1],
+        ["boneyard-start", 1],
         ["centered", 4],
-        ["character", 771],
-        ["dialogue", 814],
+        ["character", 772],
+        ["dialogue", 815],
         ["lyrics", 2],
         ["note", 1],
         ["page-break", 2],

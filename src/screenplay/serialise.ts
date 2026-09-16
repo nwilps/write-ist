@@ -51,6 +51,11 @@ function needsBlankLine(previous: Element, next: Element): boolean {
   if (OPENS_SPEECH.has(previous.type) && CONTINUES_SPEECH.has(next.type)) return false;
   if (previous.type === "centered" && next.type === "centered") return false;
   if (previous.type === "lyrics" && next.type === "lyrics") return false;
+  // A boneyard delimiter sits against what it delimits. The blank lines that
+  // separate the boneyard from the script around it are the ones *outside*
+  // the pair, and those follow the ordinary rule.
+  if (previous.type === "boneyard-start") return false;
+  if (next.type === "boneyard-end") return false;
   return true;
 }
 
@@ -83,9 +88,8 @@ function renderContent(element: Element): string {
     case "parenthetical":
     case "page-break":
     case "note":
-    // A boneyard's text carries its own newlines, and each line after the
-    // first carries its own indentation.
-    case "boneyard":
+    case "boneyard-start":
+    case "boneyard-end":
       return element.text;
   }
 }

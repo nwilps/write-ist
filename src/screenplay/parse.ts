@@ -49,6 +49,16 @@ const SCENE_NUMBER = /^(.+[^ ]) #([^#]+)#$/;
 const DUAL_CUE = /^(.+[^ ]) \^$/;
 
 /**
+ * The boneyard delimiters, each alone on its line.
+ *
+ * A line that merely contains `/*` somewhere is ordinary text: the delimiter
+ * form Fountain files actually use is a line of its own, and treating an
+ * inline occurrence as a delimiter would split a paragraph in two.
+ */
+const BONEYARD_OPEN = "/*";
+const BONEYARD_CLOSE = "*/";
+
+/**
  * An unforced scene heading: Fountain's recognised opening words.
  *
  * The combined forms come first so the alternation does not settle for the
@@ -135,6 +145,7 @@ function parseTitlePage(lines: readonly string[]): {
 function parseBody(lines: readonly string[], from: number): Element[] {
   const elements: Element[] = [];
   let inSpeech = false;
+  let omitted = false;
 
   for (let index = from; index < lines.length; index++) {
     const line = lines[index]!;
@@ -148,20 +159,24 @@ function parseBody(lines: readonly string[], from: number): Element[] {
     const indent = LEADING_WHITESPACE.exec(line)![0];
     const content = line.slice(indent.length);
 
-    // The boneyard is the one element in the body that may span lines, and it
-    // is read before anything else so that its contents are never parsed.
-    if (content.startsWith("/*")) {
-      const block = readBoneyard(lines, index, indent);
-      if (block !== null) {
-        elements.push({ type: "boneyard", text: block.text, indent, forced: false });
-        index = block.lastLine;
-        inSpeech = false;
-        continue;
-      }
+    // `/*` and `*/` are delimiters, an element each. What falls between them
+    // is parsed as whatever it is and carries `omitted`, so the boneyard is a
+    // range over the sequence rather than a container (ADR-0021).
+    if (!omitted && content === BONEYARD_OPEN && closesLater(lines, index)) {
+      elements.push({ type: "boneyard-start", text: content, indent, forced: false, omitted: true });
+      omitted = true;
+      inSpeech = false;
+      continue;
+    }
+    if (omitted && content === BONEYARD_CLOSE) {
+      elements.push({ type: "boneyard-end", text: content, indent, forced: false, omitted: true });
+      omitted = false;
+      inSpeech = false;
+      continue;
     }
 
     const element = classify(content, indent, inSpeech, lines[index + 1] ?? "");
-    elements.push(element);
+    elements.push(omitted ? { ...element, omitted: true } : element);
 
     inSpeech =
       element.type === "character" ||
@@ -172,35 +187,19 @@ function parseBody(lines: readonly string[], from: number): Element[] {
 }
 
 /**
- * Read a `/* … *​/` block, from its opening line to the line closing it.
+ * Whether some later line closes this boneyard.
  *
- * Everything between is held verbatim in one element's text, newlines and all.
- * That makes the boneyard a second exception to ADR-0019's one element, one
- * line — the first being the title page — and it is forced: ADR-0021 requires
- * the boneyard "preserved exactly in the file", the corpus contains one with a
- * blank line inside it, and blank lines are not elements. Parsing its contents
- * instead is not an option: they are cut material, and a cue found in there
- * joins the speaking cast and can be handed a `(CONT'D)`.
- *
- * Returns null when nothing closes the block, in which case the line is
- * ordinary text and parses as it otherwise would.
+ * A delimiter needs no lookahead to parse, but an unclosed `/*` would mark the
+ * rest of the script omitted — dropping it from the page count and the export.
+ * The bytes survive either way; the classification would not, and that one is
+ * too expensive to get wrong. An unclosed `/*` is therefore ordinary text.
  */
-function readBoneyard(
-  lines: readonly string[],
-  start: number,
-  indent: string,
-): { text: string; lastLine: number } | null {
-  const first = lines[start]!.slice(indent.length);
-  if (first.includes("*/")) return { text: first, lastLine: start };
-
-  const collected = [first];
-  for (let index = start + 1; index < lines.length; index++) {
-    collected.push(lines[index]!);
-    if (lines[index]!.includes("*/")) {
-      return { text: collected.join("\n"), lastLine: index };
-    }
+function closesLater(lines: readonly string[], from: number): boolean {
+  for (let index = from + 1; index < lines.length; index++) {
+    const line = lines[index]!;
+    if (line.slice(LEADING_WHITESPACE.exec(line)![0].length) === BONEYARD_CLOSE) return true;
   }
-  return null;
+  return false;
 }
 
 function classify(
