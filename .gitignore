@@ -19,3 +19,6 @@ out/
 
 # Agent worktrees and local session state
 .claude/
+
+# Files the round-trip tests write to disk (they compare real files, not strings)
+test/.out/
