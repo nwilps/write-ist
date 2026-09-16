@@ -180,11 +180,14 @@ describe("what this fixture exercises that the corpus does not", () => {
   });
 
   it("keeps the dual-dialogue caret on the cue that carries it", () => {
+    // The caret is a property of the cue, not part of the character's name,
+    // so it comes off the text and goes back on the way out.
     const dual = document().elements.filter(
-      (element) => element.type === "character" && element.text.endsWith("^"),
+      (element) => element.type === "character" && element.dual === true,
     );
 
-    expect(dual.map((element) => element.text)).toEqual(["BRICK ^"]);
+    expect(dual.map((element) => element.text)).toEqual(["BRICK"]);
+    expect(new TextDecoder().decode(imported())).toContain("BRICK ^\nScrew retirement.");
   });
 
   it("reads a forced heading, a forced transition and a centered line correctly", () => {

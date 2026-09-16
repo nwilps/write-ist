@@ -127,7 +127,25 @@ describe("where the continuation is written", () => {
       "Second.",
     ].join("\n");
 
-    expect(cues(source)).toEqual(["EDWARD ^", "EDWARD (CONT'D) ^"]);
+    // The caret lives on the element, so the serialiser puts it last.
+    expect(cues(source)).toEqual(["EDWARD", "EDWARD (CONT'D)"]);
+    expect(maintained(source)).toContain("@EDWARD (CONT'D) ^");
+  });
+
+  it("stays inside a caret the parser left in the text", () => {
+    // `EDWARD^` with no space is not the dual form the parser lifts out, so
+    // the caret stays in the cue text and the extension has to go before it.
+    const source = [
+      "@EDWARD^",
+      "First.",
+      "",
+      "!He crosses the room.",
+      "",
+      "@EDWARD^",
+      "Second.",
+    ].join("\n");
+
+    expect(cues(source)).toEqual(["EDWARD^", "EDWARD (CONT'D)^"]);
   });
 });
 

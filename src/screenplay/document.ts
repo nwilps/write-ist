@@ -29,6 +29,14 @@ export type ElementType =
  * One element, occupying exactly one line (ADR-0019). Blank lines are not
  * elements: where one falls on the way out is derived from the pair of types
  * either side of it.
+ *
+ * **`boneyard` is the exception, and it is the second one.** ADR-0019 names
+ * the title page as "the one exception, and it is not really an exception",
+ * because it is fields rather than a text element. A `/* … *​/` block is a text
+ * element and does span lines: ADR-0021 requires it "preserved exactly in the
+ * file", and the corpus contains one with a blank line inside it, which a
+ * model that does not store blank lines cannot hold any other way. Its `text`
+ * therefore carries its own newlines.
  */
 export interface Element {
   readonly type: ElementType;

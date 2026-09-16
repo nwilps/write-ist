@@ -57,12 +57,18 @@ function needsBlankLine(previous: Element, next: Element): boolean {
 /** The element's line, without its indentation. */
 function renderContent(element: Element): string {
   switch (element.type) {
-    case "scene-heading":
-      return element.forced ? `.${element.text}` : element.text;
+    case "scene-heading": {
+      const heading = element.forced ? `.${element.text}` : element.text;
+      // A scene number is only ever lifted out of a heading that wrote it with
+      // one space, so one space is what goes back (ADR-0021).
+      return element.sceneNumber === undefined ? heading : `${heading} #${element.sceneNumber}#`;
+    }
     case "action":
       return element.forced ? `!${element.text}` : element.text;
-    case "character":
-      return element.forced ? `@${element.text}` : element.text;
+    case "character": {
+      const cue = element.forced ? `@${element.text}` : element.text;
+      return element.dual === true ? `${cue} ^` : cue;
+    }
     case "transition":
       return element.forced ? `>${element.text}` : element.text;
     case "centered":
@@ -77,6 +83,8 @@ function renderContent(element: Element): string {
     case "parenthetical":
     case "page-break":
     case "note":
+    // A boneyard's text carries its own newlines, and each line after the
+    // first carries its own indentation.
     case "boneyard":
       return element.text;
   }

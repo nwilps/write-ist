@@ -34,6 +34,21 @@ const PARENTHETICAL = /^\(.*\)$/;
 const NOTE_LINE = /^\[\[.*\]\]$/;
 
 /**
+ * A scene number at the end of a heading, as ` #1#` (ADR-0021: parsed and
+ * preserved, never authored).
+ *
+ * Exactly one space before the `#`. A heading spaced any other way keeps its
+ * number inside the heading text instead — the parser is then wrong about the
+ * element and still right about the bytes, which is the trade ADR-0020
+ * explicitly permits. Canonicalising the spacing would be an eighth
+ * normalisation, and that is a decision someone makes on purpose.
+ */
+const SCENE_NUMBER = /^(.+[^ ]) #([^#]+)#$/;
+
+/** A cue marked for dual dialogue, as `BILL ^`. One space, as above. */
+const DUAL_CUE = /^(.+[^ ]) \^$/;
+
+/**
  * An unforced scene heading: Fountain's recognised opening words.
  *
  * The combined forms come first so the alternation does not settle for the
@@ -132,6 +147,19 @@ function parseBody(lines: readonly string[], from: number): Element[] {
 
     const indent = LEADING_WHITESPACE.exec(line)![0];
     const content = line.slice(indent.length);
+
+    // The boneyard is the one element in the body that may span lines, and it
+    // is read before anything else so that its contents are never parsed.
+    if (content.startsWith("/*")) {
+      const block = readBoneyard(lines, index, indent);
+      if (block !== null) {
+        elements.push({ type: "boneyard", text: block.text, indent, forced: false });
+        index = block.lastLine;
+        inSpeech = false;
+        continue;
+      }
+    }
+
     const element = classify(content, indent, inSpeech, lines[index + 1] ?? "");
     elements.push(element);
 
@@ -141,6 +169,38 @@ function parseBody(lines: readonly string[], from: number): Element[] {
   }
 
   return elements;
+}
+
+/**
+ * Read a `/* … *​/` block, from its opening line to the line closing it.
+ *
+ * Everything between is held verbatim in one element's text, newlines and all.
+ * That makes the boneyard a second exception to ADR-0019's one element, one
+ * line — the first being the title page — and it is forced: ADR-0021 requires
+ * the boneyard "preserved exactly in the file", the corpus contains one with a
+ * blank line inside it, and blank lines are not elements. Parsing its contents
+ * instead is not an option: they are cut material, and a cue found in there
+ * joins the speaking cast and can be handed a `(CONT'D)`.
+ *
+ * Returns null when nothing closes the block, in which case the line is
+ * ordinary text and parses as it otherwise would.
+ */
+function readBoneyard(
+  lines: readonly string[],
+  start: number,
+  indent: string,
+): { text: string; lastLine: number } | null {
+  const first = lines[start]!.slice(indent.length);
+  if (first.includes("*/")) return { text: first, lastLine: start };
+
+  const collected = [first];
+  for (let index = start + 1; index < lines.length; index++) {
+    collected.push(lines[index]!);
+    if (lines[index]!.includes("*/")) {
+      return { text: collected.join("\n"), lastLine: index };
+    }
+  }
+  return null;
 }
 
 function classify(
@@ -159,10 +219,10 @@ function classify(
   // Forcing markers. Every one already in the file is preserved as written
   // (ADR-0020), which is why `forced` is recorded rather than recomputed.
   if (content.startsWith("!")) return make("action", content.slice(1), indent, true);
-  if (content.startsWith("@")) return make("character", content.slice(1), indent, true);
+  if (content.startsWith("@")) return characterCue(content.slice(1), indent, true);
   // A single leading dot forces a heading; `..` is an ellipsis, not a marker.
   if (content.startsWith(".") && !content.startsWith("..")) {
-    return make("scene-heading", content.slice(1), indent, true);
+    return sceneHeading(content.slice(1), indent, true);
   }
   if (PAGE_BREAK.test(content)) return make("page-break", content, indent, false);
   if (content.startsWith("~")) return make("lyrics", content.slice(1), indent, true);
@@ -179,12 +239,12 @@ function classify(
   if (NOTE_LINE.test(content)) return make("note", content, indent, false);
 
   // Nothing was forced, so the parser has to guess. Action is the catch-all.
-  if (SCENE_HEADING.test(content)) return make("scene-heading", content, indent, false);
+  if (SCENE_HEADING.test(content)) return sceneHeading(content, indent, false);
   if (TRANSITION.test(content) || UNFORCED_TRANSITIONS.has(content)) {
     return make("transition", content, indent, false);
   }
   if (looksLikeCharacter(content) && nextLine !== "") {
-    return make("character", content, indent, false);
+    return characterCue(content, indent, false);
   }
   return make("action", content, indent, false);
 }
@@ -202,6 +262,23 @@ function looksLikeCharacter(content: string): boolean {
   if (name === "") return false;
   if (!/[A-Z]/.test(name)) return false;
   return name === name.toUpperCase();
+}
+
+/** A scene heading, with its scene number lifted out of the text if it has one. */
+function sceneHeading(text: string, indent: string, forced: boolean): Element {
+  const numbered = SCENE_NUMBER.exec(text);
+  if (numbered === null) return make("scene-heading", text, indent, forced);
+  return {
+    ...make("scene-heading", numbered[1]!, indent, forced),
+    sceneNumber: numbered[2]!,
+  };
+}
+
+/** A character cue, with the dual-dialogue marker lifted out of the text. */
+function characterCue(text: string, indent: string, forced: boolean): Element {
+  const dual = DUAL_CUE.exec(text);
+  if (dual === null) return make("character", text, indent, forced);
+  return { ...make("character", dual[1]!, indent, forced), dual: true };
 }
 
 function make(
