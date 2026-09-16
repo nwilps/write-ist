@@ -33,8 +33,16 @@ const PARENTHETICAL = /^\(.*\)$/;
 /** A note standing alone on its line. Inline notes stay in the text. */
 const NOTE_LINE = /^\[\[.*\]\]$/;
 
-/** An unforced scene heading: Fountain's recognised opening words. */
-const SCENE_HEADING = /^(?:INT|EXT|EST|I\/E|INT\.?\/EXT)[.\s]/i;
+/**
+ * An unforced scene heading: Fountain's recognised opening words.
+ *
+ * The combined forms come first so the alternation does not settle for the
+ * three-letter prefix and then fail on the slash. `EXT/INT.` is not in the
+ * Fountain spec's list, which names INT, EXT, EST, INT./EXT and I/E — but Big
+ * Fish uses it twice, and a heading the parser misses becomes an action line
+ * that looks identical on disk. Nothing in the byte gate can see that.
+ */
+const SCENE_HEADING = /^(?:INT\.?\/EXT|EXT\.?\/INT|I\/E|INT|EXT|EST)[.\s]/i;
 
 /** An unforced transition: all caps, ending in `TO:`. */
 const TRANSITION = /^[A-Z][A-Z0-9 '\-]*TO:$/;
