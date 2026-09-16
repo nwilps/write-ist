@@ -21,6 +21,15 @@ being stranded.
 - **The document model is judged by round-trip.** Parsing a manuscript and serialising it
   back must return what was read. This is the acceptance test for any editor design, and it
   is why the 170 KB v1 manuscript is the corpus.
+
+  > **Necessary, and not sufficient — found 2026-09-16.** Round-trip proves the bytes survive.
+  > It does not prove the parser understood them. An unforced scene heading read as *action*
+  > serialises to identical bytes, so the gate passes while the model is missing a scene —
+  > which, since a page count is semantic (ADR-0001), is a correctness bug the acceptance test
+  > is blind to. Two such headings were found in *Big Fish* with every byte test green. The
+  > companion is an **element census** pinned beside the byte comparison, so a misclassification
+  > moves a count even when it moves no bytes.
+  > [ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md) records the case.
 - **The parser cannot gate elements by format**, because Fountain does not. See ADR-0006.
 - **Write a format version into the bundle from day one.** It costs one field now and is
   unrecoverable later — there is no way to migrate files that never said what they were.

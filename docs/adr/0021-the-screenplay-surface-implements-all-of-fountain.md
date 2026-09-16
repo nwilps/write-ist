@@ -59,6 +59,65 @@ for fidelity is cheap and correct; building anything on top of it would formalis
 Collapsed-by-default with expansion on demand is the chosen middle: quieter than Slugline's
 always-visible blue, and never hiding content the writer cannot get back.
 
+## Two places where the surface goes past the spec
+
+Recorded because "implements all of Fountain" is the title of this ADR, and both of these are
+*more* than Fountain, not less. Each is a deliberate extension with a cost.
+
+### Every combined interior/exterior heading form
+
+Fountain names `INT./EXT.` and `I/E.`. Writers also write `EXT./INT.` — and use the order to
+mean something, a scene beginning outside and moving in rather than the reverse. All six forms
+are recognised, with or without the inner period:
+
+`INT.` · `EXT.` · `EST.` · `INT./EXT.` · `EXT./INT.` · `INT/EXT.` · `EXT/INT.` · `I/E.`
+
+This is not really an extension so much as the spec read generously, and it cost two scenes in
+*Big Fish* before it was noticed. See the gate's limits, below.
+
+### Transitions that do not end in `TO:`
+
+Fountain requires a transition to be uppercase and **end in `TO:`**. That rule misses
+transitions writers actually write — `FADE OUT.`, `CUT TO BLACK.`, `DISSOLVE:` — and Fountain's
+own answer is that the writer should force them with `>`. **Write-ist recognises them without
+forcing**, from a closed vocabulary:
+
+`FADE IN:` · `FADE OUT.` · `FADE TO BLACK.` · `CUT TO BLACK.` · `DISSOLVE:` · `IRIS IN:` ·
+`IRIS OUT.` · `WIPE:` · `SMASH CUT.` · `INTERCUT:`
+
+**A closed vocabulary rather than a rule, and that is the whole decision.** The tempting rule —
+an uppercase line, alone between blanks, ending in a period — is unavailable, because it is
+also the shape of ordinary action. *Big Fish* contains `A RIVER.`, `THE BEAST.` and
+`ON WILL AND SANDRA`, all action, all matching it. So the surface may only recognise phrases it
+knows by name, and the list above is the decision surface: adding to it is a deliberate act,
+here, in this file.
+
+**The cost is rendering, not readability.** Another Fountain tool reads `CUT TO BLACK.` as
+action and sets it left rather than right. The text is identical either way, and ADR-0011
+already settled the principle for the prose surface: *"the text itself is always intact;
+ADR-0003 is about reading, not rendering."* We do **not** write a `>` into the file to make the
+classification portable — that would change a writer's file to serve another program, and
+ADR-0020's list exists to prevent exactly that.
+
+## What the round-trip gate cannot see
+
+Found in Phase E2, and it qualifies ADR-0004's acceptance test rather than this ADR's rule.
+
+Two headings — `EXT/INT. SORORITY HOUSE - THE DOORWAY` and `EXT/INT.  SWAMP SHACK - DAY` —
+were being parsed as **action**, and **every byte test passed**. An unforced heading and an
+action line with the same text serialise identically, so the round-trip could not distinguish
+them: the scene-heading count moved 190 → 192 and the file size did not change at all.
+
+**Round-trip proves the bytes survive. It does not prove the parser understood them.** On a
+surface where element type is semantic — a heading means a scene, which means a page count,
+which means a minute of screen time (ADR-0001) — that gap is not academic; two scenes were
+missing from the model while the gate reported success.
+
+The answer is a **census beside the byte gate**: count the elements of each type and pin the
+numbers, so a misclassification moves a count even when it moves no bytes. The fix was found by
+hand-auditing all 48 distinct cue names in *Big Fish*, all 45 all-caps lines not classified as
+cues, and all three all-caps dialogue lines.
+
 ## Consequences
 
 - **The element vocabulary belongs to the surface, and this is the whole of it.** ADR-0005

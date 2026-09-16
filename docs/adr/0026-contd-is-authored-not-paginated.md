@@ -110,8 +110,31 @@ looks wrong to every reader and every other tool.
 - **Missing ones are added at import**, as the sixth entry on ADR-0020's enumerated list and
   named in the import report. A script without them is out of date rather than different, and
   the evidence is that even a reference production draft cannot keep it straight by hand.
-- **It does not carry across a scene heading.** A new scene starts the speaker fresh, which is
-  the convention, and it keeps the rule computable from the element sequence alone.
+- **It is never *added* across a scene heading, and never *removed* from one.** A new scene
+  starts the speaker fresh, which keeps the rule computable from the element sequence alone.
+
+  **Real practice disagrees with the first half of that, and the evidence is worth recording.**
+  *Big Fish* marks four cues in a way this rule would not, and three of them carry `(CONT'D)`
+  across a scene heading — measured 2026-09-16 at lines 67, 2092 and 3947:
+
+  ```
+  EDWARD (CONT'D)          after  INT.  BLOOM FRONT HALL - NIGHT (1987)
+  EDWARD (V.O.)(CONT'D)    after  INT.  BIG TOP - NIGHT - CONTINUOUS
+  JENNY (V.O.)(CONT'D)     after  EXT.  JENNY HILL'S HOUSE - DAY TO NIGHT
+  ```
+
+  All three are **narration bridging a cut**: the scene changes, the voice does not. The writer
+  is right and the rule is too simple. Maintenance is **add-only**, so all four survive exactly
+  as written — but a rule that a produced screenplay contradicts should say so rather than
+  pretend it is universal.
+
+  **Extending the rule was considered and declined.** The obvious move is to carry `(CONT'D)`
+  across a heading when the cue bears `(V.O.)` or `(O.S.)`, which fits all three cases. It is
+  rejected because it reintroduces judgement into a value this ADR justifies precisely by its
+  having none: an off-screen voice after a cut may be the same narration continuing or a
+  different scene's diegetic sound, and nothing in the element sequence distinguishes them.
+  Adding across a heading would therefore be a guess, while declining to add is merely
+  incomplete — and the writer can always type it, as John August did.
 - **Pagination must not double it.** A cue that already ends in `(CONT'D)` must not acquire a
   second when a speech splits across a page. *Big Fish* has 102 cues that would trigger exactly
   that defect, and the acceptance corpus has none — so this is a bug only the second fixture
