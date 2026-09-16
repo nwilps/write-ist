@@ -54,6 +54,28 @@ text element: it is key-value pairs, several of which carry indented continuatio
 (`Title:` with two values, `Contact:` with a three-line address). ADR-0021 already treats it as
 fields edited through a form and stored as Fountain.
 
+**The boneyard is not a second exception, and the reason is worth recording**, because the first
+implementation made it one. Read as a container — one element holding the whole of `/* … */`
+with its own newlines — it breaks this rule, and it has to, since a boneyard may contain a blank
+line and blank lines are not stored. It also cost a real defect: with the block opaque, a
+character cue inside it was invisible, and an implementation that could not see the cue wrote a
+`(CONT'D)` into cut material anyway. `/*` and `*/` are therefore **delimiters** and the elements
+between them carry an `omitted` flag ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)).
+A cue inside a boneyard is a cue. Nothing nests, nothing spans a line, and the blank-line problem
+never arises because omitted elements are spaced by the same table as every other element.
+
+## Two things the serialiser carries rather than canonicalises
+
+**A scene number and a dual-dialogue caret are lifted off the element's text only when the
+source wrote exactly one space before them.** `INT. KITCHEN - DAY #14#` and `VINNIE ^` become an
+element with a scene number and an element with the caret set; `INT. KITCHEN - DAY  #14#`, with
+two spaces, keeps the whole string as text.
+
+That is **deliberately wrong about the element and right about the bytes.** Canonicalising the
+gap would be an eighth entry on ADR-0020's list, spending a writer's file on tidiness; leaving
+it means the rarer spelling round-trips exactly while being typed as something slightly duller.
+Recorded so it reads as a decision rather than as an oversight.
+
 ### What this costs, measured
 
 Fountain permits a run of action lines with no blank between them, rendering as tight lines
