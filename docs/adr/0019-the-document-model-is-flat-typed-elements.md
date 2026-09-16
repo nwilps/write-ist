@@ -33,7 +33,7 @@ to any library: *a mark set cannot round-trip a mark tree*. ADR-0018 already car
 exemption that matters — anything carrying an id is exempt, because its pairing is recorded
 rather than inferred, which is why comments may nest and cross while bold and italic may not.
 
-## One element, one line
+## One element, one line — on the screenplay surface
 
 **No element spans more than one line.** Blank lines are not stored, and where one falls on the
 way out is a lookup on the pair of element types either side of it:
@@ -70,6 +70,44 @@ character cue inside it was invisible, and an implementation that could not see 
 between them carry an `omitted` flag ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)).
 A cue inside a boneyard is a cue. Nothing nests, nothing spans a line, and the blank-line problem
 never arises because omitted elements are spaced by the same table as every other element.
+
+## The prose surface does not inherit it, and could not
+
+**A prose paragraph is one element whose text holds the writer's line wraps.** Measured on the
+acceptance manuscript, 2026-09-16: **2,140 of its 4,322 paragraphs span more than one line, and
+the longest runs 72.** Prose arrives hard-wrapped, as most real prose is, and rewrapping it is
+not on ADR-0020's list — so the wraps are the writer's and they stay.
+
+**The rule above was measured on screenplays, and that is why it does not transfer.** It was
+decided on a count: one genuine multi-line action block across 2,104 action blocks in three
+produced screenplays. Screenplay has no hard-wrapped construct, so the case barely exists.
+Markdown paragraphs are nothing but that case — 2,140 of them in one book — and a rule bought
+for 1-in-2,104 cannot be sold at 1-in-2.
+
+The consequences that follow from the screenplay rule therefore do not follow here. Nothing
+about prose wants a spacing table derived from element adjacency, because:
+
+**A blank line in Markdown is syntax, not spacing.** Two paragraphs run together *are* one
+paragraph. So the serialiser is not choosing a convention that could go either way; it is
+choosing what the document says. Between paragraphs it is required, inside a verse line block or
+a block quote it must be absent, and none of that is a style decision the way `Action → Action`
+was.
+
+**And the two surfaces stay honest about being different.** The flat, typed, marks-as-a-set
+model at the top of this ADR holds on both. The line rule does not, and pretending otherwise
+would have meant either rewrapping a novelist's paragraphs or storing every wrapped line as its
+own element, which is the `precededByBlank` design rejected above wearing a longer coat.
+
+## Headings carry a level; parts and chapters are computed
+
+Confirmed by the prose implementation rather than decided here, because `CONTEXT.md` already
+fixes it: **Chapter** is *"the range from one chapter heading to the next"*, and **Scene** is
+worded identically. So a prose heading is one element carrying a level, and which range it opens
+is computed from the sequence — there is no `part` element and no `chapter` element.
+
+Worth recording for what it prevents. With parts and chapters as types, the book's own title and
+a front-matter heading are indistinguishable from a part and a chapter, and the structure a
+reader sees comes out wrong at the very top of the file.
 
 ## Two things the serialiser carries rather than canonicalises
 

@@ -86,6 +86,17 @@ The catalog is right, and the two halves separate cleanly:
   pagination problem, because the note must land on the same page as its marker. That is real
   work for a `someday` item.
 
+## A paragraph holds its own line wraps
+
+Prose arrives hard-wrapped. On the acceptance manuscript, **2,140 of 4,322 paragraphs span more
+than one line and the longest runs 72**, so a paragraph is one element whose text carries the
+writer's wraps. Rewrapping is not on ADR-0020's list and will not be added to it: where a
+novelist broke their lines is theirs.
+
+[ADR-0019](0019-the-document-model-is-flat-typed-elements.md)'s *one element, one line* is
+therefore scoped to the screenplay surface, where it was measured and where it holds. The rest
+of that ADR — flat, typed, marks as a set, no containers — applies to both surfaces unchanged.
+
 ## Consequences
 
 - **Prose has no scenes, and this vocabulary says so.** A scene break is an element of the text
