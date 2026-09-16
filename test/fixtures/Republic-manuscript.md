@@ -29,7 +29,7 @@ The scene is laid in the house of Cephalus at the Piraeus.
 
 
 
-<!--c:a1-->I went down yesterday to the Piraeus<!--/c:a1--> with Glaucon the son of Ariston,
+<!--c:a1 does "went down" carry the descent to Piraeus?-->I went down yesterday to the Piraeus<!--/c:a1--> with Glaucon the son of Ariston,
 that I might offer up my prayers to the goddess (Bendis, the Thracian
 Artemis.); and also because I wanted to see in what manner they would
 celebrate the festival, which was *a new thing*. I was delighted with the
@@ -41,7 +41,7 @@ distance as we were starting on our way home, and told his servant to
 run and bid us wait for him. The servant took hold of me by the cloak
 behind, and said: Polemarchus desires you to wait.
 
-I turned round, and asked him where his master was.
+<!--c:b1 is "turned round" too casual for Socrates?-->I turned round, <!--c:b2 whose master, Polemarchus or Cephalus?-->and asked him<!--/c:b1--> where his master was.<!--/c:b2-->
 
 There he is, said the youth, coming after you, if you will only wait.
 
@@ -52,7 +52,7 @@ of Nicias, and several others who had been at the procession.
 Polemarchus said to me: I perceive, Socrates, that you and your
 companion are already on your way to the city.
 
-You are not far wrong, I said.
+<!--c:c1 Jowett glosses this "concessive --&gt; ironic"-->You are not far wrong, I said.<!--/c:c1-->
 
 But do you see, he rejoined, how many we are?
 
@@ -16002,10 +16002,10 @@ passthrough --- kept exactly, never reinterpreted:
 | Republic     | c. 375 BC        | long   |
 | Symposium    | c. 385 BC        | medium |
 
-<!--cut:ed1
+<!--cut-->
 An earlier draft of this afterword opened with a long complaint about
 Jowett's habit of smoothing Plato's rougher edges. Removed, kept.	
--->
+<!--/cut-->
 
 The word at issue throughout is δικαιοσύνη — justice, or something near it.
 
