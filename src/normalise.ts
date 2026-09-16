@@ -82,11 +82,21 @@ function count(text: string, pattern: RegExp): number {
   return [...text.matchAll(pattern)].length;
 }
 
-/** How many characters change spelling under NFC — the size of the report. */
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/**
+ * How many characters change spelling under NFC — the size of the report.
+ *
+ * Counted per *grapheme*, not per code point. A decomposed `é` is `U+0065`
+ * followed by `U+0301`, and each of those is already NFC on its own, because
+ * composition happens across code points rather than within one. Walking code
+ * points therefore reports zero for the one case the rule exists for, which is
+ * what it did until the first fixture that was not already NFC arrived.
+ */
 function countDecomposed(text: string): number {
   let changed = 0;
-  for (const character of text) {
-    if (character.normalize("NFC") !== character) changed++;
+  for (const { segment } of graphemes.segment(text)) {
+    if (segment.normalize("NFC") !== segment) changed++;
   }
   return changed;
 }

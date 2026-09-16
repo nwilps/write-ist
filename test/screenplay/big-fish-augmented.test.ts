@@ -24,7 +24,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { exportScreenplay, importScreenplay, reopenAndSave } from "../../src/screenplay/import.ts";
-import { normaliseSource } from "../../src/screenplay/normalise.ts";
+import { normaliseSource } from "../../src/normalise.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { assertBytesEqual } from "../support/byte-diff.ts";

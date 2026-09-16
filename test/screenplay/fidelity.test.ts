@@ -27,7 +27,7 @@ import {
   importScreenplay,
   reopenAndSave,
 } from "../../src/screenplay/import.ts";
-import { normaliseSource } from "../../src/screenplay/normalise.ts";
+import { normaliseSource } from "../../src/normalise.ts";
 import { assertBytesEqual, firstByteDifference } from "../support/byte-diff.ts";
 import {
   readFixtureBytes,

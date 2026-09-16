@@ -19,7 +19,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { exportScreenplay, importScreenplay, reopenAndSave } from "../../src/screenplay/import.ts";
-import { normaliseSource } from "../../src/screenplay/normalise.ts";
+import { normaliseSource } from "../../src/normalise.ts";
 import { assertBytesEqual } from "../support/byte-diff.ts";
 import { readFixtureBytes, readFixtureText, writeBytesAndReadBack } from "../support/files.ts";
 import { lineEdits } from "../support/line-diff.ts";

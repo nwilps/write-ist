@@ -15,7 +15,7 @@
  */
 import type { ScreenplayDocument } from "./document.ts";
 import { maintainContinuations } from "./continuations.ts";
-import { normaliseSource, type Normalisation } from "./normalise.ts";
+import { normaliseSource, type Normalisation } from "../normalise.ts";
 import { parse } from "./parse.ts";
 import { serialise } from "./serialise.ts";
 

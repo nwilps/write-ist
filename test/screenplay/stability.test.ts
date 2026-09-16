@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ElementType } from "../../src/screenplay/document.ts";
-import { normaliseSource } from "../../src/screenplay/normalise.ts";
+import { normaliseSource } from "../../src/normalise.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { assertBytesEqual } from "../support/byte-diff.ts";
