@@ -168,6 +168,20 @@ its own text and written back unchanged. It exists on the prose surface only: Fo
 no unrecognisable text, because anything matching nothing else is action.
 _Avoid_: unknown, raw, unparsed, fallback
 
+**Extension**:
+A qualifier written on a character cue, in parentheses, saying something about how the line is
+delivered or that the speaker has not changed — `(V.O.)`, `(O.S.)`, `(CONT'D)`. It is part of
+the **element**, not a separate one, and specifically not a *parenthetical*: `EDWARD (V.O.)
+(CONT'D)` is one cue carrying two extensions. The distinction is the easiest mis-parse in
+Fountain, because on the page they look identical.
+
+Extensions divide, and the divide decides who may write them. `(V.O.)` and `(O.S.)` are
+**authored** — whether a line is voice-over or off-screen is a judgement only the writer can
+make, and the app never adds or removes one. `(CONT'D)` is **derived**: it follows entirely
+from the element sequence, so the app maintains it and a writer who does not want it turns the
+behaviour off rather than deleting instances.
+_Avoid_: parenthetical (that is its own element, on its own line), modifier, qualifier, tag
+
 **Scene**:
 Screenplay-surface vocabulary: the range from one scene heading to the next. A scene is a
 range of elements, not a single element — so anchoring to one means anchoring to a span.

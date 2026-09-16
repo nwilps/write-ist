@@ -75,6 +75,11 @@ costs one CSS rule.
   page break moves can never be byte-stable (ADR-0020). **The exported PDF therefore contains
   text that appears nowhere in the `.fountain` file.** Correct, and recorded because someone
   will one day diff the two and think something is broken.
+  - **This covers the *paginated* pair only.** A second, unrelated `CONT'D` marks the same
+    character resuming after intervening action. That one is derived from the element sequence
+    rather than from layout, so it is stable, and Write-ist *does* write it into the
+    manuscript — see [ADR-0026](0026-contd-is-authored-not-paginated.md). Conflating the two is
+    easy and the consequences run in opposite directions.
 - **The editor is not a pixel-perfect preview of the PDF.** A page-break marker may sit a line
   away from where the PDF puts it. Measured at zero occurrences on the acceptance corpus.
 - **ProseMirror is chosen for the reason v1 failed.** v1's root cause was *"every screenplay

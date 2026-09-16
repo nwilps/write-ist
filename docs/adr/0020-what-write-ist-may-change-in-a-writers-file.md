@@ -25,8 +25,20 @@ This ADR draws the line and makes it testable.
 | Trailing whitespace trimmed | Invisible, and it defeats byte comparison |
 | Mark nesting emitted in the declared order | Marks are a set (ADR-0019); one order must be chosen on the way out |
 | Unicode normalised to **NFC** | Below |
+| Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
 
-Adding a sixth is a decision someone makes on purpose, in this file.
+Adding a seventh is a decision someone makes on purpose, in this file.
+
+**The sixth is different in kind from the first five, and that difference is the reason this
+paragraph exists.** The others are invisible hygiene: line endings, whitespace, mark order,
+encoding. Nothing a reader sees changes. Adding a `(CONT'D)` puts **visible words into the
+script** and moves the word count. It was admitted anyway, because `(CONT'D)` is not authored —
+it is fully determined by the element sequence, so a script missing one is not expressing a
+preference, it is simply out of date, and every screenwriting application maintains it. The
+evidence that decided it is that *Big Fish*, a reference production draft, marks 98
+continuations and misses about 20. Even a careful writer does not keep this straight by hand.
+
+It is also the only entry scoped to one surface. Prose has no character cues.
 
 ## Unicode: NFC, and never NFKC
 
