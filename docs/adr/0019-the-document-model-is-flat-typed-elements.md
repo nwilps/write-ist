@@ -33,6 +33,52 @@ to any library: *a mark set cannot round-trip a mark tree*. ADR-0018 already car
 exemption that matters — anything carrying an id is exempt, because its pairing is recorded
 rather than inferred, which is why comments may nest and cross while bold and italic may not.
 
+## One element, one line
+
+**No element spans more than one line.** Blank lines are not stored, and where one falls on the
+way out is a lookup on the pair of element types either side of it:
+
+| Adjacent pair | Blank line between |
+|---|---|
+| Action → Action | **yes** |
+| Dialogue → Dialogue | no — in Fountain a blank line *ends a speech*, so a two-paragraph speech has no other representation |
+| Centered → Centered | no |
+| Lyrics → Lyrics | no |
+| Everything else | yes |
+
+This is what makes ADR-0020's claim — *spacing is derived from adjacent element types* — actually
+true, and the rule is stated here because that claim depends on it.
+
+**The title page is the one exception, and it is not really an exception**, because it is not a
+text element: it is key-value pairs, several of which carry indented continuation lines
+(`Title:` with two values, `Contact:` with a three-line address). ADR-0021 already treats it as
+fields edited through a form and stored as Fountain.
+
+### What this costs, measured
+
+Fountain permits a run of action lines with no blank between them, rendering as tight lines
+rather than separate paragraphs. Under this rule those are separate elements, so the writer's
+file gains a blank line between each on first save — the seventh entry on ADR-0020's list.
+
+The alternative was to let an element hold newlines. It was rejected on measurement: across
+**2,104 action blocks in three real screenplays** — the acceptance corpus, *Big Fish* and
+*Brick & Steel* — there is exactly **one** genuine multi-line action block:
+
+```
+And then there's a long beat.
+Longer than is funny.
+Long enough to be depressing.
+```
+
+That becomes five lines instead of three. The rhythm the writer intended is flattened, and that
+is a real loss; it is accepted because one instance in three produced screenplays does not
+justify a dimension in the document model, and because the model then has to answer "may a
+scene heading contain a newline?" for every type forever.
+
+The same rule collapses *Brick & Steel*'s two title cards — `BRICK BRADDOCK / & DICK STEEL IN`
+and `BRICK & STEEL / FULL RETIRED`, separated by a blank line — into one four-line card. Also
+accepted, and also recorded so it is not later mistaken for a bug.
+
 ## Considered options
 
 - **Buffer-first, with syntax hidden behind decorations.** Not the naive version ADR-0018
@@ -44,6 +90,14 @@ rather than inferred, which is why comments may nest and cross while bold and it
 - **A mark tree, preserving authored nesting order.** Rejected: it buys the ability to
   preserve an order that is invisible to the reader, means nothing in either format, and
   costs the document model a whole dimension.
+- **Elements that may contain newlines.** The obvious way to preserve a tight run of action
+  lines, and the way that keeps every byte. Rejected on the measurement above, and on a second
+  ground: it makes "may this type span lines?" a permanent per-type question, and the answer
+  turned out to differ for action, dialogue, centered and lyrics — four special cases where a
+  spacing table has one.
+- **One element per line, plus a `precededByBlank` flag.** Also round-trips losslessly. Rejected
+  because the flag is presentation state stored on an element purely so it can be serialised,
+  which is the thing deriving spacing from types was meant to avoid.
 - **Container nodes for scenes and chapters.** The obvious shape, and the one most editor
   libraries encourage. Rejected on ADR-0010's reasoning above.
 

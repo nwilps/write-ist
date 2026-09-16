@@ -21,13 +21,20 @@ This ADR draws the line and makes it testable.
 | | Why |
 |---|---|
 | CRLF and CR line endings to LF | One line-ending convention in the model; the corpus is LF and pinned against CRLF checkout |
-| Runs of three or more newlines collapsed to two | Blank lines are not elements (ADR-0019); spacing is derived from adjacent element types, so an extra blank has nowhere to live |
+| Runs of three or more newlines collapsed to two | Blank lines are not elements (ADR-0019); spacing is derived from adjacent element types — true only because no element spans a line, which [ADR-0019](0019-the-document-model-is-flat-typed-elements.md) fixes — so an extra blank has nowhere to live |
 | Trailing whitespace trimmed | Invisible, and it defeats byte comparison |
 | Mark nesting emitted in the declared order | Marks are a set (ADR-0019); one order must be chosen on the way out |
 | Unicode normalised to **NFC** | Below |
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
+| A run of action lines with no blank between them gains one between each — **screenplay surface only** | No element spans a line ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so a tight run is separate elements and separate elements are spaced |
 
-Adding a seventh is a decision someone makes on purpose, in this file.
+Adding an eighth is a decision someone makes on purpose, in this file.
+
+**Two of the seven change what a reader sees**, and both are screenplay-only. The `(CONT'D)`
+entry is argued above. The seventh costs a writer the tight-run effect — three lines of action
+with no blank between them become three paragraphs — and was admitted on measurement: exactly
+one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019 records
+the count and the alternative that was rejected.
 
 **The sixth is different in kind from the first five, and that difference is the reason this
 paragraph exists.** The others are invisible hygiene: line endings, whitespace, mark order,
