@@ -91,6 +91,13 @@ byte-identical. That is invisible to the writer and is not a product constraint.
 - **A comment carries nothing but its text.** No author — ADR-0003 has no accounts and there is
   one person. No timestamp — the draft it froze with already dates it, and a date inline is
   noise in a file a stranger reads. No type, and no done flag.
+
+  **And that text lives in the opening delimiter**, which this ADR left unsaid and its examples
+  do not show: `[[c:a1 this line is weak]]She left.[[/c:a1]]`. **The argument above forces it.**
+  Inline storage is preferred here because *"a deleted span takes its comment with it"* — and
+  that is only true while the remark sits inside the span's own opening delimiter. Put it in a
+  trailing construct or a block at the foot of the file and deleting the span orphans the
+  remark, which is the sidecar failure this decision exists to avoid, rebuilt in band.
 - **A resolved state is deferred, deliberately, and costs nothing to defer.** Marking a comment
   resolved rather than deleting it is a reasonable want. It is the *first* kind of data under
   `docs/STANDARDS.md`'s test — computable later from what is already saved — so being late
@@ -98,12 +105,28 @@ byte-identical. That is invisible to the writer and is not a product constraint.
   No slot is reserved and no extensibility machinery is built: ADR-0004's format version is the
   mechanism, and a file written before the flag exists has an obvious correct default, which is
   unresolved. Recorded so a future reader knows the absence was decided rather than missed.
-- **The prose surface needs an inline construct that does not print.** Fountain supplies one
-  ready-made in `[[ ]]`; Pandoc Markdown has no exact counterpart, and ADR-0011's attribute
-  syntax gives spans ids but no home for the comment's text. HTML comments are the likely
-  vehicle, and Write-ist specifies its own subset (ADR-0011) so it can simply say so. Named as
-  an input to the document model rather than decided here, in line with ADR-0012 leaving file
-  formats to Phase 3.
+- **The prose surface's construct is an HTML comment, and the two surfaces now mirror.**
+  Fountain supplies `[[ ]]` ready-made; Pandoc Markdown has no exact counterpart, so ADR-0023
+  takes the HTML comment — the one construct in the Markdown world universally understood to be
+  present in the file and absent from the output. Decided 2026-09-16:
+
+  | | screenplay | prose |
+  |---|---|---|
+  | comment | `[[c:a1 remark]]span[[/c:a1]]` | `<!--c:a1 remark-->span<!--/c:a1-->` |
+  | cut text | `/*` … `*/` | `<!--cut-->` … `<!--/cut-->` |
+
+  Cut text carries **no id**, because Fountain's boneyard has none and boneyards do not nest,
+  and it is **delimiters with an `omitted` flag on the elements between**, never a container —
+  the shape ADR-0021 arrived at for the boneyard after a container was found writing into cut
+  material. Any other HTML comment is a passthrough (ADR-0020).
+
+- **One sequence is escaped inside a prose remark, and only one.** An HTML comment ends at the
+  first `-->`, so a writer typing an arrow — *"cut this --> move to ch. 4"* — would terminate the
+  comment early and corrupt the file. `-->` is therefore escaped as `--&gt;` within a remark.
+  A bare `--` is left alone: the HTML spec dislikes it, no real parser terminates on it, and
+  prose is full of double hyphens. Escaping one three-character sequence stays inside ADR-0012's
+  line, which forbids prose *"escaped past recognition"* rather than escaped at all — and the
+  writer never types or reads a delimiter in the first place.
 - **`CONTEXT.md`'s **Comment** entry gains where a comment lives.** The term arrived from the
   sidecar-freeze ticket describing what a comment *is*; it now also says that its text is stored
   in the manuscript and never shown as syntax.
