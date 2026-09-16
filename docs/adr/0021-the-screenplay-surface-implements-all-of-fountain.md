@@ -41,7 +41,29 @@ already requires.
 `/* … */` is Fountain's "omit this from the output" syntax. Write-ist renders it **in the
 flow, collapsed by default**, expandable in place, struck through when expanded, and strips it
 before pagination, before word and page counts, and before PDF export — the same exclusions
-ADR-0018 gives comments, for the same reason. It is preserved exactly in the file.
+ADR-0018 gives comments, for the same reason.
+
+**`/*` and `*/` are delimiters, not a container.** The elements between them are ordinary
+elements carrying an `omitted` flag — a cue is a cue, dialogue is dialogue — and the boneyard is
+never a single blob of text. This is the shape ADR-0018 already chose for comments, for the same
+reason: a container would be the nested node ADR-0019 rejects, and it would make everything
+inside invisible to the rest of the application.
+
+**So cut text is maintained like any other text.** `(CONT'D)` is added to a cue inside a
+boneyard exactly as it would be outside one, and the block renders as formatted screenplay
+rather than as raw characters. That follows from ADR-0020's principle rather than being an
+exception to it: *the writer's words are theirs; the format is ours.* A benched scene is still
+the writer's text, and an extension is still format. An earlier draft of this ADR said the
+boneyard is "preserved exactly in the file", which confused byte purity with the actual
+standard — whether we are touching content or presentation.
+
+**A mid-line boneyard is preserved as text and not rendered specially.** Fountain permits `/*`
+and `*/` to open and close inside a line — the spec calls the boneyard "the exception to the
+rule of syntax not carrying across line breaks" — and a per-element flag has nowhere to put half
+an element. It round-trips untouched; it simply does not get the struck-through treatment. This
+is deferred rather than refused: carrying the omission as a character range would answer it, and
+nothing yet needs that. Measured support for the deferral is below — every real use surveyed was
+whole lines.
 
 The evidence, measured across 83 real `.fountain` files, is that the boneyard is rare and is
 not used for what its name suggests:
