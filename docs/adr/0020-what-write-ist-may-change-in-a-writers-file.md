@@ -75,6 +75,12 @@ file**, so it compares two in-memory strings and cannot see an encoding-level di
 it reports `b.length` — JavaScript characters, not bytes — which is the whole of the
 170,679 / 170,682 confusion.
 
+> **Built, 2026-09-16.** The gate lives in `test/screenplay/` and the pipeline in
+> `src/screenplay/`, with bytes at both ends — `importScreenplay` takes a `Uint8Array` and
+> `exportScreenplay` returns one, so neither can repeat the character-count mistake below. The
+> corpus numbers it pins are in [ADR-0004](0004-fountain-is-the-source-of-truth.md): 170,682 on
+> disk, 170,642 after the four text normalisations, 172,451 after all seven.
+
 **The gate moves into this repo and writes a real file.** It asserts *fidelity* on first
 import — source in, enumerated normalisations applied, bytes compared — and *idempotence*
 thereafter, on a file the application itself wrote. A fixture in NFD is added, which must come
