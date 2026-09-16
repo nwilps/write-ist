@@ -14564,7 +14564,8 @@ I think so, he said.
 
 
 
-## Book X
+Book X
+------
 
 
 
@@ -15974,7 +15975,7 @@ years which we have been describing.
 
 
 
-* * *
+---
 
 # Afterword
 
@@ -15984,6 +15985,8 @@ Jowett than Plato]{.underline}.[^jowett]
 
 [^jowett]: Footnote syntax is in the Markdown subset so a file carrying
 one round-trips. The authoring feature is deferred (ADR-0023).
+
+***
 
 The translator set this passage as verse, and the indentation is authored
 rather than decorative:
