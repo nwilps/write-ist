@@ -46,6 +46,13 @@ way out is a lookup on the pair of element types either side of it:
 | Lyrics → Lyrics | no |
 | Everything else | yes |
 
+**No element is exempt, including omitted ones.** A run of tight prose inside a boneyard is
+spaced by this table like any other run of action, so cut notes written without blank lines
+between them gain them on first import. That is the cost of the boneyard being ordinary elements
+rather than a special case ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)),
+and it is recorded here so the reflowed notes are not later read as a bug. An exemption would
+reintroduce exactly the "the boneyard is different" that treating it as a range removed.
+
 This is what makes ADR-0020's claim — *spacing is derived from adjacent element types* — actually
 true, and the rule is stated here because that claim depends on it.
 
