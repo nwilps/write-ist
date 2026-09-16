@@ -16,7 +16,11 @@ export type NormalisationKind =
   | "line-endings-to-lf"
   | "unicode-to-nfc"
   | "trailing-whitespace-trimmed"
-  | "blank-line-runs-collapsed";
+  | "blank-line-runs-collapsed"
+  /** Applied by `maintainContinuations`, not here (ADR-0026). */
+  | "continuations-added"
+  /** Applied by the serialiser's spacing table, not here. */
+  | "tight-action-run-spaced";
 
 export interface Normalisation {
   readonly kind: NormalisationKind;

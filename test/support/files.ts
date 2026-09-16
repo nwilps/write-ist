@@ -39,6 +39,21 @@ export function writeAndReadBack(name: string, text: string): Uint8Array {
   return new Uint8Array(readFileSync(path));
 }
 
+/**
+ * Write bytes to a real file, unchanged, and read them back.
+ *
+ * Preferred over `writeAndReadBack` wherever the thing under test already
+ * produced bytes: converting them to a string and letting the filesystem
+ * re-encode would put a UTF-8 round trip between the exporter and the
+ * comparison, and that is precisely the layer a byte gate exists to watch.
+ */
+export function writeBytesAndReadBack(name: string, bytes: Uint8Array): Uint8Array {
+  const path = join(OUTPUT, name);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, bytes);
+  return new Uint8Array(readFileSync(path));
+}
+
 /** Where `writeAndReadBack` puts a file, for naming it in a failure message. */
 export function outputPath(name: string): string {
   return join(OUTPUT, name);
