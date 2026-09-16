@@ -47,6 +47,22 @@ const SCENE_HEADING = /^(?:INT\.?\/EXT|EXT\.?\/INT|I\/E|INT|EXT|EST)[.\s]/i;
 /** An unforced transition: all caps, ending in `TO:`. */
 const TRANSITION = /^[A-Z][A-Z0-9 '\-]*TO:$/;
 
+/**
+ * The three transitions writers write unforced that do not end in `TO:`
+ * (ADR-0021).
+ *
+ * Exactly three, matched whole. The trailing period is part of each one, and
+ * the comparison is case-sensitive: this is an uppercase-gated rule, so
+ * `fade out.` in a line of dialogue is dialogue. Anything else that reads like
+ * a transition has to be forced with `>`, which is what Fountain requires and
+ * what keeps `A RIVER.` and `THE BEAST.` action.
+ */
+const UNFORCED_TRANSITIONS: ReadonlySet<string> = new Set([
+  "FADE OUT.",
+  "FADE TO BLACK.",
+  "CUT TO BLACK.",
+]);
+
 const LEADING_WHITESPACE = /^[ \t]*/;
 
 export function parse(text: string): ScreenplayDocument {
@@ -164,7 +180,9 @@ function classify(
 
   // Nothing was forced, so the parser has to guess. Action is the catch-all.
   if (SCENE_HEADING.test(content)) return make("scene-heading", content, indent, false);
-  if (TRANSITION.test(content)) return make("transition", content, indent, false);
+  if (TRANSITION.test(content) || UNFORCED_TRANSITIONS.has(content)) {
+    return make("transition", content, indent, false);
+  }
   if (looksLikeCharacter(content) && nextLine !== "") {
     return make("character", content, indent, false);
   }

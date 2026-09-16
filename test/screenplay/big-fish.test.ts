@@ -123,14 +123,15 @@ describe("the guess: what every line was read as", () => {
     expect([...census.entries()].sort()).toEqual(
       (
         [
-          ["action", 862],
+          ["action", 861],
           ["centered", 2],
           ["character", 768],
           ["dialogue", 811],
           ["page-break", 1],
           ["parenthetical", 97],
           ["scene-heading", 192],
-          ["transition", 34],
+          // 34 ending in TO:, plus the file's one CUT TO BLACK.
+          ["transition", 35],
         ] as Array<[ElementType, number]>
       ).sort(),
     );
@@ -189,13 +190,15 @@ describe("the guess: what every line was read as", () => {
     expect(new TextDecoder().decode(imported())).toContain("LA RUE 14°");
   });
 
-  it("reads a transition only where the line ends in TO:", () => {
+  it("reads a transition where the line ends in TO:, or is one of the three", () => {
     allRead("MATCH CUT TO:", 4, "transition");
     allRead("BACK TO:", 4, "transition");
 
-    // The Fountain spec names `CUT TO BLACK.` as a line that needs forcing to
-    // be a transition, and `FADE IN:` does not end in TO: either.
-    expect(only("CUT TO BLACK.").type).toBe("action");
+    // ADR-0021's three unforced transitions do not end in TO:. This file has
+    // one of them, as its last line before the end title.
+    expect(only("CUT TO BLACK.").type).toBe("transition");
+
+    // `FADE IN:` is not on that list and does not end in TO:, so it is action.
     expect(only("**FADE IN:**").type).toBe("action");
   });
 

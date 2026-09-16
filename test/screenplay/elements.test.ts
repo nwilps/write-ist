@@ -85,6 +85,94 @@ describe("forcing markers", () => {
   });
 });
 
+describe("unforced transitions", () => {
+  /**
+   * The type this line takes in the body of a screenplay.
+   *
+   * A scene heading goes in front of it deliberately. Fountain puts the title
+   * page first and does not restrict it to known keys, so a document whose
+   * *first* line is `CUT TO:` is a title page with one field — correct, and
+   * not what this rule is about.
+   */
+  const typeOf = (line: string): string => {
+    const document = parse(`.INT. SOMEWHERE - DAY\n\n${line}`);
+    expect(document.elements, line).toHaveLength(2);
+    return document.elements[1]!.type;
+  };
+
+  it("recognises exactly the three that do not end in TO:", () => {
+    // ADR-0021's list, and the whole of it.
+    expect(typeOf("FADE OUT.")).toBe("transition");
+    expect(typeOf("FADE TO BLACK.")).toBe("transition");
+    expect(typeOf("CUT TO BLACK.")).toBe("transition");
+  });
+
+  it("requires the trailing period", () => {
+    // Without it these are just upper-case lines, and upper-case lines are how
+    // shot headings are written.
+    expect(typeOf("FADE OUT")).toBe("action");
+    expect(typeOf("FADE TO BLACK")).toBe("action");
+    expect(typeOf("CUT TO BLACK")).toBe("action");
+  });
+
+  it("is gated on upper case", () => {
+    expect(typeOf("Fade out.")).toBe("action");
+    expect(typeOf("fade to black.")).toBe("action");
+    expect(typeOf("Cut to black.")).toBe("action");
+  });
+
+  it("does not read a lowercase line ending in ' to:' as a transition", () => {
+    // The `TO:` rule is upper-case only. Ordinary prose ending in a colon is
+    // action, and inside a speech it is dialogue.
+    expect(typeOf("He turns to:")).toBe("action");
+    expect(typeOf("and then she said to:")).toBe("action");
+    expect(typeOf("SMASH CUT to:")).toBe("action");
+
+    const speech = parse(".INT. SOMEWHERE - DAY\n\n@EDWARD\nI gave it to:");
+    expect(speech.elements.map((element) => element.type)).toEqual([
+      "scene-heading",
+      "character",
+      "dialogue",
+    ]);
+  });
+
+  it("still reads an upper-case line ending in TO: as a transition", () => {
+    expect(typeOf("CUT TO:")).toBe("transition");
+    expect(typeOf("SMASH CUT TO:")).toBe("transition");
+    expect(typeOf("MATCH CUT TO:")).toBe("transition");
+  });
+
+  it("leaves an upper-case line ending in a period as action", () => {
+    // The three above are a closed list, not a pattern. These are the lines
+    // Big Fish uses as shot headings, and reading one as a transition would
+    // put it on the right-hand side of the page.
+    expect(typeOf("A RIVER.")).toBe("action");
+    expect(typeOf("THE BEAST.")).toBe("action");
+    expect(typeOf("UNDERWATER.")).toBe("action");
+    expect(typeOf("TEN THOUSAND DAFFODILS.")).toBe("action");
+    expect(typeOf("BACKSTAGE.")).toBe("action");
+  });
+
+  it("leaves an upper-case line with no period as action", () => {
+    expect(typeOf("ON WILL AND SANDRA")).toBe("action");
+    expect(typeOf("ON HIS SHOES")).toBe("action");
+    expect(typeOf("TWO OVERSIZED HANDS")).toBe("action");
+  });
+
+  it("round-trips every one of these unchanged", () => {
+    for (const line of [
+      "FADE OUT.",
+      "CUT TO BLACK.",
+      "A RIVER.",
+      "ON WILL AND SANDRA",
+      "He turns to:",
+      "CUT TO:",
+    ]) {
+      roundTrips(line);
+    }
+  });
+});
+
 describe("speech blocks", () => {
   it("reads a parenthetical inside a speech and dialogue around it", () => {
     const source = ["@EDWARD", "(quietly)", "I know.", "And I am sorry."].join("\n");
