@@ -77,7 +77,9 @@ _Avoid_: metadata, database, index
 
 **Comment**:
 Something the writer says about a place in the manuscript, anchored to the span it was left
-on and shown beside the text as a floating card. Its text is stored inline in the manuscript
+on and shown beside the text as a floating card. Its remark is stored inside the opening
+delimiter, so the remark and the span it is about are one construct and deleting the span
+takes the remark with it. Its text is stored inline in the manuscript
 file, delimited in band and matched by id — but it is not part of the work: it is stripped
 before pagination, before word and page counts, and before export, and the writer never sees
 its syntax. A comment anchors, so it belongs to one draft and freezes with it.
