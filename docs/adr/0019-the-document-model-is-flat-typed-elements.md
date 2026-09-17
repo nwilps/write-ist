@@ -13,6 +13,12 @@ Inline formatting is carried as a **set of marks** per span, not a tree. `_**x**
 `**_x_**` are therefore indistinguishable to the model, and one order is chosen on the way
 out.
 
+How far one such range may reach is decided separately, in
+[ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md): a mark runs from its
+opening delimiter to the next matching one, across elements when that is where it closes. It is
+the one range in the model that crosses an element boundary, and it costs flatness nothing — it
+is still a range, still a set, and still nothing containing anything.
+
 ## The forcing reasons
 
 **Model-first** is forced by three decisions already taken, pulling the same way. ADR-0001
@@ -74,14 +80,20 @@ never arises because omitted elements are spaced by the same table as every othe
 ## The prose surface does not inherit it, and could not
 
 **A prose paragraph is one element whose text holds the writer's line wraps.** Measured on the
-acceptance manuscript, 2026-09-16: **2,140 of its 4,322 paragraphs span more than one line, and
+acceptance manuscript, 2026-09-16: **2,135 of its 4,317 paragraphs span more than one line, and
 the longest runs 72.** Prose arrives hard-wrapped, as most real prose is, and rewrapping it is
 not on ADR-0020's list — so the wraps are the writer's and they stay.
+
+*(Re-measured against the landed parser, 2026-09-16. The figures first written here were 2,140
+of 4,322: 2,140 is the count of **elements** holding a newline — the paragraphs plus the block
+quote, the verse block and the two passthroughs — against 4,343 elements in all. The paragraph
+figures are the ones the sentence is making a claim about, so they are the ones stated. Roughly
+half either way, and the argument below is unchanged.)*
 
 **The rule above was measured on screenplays, and that is why it does not transfer.** It was
 decided on a count: one genuine multi-line action block across 2,104 action blocks in three
 produced screenplays. Screenplay has no hard-wrapped construct, so the case barely exists.
-Markdown paragraphs are nothing but that case — 2,140 of them in one book — and a rule bought
+Markdown paragraphs are nothing but that case — 2,135 of them in one book — and a rule bought
 for 1-in-2,104 cannot be sold at 1-in-2.
 
 The consequences that follow from the screenplay rule therefore do not follow here. Nothing
