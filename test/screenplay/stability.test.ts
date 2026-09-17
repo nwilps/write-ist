@@ -12,18 +12,19 @@
  * file from passing vacuously. The stronger claim — that the output equals the
  * source — is Phase D.
  */
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 import type { ElementType } from "../../src/screenplay/document.ts";
 import { normaliseSource } from "../../src/normalise.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { assertBytesEqual } from "../support/byte-diff.ts";
-import { readFixtureText, writeAndReadBack } from "../support/files.ts";
+import { writeAndReadBack } from "../support/files.ts";
+import { describeCorpus, readCorpusText } from "../support/corpus.ts";
 
 const normalisedCorpus = (): string =>
-  normaliseSource(readFixtureText("script.fountain")).text;
+  normaliseSource(readCorpusText()).text;
 
-describe("screenplay round-trip is stable", () => {
+describeCorpus("screenplay round-trip is stable", () => {
   it("serialising twice produces the same bytes for script.fountain", () => {
     const firstPass = serialise(parse(normalisedCorpus()));
     const secondPass = serialise(parse(firstPass));
@@ -49,7 +50,7 @@ describe("screenplay round-trip is stable", () => {
   });
 });
 
-describe("the corpus is fully accounted for", () => {
+describeCorpus("the corpus is fully accounted for", () => {
   // Every line of script.fountain is either blank, a title-page field, or
   // exactly one element. These numbers are the file, counted directly; if the
   // parser starts dropping or inventing lines, one of them moves.
@@ -112,9 +113,9 @@ describe("the corpus is fully accounted for", () => {
   });
 });
 
-describe("normalising the corpus", () => {
+describeCorpus("normalising the corpus", () => {
   it("applies exactly the two changes ADR-0020 permits on this file", () => {
-    const { applied } = normaliseSource(readFixtureText("script.fountain"));
+    const { applied } = normaliseSource(readCorpusText());
 
     expect(applied).toEqual([
       { kind: "trailing-whitespace-trimmed", count: 38 },
@@ -123,7 +124,7 @@ describe("normalising the corpus", () => {
   });
 
   it("is itself a fixed point", () => {
-    const once = normaliseSource(readFixtureText("script.fountain")).text;
+    const once = normaliseSource(readCorpusText()).text;
     expect(normaliseSource(once).applied).toEqual([]);
   });
 });

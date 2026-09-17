@@ -21,7 +21,7 @@
  * whole of the 170,679 / 170,682 confusion, and nothing here is permitted to
  * repeat it.
  */
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 import {
   exportScreenplay,
   importScreenplay,
@@ -29,12 +29,8 @@ import {
 } from "../../src/screenplay/import.ts";
 import { normaliseSource } from "../../src/normalise.ts";
 import { assertBytesEqual, firstByteDifference } from "../support/byte-diff.ts";
-import {
-  readFixtureBytes,
-  readFixtureText,
-  writeAndReadBack,
-  writeBytesAndReadBack,
-} from "../support/files.ts";
+import { writeAndReadBack, writeBytesAndReadBack } from "../support/files.ts";
+import { describeCorpus, readCorpusBytes, readCorpusText } from "../support/corpus.ts";
 
 /** The corpus as it sits on disk, untouched. */
 const SOURCE_BYTES = 170_682;
@@ -55,15 +51,15 @@ const EXTENSION = " (CONT'D)";
 const IMPORTED_BYTES = NORMALISED_BYTES + CONTINUATIONS_ADDED * EXTENSION.length;
 
 const importedBytes = (): Uint8Array =>
-  exportScreenplay(importScreenplay(readFixtureBytes("script.fountain")).document);
+  exportScreenplay(importScreenplay(readCorpusBytes()).document);
 
 const normalisedText = (): string =>
-  normaliseSource(readFixtureText("script.fountain")).text;
+  normaliseSource(readCorpusText()).text;
 
-describe("the corpus, measured as bytes", () => {
+describeCorpus("the corpus, measured as bytes", () => {
   it("is the file ADR-0004 pins, and its character count is not its byte count", () => {
-    const bytes = readFixtureBytes("script.fountain");
-    const characters = readFixtureText("script.fountain").length;
+    const bytes = readCorpusBytes();
+    const characters = readCorpusText().length;
 
     expect(bytes.length).toBe(SOURCE_BYTES);
     // One `é` costs two bytes and one character. Conflating the two is the
@@ -81,9 +77,9 @@ describe("the corpus, measured as bytes", () => {
   });
 });
 
-describe("fidelity: a file Write-ist has never seen", () => {
+describeCorpus("fidelity: a file Write-ist has never seen", () => {
   it("comes back as the source plus the enumerated normalisations, and nothing else", () => {
-    const { report } = importScreenplay(readFixtureBytes("script.fountain"));
+    const { report } = importScreenplay(readCorpusBytes());
     const actual = writeBytesAndReadBack("script.roundtrip.fountain", importedBytes());
 
     expect(actual.length).toBe(IMPORTED_BYTES);
@@ -121,7 +117,7 @@ describe("fidelity: a file Write-ist has never seen", () => {
   });
 
   it("differs from the raw source, so the comparison is not a file against itself", () => {
-    const source = readFixtureBytes("script.fountain");
+    const source = readCorpusBytes();
     const difference = firstByteDifference(source, importedBytes());
 
     expect(difference).not.toBeNull();
@@ -146,13 +142,13 @@ describe("fidelity: a file Write-ist has never seen", () => {
   });
 });
 
-describe("fidelity with (CONT'D) maintenance switched off", () => {
+describeCorpus("fidelity with (CONT'D) maintenance switched off", () => {
   // ADR-0026's one switch, for the writer or house style that does not use the
   // convention. With it off, the corpus is returned exactly as written.
   const options = { maintainContinuations: false } as const;
 
   it("returns the normalised source byte for byte", () => {
-    const { document, report } = importScreenplay(readFixtureBytes("script.fountain"), options);
+    const { document, report } = importScreenplay(readCorpusBytes(), options);
 
     const expected = writeAndReadBack("script.normalised.fountain", normalisedText());
     const actual = writeBytesAndReadBack("script.no-contd.fountain", exportScreenplay(document));
@@ -170,7 +166,7 @@ describe("fidelity with (CONT'D) maintenance switched off", () => {
   });
 
   it("leaves the three extensions the writer did author exactly as written", () => {
-    const { document } = importScreenplay(readFixtureBytes("script.fountain"), options);
+    const { document } = importScreenplay(readCorpusBytes(), options);
     const authored = document.elements.filter(
       (element) => element.type === "character" && element.text.includes("(CONT'D)"),
     );
@@ -181,7 +177,7 @@ describe("fidelity with (CONT'D) maintenance switched off", () => {
   it("changes the raw source first at line 142, the first trailing space", () => {
     // With the extensions out of the way, the earliest thing the four text
     // normalisations touch is the first of the 38 lines ending in a space.
-    const source = readFixtureBytes("script.fountain");
+    const source = readCorpusBytes();
     const { document } = importScreenplay(source, options);
     const difference = firstByteDifference(source, exportScreenplay(document));
 
@@ -191,7 +187,7 @@ describe("fidelity with (CONT'D) maintenance switched off", () => {
   });
 });
 
-describe("idempotence: a file Write-ist itself wrote", () => {
+describeCorpus("idempotence: a file Write-ist itself wrote", () => {
   it("is byte-identical when opened and saved without typing", () => {
     const ours = writeBytesAndReadBack("script.ours.fountain", importedBytes());
     const resaved = writeBytesAndReadBack("script.resaved.fountain", reopenAndSave(ours));
@@ -224,7 +220,7 @@ describe("idempotence: a file Write-ist itself wrote", () => {
   it("holds with the switch off too", () => {
     const options = { maintainContinuations: false } as const;
     const ours = exportScreenplay(
-      importScreenplay(readFixtureBytes("script.fountain"), options).document,
+      importScreenplay(readCorpusBytes(), options).document,
     );
 
     assertBytesEqual(ours, reopenAndSave(ours, options), {
@@ -234,9 +230,9 @@ describe("idempotence: a file Write-ist itself wrote", () => {
   });
 });
 
-describe("what (CONT'D) maintenance may and may not touch", () => {
+describeCorpus("what (CONT'D) maintenance may and may not touch", () => {
   it("appends only to a cue where the same character resumes after an interruption", () => {
-    const { document } = importScreenplay(readFixtureBytes("script.fountain"));
+    const { document } = importScreenplay(readCorpusBytes());
     const cues = document.elements.filter((element) => element.type === "character");
 
     const withContinuation = cues.filter((cue) => cue.text.includes("(CONT'D)"));
@@ -245,10 +241,10 @@ describe("what (CONT'D) maintenance may and may not touch", () => {
   });
 
   it("never adds, removes or alters an authored (O.S.) extension", () => {
-    const untouched = importScreenplay(readFixtureBytes("script.fountain"), {
+    const untouched = importScreenplay(readCorpusBytes(), {
       maintainContinuations: false,
     }).document;
-    const maintained = importScreenplay(readFixtureBytes("script.fountain")).document;
+    const maintained = importScreenplay(readCorpusBytes()).document;
 
     const offScreen = (document: typeof untouched): string[] =>
       document.elements

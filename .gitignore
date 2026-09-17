@@ -22,3 +22,7 @@ out/
 
 # Files the round-trip tests write to disk (they compare real files, not strings)
 test/.out/
+
+# The acceptance corpus is an unpublished screenplay and is not committed.
+# Tests read it from $WRITE_IST_CORPUS and skip when it is absent.
+test/fixtures/script.fountain
