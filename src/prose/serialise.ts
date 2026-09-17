@@ -31,11 +31,17 @@ export function serialise(document: ProseDocument): string {
  * currently produce takes a blank line — a heading, a scene break and a
  * paragraph all end their block.
  */
-function needsBlankLine(_previous: ProseElement, _next: ProseElement): boolean {
-  // Every pair, including two quotes or two line blocks in a row. A quote is
-  // one element holding all its lines, so the only place two of them meet is
-  // a real block boundary — which in Markdown *is* the blank line. Omitting it
-  // there would merge two quotes into one.
+function needsBlankLine(previous: ProseElement, next: ProseElement): boolean {
+  // A cut delimiter sits against the material it delimits, exactly as a
+  // boneyard delimiter does on the screenplay surface. The blank lines that
+  // separate a cut from the prose around it are outside the pair.
+  if (previous.type === "cut-start") return false;
+  if (next.type === "cut-end") return false;
+
+  // Every other pair, including two quotes or two line blocks in a row. A
+  // quote is one element holding all its lines, so the only place two of them
+  // meet is a real block boundary — which in Markdown *is* the blank line.
+  // Omitting it there would merge two quotes into one.
   return true;
 }
 
@@ -56,6 +62,9 @@ function render(element: ProseElement): string {
       return marked(element.text, "|");
     case "paragraph":
     case "scene-break":
+    case "footnote":
+    case "cut-start":
+    case "cut-end":
     // A passthrough is an exact copy of its own text, newlines and all.
     case "passthrough":
       return element.text;

@@ -61,6 +61,26 @@ const PIPE_START = /^\|/;
  */
 const TABLE_DELIMITER = /^\|[ :|-]*-[ :|-]*$/;
 
+/**
+ * The cut delimiters — prose's counterpart to the screenplay boneyard.
+ *
+ * Delimiters with an `omitted` flag on the elements between, never a
+ * container, and carrying no id (ADR-0021, ADR-0022).
+ */
+const CUT_OPEN = "<!--cut-->";
+const CUT_CLOSE = "<!--/cut-->";
+
+/**
+ * A footnote definition. ADR-0023 keeps the syntax in the subset even though
+ * the authoring feature is deferred, so that a file carrying one round-trips
+ * and is never destroyed.
+ */
+const FOOTNOTE_DEFINITION = /^\[\^[^\]]+\]:/;
+
+/** A line that opens an HTML comment. */
+const COMMENT_OPEN = "<!--";
+const COMMENT_CLOSE = "-->";
+
 export function parse(text: string): ProseDocument {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
@@ -79,10 +99,37 @@ export function parse(text: string): ProseDocument {
       continue;
     }
 
+    if (line === CUT_OPEN && closesLater(lines, index)) {
+      elements.push({ type: "cut-start", text: line });
+      index++;
+      continue;
+    }
+    if (line === CUT_CLOSE) {
+      elements.push({ type: "cut-end", text: line });
+      index++;
+      continue;
+    }
+
     const atx = ATX_HEADING.exec(line);
     if (atx !== null) {
       elements.push({ type: "heading", text: atx[2]!, level: atx[1]!.length });
       index++;
+      continue;
+    }
+
+    if (line.startsWith(COMMENT_OPEN)) {
+      const block = readCommentBlock(lines, index);
+      if (block !== null) {
+        elements.push({ type: "passthrough", text: block.text });
+        index = block.next;
+        continue;
+      }
+    }
+
+    if (FOOTNOTE_DEFINITION.test(line)) {
+      const end = runEnd(lines, index);
+      elements.push({ type: "footnote", text: lines.slice(index, end).join("\n") });
+      index = end;
       continue;
     }
 
@@ -114,7 +161,72 @@ export function parse(text: string): ProseDocument {
     index = readTextBlock(lines, index, elements);
   }
 
-  return { elements, endsWithNewline };
+  return { elements: markOmitted(elements), endsWithNewline };
+}
+
+/**
+ * Mark everything between a pair of cut delimiters as omitted.
+ *
+ * A second pass rather than a flag threaded through the parse, because the cut
+ * is a *range* over the sequence and nothing about reading an element depends
+ * on being inside one. The delimiters carry the flag too, so stripping a cut
+ * is a single filter.
+ */
+function markOmitted(elements: readonly ProseElement[]): ProseElement[] {
+  let inside = false;
+  return elements.map((element) => {
+    if (element.type === "cut-start") inside = true;
+    const marked = inside ? { ...element, omitted: true } : element;
+    if (element.type === "cut-end") inside = false;
+    return marked;
+  });
+}
+
+/** Where a run of consecutive non-blank lines ends. */
+function runEnd(lines: readonly string[], start: number): number {
+  let end = start + 1;
+  while (end < lines.length && lines[end] !== "" && !interrupts(lines[end]!)) end++;
+  return end;
+}
+
+/** Whether a later line closes this cut, as on the screenplay surface. */
+function closesLater(lines: readonly string[], from: number): boolean {
+  for (let index = from + 1; index < lines.length; index++) {
+    if (lines[index] === CUT_CLOSE) return true;
+  }
+  return false;
+}
+
+/**
+ * An HTML comment standing alone as a block, which is a passthrough.
+ *
+ * ADR-0023 draws the line: an HTML comment carrying our id prefix is a
+ * Write-ist comment, and everything else is a passthrough. In practice the
+ * test is whether anything follows the comment — `<!--c:a1 …-->She left.` is a
+ * paragraph with a comment in it, and a comment with a blank line after it is
+ * a block of its own.
+ *
+ * "Anything" includes the next line. A comment followed straight away by prose
+ * is part of that run: calling it a block would put a blank line between them
+ * on the way out, and that blank line was not in the writer's file.
+ *
+ * Returns null in either case, so the run falls through and becomes a
+ * paragraph, which is lossless.
+ */
+function readCommentBlock(
+  lines: readonly string[],
+  start: number,
+): { text: string; next: number } | null {
+  for (let index = start; index < lines.length && lines[index] !== ""; index++) {
+    const closes = lines[index]!.indexOf(COMMENT_CLOSE);
+    if (closes === -1) continue;
+    // Anything after the first `-->` means this is prose with a comment in it.
+    if (closes + COMMENT_CLOSE.length !== lines[index]!.length) return null;
+    const after = lines[index + 1];
+    if (after !== undefined && after !== "") return null;
+    return { text: lines.slice(start, index + 1).join("\n"), next: index + 1 };
+  }
+  return null;
 }
 
 /**
@@ -233,6 +345,8 @@ function interrupts(line: string): boolean {
     ATX_HEADING.test(line) ||
     THEMATIC_BREAK.test(line) ||
     QUOTE_LINE.test(line) ||
-    PIPE_START.test(line)
+    PIPE_START.test(line) ||
+    line === CUT_OPEN ||
+    line === CUT_CLOSE
   );
 }

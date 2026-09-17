@@ -74,7 +74,7 @@ describe("the census", () => {
   // is the lesson E2 taught: two sluglines were read as action and every byte
   // test passed, because an unforced heading and an action line are the same
   // characters.
-  it("counts 4,341 elements", () => {
+  it("counts 4,343 elements", () => {
     const census = new Map<ProseElementType, number>();
     for (const element of document().elements) {
       census.set(element.type, (census.get(element.type) ?? 0) + 1);
@@ -84,9 +84,12 @@ describe("the census", () => {
       (
         [
           ["block-quote", 1],
+          ["cut-end", 1],
+          ["cut-start", 1],
+          ["footnote", 1],
           ["heading", 16],
-          ["paragraph", 4_319],
-          ["passthrough", 1],
+          ["paragraph", 4_317],
+          ["passthrough", 2],
           ["scene-break", 3],
           ["verse", 1],
         ] as Array<[ProseElementType, number]>
@@ -116,8 +119,8 @@ describe("the census", () => {
     const paragraphs = ofType("paragraph");
     const wrapped = paragraphs.filter((element) => element.text.includes("\n"));
 
-    expect(paragraphs).toHaveLength(4_319);
-    expect(wrapped).toHaveLength(2_137);
+    expect(paragraphs).toHaveLength(4_317);
+    expect(wrapped).toHaveLength(2_135);
     // The longest is 72 lines. Rewrapping it would change 72 line endings and
     // not one word, which is exactly the kind of silent rewrite ADR-0020 bans.
     expect(Math.max(...paragraphs.map((p) => p.text.split("\n").length))).toBe(72);
@@ -242,12 +245,10 @@ describe("paragraphs", () => {
   });
 
   it("is the catch-all, so nothing the parser does not know is lost", () => {
-    // The prose counterpart of Fountain making action the catch-all. The
-    // fixture's multi-line HTML comment is not a construct this parser knows,
-    // and it round-trips anyway, as a paragraph.
-    const source =
-      "<!-- Fixture note: front matter, an epigraph as a block quote, and a\n" +
-      "     dramatis personae list. -->";
+    // The prose counterpart of Fountain making action the catch-all: a
+    // definition list is Pandoc syntax this parser does not recognise, and it
+    // round-trips anyway.
+    const source = "Term\n:   The definition, which Pandoc understands and we do not.";
     expect(parse(source).elements.map((e) => e.type)).toEqual(["paragraph"]);
     expect(serialise(parse(source))).toBe(source);
   });

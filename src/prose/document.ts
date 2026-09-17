@@ -41,6 +41,9 @@ export type ProseElementType =
   | "scene-break"
   | "block-quote"
   | "verse"
+  | "footnote"
+  | "cut-start"
+  | "cut-end"
   | "passthrough";
 
 export interface ProseElement {
@@ -74,6 +77,17 @@ export interface ProseElement {
    * a scene number and a dual-dialogue caret already do on the other surface.
    */
   readonly underline?: string;
+  /**
+   * The element lies inside a cut, between `<!--cut-->` and its closing
+   * delimiter — prose's counterpart to the screenplay boneyard (ADR-0023),
+   * and modelled the same way (ADR-0021): delimiters with a flag on what lies
+   * between, never a container, and carrying no id.
+   *
+   * As on the other surface, the material is a full element in every other
+   * respect. What the flag governs is what is left out of pagination, the word
+   * and page counts, and export.
+   */
+  readonly omitted?: boolean;
 }
 
 export interface ProseDocument {

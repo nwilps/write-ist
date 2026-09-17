@@ -141,7 +141,10 @@ describe("verse", () => {
 
 describe("the pipe table, which begins like verse and is not", () => {
   it("reads it as one passthrough, kept exactly", () => {
-    expect(ofType("passthrough")).toEqual([
+    // The fixture's other passthrough is a block-level HTML comment (stage 3).
+    const table = ofType("passthrough").filter((element) => element.text.startsWith("|"));
+
+    expect(table).toEqual([
       {
         type: "passthrough",
         text: [
