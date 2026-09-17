@@ -31,11 +31,11 @@ export function serialise(document: ProseDocument): string {
  * currently produce takes a blank line — a heading, a scene break and a
  * paragraph all end their block.
  */
-function needsBlankLine(previous: ProseElement, next: ProseElement): boolean {
-  // A line block and a block quote are runs of lines, and a blank line in the
-  // middle of one does not space it out — it ends it, and starts another.
-  if (previous.type === "verse" && next.type === "verse") return false;
-  if (previous.type === "block-quote" && next.type === "block-quote") return false;
+function needsBlankLine(_previous: ProseElement, _next: ProseElement): boolean {
+  // Every pair, including two quotes or two line blocks in a row. A quote is
+  // one element holding all its lines, so the only place two of them meet is
+  // a real block boundary — which in Markdown *is* the blank line. Omitting it
+  // there would merge two quotes into one.
   return true;
 }
 
@@ -47,13 +47,25 @@ function render(element: ProseElement): string {
       return element.underline === undefined
         ? `${"#".repeat(element.level ?? 1)} ${element.text}`
         : `${element.text}\n${element.underline}`;
+    // One element, all its lines. An empty line inside the block is written
+    // with the bare marker, which is how Markdown spells it and what the
+    // parser read it from.
     case "block-quote":
+      return marked(element.text, ">");
     case "verse":
-      return `${element.marker ?? ""}${element.text}`;
+      return marked(element.text, "|");
     case "paragraph":
     case "scene-break":
     // A passthrough is an exact copy of its own text, newlines and all.
     case "passthrough":
       return element.text;
   }
+}
+
+/** Put a block's marker back on each of its lines. */
+function marked(text: string, marker: string): string {
+  return text
+    .split("\n")
+    .map((line) => (line === "" ? marker : `${marker} ${line}`))
+    .join("\n");
 }

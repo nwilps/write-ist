@@ -74,7 +74,7 @@ describe("the census", () => {
   // is the lesson E2 taught: two sluglines were read as action and every byte
   // test passed, because an unforced heading and an action line are the same
   // characters.
-  it("counts 4,349 elements", () => {
+  it("counts 4,341 elements", () => {
     const census = new Map<ProseElementType, number>();
     for (const element of document().elements) {
       census.set(element.type, (census.get(element.type) ?? 0) + 1);
@@ -83,12 +83,12 @@ describe("the census", () => {
     expect([...census.entries()].sort()).toEqual(
       (
         [
-          ["block-quote", 5],
+          ["block-quote", 1],
           ["heading", 16],
           ["paragraph", 4_319],
           ["passthrough", 1],
           ["scene-break", 3],
-          ["verse", 5],
+          ["verse", 1],
         ] as Array<[ProseElementType, number]>
       ).sort(),
     );

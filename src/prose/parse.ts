@@ -34,11 +34,21 @@ const THEMATIC_BREAK = /^(?:\*[ \t]*){3,}$|^(?:-[ \t]*){3,}$|^(?:_[ \t]*){3,}$/;
  */
 const SETEXT_UNDERLINE = /^(?:=+|-{2,})$/;
 
-/** A block-quote line. `>` alone is how a blank line inside a quote is spelled. */
-const QUOTE_LINE = /^(>[ ]?)(.*)$/;
+/**
+ * A block-quote line: `> ` and its content, or `>` alone, which is how a blank
+ * line inside a quote is spelled.
+ *
+ * Strict on purpose. A quote written `>text` with no space is not matched and
+ * stays a paragraph, because accepting it would mean writing back `> text` and
+ * adding a byte the writer did not type.
+ */
+const QUOTE_LINE = /^>(?: (.*))?$/;
 
-/** A line beginning with a pipe: Pandoc's line block, or a pipe table. */
-const PIPE_LINE = /^(\|[ ]?)(.*)$/;
+/** A line block line — Pandoc's verse — read on the same terms. */
+const VERSE_LINE = /^\|(?: (.*))?$/;
+
+/** Any line beginning with a pipe, which is verse or a pipe table. */
+const PIPE_START = /^\|/;
 
 /**
  * A pipe table's delimiter row — pipes, dashes, colons and spaces, nothing
@@ -85,13 +95,20 @@ export function parse(text: string): ProseDocument {
     }
 
     if (QUOTE_LINE.test(line)) {
-      index = readMarkedRun(lines, index, elements, "block-quote", QUOTE_LINE);
-      continue;
+      const block = readMarkedBlock(lines, index, "block-quote", QUOTE_LINE);
+      if (block !== null) {
+        elements.push(block.element);
+        index = block.next;
+        continue;
+      }
     }
 
-    if (PIPE_LINE.test(line)) {
-      index = readPipeRun(lines, index, elements);
-      continue;
+    if (PIPE_START.test(line)) {
+      const next = readPipeRun(lines, index, elements);
+      if (next !== null) {
+        index = next;
+        continue;
+      }
     }
 
     index = readTextBlock(lines, index, elements);
@@ -138,27 +155,50 @@ function readTextBlock(
 }
 
 /**
- * A run of lines sharing a prefix, one element per line.
+ * A run of consecutive marked lines, as **one** element.
  *
- * A quote line and a verse line are each an element, and no blank line falls
- * between two of them — in a line block a blank would end the block, and in a
- * quote it would start a second one.
+ * The blank line is the boundary. Two quotes with a blank line between them
+ * are two blocks and two elements; two quote lines with no blank between them
+ * are one block and merge into one element. That is what makes the spacing
+ * rule work out: within an element the lines simply are what they are, and
+ * between two elements the ordinary blank line applies, so neither can
+ * swallow the other.
+ *
+ * The element's text is the content with the markers taken off, joined by the
+ * newlines that were already there. Returns null if any line in the run is
+ * spelled some other way, in which case the run is left to be a paragraph and
+ * every byte of it survives untouched.
  */
-function readMarkedRun(
+function readMarkedBlock(
   lines: readonly string[],
   start: number,
-  elements: ProseElement[],
   type: "block-quote" | "verse",
   pattern: RegExp,
-): number {
+): { element: ProseElement; next: number } | null {
+  const content: string[] = [];
   let index = start;
-  while (index < lines.length) {
+
+  while (index < lines.length && lines[index] !== "") {
     const match = pattern.exec(lines[index]!);
     if (match === null) break;
-    elements.push({ type, text: match[2]!, marker: match[1]! });
+    // A bare `>` has no capture group: it is an empty line inside the block.
+    content.push(match[1] ?? "");
     index++;
   }
-  return index;
+
+  // The run ended because a line was spelled differently, not because the
+  // block ended. Reading part of it would split a block that is not split.
+  if (index < lines.length && lines[index] !== "" && startsWith(lines[index]!, pattern)) {
+    return null;
+  }
+  if (content.length === 0) return null;
+
+  return { element: { type, text: content.join("\n") }, next: index };
+}
+
+/** Whether the line opens with this construct's marker but is spelled oddly. */
+function startsWith(line: string, pattern: RegExp): boolean {
+  return pattern === QUOTE_LINE ? line.startsWith(">") : line.startsWith("|");
 }
 
 /**
@@ -169,16 +209,19 @@ function readPipeRun(
   lines: readonly string[],
   start: number,
   elements: ProseElement[],
-): number {
+): number | null {
   const second = lines[start + 1];
-  if (second === undefined || !TABLE_DELIMITER.test(second)) {
-    return readMarkedRun(lines, start, elements, "verse", PIPE_LINE);
+  if (second !== undefined && TABLE_DELIMITER.test(second)) {
+    let end = start;
+    while (end < lines.length && PIPE_START.test(lines[end]!)) end++;
+    elements.push({ type: "passthrough", text: lines.slice(start, end).join("\n") });
+    return end;
   }
 
-  let end = start;
-  while (end < lines.length && PIPE_LINE.test(lines[end]!)) end++;
-  elements.push({ type: "passthrough", text: lines.slice(start, end).join("\n") });
-  return end;
+  const block = readMarkedBlock(lines, start, "verse", VERSE_LINE);
+  if (block === null) return null;
+  elements.push(block.element);
+  return block.next;
 }
 
 /** Whether this line ends the paragraph above it rather than continuing it. */
@@ -190,6 +233,6 @@ function interrupts(line: string): boolean {
     ATX_HEADING.test(line) ||
     THEMATIC_BREAK.test(line) ||
     QUOTE_LINE.test(line) ||
-    PIPE_LINE.test(line)
+    PIPE_START.test(line)
   );
 }

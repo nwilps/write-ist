@@ -46,9 +46,15 @@ export type ProseElementType =
 export interface ProseElement {
   readonly type: ProseElementType;
   /**
-   * The element's text, verbatim, including the author's line wraps and any
-   * leading whitespace. Marks, comments and chapter ids stay in it as plain
-   * text until Phase F.
+   * The element's text, including the author's line wraps and any leading
+   * whitespace. Marks, comments and chapter ids stay in it as plain text
+   * until Phase F.
+   *
+   * A `block-quote` or `verse` element holds its whole block, with the `>` or
+   * `|` markers taken off each line — an empty line in there is the blank line
+   * the block was written with. The blank line is the block boundary: two
+   * quotes with a blank between them are two elements, and two quote lines
+   * with none are one.
    */
   readonly text: string;
   /**
@@ -68,16 +74,6 @@ export interface ProseElement {
    * a scene number and a dual-dialogue caret already do on the other surface.
    */
   readonly underline?: string;
-  /**
-   * The exact line prefix of a `block-quote` or `verse` line — `"> "`, `">"`,
-   * `"| "`. Kept because the writer may write either spelling and a bare `>`
-   * is how a blank line inside a quote is spelled.
-   *
-   * Whatever follows the marker is the element's text, indentation included:
-   * inside verse, leading whitespace is authored and meaningful (ADR-0023),
-   * which is what makes the line block the mechanism poetry runs on.
-   */
-  readonly marker?: string;
 }
 
 export interface ProseDocument {

@@ -1,15 +1,20 @@
 /**
  * Phase E4, stage 2 — block quotes, verse, and the table that looks like both.
  *
- * A block quote and a line block are *runs of lines*, not blocks of prose: a
- * blank line in the middle of one does not space it out, it ends it. So each
- * line is an element and no blank falls between two of them, which is the one
- * place prose spacing differs from "a blank line between everything".
+ * **The blank line is the block boundary.** Two quote lines with nothing
+ * between them are one quote and one element; two separated by a blank line
+ * are two quotes and two elements. So the spacing rule needs no exception: a
+ * blank line falls between every pair of elements, and the only place two
+ * quote elements ever meet is a real boundary, where Markdown requires one.
+ *
+ * That is why a quote holds its whole block. Reading it line by line loses the
+ * boundary — the lines are identical either way, and the blank between two
+ * quotes is the only thing saying they are two.
  *
  * The collision worth knowing about is that Pandoc's line block and a pipe
  * table both begin with `|`. The fixture contains one of each, four lines
- * apart. What separates them is the delimiter row on a table's second line,
- * and nothing else.
+ * apart, and the delimiter row on a table's second line is all that separates
+ * them.
  *
  * *Epigraph* is deliberately not an element type. The fixture's epigraph is a
  * block quote and nothing distinguishes it from any other block quote except
@@ -21,6 +26,7 @@ import { describe, expect, it } from "vitest";
 import { exportProse, importProse } from "../../src/prose/import.ts";
 import { parse } from "../../src/prose/parse.ts";
 import { serialise } from "../../src/prose/serialise.ts";
+import { normaliseSource } from "../../src/normalise.ts";
 import { readFixtureBytes } from "../support/files.ts";
 
 const FIXTURE = "Republic-manuscript.md";
@@ -33,43 +39,70 @@ const roundTrips = (source: string): void => {
   expect(serialise(parse(source))).toBe(source);
 };
 
-describe("block quotes", () => {
-  it("reads the fixture's epigraph as five quote lines", () => {
-    expect(ofType("block-quote").map((element) => [element.marker, element.text])).toEqual([
-      ["> ", "Until philosophers are kings, or the kings and princes of this world"],
-      ["> ", "have the spirit and power of philosophy, cities will never have rest"],
-      ["> ", "from their evils."],
-      // A blank line inside a quote is spelled with a bare `>`.
-      [">", ""],
-      ["> ", "--- Book V"],
-    ]);
-  });
+describe("a blank line is the boundary between two blocks", () => {
+  it("merges quote lines with no blank between them into one element", () => {
+    const parsed = parse("> One\n> Two\n> Three");
 
-  it("keeps a bare > distinct from `> ` with nothing after it", () => {
-    // They are different bytes, and only the marker remembers which was used.
-    const bare = parse(">");
-    expect(bare.elements[0]).toEqual({ type: "block-quote", text: "", marker: ">" });
-    roundTrips(">");
-    roundTrips("> ");
-  });
-
-  it("puts no blank line between two quote lines", () => {
+    expect(parsed.elements).toEqual([{ type: "block-quote", text: "One\nTwo\nThree" }]);
     roundTrips("> One\n> Two\n> Three");
   });
 
-  it("reads two quotes separated by a blank line as two quotes", () => {
-    // The parse is right. What it cannot yet survive is the way out — see the
-    // skipped test below.
-    expect(parse("> One\n\n> Two").elements).toHaveLength(2);
+  it("keeps two quotes separated by a blank line as two elements", () => {
+    const parsed = parse("> One\n\n> Two");
+
+    expect(parsed.elements).toHaveLength(2);
+    // Losing this blank line would merge two quotes into one, which changes
+    // what the document says rather than how it looks.
+    roundTrips("> One\n\n> Two");
+  });
+
+  it("does the same for two line blocks", () => {
+    expect(parse("| One\n| Two").elements).toHaveLength(1);
+    expect(parse("| One\n\n| Two").elements).toHaveLength(2);
+    roundTrips("| One\n| Two");
+    roundTrips("| One\n\n| Two");
+  });
+
+  it("writes an empty line inside a block with the bare marker", () => {
+    // `>` and `|` alone are how a blank line *inside* a block is spelled, and
+    // they are part of the block rather than a boundary.
+    expect(parse("> One\n>\n> Two").elements).toEqual([
+      { type: "block-quote", text: "One\n\nTwo" },
+    ]);
+    roundTrips("> One\n>\n> Two");
+    roundTrips("| One\n|\n| Two");
+  });
+});
+
+describe("block quotes", () => {
+  it("reads the fixture's epigraph as one quote", () => {
+    expect(ofType("block-quote")).toEqual([
+      {
+        type: "block-quote",
+        text: [
+          "Until philosophers are kings, or the kings and princes of this world",
+          "have the spirit and power of philosophy, cities will never have rest",
+          "from their evils.",
+          "",
+          "--- Book V",
+        ].join("\n"),
+      },
+    ]);
   });
 
   it("does not read --- inside a quote as a scene break", () => {
-    // `> --- Book V` is an attribution, and the fixture has exactly this.
-    const parsed = parse("> from their evils.\n> --- Book V");
-
-    expect(parsed.elements.map((e) => e.type)).toEqual(["block-quote", "block-quote"]);
-    expect(parsed.elements[1]?.text).toBe("--- Book V");
+    // `> --- Book V` is an attribution. Outside a quote the same characters
+    // after a blank line are a scene break.
+    expect(ofType("scene-break")).toHaveLength(3);
     expect(output()).toContain("> from their evils.\n>\n> --- Book V");
+  });
+
+  it("leaves a quote spelled without a space as a paragraph", () => {
+    // Accepting `>text` would mean writing back `> text` and adding a byte the
+    // writer did not type. Wrong about the element, right about the bytes.
+    expect(parse(">text").elements.map((e) => e.type)).toEqual(["paragraph"]);
+    roundTrips(">text");
+    roundTrips("> spaced\n>unspaced");
   });
 
   it("interrupts a paragraph, as Markdown says it does", () => {
@@ -83,54 +116,42 @@ describe("block quotes", () => {
 });
 
 describe("verse", () => {
-  it("reads the fixture's verse as five lines, indentation intact", () => {
-    expect(ofType("verse").map((element) => [element.marker, element.text])).toEqual([
-      ["| ", "Not to be born is best"],
-      ["| ", "    when all is reckoned in,"],
-      ["| ", "but once a man has seen the light"],
-      ["| ", "    the next best thing by far"],
-      ["| ", "        is to go back where he came from."],
+  it("reads the fixture's verse as one line block, indentation intact", () => {
+    expect(ofType("verse")).toEqual([
+      {
+        type: "verse",
+        text: [
+          "Not to be born is best",
+          "    when all is reckoned in,",
+          "but once a man has seen the light",
+          "    the next best thing by far",
+          "        is to go back where he came from.",
+        ].join("\n"),
+      },
     ]);
   });
 
   it("keeps the authored indentation, which is the point of a line block", () => {
     // ADR-0023: literal leading whitespace is preserved only inside verse,
     // where it is authored and meaningful — the mechanism poetry runs on.
-    const indented = ofType("verse").filter((element) => element.text.startsWith(" "));
-    expect(indented).toHaveLength(3);
     expect(output()).toContain("|     when all is reckoned in,");
     expect(output()).toContain("|         is to go back where he came from.");
-  });
-
-  it("puts no blank line between two verse lines", () => {
-    roundTrips("| One\n| Two\n| Three");
-  });
-
-  it("keeps a bare | as its own line", () => {
-    const parsed = parse("| One\n|\n| Two");
-
-    expect(parsed.elements.map((e) => [e.marker, e.text])).toEqual([
-      ["| ", "One"],
-      ["|", ""],
-      ["| ", "Two"],
-    ]);
-    roundTrips("| One\n|\n| Two");
   });
 });
 
 describe("the pipe table, which begins like verse and is not", () => {
   it("reads it as one passthrough, kept exactly", () => {
-    const passthrough = ofType("passthrough");
-
-    expect(passthrough).toHaveLength(1);
-    expect(passthrough[0]?.text).toBe(
-      [
-        "| Dialogue     | Approximate date | Length |",
-        "|--------------|------------------|--------|",
-        "| Republic     | c. 375 BC        | long   |",
-        "| Symposium    | c. 385 BC        | medium |",
-      ].join("\n"),
-    );
+    expect(ofType("passthrough")).toEqual([
+      {
+        type: "passthrough",
+        text: [
+          "| Dialogue     | Approximate date | Length |",
+          "|--------------|------------------|--------|",
+          "| Republic     | c. 375 BC        | long   |",
+          "| Symposium    | c. 385 BC        | medium |",
+        ].join("\n"),
+      },
+    ]);
   });
 
   it("is told from verse by the delimiter row, and by nothing else", () => {
@@ -138,7 +159,7 @@ describe("the pipe table, which begins like verse and is not", () => {
     const verse = "| a | b |\n| c | d |\n| 1 | 2 |";
 
     expect(parse(table).elements.map((e) => e.type)).toEqual(["passthrough"]);
-    expect(parse(verse).elements.map((e) => e.type)).toEqual(["verse", "verse", "verse"]);
+    expect(parse(verse).elements.map((e) => e.type)).toEqual(["verse"]);
     roundTrips(table);
     roundTrips(verse);
   });
@@ -155,38 +176,6 @@ describe("the pipe table, which begins like verse and is not", () => {
   });
 });
 
-describe("KNOWN DEFECT: two adjacent blocks of the same kind merge", () => {
-  /**
-   * The spacing rule is "quote line to quote line: none, verse line to verse
-   * line: none". Within one block that is right — a blank line there ends the
-   * block rather than spacing it. But it also applies between the *last* line
-   * of one block and the *first* line of the next, so two quotes separated by
-   * a blank line are written back as one.
-   *
-   * The parse is correct; only the way out is wrong. The fixture does not
-   * contain two adjacent blocks of the same kind, so it round-trips at
-   * 645,702 bytes regardless, which is why these are the only tests that see
-   * it. Left failing-by-omission rather than resolved, because the fix is a
-   * model decision: either a line records that it opens its block, or a whole
-   * block becomes one element and the rule reverts to "a blank between
-   * everything".
-   */
-  it.skip("writes two quotes back as two quotes", () => {
-    roundTrips("> One\n\n> Two");
-  });
-
-  it.skip("writes two line blocks back as two line blocks", () => {
-    roundTrips("| One\n\n| Two");
-  });
-
-  it("does not affect a blank line spelled inside the block", () => {
-    // `>` and `|` alone are how a blank line inside a block is written, and
-    // those are elements, so they survive.
-    roundTrips("> One\n>\n> Two");
-    roundTrips("| One\n|\n| Two");
-  });
-});
-
 describe("the epigraph is a range, not an element", () => {
   it("is an ordinary block quote standing before the first part", () => {
     const elements = document().elements;
@@ -197,18 +186,23 @@ describe("the epigraph is a range, not an element", () => {
       .slice(0, firstPart)
       .filter((element) => element.type === "block-quote");
 
-    // All five quote lines in the file are the epigraph, and they are before
-    // the first part. Nothing in the syntax says "epigraph"; the position does.
-    expect(quotesBeforeIt).toHaveLength(5);
-    expect(ofType("block-quote")).toHaveLength(5);
+    // The only block quote in the file is the epigraph, and it is before the
+    // first part. Nothing in the syntax says "epigraph"; the position does.
     expect(firstPart).toBeGreaterThan(0);
+    expect(quotesBeforeIt).toHaveLength(1);
+    expect(ofType("block-quote")).toHaveLength(1);
   });
 });
 
 describe("stage 2 changes no bytes", () => {
   it("still returns the fixture unchanged", () => {
-    // Reading quote lines, verse and the table out of what were paragraphs
+    // Reading a quote, a line block and a table out of what were paragraphs
     // must move counts and nothing else.
+    const normalised = normaliseSource(
+      new TextDecoder().decode(readFixtureBytes(FIXTURE)),
+    ).text;
+
+    expect(output()).toBe(normalised);
     expect(exportProse(document()).length).toBe(645_702);
   });
 });
