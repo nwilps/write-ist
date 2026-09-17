@@ -142,7 +142,9 @@ _Avoid_: node, block, token, line
 **Mark**:
 Inline formatting carried on a span of text — italic, bold, underline, small caps. Marks are
 a *set*, not a tree: two marks over the same characters have no order, so the order they are
-written in is chosen by the serialiser rather than remembered from the file. Anything
+written in is chosen by the serialiser rather than remembered from the file. A mark's span runs
+from the delimiter that opens it to the next one that closes it, and crosses element boundaries
+when that is where it closes — the one range in the model that does. Anything
 carrying an id is exempt, which is why a comment may nest and cross and bold may not.
 _Avoid_: style, formatting, span, decoration
 
