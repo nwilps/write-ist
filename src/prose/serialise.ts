@@ -8,6 +8,7 @@
  * disk. ADR-0020 does not permit that, so the element remembers.
  */
 import type { ProseDocument, ProseElement } from "./document.ts";
+import { renderMarks } from "./marks.ts";
 
 export function serialise(document: ProseDocument): string {
   const lines: string[] = [];
@@ -45,21 +46,29 @@ function needsBlankLine(previous: ProseElement, next: ProseElement): boolean {
   return true;
 }
 
-/** The element's lines, which for a paragraph is more than one. */
+/**
+ * The element's lines, which for a paragraph is more than one.
+ *
+ * Marks go back before the block markers do. A `>` or `|` belongs to the line,
+ * and a mark belongs to the text — so a mark that crosses a wrap inside a
+ * quote is written once, around the whole run, and each line still gets its
+ * own marker.
+ */
 function render(element: ProseElement): string {
+  const text = renderMarks(element);
   switch (element.type) {
     case "heading":
       // Setext if the source was setext, ATX if it was ATX. Never converted.
       return element.underline === undefined
-        ? `${"#".repeat(element.level ?? 1)} ${element.text}`
-        : `${element.text}\n${element.underline}`;
+        ? `${"#".repeat(element.level ?? 1)} ${text}`
+        : `${text}\n${element.underline}`;
     // One element, all its lines. An empty line inside the block is written
     // with the bare marker, which is how Markdown spells it and what the
     // parser read it from.
     case "block-quote":
-      return marked(element.text, ">");
+      return marked(text, ">");
     case "verse":
-      return marked(element.text, "|");
+      return marked(text, "|");
     case "paragraph":
     case "scene-break":
     case "footnote":
@@ -67,7 +76,7 @@ function render(element: ProseElement): string {
     case "cut-end":
     // A passthrough is an exact copy of its own text, newlines and all.
     case "passthrough":
-      return element.text;
+      return text;
   }
 }
 

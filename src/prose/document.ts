@@ -19,6 +19,7 @@
  * element whose text carries its own newlines. ADR-0019's one element, one
  * line was measured on screenplays, where no such construct exists.
  */
+import type { MarkRange } from "../marks.ts";
 
 /**
  * The elements of ADR-0023's vocabulary this parser recognises so far.
@@ -50,8 +51,8 @@ export interface ProseElement {
   readonly type: ProseElementType;
   /**
    * The element's text, including the author's line wraps and any leading
-   * whitespace. Marks, comments and chapter ids stay in it as plain text
-   * until Phase F.
+   * whitespace, with the mark syntax taken out of it and held in `marks`.
+   * Comments and chapter ids stay in it as plain text.
    *
    * A `block-quote` or `verse` element holds its whole block, with the `>` or
    * `|` markers taken off each line — an empty line in there is the blank line
@@ -60,6 +61,22 @@ export interface ProseElement {
    * with none are one.
    */
   readonly text: string;
+  /**
+   * Inline formatting over `text`, as a set of ranges (ADR-0019), absent
+   * rather than empty when there is none.
+   *
+   * A range may cross a line wrap, which it cannot on the screenplay surface:
+   * a paragraph is one element holding all its lines, and the acceptance
+   * fixture underlines a phrase that breaks across two of them.
+   *
+   * Four types never carry marks. A **passthrough** is an exact copy of its
+   * own text and is never reinterpreted (ADR-0020). A **scene break** and the
+   * two **cut delimiters** are punctuation, and their characters — `* * *`,
+   * `***` — are the ones a mark is spelled with. A **footnote** is left whole
+   * because ADR-0023 keeps the syntax in the subset while deferring the
+   * authoring feature; there is nothing yet to show its marks in.
+   */
+  readonly marks?: readonly MarkRange[];
   /**
    * Heading level, 1 to 6. Parts and chapters are *ranges* over the sequence
    * computed from these, never element types of their own — `CONTEXT.md` fixes

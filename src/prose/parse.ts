@@ -12,6 +12,7 @@
  * Input is expected to have been through `normaliseSource`.
  */
 import type { ProseDocument, ProseElement } from "./document.ts";
+import { parseMarks } from "./marks.ts";
 
 /** `## Heading`. Exactly one space, so an oddly spaced line stays a paragraph. */
 const ATX_HEADING = /^(#{1,6}) (.*)$/;
@@ -112,7 +113,7 @@ export function parse(text: string): ProseDocument {
 
     const atx = ATX_HEADING.exec(line);
     if (atx !== null) {
-      elements.push({ type: "heading", text: atx[2]!, level: atx[1]!.length });
+      elements.push({ type: "heading", ...parseMarks(atx[2]!), level: atx[1]!.length });
       index++;
       continue;
     }
@@ -255,14 +256,14 @@ function readTextBlock(
   if (underline !== undefined && underline !== "" && SETEXT_UNDERLINE.test(underline)) {
     elements.push({
       type: "heading",
-      text,
+      ...parseMarks(text),
       level: underline.startsWith("=") ? 1 : 2,
       underline,
     });
     return end + 1;
   }
 
-  elements.push({ type: "paragraph", text });
+  elements.push({ type: "paragraph", ...parseMarks(text) });
   return end;
 }
 
@@ -305,7 +306,7 @@ function readMarkedBlock(
   }
   if (content.length === 0) return null;
 
-  return { element: { type, text: content.join("\n") }, next: index };
+  return { element: { type, ...parseMarks(content.join("\n")) }, next: index };
 }
 
 /** Whether the line opens with this construct's marker but is spelled oddly. */
