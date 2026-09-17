@@ -74,7 +74,7 @@ describe("the census", () => {
   // is the lesson E2 taught: two sluglines were read as action and every byte
   // test passed, because an unforced heading and an action line are the same
   // characters.
-  it("counts 4,341 elements", () => {
+  it("counts 4,349 elements", () => {
     const census = new Map<ProseElementType, number>();
     for (const element of document().elements) {
       census.set(element.type, (census.get(element.type) ?? 0) + 1);
@@ -83,9 +83,12 @@ describe("the census", () => {
     expect([...census.entries()].sort()).toEqual(
       (
         [
+          ["block-quote", 5],
           ["heading", 16],
-          ["paragraph", 4_322],
+          ["paragraph", 4_319],
+          ["passthrough", 1],
           ["scene-break", 3],
+          ["verse", 5],
         ] as Array<[ProseElementType, number]>
       ).sort(),
     );
@@ -113,8 +116,8 @@ describe("the census", () => {
     const paragraphs = ofType("paragraph");
     const wrapped = paragraphs.filter((element) => element.text.includes("\n"));
 
-    expect(paragraphs).toHaveLength(4_322);
-    expect(wrapped).toHaveLength(2_140);
+    expect(paragraphs).toHaveLength(4_319);
+    expect(wrapped).toHaveLength(2_137);
     // The longest is 72 lines. Rewrapping it would change 72 line endings and
     // not one word, which is exactly the kind of silent rewrite ADR-0020 bans.
     expect(Math.max(...paragraphs.map((p) => p.text.split("\n").length))).toBe(72);
@@ -239,10 +242,12 @@ describe("paragraphs", () => {
   });
 
   it("is the catch-all, so nothing the parser does not know is lost", () => {
-    // The prose counterpart of Fountain making action the catch-all. A block
-    // quote, a table and a multi-line HTML comment all still round-trip at
-    // this stage; they are simply called paragraphs until later stages.
-    const source = "> Until philosophers are kings,\n> cities will never have rest.";
+    // The prose counterpart of Fountain making action the catch-all. The
+    // fixture's multi-line HTML comment is not a construct this parser knows,
+    // and it round-trips anyway, as a paragraph.
+    const source =
+      "<!-- Fixture note: front matter, an epigraph as a block quote, and a\n" +
+      "     dramatis personae list. -->";
     expect(parse(source).elements.map((e) => e.type)).toEqual(["paragraph"]);
     expect(serialise(parse(source))).toBe(source);
   });

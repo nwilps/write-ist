@@ -27,8 +27,21 @@
  * paragraph's text is its lines verbatim. That is the prose counterpart of
  * Fountain making action the catch-all — wrong about the element, never wrong
  * about the bytes (ADR-0020).
+ *
+ * Two of ADR-0023's named constructs are deliberately absent, because they are
+ * **regions** rather than element types. An *epigraph* is syntactically an
+ * ordinary block quote; what makes it an epigraph is standing before the first
+ * part. *Front and back matter* are likewise everything before the first part
+ * and after the last chapter. Both are ranges computed over the sequence, the
+ * same treatment `CONTEXT.md` gives a scene, a chapter and a part.
  */
-export type ProseElementType = "heading" | "paragraph" | "scene-break";
+export type ProseElementType =
+  | "heading"
+  | "paragraph"
+  | "scene-break"
+  | "block-quote"
+  | "verse"
+  | "passthrough";
 
 export interface ProseElement {
   readonly type: ProseElementType;
@@ -55,6 +68,16 @@ export interface ProseElement {
    * a scene number and a dual-dialogue caret already do on the other surface.
    */
   readonly underline?: string;
+  /**
+   * The exact line prefix of a `block-quote` or `verse` line — `"> "`, `">"`,
+   * `"| "`. Kept because the writer may write either spelling and a bare `>`
+   * is how a blank line inside a quote is spelled.
+   *
+   * Whatever follows the marker is the element's text, indentation included:
+   * inside verse, leading whitespace is authored and meaningful (ADR-0023),
+   * which is what makes the line block the mechanism poetry runs on.
+   */
+  readonly marker?: string;
 }
 
 export interface ProseDocument {

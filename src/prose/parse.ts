@@ -34,6 +34,23 @@ const THEMATIC_BREAK = /^(?:\*[ \t]*){3,}$|^(?:-[ \t]*){3,}$|^(?:_[ \t]*){3,}$/;
  */
 const SETEXT_UNDERLINE = /^(?:=+|-{2,})$/;
 
+/** A block-quote line. `>` alone is how a blank line inside a quote is spelled. */
+const QUOTE_LINE = /^(>[ ]?)(.*)$/;
+
+/** A line beginning with a pipe: Pandoc's line block, or a pipe table. */
+const PIPE_LINE = /^(\|[ ]?)(.*)$/;
+
+/**
+ * A pipe table's delimiter row — pipes, dashes, colons and spaces, nothing
+ * else, and at least one dash.
+ *
+ * This is the whole of what tells a table from verse, because both begin with
+ * `|`. A table is outside the subset Write-ist specifies, so it is a
+ * passthrough: kept as an exact copy of its own text and never reinterpreted
+ * (ADR-0020). Verse is in the subset and is read line by line.
+ */
+const TABLE_DELIMITER = /^\|[ :|-]*-[ :|-]*$/;
+
 export function parse(text: string): ProseDocument {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
@@ -64,6 +81,16 @@ export function parse(text: string): ProseDocument {
     if (THEMATIC_BREAK.test(line)) {
       elements.push({ type: "scene-break", text: line });
       index++;
+      continue;
+    }
+
+    if (QUOTE_LINE.test(line)) {
+      index = readMarkedRun(lines, index, elements, "block-quote", QUOTE_LINE);
+      continue;
+    }
+
+    if (PIPE_LINE.test(line)) {
+      index = readPipeRun(lines, index, elements);
       continue;
     }
 
@@ -110,9 +137,59 @@ function readTextBlock(
   return end;
 }
 
+/**
+ * A run of lines sharing a prefix, one element per line.
+ *
+ * A quote line and a verse line are each an element, and no blank line falls
+ * between two of them — in a line block a blank would end the block, and in a
+ * quote it would start a second one.
+ */
+function readMarkedRun(
+  lines: readonly string[],
+  start: number,
+  elements: ProseElement[],
+  type: "block-quote" | "verse",
+  pattern: RegExp,
+): number {
+  let index = start;
+  while (index < lines.length) {
+    const match = pattern.exec(lines[index]!);
+    if (match === null) break;
+    elements.push({ type, text: match[2]!, marker: match[1]! });
+    index++;
+  }
+  return index;
+}
+
+/**
+ * A run of lines beginning with `|`: a pipe table if its second line is a
+ * delimiter row, otherwise Pandoc's line block, which is verse.
+ */
+function readPipeRun(
+  lines: readonly string[],
+  start: number,
+  elements: ProseElement[],
+): number {
+  const second = lines[start + 1];
+  if (second === undefined || !TABLE_DELIMITER.test(second)) {
+    return readMarkedRun(lines, start, elements, "verse", PIPE_LINE);
+  }
+
+  let end = start;
+  while (end < lines.length && PIPE_LINE.test(lines[end]!)) end++;
+  elements.push({ type: "passthrough", text: lines.slice(start, end).join("\n") });
+  return end;
+}
+
 /** Whether this line ends the paragraph above it rather than continuing it. */
 function interrupts(line: string): boolean {
   // Order matters: `---` matches both, and under a line of text it is an
   // underline, so the setext reading has to win.
-  return SETEXT_UNDERLINE.test(line) || ATX_HEADING.test(line) || THEMATIC_BREAK.test(line);
+  return (
+    SETEXT_UNDERLINE.test(line) ||
+    ATX_HEADING.test(line) ||
+    THEMATIC_BREAK.test(line) ||
+    QUOTE_LINE.test(line) ||
+    PIPE_LINE.test(line)
+  );
 }
