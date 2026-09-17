@@ -7,6 +7,7 @@
  * derived from adjacent element types — actually true.
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
+import { renderMarks } from "./marks.ts";
 
 /** Types that open or continue a speech: a cue and what may follow it. */
 const OPENS_SPEECH: ReadonlySet<Element["type"]> = new Set([
@@ -22,8 +23,8 @@ export function serialise(document: ScreenplayDocument): string {
   const lines: string[] = [];
 
   for (const field of document.titlePage) {
-    lines.push(`${field.key}:${field.inline}`);
-    lines.push(...field.continuations);
+    lines.push(`${field.key}:${renderMarks(field.inline)}`);
+    lines.push(...field.continuations.map(renderMarks));
   }
   if (document.titlePage.length > 0 && document.elements.length > 0) lines.push("");
 
@@ -59,37 +60,45 @@ function needsBlankLine(previous: Element, next: Element): boolean {
   return true;
 }
 
-/** The element's line, without its indentation. */
+/**
+ * The element's line, without its indentation.
+ *
+ * Marks go back first, then the forcing marker in front of the result — a
+ * forced heading is `.` followed by the heading *as the writer sees it*, so
+ * `.**INT. HOSPITAL - DAY**` is a dot, a bold mark and a heading, in that
+ * order, and never a dot inside the bold.
+ */
 function renderContent(element: Element): string {
+  const text = renderMarks(element);
   switch (element.type) {
     case "scene-heading": {
-      const heading = element.forced ? `.${element.text}` : element.text;
+      const heading = element.forced ? `.${text}` : text;
       // A scene number is only ever lifted out of a heading that wrote it with
       // one space, so one space is what goes back (ADR-0021).
       return element.sceneNumber === undefined ? heading : `${heading} #${element.sceneNumber}#`;
     }
     case "action":
-      return element.forced ? `!${element.text}` : element.text;
+      return element.forced ? `!${text}` : text;
     case "character": {
-      const cue = element.forced ? `@${element.text}` : element.text;
+      const cue = element.forced ? `@${text}` : text;
       return element.dual === true ? `${cue} ^` : cue;
     }
     case "transition":
-      return element.forced ? `>${element.text}` : element.text;
+      return element.forced ? `>${text}` : text;
     case "centered":
-      return `>${element.text}<`;
+      return `>${text}<`;
     case "lyrics":
-      return `~${element.text}`;
+      return `~${text}`;
     case "section":
-      return `${"#".repeat(element.depth ?? 1)}${element.text}`;
+      return `${"#".repeat(element.depth ?? 1)}${text}`;
     case "synopsis":
-      return `=${element.text}`;
+      return `=${text}`;
     case "dialogue":
     case "parenthetical":
     case "page-break":
     case "note":
     case "boneyard-start":
     case "boneyard-end":
-      return element.text;
+      return text;
   }
 }

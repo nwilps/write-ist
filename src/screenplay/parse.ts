@@ -13,7 +13,13 @@
  * Input is expected to have been through `normaliseSource` already: LF line
  * endings, NFC, no trailing whitespace, no run of more than one blank line.
  */
-import type { Element, ScreenplayDocument, TitlePageField } from "./document.ts";
+import type {
+  Element,
+  MarkedValue,
+  ScreenplayDocument,
+  TitlePageField,
+} from "./document.ts";
+import { parseMarks } from "./marks.ts";
 
 /** `Key: value` at the top of the file. Fountain's title page (ADR-0021). */
 const TITLE_PAGE_KEY = /^([A-Za-z][A-Za-z0-9 _-]*):(.*)$/;
@@ -117,7 +123,7 @@ function parseTitlePage(lines: readonly string[]): {
   }
 
   const fields: TitlePageField[] = [];
-  let current: { key: string; inline: string; continuations: string[] } | null = null;
+  let current: { key: string; inline: MarkedValue; continuations: MarkedValue[] } | null = null;
   let index = 0;
 
   for (; index < lines.length; index++) {
@@ -129,9 +135,9 @@ function parseTitlePage(lines: readonly string[]): {
 
     if (keyed !== null) {
       if (current !== null) fields.push(current);
-      current = { key: keyed[1]!, inline: keyed[2]!, continuations: [] };
+      current = { key: keyed[1]!, inline: parseMarks(keyed[2]!), continuations: [] };
     } else if (current !== null) {
-      current.continuations.push(line);
+      current.continuations.push(parseMarks(line));
     } else {
       break;
     }
@@ -280,11 +286,25 @@ function characterCue(text: string, indent: string, forced: boolean): Element {
   return { ...make("character", dual[1]!, indent, forced), dual: true };
 }
 
+/**
+ * The four types whose text is syntax rather than prose, and so carries no
+ * marks: a page break, a note kept whole as `[[…]]`, and the two boneyard
+ * delimiters — which are themselves made of the asterisks a mark is spelled
+ * with, and must never be read as one.
+ */
+const LITERAL: ReadonlySet<Element["type"]> = new Set([
+  "page-break",
+  "note",
+  "boneyard-start",
+  "boneyard-end",
+]);
+
 function make(
   type: Element["type"],
   text: string,
   indent: string,
   forced: boolean,
 ): Element {
-  return { type, text, indent, forced };
+  if (LITERAL.has(type)) return { type, text, indent, forced };
+  return { type, ...parseMarks(text), indent, forced };
 }

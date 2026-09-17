@@ -199,7 +199,7 @@ describe("the guess: what every line was read as", () => {
     expect(only("CUT TO BLACK.").type).toBe("transition");
 
     // `FADE IN:` is not on that list and does not end in TO:, so it is action.
-    expect(only("**FADE IN:**").type).toBe("action");
+    expect(only("FADE IN:").type).toBe("action");
   });
 
   it("reads an all-caps line inside a speech as dialogue, not as a new cue", () => {
@@ -215,7 +215,16 @@ describe("the guess: what every line was read as", () => {
     const centered = document({ maintainContinuations: false }).elements.filter(
       (element) => element.type === "centered",
     );
-    expect(centered.map((element) => element.text)).toEqual([" _BIG FISH_ ", " _**THE END**_ "]);
+    expect(centered.map((element) => element.text)).toEqual([" BIG FISH ", " THE END "]);
+    // One underline on the first, underline over bold on the second — and the
+    // delimiters go back between the `>` and the `<`, not outside them.
+    expect(centered.map((element) => element.marks)).toEqual([
+      [{ mark: "underline", start: 1, end: 9 }],
+      [
+        { mark: "underline", start: 1, end: 8 },
+        { mark: "bold", start: 1, end: 8 },
+      ],
+    ]);
     expect(new TextDecoder().decode(imported())).toContain("> _BIG FISH_ <");
   });
 
@@ -248,11 +257,11 @@ describe("the guess: what every line was read as", () => {
     // `Notes:` is written with a trailing tab, which is trailing whitespace.
     expect(fields[4]).toEqual({
       key: "Notes",
-      inline: "",
+      inline: { text: "" },
       continuations: [
-        "\tFINAL PRODUCTION DRAFT",
-        "\tincludes post-production dialogue",
-        "\tand omitted scenes",
+        { text: "\tFINAL PRODUCTION DRAFT" },
+        { text: "\tincludes post-production dialogue" },
+        { text: "\tand omitted scenes" },
       ],
     });
   });

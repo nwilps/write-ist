@@ -91,9 +91,9 @@ describeCorpus("the corpus is fully accounted for", () => {
     const document = parse(normalisedCorpus());
 
     expect(document.titlePage).toEqual([
-      { key: "Title", inline: " IN THE WAKE OF AUGUST", continuations: [] },
-      { key: "Credit", inline: " Written by:", continuations: [] },
-      { key: "Author", inline: " Noah Wilps", continuations: [] },
+      { key: "Title", inline: { text: " IN THE WAKE OF AUGUST" }, continuations: [] },
+      { key: "Credit", inline: { text: " Written by:" }, continuations: [] },
+      { key: "Author", inline: { text: " Noah Wilps" }, continuations: [] },
     ]);
   });
 

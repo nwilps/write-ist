@@ -80,7 +80,13 @@ describe("forcing markers", () => {
     const document = parse(source);
 
     expect(types(document)).toEqual(["centered"]);
-    expect(texts(document)).toEqual([" _**THE END**_ "]);
+    // The marks come out of the text; the spaces the writer put inside the
+    // delimiters stay in it, and the offsets are measured over them.
+    expect(texts(document)).toEqual([" THE END "]);
+    expect(document.elements[0]?.marks).toEqual([
+      { mark: "underline", start: 1, end: 8 },
+      { mark: "bold", start: 1, end: 8 },
+    ]);
     roundTrips(source);
   });
 });

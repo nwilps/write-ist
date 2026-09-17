@@ -5,6 +5,7 @@
  * Nothing here nests. A scene is a range over `elements`, computed when it is
  * wanted, never a container.
  */
+import type { MarkRange } from "../marks.ts";
 
 /**
  * Every element Fountain defines (ADR-0021). The vocabulary belongs to the
@@ -41,10 +42,25 @@ export type ElementType =
 export interface Element {
   readonly type: ElementType;
   /**
-   * The element's text with its forcing marker and any syntax removed. Marks
-   * (`*bold*`, `_underline_`) are left in it as plain text until Phase F.
+   * The element's text with its forcing marker and all syntax removed —
+   * including the mark delimiters, which now live in `marks`.
+   *
+   * This is what the writer sees and what everything downstream reads: find,
+   * the word count, and the `(CONT'D)` rule that has to recognise a cue's
+   * name. None of them should have to know that `**` is not a character.
    */
   readonly text: string;
+  /**
+   * Inline formatting over `text`, as a set of ranges (ADR-0019). Absent
+   * rather than empty when the element carries none, which is nearly always.
+   *
+   * Every element type may carry marks except the four that have no prose in
+   * them at all — a page break, a note, and the two boneyard delimiters.
+   * ADR-0019 is explicit that a scene heading is not an exception: all 181 in
+   * the acceptance corpus are written `.**INT. LOCATION - DAY**`, so a model
+   * that only marked action and dialogue would fail on the first real file.
+   */
+  readonly marks?: readonly MarkRange[];
   /**
    * Leading whitespace exactly as the writer wrote it. Stripped to work out
    * the element type, then put back (issue #15) — trimming it is not on
@@ -84,10 +100,27 @@ export interface Element {
 export interface TitlePageField {
   /** The key as written, without its colon — "Title", "Draft date". */
   readonly key: string;
-  /** Everything after the colon on the key line, verbatim. Often `" Value"`. */
-  readonly inline: string;
-  /** Continuation lines, verbatim, each keeping its own indentation. */
-  readonly continuations: readonly string[];
+  /**
+   * Everything after the colon on the key line, its marks lifted out. Usually
+   * `" Value"`, the leading space included: that space is the writer's, and
+   * the mark offsets are measured over it like any other character.
+   */
+  readonly inline: MarkedValue;
+  /** Continuation lines, each keeping its own indentation, marks lifted out. */
+  readonly continuations: readonly MarkedValue[];
+}
+
+/**
+ * One line of a title-page value.
+ *
+ * The title page carries marks like anything else — *Brick & Steel* writes its
+ * title `_**BRICK & STEEL**_` — so a form field showing it has to be given the
+ * formatting, not the syntax. It is `MarkedText` under another name, so that
+ * the title page keeps reading as key-and-value rather than as elements.
+ */
+export interface MarkedValue {
+  readonly text: string;
+  readonly marks?: readonly MarkRange[];
 }
 
 export interface ScreenplayDocument {

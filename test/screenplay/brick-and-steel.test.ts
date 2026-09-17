@@ -132,17 +132,34 @@ describe("what this fixture exercises that the corpus does not", () => {
       "Draft date",
       "Contact",
     ]);
+    // The title page carries marks like anything else, and they come out of
+    // it the same way: the tab is text and the offsets are measured over it.
+    // ADR-0019 fixes the emission order as underline outermost, which is what
+    // this file is written in and what goes back on the way out.
     expect(fields[0]).toEqual({
       key: "Title",
-      inline: "",
-      // Marks stay in the text as written until Phase F. ADR-0019 fixes the
-      // emission order as underline outermost, which is this.
-      continuations: ["\t_**BRICK & STEEL**_", "\t_**FULL RETIRED**_"],
+      inline: { text: "" },
+      continuations: [
+        {
+          text: "\tBRICK & STEEL",
+          marks: [
+            { mark: "underline", start: 1, end: 14 },
+            { mark: "bold", start: 1, end: 14 },
+          ],
+        },
+        {
+          text: "\tFULL RETIRED",
+          marks: [
+            { mark: "underline", start: 1, end: 13 },
+            { mark: "bold", start: 1, end: 13 },
+          ],
+        },
+      ],
     });
     expect(fields[5]?.continuations).toEqual([
-      "\tNext Level Productions",
-      "\t1588 Mission Dr.",
-      "\tSolvang, CA 93463",
+      { text: "\tNext Level Productions" },
+      { text: "\t1588 Mission Dr." },
+      { text: "\tSolvang, CA 93463" },
     ]);
   });
 
@@ -171,10 +188,10 @@ describe("what this fixture exercises that the corpus does not", () => {
     expect(indented.map((element) => [element.type, element.indent, element.text])).toEqual([
       ["character", "\t\t\t", "JACK"],
       ["parenthetical", "\t\t", "(in Vietnamese, subtitled)"],
-      ["dialogue", "\t", "*Did you know Brick and Steel are retired?*"],
+      ["dialogue", "\t", "Did you know Brick and Steel are retired?"],
       ["character", "\t\t\t", "DAN"],
       ["dialogue", "\t", "Then let's retire them."],
-      ["dialogue", "\t", "_Permanently_."],
+      ["dialogue", "\t", "Permanently."],
       ["transition", "\t\t\t\t", "CUT TO:"],
     ]);
   });
