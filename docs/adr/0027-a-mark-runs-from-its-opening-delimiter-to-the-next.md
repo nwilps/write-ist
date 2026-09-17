@@ -59,8 +59,9 @@ measured across `Big-Fish.fountain`, 2026-09-16:
 | `*But she won't. … but she has needs.*` | 2765–2770 | 6 |
 | `*I've had twice the adventure, … love to give.*` | 2782–2786 | 5 |
 
-**Zero in the acceptance corpus and zero in *Brick & Steel*** [V]; both keep every one of their
-298 spans inside a single line. And **zero instances, anywhere in the three screenplays, of
+**Zero in the acceptance corpus and zero in *Brick & Steel*** [V]; the corpus keeps all 278 of
+its spans inside a single line and *Brick & Steel* all 5 of its own, and the other 15 in *Big
+Fish* close on the line they open on. And **zero instances, anywhere in the three screenplays, of
 adjacent lines each wrapped separately** [V] — the ambiguous spelling this decision has to be
 careful of does not occur.
 
@@ -113,7 +114,7 @@ real rather than a hypothetical.
   speech in Fountain and separates elements everywhere else; a delimiter left unclosed at one is
   unclosed, and stays literal text. This keeps an unmatched `*` from marking the rest of the
   script, which is the same failure mode the boneyard's `closesLater` check already exists to
-  prevent (ADR-0021).
+  prevent ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)).
 - **An unpaired delimiter stays the character the writer typed.** Unchanged from the rule the
   implementation already holds, and it is what makes the bytes safe: the parser may be wrong
   about the mark, never about the file.
