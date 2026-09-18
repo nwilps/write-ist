@@ -16,6 +16,22 @@ This ADR draws the line and makes it testable.
 3. **The import report** names every normalisation applied, once, at import. After that the
    application is silent and the writer writes.
 
+**Every count in the report is the number of occurrences changed** — 38 trailing spaces trimmed,
+201 continuations added, 15 lines that gained a mark delimiter. Not the number of *findings* that
+caused them: a mark running across four lines is one finding and four changed lines, and four is
+the number the writer is told.
+
+*Added 2026-09-18, from a defect.* The mark entry shipped counting spans, so a writer whose file
+gained delimiters on fifteen lines was told "3". Nothing was wrong with the file and nothing in
+the suite could see it, because no test asserted what the number meant. The convention is written
+down here because it is invisible until two counts are compared and then obvious.
+
+It follows that **a normalisation with nothing to report is absent, never zero** — already true of
+the four text rules — and that a rule whose count cannot be taken is a rule that cannot honour
+point 3. Blank-line placement is the live example: the change is made in the serialiser, after the
+report has been assembled, so the count has to be taken by comparison rather than by the code that
+does the placing.
+
 ### The enumerated normalisations
 
 | | Why |
