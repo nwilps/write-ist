@@ -98,7 +98,7 @@ const LEADING_WHITESPACE = /^[ \t]*/;
 
 function parseInternal(text: string): {
   document: ScreenplayDocument;
-  spanningMarks: number;
+  markDelimitedLines: number;
 } {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
@@ -111,7 +111,7 @@ function parseInternal(text: string): {
 
   return {
     document: { titlePage: fields, elements: resolved.elements, endsWithNewline },
-    spanningMarks: resolved.spanning,
+    markDelimitedLines: resolved.delimitedLines,
   };
 }
 
@@ -121,12 +121,13 @@ function parseInternal(text: string): {
  * ADR-0020's eighth entry — a mark spanning several elements gains its own
  * delimiter pair on each of them — is applied here rather than in
  * `normaliseSource`, because it is a property of the element sequence and not
- * of the text. `spanningMarks` is how many marks it applied to, one per mark
- * however many elements it reached across.
+ * of the text. `markDelimitedLines` is how many lines it changes — every
+ * element a spanning mark reached — and not how many marks did the reaching.
+ * ADR-0020: the report counts occurrences changed, never findings.
  */
 export function parseReporting(text: string): {
   document: ScreenplayDocument;
-  spanningMarks: number;
+  markDelimitedLines: number;
 } {
   return parseInternal(text);
 }
@@ -263,9 +264,9 @@ function parseBody(
 function resolveMarks(
   elements: readonly Element[],
   startsRun: readonly boolean[],
-): { elements: Element[]; spanning: number } {
+): { elements: Element[]; delimitedLines: number } {
   const resolved: Element[] = [];
-  let spanning = 0;
+  let delimitedLines = 0;
   let at = 0;
 
   while (at < elements.length) {
@@ -286,12 +287,12 @@ function resolveMarks(
 
     const run = elements.slice(at, end);
     const marks = parseMarksAcross(run.map((element) => element.text));
-    spanning += marks.spanning;
+    delimitedLines += marks.delimitedLines;
     run.forEach((element, index) => resolved.push({ ...element, ...marks.marked[index]! }));
     at = end;
   }
 
-  return { elements: resolved, spanning };
+  return { elements: resolved, delimitedLines };
 }
 
 /**

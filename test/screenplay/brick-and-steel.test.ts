@@ -60,12 +60,16 @@ describe("Brick & Steel, measured as bytes", () => {
     expect(IMPORTED_BYTES).toBe(2_901);
   });
 
-  it("reports the line endings and the extensions, and nothing else", () => {
+  it("reports the line endings, the extensions and the blank lines, and nothing else", () => {
     const { report } = importScreenplay(readFixtureBytes(FIXTURE));
 
     expect(report.applied).toEqual([
       { kind: "line-endings-to-lf", count: 144 },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
+      // The two blanks the tight action run gains and the one the title cards
+      // lose — one rule, one count. Absent until issue #27, which is the
+      // defect: the file changed on three lines and the report was silent.
+      { kind: "blank-lines-placed", count: BLANKS_ADDED + BLANKS_LOST },
     ]);
   });
 });
