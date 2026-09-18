@@ -27,7 +27,6 @@ This ADR draws the line and makes it testable.
 | Unicode normalised to **NFC** | Below |
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
 | A run of action lines with no blank between them gains one between each — **screenplay surface only** | No element spans a line ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so a tight run is separate elements and separate elements are spaced |
-
 | A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
 
 That eighth entry was added on purpose, 2026-09-18, in this file. A ninth is the same kind of
