@@ -32,7 +32,19 @@ const SOURCE_BYTES = 146_254;
 const NORMALISED_BYTES = 145_902;
 const CONTINUATIONS_ADDED = 19;
 const EXTENSION = " (CONT'D)";
-const IMPORTED_BYTES = NORMALISED_BYTES + CONTINUATIONS_ADDED * EXTENSION.length;
+
+/**
+ * The three sung speeches whose italics open on one line and close several
+ * lines later (ADR-0027). Each element gains its own delimiter pair on the way
+ * out, which is ADR-0020's eighth normalisation.
+ */
+const SPANNING_MARKS = 3;
+/** 15 elements across the three songs: 6 delimiter characters become 30. */
+const SPANNING_ELEMENTS = 15;
+const DELIMITERS_ADDED = SPANNING_ELEMENTS * 2 - SPANNING_MARKS * 2;
+
+const IMPORTED_BYTES =
+  NORMALISED_BYTES + CONTINUATIONS_ADDED * EXTENSION.length + DELIMITERS_ADDED;
 
 const document = (options = {}) =>
   importScreenplay(readFixtureBytes(FIXTURE), options).document;
@@ -71,45 +83,72 @@ describe("Big Fish, measured as bytes", () => {
     expect(SOURCE_BYTES - NORMALISED_BYTES).toBe(352);
   });
 
-  it("imports to 146,073 bytes: the normalised file plus 19 extensions", () => {
+  it("imports to 146,097 bytes: the normalised file, 19 extensions and 24 delimiters", () => {
     const bytes = writeBytesAndReadBack("big-fish.roundtrip.fountain", imported());
 
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(146_073);
+    expect(IMPORTED_BYTES).toBe(146_097);
+    // The whole of the difference from the pre-ADR-0027 figure, named.
+    expect(DELIMITERS_ADDED).toBe(24);
+    expect(IMPORTED_BYTES - DELIMITERS_ADDED).toBe(146_073);
   });
 
-  it("reports trailing whitespace and the extensions, and nothing else", () => {
+  it("reports the whitespace, the three spanning marks and the extensions", () => {
     expect(importScreenplay(readFixtureBytes(FIXTURE)).report.applied).toEqual([
       { kind: "trailing-whitespace-trimmed", count: 210 },
+      // ADR-0020's eighth entry, counted per mark rather than per element:
+      // three songs, fifteen elements.
+      { kind: "marks-spanning-elements", count: SPANNING_MARKS },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
     ]);
   });
 
-  it("returns the normalised source untouched when maintenance is off", () => {
+  it("changes only the three songs when maintenance is off", () => {
     // No tight action runs and no adjacent centered lines, so with the
-    // extensions set aside this file has nothing the model cannot hold.
+    // extensions set aside the songs are the only thing in this file the
+    // one-element-one-line rule cannot hold as the writer spelled it.
     const options = { maintainContinuations: false } as const;
-    const output = imported(options);
+    const edits = lineEdits(
+      normalisedText().split("\n"),
+      new TextDecoder().decode(imported(options)).split("\n"),
+    );
 
-    expect(lineEdits(normalisedText().split("\n"), new TextDecoder().decode(output).split("\n")))
-      .toEqual([]);
-    assertBytesEqual(new TextEncoder().encode(normalisedText()), output, {
-      expectedLabel: "normalised source",
-      actualLabel: "round-tripped",
-    });
+    // A rewritten line is one removal and one addition.
+    expect(edits).toHaveLength(SPANNING_ELEMENTS * 2);
+    const added = edits.filter((edit) => edit.kind === "added");
+    const removed = edits.filter((edit) => edit.kind === "removed");
+    expect(added).toHaveLength(SPANNING_ELEMENTS);
+
+    // Every changed line differs by its delimiters and by nothing else: strip
+    // the asterisks off both sides and they are the same fifteen lines.
+    const bare = (text: string): string => text.replaceAll("*", "");
+    expect(added.map((edit) => bare(edit.text))).toEqual(removed.map((edit) => bare(edit.text)));
+    // And each one now opens and closes on its own line, which is the spelling
+    // a strict Fountain reader renders as italic.
+    for (const edit of added) {
+      expect(edit.text.startsWith("*")).toBe(true);
+      expect(edit.text.endsWith("*")).toBe(true);
+    }
   });
 
-  it("changes only cue lines when maintenance is on", () => {
+  it("changes cue lines and song lines when maintenance is on, and nothing else", () => {
     const edits = lineEdits(
       normalisedText().split("\n"),
       new TextDecoder().decode(imported()).split("\n"),
     );
 
-    // A rewritten line is one removal and one addition.
-    expect(edits).toHaveLength(CONTINUATIONS_ADDED * 2);
+    expect(edits).toHaveLength((CONTINUATIONS_ADDED + SPANNING_ELEMENTS) * 2);
     for (const edit of edits) expect(edit.text).not.toBe("");
+
     const added = edits.filter((edit) => edit.kind === "added");
-    for (const edit of added) expect(edit.text.endsWith(EXTENSION)).toBe(true);
+    const cues = added.filter((edit) => edit.text.endsWith(EXTENSION));
+    expect(cues).toHaveLength(CONTINUATIONS_ADDED);
+    // Everything else added is a song line, delimited at both ends.
+    const songs = added.filter((edit) => !edit.text.endsWith(EXTENSION));
+    expect(songs).toHaveLength(SPANNING_ELEMENTS);
+    for (const edit of songs) {
+      expect(edit.text.startsWith("*") && edit.text.endsWith("*")).toBe(true);
+    }
   });
 });
 

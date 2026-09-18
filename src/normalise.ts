@@ -2,11 +2,12 @@
  * The normalisations Write-ist is permitted to apply on first opening a file
  * it has never seen (ADR-0020), and nothing else, ever.
  *
- * Four of ADR-0020's seven live here, because they are properties of the text
- * rather than of the element sequence. The other three belong further along
+ * Four of ADR-0020's eight live here, because they are properties of the text
+ * rather than of the element sequence. The other four belong further along
  * the pipeline: mark ordering to the serialiser, missing `(CONT'D)` to a
- * separate maintenance pass over the parsed elements (ADR-0026), and spacing a
- * run of action lines to the serialiser's spacing table.
+ * separate maintenance pass over the parsed elements (ADR-0026), spacing a
+ * run of action lines to the serialiser's spacing table, and a mark spanning
+ * several elements to the parser (ADR-0027).
  *
  * Each returns a count, because ADR-0020 requires an import report that names
  * every normalisation applied.
@@ -20,7 +21,13 @@ export type NormalisationKind =
   /** Applied by `maintainContinuations`, not here (ADR-0026). */
   | "continuations-added"
   /** Applied by the serialiser's spacing table, not here. */
-  | "tight-action-run-spaced";
+  | "tight-action-run-spaced"
+  /**
+   * Applied by the parser, not here: a mark read across several elements is
+   * stored inside each of them, so each writes its own delimiter pair
+   * (ADR-0027). Counted per **mark**, however many elements it reached across.
+   */
+  | "marks-spanning-elements";
 
 export interface Normalisation {
   readonly kind: NormalisationKind;

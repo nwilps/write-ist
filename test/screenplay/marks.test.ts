@@ -86,21 +86,18 @@ describe("marks are a set, so one nesting is chosen on the way out", () => {
 });
 
 describe("a delimiter that marks nothing stays in the text", () => {
-  it("leaves an unpaired delimiter alone, because no element spans a line", () => {
-    // Big Fish sets a four-line song in italics, opening on one line and
-    // closing four lines later. ADR-0019 gives each line its own element, so
-    // that span cannot be held — and the asterisks stay where the writer put
-    // them rather than being invented into a mark on one line each.
-    const source = [
-      "PING",
-      "*Sometimes a girl can feel so alone",
-      "Without a lover to call her own.",
-      "Wants to grab the first man she sees and tear off his clothes.*",
-    ].join("\n");
+  it("stops the lookahead at a blank line, so a stray delimiter is a character", () => {
+    // A blank line ends a speech in Fountain, so an opener that reaches one
+    // has no partner (ADR-0027). Without this bound a single stray asterisk
+    // would italicise the rest of the script.
+    const source = ["!He runs *and runs", "", "!She waits. *Then she goes.*"].join("\n");
     const { elements } = parse(source);
 
-    expect(elements.every((element) => element.marks === undefined)).toBe(true);
-    expect(elements[1]?.text).toBe("*Sometimes a girl can feel so alone");
+    expect(elements[0]?.marks).toBeUndefined();
+    expect(elements[0]?.text).toBe("He runs *and runs");
+    // The second speech's own pair is unaffected by the stray one above it.
+    expect(elements[1]?.marks).toEqual([{ mark: "italic", start: 11, end: 25 }]);
+    expect(elements[1]?.text.slice(11, 25)).toBe("Then she goes.");
     roundTrips(source);
   });
 
@@ -219,9 +216,13 @@ describe("the mark census, which a byte comparison cannot make", () => {
     ]);
   });
 
-  it("finds 3 bold and 14 underline in Big Fish, and the same in the augmented cut", () => {
+  it("finds 3 bold, 15 italic and 14 underline in Big Fish, and the same augmented", () => {
+    // The 15 italics are the three sung speeches, one range per element
+    // (ADR-0027). Before that decision this file reported none: the asterisks
+    // sat in the text as characters.
     const expected: [Mark, number][] = [
       ["bold", 3],
+      ["italic", 15],
       ["underline", 14],
     ];
 

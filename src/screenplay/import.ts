@@ -16,7 +16,7 @@
 import type { ScreenplayDocument } from "./document.ts";
 import { maintainContinuations } from "./continuations.ts";
 import { normaliseSource, type Normalisation } from "../normalise.ts";
-import { parse } from "./parse.ts";
+import { parseReporting } from "./parse.ts";
 import { serialise } from "./serialise.ts";
 
 export interface ImportOptions {
@@ -52,17 +52,28 @@ export function importScreenplay(
   options: ImportOptions = {},
 ): ImportedScreenplay {
   const { text, applied } = normaliseSource(decoder.decode(bytes));
-  const parsed = parse(text);
+  const { document: parsed, spanningMarks } = parseReporting(text);
+
+  // ADR-0020's eighth entry. Applied by the parser rather than by
+  // `normaliseSource`, because it is a property of the element sequence and
+  // not of the text — so it is reported here, where the two meet.
+  const parseApplied: readonly Normalisation[] =
+    spanningMarks > 0
+      ? [...applied, { kind: "marks-spanning-elements", count: spanningMarks }]
+      : applied;
 
   if (options.maintainContinuations === false) {
-    return { document: parsed, report: { applied } };
+    return { document: parsed, report: { applied: parseApplied } };
   }
 
   const { document, added } = maintainContinuations(parsed);
   return {
     document,
     report: {
-      applied: added > 0 ? [...applied, { kind: "continuations-added", count: added }] : applied,
+      applied:
+        added > 0
+          ? [...parseApplied, { kind: "continuations-added", count: added }]
+          : parseApplied,
     },
   };
 }
@@ -82,7 +93,7 @@ export function exportScreenplay(document: ScreenplayDocument): Uint8Array {
  * On a file we wrote it adds nothing, and that it adds nothing is the point.
  */
 export function reopenAndSave(bytes: Uint8Array, options: ImportOptions = {}): Uint8Array {
-  const parsed = parse(decoder.decode(bytes));
+  const parsed = parseReporting(decoder.decode(bytes)).document;
   if (options.maintainContinuations === false) return exportScreenplay(parsed);
   return exportScreenplay(maintainContinuations(parsed).document);
 }

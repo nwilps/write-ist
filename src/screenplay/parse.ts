@@ -19,7 +19,7 @@ import type {
   ScreenplayDocument,
   TitlePageField,
 } from "./document.ts";
-import { parseMarks } from "./marks.ts";
+import { parseMarks, parseMarksAcross } from "./marks.ts";
 
 /** `Key: value` at the top of the file. Fountain's title page (ADR-0021). */
 const TITLE_PAGE_KEY = /^([A-Za-z][A-Za-z0-9 _-]*):(.*)$/;
@@ -96,16 +96,44 @@ const UNFORCED_TRANSITIONS: ReadonlySet<string> = new Set([
 
 const LEADING_WHITESPACE = /^[ \t]*/;
 
-export function parse(text: string): ScreenplayDocument {
+function parseInternal(text: string): {
+  document: ScreenplayDocument;
+  spanningMarks: number;
+} {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
   // `split` leaves an empty string after a final newline; it is not a line.
   if (endsWithNewline) lines.pop();
 
   const { fields, nextIndex } = parseTitlePage(lines);
-  const elements = parseBody(lines, nextIndex);
+  const body = parseBody(lines, nextIndex);
+  const resolved = resolveMarks(body.elements, body.startsRun);
 
-  return { titlePage: fields, elements, endsWithNewline };
+  return {
+    document: { titlePage: fields, elements: resolved.elements, endsWithNewline },
+    spanningMarks: resolved.spanning,
+  };
+}
+
+/**
+ * Read a screenplay, reporting the one thing parsing itself normalises.
+ *
+ * ADR-0020's eighth entry — a mark spanning several elements gains its own
+ * delimiter pair on each of them — is applied here rather than in
+ * `normaliseSource`, because it is a property of the element sequence and not
+ * of the text. `spanningMarks` is how many marks it applied to, one per mark
+ * however many elements it reached across.
+ */
+export function parseReporting(text: string): {
+  document: ScreenplayDocument;
+  spanningMarks: number;
+} {
+  return parseInternal(text);
+}
+
+/** Read a screenplay. */
+export function parse(text: string): ScreenplayDocument {
+  return parseInternal(text).document;
 }
 
 /**
@@ -148,8 +176,21 @@ function parseTitlePage(lines: readonly string[]): {
   return { fields, nextIndex: index };
 }
 
-function parseBody(lines: readonly string[], from: number): Element[] {
+/**
+ * The body, plus where each run of elements begins.
+ *
+ * A **run** is a stretch of elements with no blank line between them in the
+ * source — a speech, or a tight run of action. It is the distance a mark's
+ * lookahead may travel (ADR-0027), and it has to be recorded here because
+ * blank lines are not elements (ADR-0019) and are gone by the time the
+ * sequence is resolved.
+ */
+function parseBody(
+  lines: readonly string[],
+  from: number,
+): { elements: Element[]; startsRun: boolean[] } {
   const elements: Element[] = [];
+  const startsRun: boolean[] = [];
   let inSpeech = false;
   let omitted = false;
 
@@ -168,14 +209,18 @@ function parseBody(lines: readonly string[], from: number): Element[] {
     // `/*` and `*/` are delimiters, an element each. What falls between them
     // is parsed as whatever it is and carries `omitted`, so the boneyard is a
     // range over the sequence rather than a container (ADR-0021).
+    const above = index === 0 || lines[index - 1] === "";
+
     if (!omitted && content === BONEYARD_OPEN && closesLater(lines, index)) {
       elements.push({ type: "boneyard-start", text: content, indent, forced: false, omitted: true });
+      startsRun.push(above);
       omitted = true;
       inSpeech = false;
       continue;
     }
     if (omitted && content === BONEYARD_CLOSE) {
       elements.push({ type: "boneyard-end", text: content, indent, forced: false, omitted: true });
+      startsRun.push(above);
       omitted = false;
       inSpeech = false;
       continue;
@@ -187,17 +232,66 @@ function parseBody(lines: readonly string[], from: number): Element[] {
       // boneyard delimiter and a tight run of action both leave `inSpeech`
       // false, so parser state cannot tell "after a blank" from "after
       // anything that is not a speech".
-      above: index === 0 || lines[index - 1] === "",
+      above,
       below: lines[index + 1] ?? "",
     });
     elements.push(omitted ? { ...element, omitted: true } : element);
+    startsRun.push(above);
 
     inSpeech =
       element.type === "character" ||
       (inSpeech && (element.type === "dialogue" || element.type === "parenthetical"));
   }
 
-  return elements;
+  return { elements, startsRun };
+}
+
+/**
+ * Resolve every element's marks, over runs no blank line separates.
+ *
+ * This is the second pass, and it is second on purpose: **element syntax is
+ * resolved before marks** (ADR-0027). Forcing markers, scene numbers and the
+ * dual-dialogue caret are already off the text, and both boneyard delimiters
+ * are already delimiters rather than asterisks — which is the mistake the ADR
+ * names, because a scan that paired asterisks first would read a boneyard's
+ * opening and closing delimiters as one long italic span.
+ *
+ * A run ends at a blank line, and also at any element that holds no prose. A
+ * mark cannot be stored on a page break or a boneyard delimiter, so it cannot
+ * reach through one either.
+ */
+function resolveMarks(
+  elements: readonly Element[],
+  startsRun: readonly boolean[],
+): { elements: Element[]; spanning: number } {
+  const resolved: Element[] = [];
+  let spanning = 0;
+  let at = 0;
+
+  while (at < elements.length) {
+    if (LITERAL.has(elements[at]!.type)) {
+      resolved.push(elements[at]!);
+      at++;
+      continue;
+    }
+
+    let end = at + 1;
+    while (
+      end < elements.length &&
+      !startsRun[end]! &&
+      !LITERAL.has(elements[end]!.type)
+    ) {
+      end++;
+    }
+
+    const run = elements.slice(at, end);
+    const marks = parseMarksAcross(run.map((element) => element.text));
+    spanning += marks.spanning;
+    run.forEach((element, index) => resolved.push({ ...element, ...marks.marked[index]! }));
+    at = end;
+  }
+
+  return { elements: resolved, spanning };
 }
 
 /**
@@ -332,6 +426,8 @@ function make(
   indent: string,
   forced: boolean,
 ): Element {
-  if (LITERAL.has(type)) return { type, text, indent, forced };
-  return { type, ...parseMarks(text), indent, forced };
+  // The text as written, delimiters and all. `resolveMarks` lifts them out
+  // once every element is classified, because a mark may close in a later
+  // element and nothing here can see one (ADR-0027).
+  return { type, text, indent, forced };
 }

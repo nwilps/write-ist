@@ -42,8 +42,22 @@ const BLANKS_LOST = 1;
 const BLANKS_ADDED = 1;
 const CONTINUATIONS_ADDED = 20;
 const EXTENSION = " (CONT'D)";
+/**
+ * The three sung speeches whose italics open on one line and close several
+ * lines later (ADR-0027). Each element gains its own delimiter pair on the way
+ * out, which is ADR-0020's eighth normalisation.
+ */
+const SPANNING_MARKS = 3;
+/** 15 elements across the three songs: 6 delimiter characters become 30. */
+const SPANNING_ELEMENTS = 15;
+const DELIMITERS_ADDED = SPANNING_ELEMENTS * 2 - SPANNING_MARKS * 2;
+
 const IMPORTED_BYTES =
-  NORMALISED_BYTES - BLANKS_LOST + BLANKS_ADDED + CONTINUATIONS_ADDED * EXTENSION.length;
+  NORMALISED_BYTES -
+  BLANKS_LOST +
+  BLANKS_ADDED +
+  CONTINUATIONS_ADDED * EXTENSION.length +
+  DELIMITERS_ADDED;
 
 const document = (options = {}) =>
   importScreenplay(readFixtureBytes(FIXTURE), options).document;
@@ -55,16 +69,19 @@ const ofType = (type: string, options = {}) =>
   document(options).elements.filter((element) => element.type === type);
 
 describe("the augmented fixture, measured as bytes", () => {
-  it("imports to 147,034 bytes", () => {
+  it("imports to 147,058 bytes", () => {
     const bytes = writeBytesAndReadBack("big-fish-augmented.roundtrip.fountain", imported());
 
     expect(readFixtureBytes(FIXTURE).length).toBe(SOURCE_BYTES);
     expect(new TextEncoder().encode(normalisedText()).length).toBe(NORMALISED_BYTES);
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(147_034);
+    expect(IMPORTED_BYTES).toBe(147_058);
+    // The three songs it shares with the unaugmented cut, and nothing more.
+    expect(DELIMITERS_ADDED).toBe(24);
+    expect(IMPORTED_BYTES - DELIMITERS_ADDED).toBe(147_034);
   });
 
-  it("changes two blank lines and 20 cues, and nothing else", () => {
+  it("changes two blank lines, 20 cues and 15 song lines, and nothing else", () => {
     const edits = lineEdits(normalisedText().split("\n"), output().split("\n"));
 
     const blanks = edits.filter((edit) => edit.text === "");
@@ -75,10 +92,19 @@ describe("the augmented fixture, measured as bytes", () => {
       { kind: "removed", line: 105, text: "" },
     ]);
 
-    const cues = edits.filter((edit) => edit.text !== "");
-    expect(cues).toHaveLength(CONTINUATIONS_ADDED * 2);
-    for (const edit of cues.filter((edit) => edit.kind === "added")) {
-      expect(edit.text.endsWith(EXTENSION)).toBe(true);
+    const changed = edits.filter((edit) => edit.text !== "");
+    expect(changed).toHaveLength((CONTINUATIONS_ADDED + SPANNING_ELEMENTS) * 2);
+
+    const added = changed.filter((edit) => edit.kind === "added");
+    const cues = added.filter((edit) => edit.text.endsWith(EXTENSION));
+    expect(cues).toHaveLength(CONTINUATIONS_ADDED);
+
+    // The rest are the three songs, each line now delimited at both ends
+    // (ADR-0027, and ADR-0020's eighth normalisation).
+    const songs = added.filter((edit) => !edit.text.endsWith(EXTENSION));
+    expect(songs).toHaveLength(SPANNING_ELEMENTS);
+    for (const edit of songs) {
+      expect(edit.text.startsWith("*") && edit.text.endsWith("*")).toBe(true);
     }
   });
 
