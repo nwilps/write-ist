@@ -88,6 +88,33 @@ byte-identical. That is invisible to the writer and is not a product constraint.
 - **An unmatched delimiter fails loudly and is retained.** A file edited outside Write-ist may
   arrive with a dangling `[[c:…]]`. ADR-0008 rule 4 governs: report it and keep it; never
   discard it silently, which is what made v1's loss undiagnosable.
+
+  *"Loudly" means the import report says so, never that the file refuses to open* — Write-ist
+  never refuses to open a writer's file (ADR-0020). The dangling delimiter stays in the element
+  as the characters the writer has, which is also how the writer sees that something is off.
+- **A comment is written once around everything it covers, across lines if the writer selected
+  across lines, and is held once in the model.** Added 2026-09-18. One comment has one id and one
+  remark, so it cannot be split per line the way a mark is
+  ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)) without either
+  repeating the remark or orphaning it — and orphaning it is the failure this ADR exists to end.
+
+  **Why comments and marks go opposite ways.** A mark was split per element because an asterisk
+  left open across a line break shows as a literal `*` in any tool that reads Fountain strictly;
+  writing a pair per line *repaired* the file. A comment needs no repair: each delimiter is a
+  complete Fountain note on its own — `[[c:a1 remark]]` opens and closes its own brackets, and so
+  does `[[/c:a1]]` — and fountain.io says notes *"can be inserted between lines, or in the middle
+  of a line"* [V]. Every other tool hides both and shows the text between them normally. The same
+  holds for `<!--c:a1 remark-->` and `<!--/c:a1-->` on the prose surface.
+
+  **It follows that a comment is the first range in the model not attached to one element.** Its
+  two ends are each an element and an offset, and it is kept on the document rather than on an
+  element. Nothing about flatness changes — it is a range, nothing contains anything — and it is
+  the same exemption ADR-0019 already grants anything carrying an id.
+
+  **A forcing marker stays outside a comment's delimiters**, as it stays outside a mark's:
+  `.[[c:a1 remark]]INT. KITCHEN - DAY[[/c:a1]]`. Comment delimiters are removed before an element
+  is classified, so a comment wrapped round a scene heading or a character cue never changes what
+  that element is.
 - **A comment carries nothing but its text.** No author — ADR-0003 has no accounts and there is
   one person. No timestamp — the draft it froze with already dates it, and a date inline is
   noise in a file a stranger reads. No type, and no done flag.
