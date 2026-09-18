@@ -4,7 +4,12 @@ A fully local, offline writing application. See [`README.md`](README.md) for the
 project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem. Open questions are
 GitHub Issues, never a doc.
 
-**Status: v2, pre-implementation.** No application code yet.
+**Status: v2, building the document model.** One layer exists and is tested: **bytes on disk ↔ a
+flat sequence of typed elements**, for both surfaces, in `src/`. Nothing above that layer does —
+no comments modelled, no ranges, no counts, no pagination, no application.
+
+Before proposing work, read `SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The
+round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
 
 ## Start here
 

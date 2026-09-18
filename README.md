@@ -8,8 +8,11 @@ No accounts. No sync. No network. Your documents remain readable if this app dis
 
 ## Status
 
-**v2 — pre-implementation.** This repository is the source of truth for the v2 rewrite.
-No application code yet; planning and design docs only.
+**v2 — building the document model.** This repository is the source of truth for the v2 rewrite.
+
+The parser and serialiser for both surfaces are built and tested: five manuscripts go in and come
+back out, the largest 645 KB, compared as bytes on disk rather than strings in memory. Everything
+above that layer — comments, counts, pagination, the editor itself — is still to come.
 
 v1 shipped and produced a complete feature screenplay. It is being rewritten because its
 screenplay parse/serialise engine isn't good enough — the editor is slow, locked to

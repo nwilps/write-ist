@@ -1,6 +1,8 @@
 # Write-ist v2 — setup & planning checklist
 
-Working order agreed 2026-09-10. Temporary: delete this once implementation starts.
+Working order agreed 2026-09-10. Temporary: it was to be deleted once implementation started, and
+implementation has started — but Phase 5 is now the only record of what is built and what is not,
+so it stays until `/to-tickets` puts that in the tracker, and goes then.
 
 Rule for the whole list: **timebox the setup.** v1 got built while procrastinating on the
 screenplay it was for. If workflow adoption stops producing Write-ist artifacts and starts
@@ -107,8 +109,48 @@ producing workflow tuning, it has become the new v1.
 
 ## Phase 5 — Build
 
+### Done: the document model's read and write layer
+
+Built against `~/round-trip-test-guide.md`, Phases A–F, and merged 2026-09-18. **One layer:
+bytes on disk ↔ a flat sequence of typed elements**, both surfaces, in `src/`.
+
+- The whole of Fountain's element vocabulary (ADR-0021), the boneyard as a range, the title page
+  as fields, `(CONT'D)` maintained (ADR-0026).
+- The prose vocabulary of ADR-0023, paragraphs holding their own line wraps.
+- Marks as a set, read across elements and stored inside one (ADR-0027).
+- The eight enumerated normalisations of ADR-0020, applied at import.
+- The gate: bytes at both ends, real files compared on disk. Five manuscripts, 286 tests.
+  The acceptance corpus is read from `$WRITE_IST_CORPUS` and its tests skip when it is absent;
+  it is not in the repo and must not enter it.
+
+Two defects the byte gate could not see were found by measuring the element census
+independently and are fixed: a cue recognised without its blank line (#23), and marks that
+stopped at the element boundary (#26).
+
+### Not done, in the same layer
+
+- [ ] **Comments are not modelled** (ADR-0018). The syntax round-trips as text — ADR-0018's own
+      example parses as one `note` element — but there is no comment carrying an id and no span
+      it anchors to. Comments live *in the manuscript*, so this belongs here rather than above.
+      It is also the only thing in v2 that anchors (ADR-0022).
+- [ ] **Ranges** — scenes and chapters computed from the flat sequence (ADR-0019). No code yet.
+- [ ] **Element identity** — the in-memory handle the editor redraws against (ADR-0019).
+- [ ] **#27** — the import report does not name the blank lines it places, and counts the mark
+      re-spelling per span where every other count is per occurrence.
+
+### Not started, and deliberately above this layer
+
+Counts and pagination (ADR-0024), the bundle on disk (ADR-0025), drafts and locking
+(ADR-0002, ADR-0014), the ledger and registry (ADR-0015 to ADR-0017), and the application
+itself — shell, workspace bar, workspaces, editor.
+
+### Still to run
+
 - [ ] `/to-tickets` — tracer-bullet slices with blocking edges
 - [ ] `/implement` — drives `/tdd` at pre-agreed seams, closes with `/code-review`
+
+Open questions that shape those tickets live in GitHub Issues and nowhere else: #11 autosave,
+#12 spellcheck, #15 leading whitespace (deferred, preserve by default).
 
 ---
 
