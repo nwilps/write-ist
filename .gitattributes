@@ -1,0 +1,5 @@
+# Fixtures are compared byte-for-byte. Git must never touch their line endings:
+# on a Windows checkout the default would rewrite LF to CRLF and every byte
+# comparison in the round-trip test would be meaningless.
+*.fountain -text
+test/fixtures/** -text
