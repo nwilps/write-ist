@@ -15,6 +15,7 @@
  */
 import type { ScreenplayDocument } from "./document.ts";
 import { maintainContinuations } from "./continuations.ts";
+import { decodeFile } from "../decode.ts";
 import { normaliseSource, type Normalisation } from "../normalise.ts";
 import { parseReporting } from "./parse.ts";
 import { serialise } from "./serialise.ts";
@@ -40,7 +41,6 @@ export interface ImportedScreenplay {
   readonly report: ImportReport;
 }
 
-const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 
 /**
@@ -51,13 +51,19 @@ export function importScreenplay(
   bytes: Uint8Array,
   options: ImportOptions = {},
 ): ImportedScreenplay {
-  const { text, applied: textApplied } = normaliseSource(decoder.decode(bytes));
-  const applied: Normalisation[] = [...textApplied];
+  const applied: Normalisation[] = [];
   // A normalisation with nothing to report is absent, never zero (ADR-0020),
   // as it already is for the four text rules.
   const report = (kind: Normalisation["kind"], count: number): void => {
     if (count > 0) applied.push({ kind, count });
   };
+
+  // First, because everything after it works on text rather than bytes.
+  const decoded = decodeFile(bytes);
+  report("converted-to-utf-8", decoded.converted);
+
+  const { text, applied: textApplied } = normaliseSource(decoded.text);
+  applied.push(...textApplied);
 
   // ADR-0020's eighth entry. Applied by the parser rather than by
   // `normaliseSource`, because it is a property of the element sequence and
@@ -74,7 +80,8 @@ export function importScreenplay(
 
   // ADR-0020's seventh entry, which is applied last of all — on the way out,
   // by the serialiser — and so is the one the code doing it cannot count.
-  report("blank-lines-placed", blankLinesPlaced(text, serialise(document)));
+  const placed = blankLinesPlaced(text, serialise(document));
+  if (placed !== undefined) report("blank-lines-placed", placed);
 
   return { document, report: { applied } };
 }
@@ -98,21 +105,18 @@ export function importScreenplay(
  * one there and reported as their own entry, so a gap here is only ever
  * "blank" or "not", and nothing is counted twice.
  */
-function blankLinesPlaced(source: string, output: string): number {
+function blankLinesPlaced(source: string, output: string): number | undefined {
   const before = gaps(source);
   const after = gaps(output);
 
   // Every line of text in the source is one line of text in the output — one
   // element per line (ADR-0019), title-page lines kept as lines — and nothing
   // the enumerated list permits adds or removes one. If that ever stops being
-  // true the gaps no longer line up and every count here is wrong silently,
-  // which is the defect this function exists to end.
-  if (before.length !== after.length) {
-    throw new Error(
-      `cannot count blank lines placed: ${before.length + 1} lines of text in, ` +
-        `${after.length + 1} out`,
-    );
-  }
+  // true the gaps no longer line up and cannot be counted. The entry is then
+  // left out and the file opens normally: Write-ist never refuses to open a
+  // writer's file over its own bug. The suite, which pins every byte of the
+  // five manuscripts, is what catches that bug — not the writer.
+  if (before.length !== after.length) return undefined;
 
   let placed = 0;
   for (let index = 0; index < before.length; index++) {
@@ -154,7 +158,9 @@ export function exportScreenplay(document: ScreenplayDocument): Uint8Array {
  * On a file we wrote it adds nothing, and that it adds nothing is the point.
  */
 export function reopenAndSave(bytes: Uint8Array, options: ImportOptions = {}): Uint8Array {
-  const parsed = parseReporting(decoder.decode(bytes)).document;
+  // The shared decoder, so that this cannot refuse a file either. On a file
+  // Write-ist wrote it is plain UTF-8 and nothing is converted.
+  const parsed = parseReporting(decodeFile(bytes).text).document;
   if (options.maintainContinuations === false) return exportScreenplay(parsed);
   return exportScreenplay(maintainContinuations(parsed).document);
 }

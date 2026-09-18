@@ -7,6 +7,7 @@
  * action run are screenplay-only, and prose has no character cues.
  */
 import type { ProseDocument } from "./document.ts";
+import { decodeFile } from "../decode.ts";
 import { normaliseSource, type Normalisation } from "../normalise.ts";
 import { parse } from "./parse.ts";
 import { serialise } from "./serialise.ts";
@@ -20,12 +21,18 @@ export interface ImportedProse {
   readonly report: ProseImportReport;
 }
 
-const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 
 /** Open a file Write-ist has never seen, reporting what it normalised. */
 export function importProse(bytes: Uint8Array): ImportedProse {
-  const { text, applied } = normaliseSource(decoder.decode(bytes));
+  // The same decoder as the screenplay surface: never refuses, never
+  // replaces a character. Its conversion is reported first, as it happens first.
+  const decoded = decodeFile(bytes);
+  const { text, applied: textApplied } = normaliseSource(decoded.text);
+  const applied: readonly Normalisation[] =
+    decoded.converted > 0
+      ? [{ kind: "converted-to-utf-8", count: decoded.converted }, ...textApplied]
+      : textApplied;
   return { document: parse(text), report: { applied } };
 }
 
@@ -36,5 +43,5 @@ export function exportProse(document: ProseDocument): Uint8Array {
 
 /** Open and save without typing. ADR-0020 point 2: byte-identical, forever. */
 export function reopenAndSave(bytes: Uint8Array): Uint8Array {
-  return exportProse(parse(decoder.decode(bytes)));
+  return exportProse(parse(decodeFile(bytes).text));
 }

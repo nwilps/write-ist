@@ -44,11 +44,14 @@ does the placing.
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
 | Blank lines are placed by the spacing table — added where it wants one, removed where it does not — **screenplay surface only** | Spacing is derived from the pair of element types either side of it ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so whatever blank lines the source had are not consulted. Below |
 | A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
+| A file not in UTF-8 is read in the encoding it is actually in, and saved as UTF-8 | Every character is kept and only the bytes spelling them change, as with line endings. Windows-1252 decodes all 256 byte values to distinct characters, so nothing is lost; UTF-16 is recognised by its marker bytes rather than guessed |
 
-That eighth entry was added on purpose, 2026-09-18, in this file. A ninth is the same kind of
-decision, made the same way.
+The eighth and ninth entries were added on purpose, 2026-09-18, in this file. A tenth is the same
+kind of decision, made the same way. New entries go at the **end** of the table: the prose here, and
+ADR-0019 and ADR-0027, refer to entries by position, so a row inserted mid-table silently
+re-points every reference below it.
 
-**Three of the eight change what a reader sees**, and all three are screenplay-only. The
+**Three of the nine change what a reader sees**, and all three are screenplay-only. The
 `(CONT'D)` entry is argued above. The seventh costs a writer the tight-run effect — three lines of
 action with no blank between them become three paragraphs — and was admitted on measurement:
 exactly one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019
@@ -87,8 +90,8 @@ gets the same answer every time.
 reason it was admitted. A mark the writer opened on one line and closed several lines later
 renders as literal asterisks in any tool reading Fountain strictly; written back a pair per
 element it renders as the italics the writer meant, everywhere. Measured at 15 elements and
-**+24 bytes in *Big Fish*, zero in the other four manuscripts** — the smallest of the eight, and
-the only one that makes the file more correct rather than merely more uniform.
+**+24 bytes in *Big Fish*, zero in the other four manuscripts** — and the only one that makes the
+file more correct rather than merely more uniform.
 [ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md) carries the argument.
 
 **The sixth is different in kind from the first five, and that difference is the reason this

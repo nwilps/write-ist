@@ -2,12 +2,13 @@
  * The normalisations Write-ist is permitted to apply on first opening a file
  * it has never seen (ADR-0020), and nothing else, ever.
  *
- * Four of ADR-0020's eight live here, because they are properties of the text
- * rather than of the element sequence. The other four belong further along
- * the pipeline: mark ordering to the serialiser, missing `(CONT'D)` to a
- * separate maintenance pass over the parsed elements (ADR-0026), blank-line
- * placement to the serialiser's spacing table, and a mark spanning several
- * elements to the parser (ADR-0027).
+ * Four of ADR-0020's nine live here, because they are properties of the text
+ * rather than of the element sequence. The other five belong elsewhere in
+ * the pipeline: reading a file not in UTF-8 to `decodeFile`, before any of
+ * this; mark ordering to the serialiser; missing `(CONT'D)` to a separate
+ * maintenance pass over the parsed elements (ADR-0026); blank-line placement
+ * to the serialiser's spacing table; and a mark spanning several elements to
+ * the parser (ADR-0027).
  *
  * Each returns a count, because ADR-0020 requires an import report that names
  * every normalisation applied. **Every count is occurrences changed, never
@@ -16,6 +17,13 @@
  */
 
 export type NormalisationKind =
+  /**
+   * Applied by `decodeFile`, not here: a file saved in UTF-16 or windows-1252
+   * is read in that encoding and saved as UTF-8. Counted per character whose
+   * bytes changed — every character of a UTF-16 file, and every character
+   * above 0x7F of a windows-1252 one.
+   */
+  | "converted-to-utf-8"
   | "line-endings-to-lf"
   | "unicode-to-nfc"
   | "trailing-whitespace-trimmed"
