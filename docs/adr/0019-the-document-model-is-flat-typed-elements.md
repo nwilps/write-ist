@@ -137,7 +137,9 @@ Recorded so it reads as a decision rather than as an oversight.
 
 Fountain permits a run of action lines with no blank between them, rendering as tight lines
 rather than separate paragraphs. Under this rule those are separate elements, so the writer's
-file gains a blank line between each on first save — the seventh entry on ADR-0020's list.
+file gains a blank line between each on first save — the seventh entry on ADR-0020's list, which
+since 2026-09-18 is stated in both directions: the table *places* blank lines, so two centered
+lines or two lyric lines with a blank between them lose it by the same rule.
 
 The alternative was to let an element hold newlines. It was rejected on measurement: across
 **2,104 action blocks in three real screenplays** — the acceptance corpus, *Big Fish* and
