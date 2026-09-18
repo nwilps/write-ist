@@ -62,8 +62,16 @@ export function parseMarks(raw: string): MarkedText {
 export interface MarksAcross {
   /** One result per text handed in, in the same order. */
   readonly marked: readonly MarkedText[];
-  /** How many marks closed in a later element than they opened in. */
-  readonly spanning: number;
+  /**
+   * How many elements gain a delimiter pair they did not have in the source,
+   * because a mark reached them across a line: every element a spanning mark
+   * touches, each counted once however many spanning marks touch it.
+   *
+   * This is the count ADR-0020's report wants — lines changed, not marks
+   * found. A song whose italic runs across four lines is one mark and four
+   * changed lines, and four is what the writer is told.
+   */
+  readonly delimitedLines: number;
 }
 
 /**
@@ -82,7 +90,7 @@ export interface MarksAcross {
  * crosses lines; storing does not — and neither does writing, so each element
  * emits its own pair and the file converges on the one spelling a strict
  * Fountain reader renders correctly. That is ADR-0020's eighth normalisation,
- * and `spanning` is what it reports.
+ * and `delimitedLines` is what it reports.
  *
  * The caller decides where a run ends, and the two bounds that keep this safe
  * are both its job: **a blank line**, which ends a speech in Fountain so an
@@ -92,7 +100,7 @@ export interface MarksAcross {
  * long italic span.
  */
 export function parseMarksAcross(texts: readonly string[]): MarksAcross {
-  if (texts.length === 1) return { marked: [parseMarks(texts[0]!)], spanning: 0 };
+  if (texts.length === 1) return { marked: [parseMarks(texts[0]!)], delimitedLines: 0 };
 
   // Joined with the newlines the source had between them, so the scanner sees
   // the run as the writer wrote it. No screenplay element holds a newline of
@@ -118,18 +126,21 @@ export function parseMarksAcross(texts: readonly string[]): MarksAcross {
   }
 
   const perElement: MarkRange[][] = lines.map(() => []);
-  let spanning = 0;
+  // A set, because an element two spanning marks both reach is still one line
+  // that changed.
+  const delimited = new Set<number>();
 
   for (const mark of whole.marks ?? []) {
-    let touched = 0;
+    const touched: number[] = [];
     lines.forEach((line, index) => {
       const from = Math.max(mark.start, starts[index]!);
       const to = Math.min(mark.end, starts[index]! + line.length);
       if (to <= from) return;
-      touched++;
+      touched.push(index);
       perElement[index]!.push({ ...mark, start: from - starts[index]!, end: to - starts[index]! });
     });
-    if (touched > 1) spanning++;
+    // A mark that stayed on one line gains nothing: it already had its pair.
+    if (touched.length > 1) for (const index of touched) delimited.add(index);
   }
 
   const marked = lines.map((text, index) => {
@@ -137,7 +148,7 @@ export function parseMarksAcross(texts: readonly string[]): MarksAcross {
     return marks.length === 0 ? { text } : { text, marks: canonicalMarks(marks) };
   });
 
-  return { marked, spanning };
+  return { marked, delimitedLines: delimited.size };
 }
 
 /** Put them back, in ADR-0020's declared order. */

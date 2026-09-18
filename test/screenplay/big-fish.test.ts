@@ -93,13 +93,16 @@ describe("Big Fish, measured as bytes", () => {
     expect(IMPORTED_BYTES - DELIMITERS_ADDED).toBe(146_073);
   });
 
-  it("reports the whitespace, the three spanning marks and the extensions", () => {
+  it("reports the whitespace, the fifteen song lines and the extensions", () => {
     expect(importScreenplay(readFixtureBytes(FIXTURE)).report.applied).toEqual([
       { kind: "trailing-whitespace-trimmed", count: 210 },
-      // ADR-0020's eighth entry, counted per mark rather than per element:
-      // three songs, fifteen elements.
-      { kind: "marks-spanning-elements", count: SPANNING_MARKS },
+      // ADR-0020's eighth entry, counted per line changed: three songs, but
+      // fifteen lines gained a delimiter pair, and fifteen is what changed in
+      // the file. This read SPANNING_MARKS (3) until issue #27.
+      { kind: "marks-spanning-elements", count: SPANNING_ELEMENTS },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
+      // No `blank-lines-placed`: this file's blank lines are already where the
+      // spacing table puts them, and a rule with nothing to report is absent.
     ]);
   });
 

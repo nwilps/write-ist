@@ -67,11 +67,21 @@ describe("an opener with no partner on its line looks ahead for one", () => {
     ]);
   });
 
-  it("reports it as ADR-0020's eighth normalisation, counted per mark", () => {
-    expect(parseReporting(SONG).spanningMarks).toBe(1);
+  it("reports it as ADR-0020's eighth normalisation, counted per line changed", () => {
+    // One mark, four lines that each gained a delimiter pair. The report
+    // counts occurrences changed, never findings (ADR-0020), so the answer is
+    // four. This read 1 — the mark — until issue #27.
+    const sung = SONG.split("\n").slice(1);
+    const written = serialise(parse(SONG)).split("\n").slice(1);
+    const changed = sung.filter((line, index) => line !== written[index]);
+    expect(changed).toHaveLength(4);
 
+    expect(parseReporting(SONG).markDelimitedLines).toBe(changed.length);
     const { report } = importScreenplay(utf8(SONG));
-    expect(report.applied).toContainEqual({ kind: "marks-spanning-elements", count: 1 });
+    expect(report.applied).toContainEqual({
+      kind: "marks-spanning-elements",
+      count: changed.length,
+    });
   });
 
   it("converges: reading our own output finds every pair on its own line", () => {
@@ -80,7 +90,7 @@ describe("an opener with no partner on its line looks ahead for one", () => {
     const once = exportScreenplay(importScreenplay(utf8(SONG)).document);
     const twice = importScreenplay(once);
 
-    expect(parseReporting(text(once)).spanningMarks).toBe(0);
+    expect(parseReporting(text(once)).markDelimitedLines).toBe(0);
     expect(twice.report.applied).not.toContainEqual(
       expect.objectContaining({ kind: "marks-spanning-elements" }),
     );
@@ -180,15 +190,22 @@ describe("a within-element mark inside a spanning one", () => {
 });
 
 describe("the three songs in Big Fish, and only those", () => {
-  const spanning = (fixture: string): number =>
-    importScreenplay(readFixtureBytes(fixture)).report.applied.filter(
-      (entry) => entry.kind === "marks-spanning-elements",
-    )[0]?.count ?? 0;
+  /** The report's entry, or undefined when there is none — never zero. */
+  const entry = (fixture: string) =>
+    importScreenplay(readFixtureBytes(fixture)).report.applied.find(
+      (applied) => applied.kind === "marks-spanning-elements",
+    );
 
-  it("finds three in each cut of Big Fish and none in Brick & Steel", () => {
-    expect(spanning("Big-Fish.fountain")).toBe(3);
-    expect(spanning("Big-Fish-augmented.fountain")).toBe(3);
-    expect(spanning("Brick-&-Steel.fountain")).toBe(0);
+  it("reports fifteen lines in each cut of Big Fish, and no entry for Brick & Steel", () => {
+    // Three songs, fifteen lines changed. This read 3 until issue #27.
+    expect(entry("Big-Fish.fountain")).toEqual({ kind: "marks-spanning-elements", count: 15 });
+    expect(entry("Big-Fish-augmented.fountain")).toEqual({
+      kind: "marks-spanning-elements",
+      count: 15,
+    });
+    // Absent, not an entry of zero. This read `?? 0`, which could not tell
+    // the difference.
+    expect(entry("Brick-&-Steel.fountain")).toBeUndefined();
   });
 
   it("marks fifteen elements, which is where the 24 bytes go", () => {
