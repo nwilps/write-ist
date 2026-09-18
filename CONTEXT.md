@@ -77,7 +77,9 @@ _Avoid_: metadata, database, index
 
 **Comment**:
 Something the writer says about a place in the manuscript, anchored to the span it was left
-on and shown beside the text as a floating card. Its text is stored inline in the manuscript
+on and shown beside the text as a floating card. Its remark is stored inside the opening
+delimiter, so the remark and the span it is about are one construct and deleting the span
+takes the remark with it. Its text is stored inline in the manuscript
 file, delimited in band and matched by id — but it is not part of the work: it is stripped
 before pagination, before word and page counts, and before export, and the writer never sees
 its syntax. A comment anchors, so it belongs to one draft and freezes with it.
@@ -135,12 +137,22 @@ A unit of the manuscript that a surface recognises — scene heading, action, ch
 dialogue. The element vocabulary belongs to the surface, never to the format. Elements form
 a flat sequence and never contain one another; everything that looks like nesting — a scene,
 a chapter, a part — is a *range* computed from the sequence.
-_Avoid_: node, block, token, line
+
+**This is narrower than the screenwriting sense of the word, and the two are easy to confuse.**
+In Final Draft and in ordinary talk, a speech of four lines is *one* Dialogue element. Here it is
+**four** elements, because no element spans more than one line (ADR-0019) — they are written back
+without blank lines between them because the spacing table says so, not because they are one
+thing. Say **speech** for the screenwriting sense; it is the run of dialogue under one character
+cue, and it is a range over elements like a scene is.
+_Avoid_: node, block, token, line; element for a whole speech (say speech)
 
 **Mark**:
 Inline formatting carried on a span of text — italic, bold, underline, small caps. Marks are
 a *set*, not a tree: two marks over the same characters have no order, so the order they are
-written in is chosen by the serialiser rather than remembered from the file. Anything
+written in is chosen by the serialiser rather than remembered from the file. A mark is **read**
+across elements — an opening delimiter finds its partner on a later line, and every element
+between them carries the mark — but it is **stored and written inside one element**, which is why
+a run of italic dialogue is written back with a delimiter pair on each of its lines. Anything
 carrying an id is exempt, which is why a comment may nest and cross and bold may not.
 _Avoid_: style, formatting, span, decoration
 
@@ -189,6 +201,15 @@ A continuous dramatic beat that crosses locations is several scenes, because eac
 location needs its own heading. Prose has no scenes: a novel's structure is parts and
 chapters.
 _Avoid_: slug, slugline (those name the heading, not the range), beat unqualified
+
+**Speech**:
+Screenplay-surface vocabulary: a character cue and everything under it until the next blank
+line — the dialogue and parentheticals one character says in one go. Like a scene, it is a
+*range* over elements rather than an element, which is the distinction the **Element** entry
+warns about: a four-line speech is four elements. It is the one range Fountain marks in the
+file rather than leaving to be computed, because a blank line ends it, and it is therefore
+where a mark's lookahead stops ([ADR-0027](docs/adr/0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)).
+_Avoid_: dialogue (that is one element inside a speech), block, paragraph, line
 
 **Chapter**:
 Prose-surface vocabulary: the range from one chapter heading to the next. Chapters, grouped

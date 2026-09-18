@@ -13,6 +13,12 @@ Inline formatting is carried as a **set of marks** per span, not a tree. `_**x**
 `**_x_**` are therefore indistinguishable to the model, and one order is chosen on the way
 out.
 
+How far one such range may reach is decided separately, in
+[ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md): a mark runs from its
+opening delimiter to the next matching one, across elements when that is where it closes. It is
+the one range in the model that crosses an element boundary, and it costs flatness nothing — it
+is still a range, still a set, and still nothing containing anything.
+
 ## The forcing reasons
 
 **Model-first** is forced by three decisions already taken, pulling the same way. ADR-0001
@@ -33,7 +39,7 @@ to any library: *a mark set cannot round-trip a mark tree*. ADR-0018 already car
 exemption that matters — anything carrying an id is exempt, because its pairing is recorded
 rather than inferred, which is why comments may nest and cross while bold and italic may not.
 
-## One element, one line
+## One element, one line — on the screenplay surface
 
 **No element spans more than one line.** Blank lines are not stored, and where one falls on the
 way out is a lookup on the pair of element types either side of it:
@@ -46,6 +52,13 @@ way out is a lookup on the pair of element types either side of it:
 | Lyrics → Lyrics | no |
 | Everything else | yes |
 
+**No element is exempt, including omitted ones.** A run of tight prose inside a boneyard is
+spaced by this table like any other run of action, so cut notes written without blank lines
+between them gain them on first import. That is the cost of the boneyard being ordinary elements
+rather than a special case ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)),
+and it is recorded here so the reflowed notes are not later read as a bug. An exemption would
+reintroduce exactly the "the boneyard is different" that treating it as a range removed.
+
 This is what makes ADR-0020's claim — *spacing is derived from adjacent element types* — actually
 true, and the rule is stated here because that claim depends on it.
 
@@ -53,6 +66,72 @@ true, and the rule is stated here because that claim depends on it.
 text element: it is key-value pairs, several of which carry indented continuation lines
 (`Title:` with two values, `Contact:` with a three-line address). ADR-0021 already treats it as
 fields edited through a form and stored as Fountain.
+
+**The boneyard is not a second exception, and the reason is worth recording**, because the first
+implementation made it one. Read as a container — one element holding the whole of `/* … */`
+with its own newlines — it breaks this rule, and it has to, since a boneyard may contain a blank
+line and blank lines are not stored. It also cost a real defect: with the block opaque, a
+character cue inside it was invisible, and an implementation that could not see the cue wrote a
+`(CONT'D)` into cut material anyway. `/*` and `*/` are therefore **delimiters** and the elements
+between them carry an `omitted` flag ([ADR-0021](0021-the-screenplay-surface-implements-all-of-fountain.md)).
+A cue inside a boneyard is a cue. Nothing nests, nothing spans a line, and the blank-line problem
+never arises because omitted elements are spaced by the same table as every other element.
+
+## The prose surface does not inherit it, and could not
+
+**A prose paragraph is one element whose text holds the writer's line wraps.** Measured on the
+acceptance manuscript, 2026-09-16: **2,135 of its 4,317 paragraphs span more than one line, and
+the longest runs 72.** Prose arrives hard-wrapped, as most real prose is, and rewrapping it is
+not on ADR-0020's list — so the wraps are the writer's and they stay.
+
+*(Re-measured against the landed parser, 2026-09-16. The figures first written here were 2,140
+of 4,322: 2,140 is the count of **elements** holding a newline — the paragraphs plus the block
+quote, the verse block and the two passthroughs — against 4,343 elements in all. The paragraph
+figures are the ones the sentence is making a claim about, so they are the ones stated. Roughly
+half either way, and the argument below is unchanged.)*
+
+**The rule above was measured on screenplays, and that is why it does not transfer.** It was
+decided on a count: one genuine multi-line action block across 2,104 action blocks in three
+produced screenplays. Screenplay has no hard-wrapped construct, so the case barely exists.
+Markdown paragraphs are nothing but that case — 2,135 of them in one book — and a rule bought
+for 1-in-2,104 cannot be sold at 1-in-2.
+
+The consequences that follow from the screenplay rule therefore do not follow here. Nothing
+about prose wants a spacing table derived from element adjacency, because:
+
+**A blank line in Markdown is syntax, not spacing.** Two paragraphs run together *are* one
+paragraph. So the serialiser is not choosing a convention that could go either way; it is
+choosing what the document says. Between paragraphs it is required, inside a verse line block or
+a block quote it must be absent, and none of that is a style decision the way `Action → Action`
+was.
+
+**And the two surfaces stay honest about being different.** The flat, typed, marks-as-a-set
+model at the top of this ADR holds on both. The line rule does not, and pretending otherwise
+would have meant either rewrapping a novelist's paragraphs or storing every wrapped line as its
+own element, which is the `precededByBlank` design rejected above wearing a longer coat.
+
+## Headings carry a level; parts and chapters are computed
+
+Confirmed by the prose implementation rather than decided here, because `CONTEXT.md` already
+fixes it: **Chapter** is *"the range from one chapter heading to the next"*, and **Scene** is
+worded identically. So a prose heading is one element carrying a level, and which range it opens
+is computed from the sequence — there is no `part` element and no `chapter` element.
+
+Worth recording for what it prevents. With parts and chapters as types, the book's own title and
+a front-matter heading are indistinguishable from a part and a chapter, and the structure a
+reader sees comes out wrong at the very top of the file.
+
+## Two things the serialiser carries rather than canonicalises
+
+**A scene number and a dual-dialogue caret are lifted off the element's text only when the
+source wrote exactly one space before them.** `INT. KITCHEN - DAY #14#` and `VINNIE ^` become an
+element with a scene number and an element with the caret set; `INT. KITCHEN - DAY  #14#`, with
+two spaces, keeps the whole string as text.
+
+That is **deliberately wrong about the element and right about the bytes.** Canonicalising the
+gap would be an eighth entry on ADR-0020's list, spending a writer's file on tidiness; leaving
+it means the rarer spelling round-trips exactly while being typed as something slightly duller.
+Recorded so it reads as a decision rather than as an oversight.
 
 ### What this costs, measured
 

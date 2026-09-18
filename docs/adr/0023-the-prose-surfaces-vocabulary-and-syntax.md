@@ -32,6 +32,29 @@ ADR-0011 already establishes that Write-ist specifies its own subset and writes 
 so it can simply say that an HTML comment carrying our id prefix is a Write-ist comment and
 everything else is a passthrough.
 
+### The forms, pinned
+
+Decided 2026-09-16, and deliberately a mirror of the screenplay surface rather than a second
+invention. [ADR-0018](0018-comments-are-the-text.md) carries the reasoning.
+
+```
+<!--c:a1 this line is weak-->She left.<!--/c:a1-->     a comment
+<!--cut--> … <!--/cut-->                                cut prose
+<!-- anything else -->                                  a passthrough
+```
+
+- **The remark lives in the opening delimiter.** ADR-0018's inline argument — *a deleted span
+  takes its comment with it* — holds only while the remark sits inside the span's own opener.
+- **Comments are matched by id**, so they may nest and may cross, which is ADR-0018's specific
+  claim and the reason marks may not do the same.
+- **Cut prose carries no id and is delimiters, not a container** — the elements between are
+  ordinary elements flagged `omitted`, exactly as ADR-0021 settled for Fountain's boneyard after
+  a container implementation was found writing `(CONT'D)` into cut material.
+- **`-->` is escaped as `--&gt;` inside a remark**, because an HTML comment ends at the first
+  one and a writer typing an arrow would otherwise corrupt the file. A bare `--` is untouched.
+- **Everything else in `<!-- -->` round-trips byte-for-byte and is never reinterpreted**, which
+  is ADR-0020's passthrough rule.
+
 ## Indentation means two different things
 
 A **typed indent** is tab or space characters the writer put in the file. A **rendered
@@ -62,6 +85,17 @@ The catalog is right, and the two halves separate cleanly:
 - **The authoring feature stays `someday`.** A footnote is not a parsing problem; it is a
   pagination problem, because the note must land on the same page as its marker. That is real
   work for a `someday` item.
+
+## A paragraph holds its own line wraps
+
+Prose arrives hard-wrapped. On the acceptance manuscript, **2,140 of 4,322 paragraphs span more
+than one line and the longest runs 72**, so a paragraph is one element whose text carries the
+writer's wraps. Rewrapping is not on ADR-0020's list and will not be added to it: where a
+novelist broke their lines is theirs.
+
+[ADR-0019](0019-the-document-model-is-flat-typed-elements.md)'s *one element, one line* is
+therefore scoped to the screenplay surface, where it was measured and where it holds. The rest
+of that ADR — flat, typed, marks as a set, no containers — applies to both surfaces unchanged.
 
 ## Consequences
 
