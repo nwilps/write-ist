@@ -41,6 +41,7 @@ does the placing.
 | Trailing whitespace trimmed | Invisible, and it defeats byte comparison |
 | Mark nesting emitted in the declared order | Marks are a set (ADR-0019); one order must be chosen on the way out |
 | Unicode normalised to **NFC** | Below |
+| A file not in UTF-8 is read in the encoding it is actually in, and saved as UTF-8 | Every character is kept and only the bytes spelling them change, as with line endings. Windows-1252 decodes all 256 byte values to distinct characters, so nothing is lost; UTF-16 is recognised by its marker bytes rather than guessed |
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
 | Blank lines are placed by the spacing table — added where it wants one, removed where it does not — **screenplay surface only** | Spacing is derived from the pair of element types either side of it ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so whatever blank lines the source had are not consulted. Below |
 | A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
