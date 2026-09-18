@@ -26,7 +26,7 @@ This ADR draws the line and makes it testable.
 | Mark nesting emitted in the declared order | Marks are a set (ADR-0019); one order must be chosen on the way out |
 | Unicode normalised to **NFC** | Below |
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
-| A run of action lines with no blank between them gains one between each — **screenplay surface only** | No element spans a line ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so a tight run is separate elements and separate elements are spaced |
+| Blank lines are placed by the spacing table — added where it wants one, removed where it does not — **screenplay surface only** | Spacing is derived from the pair of element types either side of it ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so whatever blank lines the source had are not consulted. Below |
 | A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
 
 That eighth entry was added on purpose, 2026-09-18, in this file. A ninth is the same kind of
@@ -37,6 +37,35 @@ decision, made the same way.
 action with no blank between them become three paragraphs — and was admitted on measurement:
 exactly one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019
 records the count and the alternative that was rejected.
+
+### The seventh entry, stated in both directions
+
+*Amended 2026-09-18.* This entry used to read *"a run of action lines with no blank between them
+gains one between each"* — true, and only half of what the rule does. Write-ist does not add or
+remove blank lines. **It places them**, from the pair of element types either side, and what the
+source happened to have there is never consulted. Adding and removing are the same rule seen from
+either end, depending on what the writer started with.
+
+Which rows can take a blank line away is worth stating, because it is not all of them:
+
+| Pair | A blank between them is | Why |
+|---|---|---|
+| Centered → Centered | **removed** | Two title cards with a blank between them become one card |
+| Lyrics → Lyrics | **removed** | Both stay lyrics across a blank, since `~` forces them |
+| Dialogue → Dialogue | never removed — **it cannot arise** | A blank line *ends a speech* in Fountain, so the line after it is action, and an action following dialogue is spaced by the ordinary rule |
+
+Measured 2026-09-18: the first two remove a blank, the third keeps it, and a blank between two
+action lines is kept.
+
+**This needs no agonising, and the first line of this ADR is why.** *The writer's words are theirs;
+the format is ours.* Where a blank line falls between two title cards is format. Nothing the writer
+said is lost, no word count moves, and no reader of the finished script can tell. It is recorded
+here because the register has to be complete, not because it is a cost.
+
+**The list governs the first import, not every save.** Once the file is ours, point 2 makes it
+byte-stable, so spacing never moves again — there is nothing to report during live writing because
+nothing changes. Serialisation simply places blank lines where the table says, every time, and
+gets the same answer every time.
 
 **The eighth is the only one that changes what a reader sees for the better**, and it is the
 reason it was admitted. A mark the writer opened on one line and closed several lines later
@@ -58,7 +87,8 @@ continuations and misses about 20. Even a careful writer does not keep this stra
 It was the first entry scoped to one surface, and there are now three — the sixth, seventh and
 eighth, all screenplay-only. Prose has no character cues; and because a prose paragraph is one
 element holding its own line wraps ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)),
-neither the tight-run rule nor the mark-delimiter rule has anything to reach there.
+neither the blank-line rule nor the mark-delimiter rule has anything to reach there. A blank line
+in Markdown is syntax rather than spacing, so prose has no spacing table to derive anything from.
 
 *(Corrected 2026-09-18: this sentence read "the only entry scoped to one surface" while the table
 above already scoped the seventh to the screenplay surface too. The table was right.)*
