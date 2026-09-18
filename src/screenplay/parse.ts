@@ -181,7 +181,15 @@ function parseBody(lines: readonly string[], from: number): Element[] {
       continue;
     }
 
-    const element = classify(content, indent, inSpeech, lines[index + 1] ?? "");
+    const element = classify(content, indent, inSpeech, {
+      // Fountain wants a cue to have a blank line above it and a non-blank one
+      // below. Both are read off the source rather than off parser state: a
+      // boneyard delimiter and a tight run of action both leave `inSpeech`
+      // false, so parser state cannot tell "after a blank" from "after
+      // anything that is not a speech".
+      above: index === 0 || lines[index - 1] === "",
+      below: lines[index + 1] ?? "",
+    });
     elements.push(omitted ? { ...element, omitted: true } : element);
 
     inSpeech =
@@ -208,11 +216,19 @@ function closesLater(lines: readonly string[], from: number): boolean {
   return false;
 }
 
+/** The blank lines around a line, which is what tells a cue from action. */
+interface Surroundings {
+  /** The line above is blank, or this is the first line of the body. */
+  readonly above: boolean;
+  /** The line below, verbatim. A cue must be followed by something. */
+  readonly below: string;
+}
+
 function classify(
   content: string,
   indent: string,
   inSpeech: boolean,
-  nextLine: string,
+  surroundings: Surroundings,
 ): Element {
   // Inside a speech, Fountain runs to the next blank line. Only the choice
   // between a parenthetical and a line of dialogue is open.
@@ -248,7 +264,18 @@ function classify(
   if (TRANSITION.test(content) || UNFORCED_TRANSITIONS.has(content)) {
     return make("transition", content, indent, false);
   }
-  if (looksLikeCharacter(content) && nextLine !== "") {
+  // **Both** blank-line conditions, not just the one below (issue #23).
+  //
+  // Fountain's cue is an upper-case line with a blank above it and text below.
+  // Checking only below turns an upper-case line inside a tight run of action
+  // into a cue, and the action line under it into dialogue — and because a cue
+  // names a speaker, `(CONT'D)` maintenance then writes visible words into a
+  // line of action. That is ADR-0020's one normalisation that changes the
+  // writer's words, fired on an element that does not exist.
+  //
+  // This says nothing about `@CROSSWALK`: a forced cue is handled above, and
+  // the writer who typed the `@` has already answered the question.
+  if (surroundings.above && looksLikeCharacter(content) && surroundings.below !== "") {
     return characterCue(content, indent, false);
   }
   return make("action", content, indent, false);
