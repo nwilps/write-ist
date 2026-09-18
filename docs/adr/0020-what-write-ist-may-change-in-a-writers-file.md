@@ -27,14 +27,24 @@ This ADR draws the line and makes it testable.
 | Unicode normalised to **NFC** | Below |
 | Missing `(CONT'D)` extensions added — **screenplay surface only** | Derived from the element sequence, so a file without them is stale rather than different — [ADR-0026](0026-contd-is-authored-not-paginated.md) |
 | A run of action lines with no blank between them gains one between each — **screenplay surface only** | No element spans a line ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so a tight run is separate elements and separate elements are spaced |
+| A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
 
-Adding an eighth is a decision someone makes on purpose, in this file.
+That eighth entry was added on purpose, 2026-09-18, in this file. A ninth is the same kind of
+decision, made the same way.
 
-**Two of the seven change what a reader sees**, and both are screenplay-only. The `(CONT'D)`
-entry is argued above. The seventh costs a writer the tight-run effect — three lines of action
-with no blank between them become three paragraphs — and was admitted on measurement: exactly
-one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019 records
-the count and the alternative that was rejected.
+**Three of the eight change what a reader sees**, and all three are screenplay-only. The
+`(CONT'D)` entry is argued above. The seventh costs a writer the tight-run effect — three lines of
+action with no blank between them become three paragraphs — and was admitted on measurement:
+exactly one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019
+records the count and the alternative that was rejected.
+
+**The eighth is the only one that changes what a reader sees for the better**, and it is the
+reason it was admitted. A mark the writer opened on one line and closed several lines later
+renders as literal asterisks in any tool reading Fountain strictly; written back a pair per
+element it renders as the italics the writer meant, everywhere. Measured at 15 elements and
+**+24 bytes in *Big Fish*, zero in the other four manuscripts** — the smallest of the eight, and
+the only one that makes the file more correct rather than merely more uniform.
+[ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md) carries the argument.
 
 **The sixth is different in kind from the first five, and that difference is the reason this
 paragraph exists.** The others are invisible hygiene: line endings, whitespace, mark order,
@@ -45,7 +55,13 @@ preference, it is simply out of date, and every screenwriting application mainta
 evidence that decided it is that *Big Fish*, a reference production draft, marks 98
 continuations and misses about 20. Even a careful writer does not keep this straight by hand.
 
-It is also the only entry scoped to one surface. Prose has no character cues.
+It was the first entry scoped to one surface, and there are now three — the sixth, seventh and
+eighth, all screenplay-only. Prose has no character cues; and because a prose paragraph is one
+element holding its own line wraps ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)),
+neither the tight-run rule nor the mark-delimiter rule has anything to reach there.
+
+*(Corrected 2026-09-18: this sentence read "the only entry scoped to one surface" while the table
+above already scoped the seventh to the screenplay surface too. The table was right.)*
 
 ## Unicode: NFC, and never NFKC
 
@@ -79,7 +95,9 @@ it reports `b.length` — JavaScript characters, not bytes — which is the whol
 > `src/screenplay/`, with bytes at both ends — `importScreenplay` takes a `Uint8Array` and
 > `exportScreenplay` returns one, so neither can repeat the character-count mistake below. The
 > corpus numbers it pins are in [ADR-0004](0004-fountain-is-the-source-of-truth.md): 170,682 on
-> disk, 170,642 after the four text normalisations, 172,451 after all seven.
+> disk, 170,642 after the four text normalisations, 172,451 after all of them. The eighth entry
+> added 2026-09-18 does not move that figure: the corpus has no mark spanning more than one
+> element, so there is nothing for it to re-spell.
 
 **The gate moves into this repo and writes a real file.** It asserts *fidelity* on first
 import — source in, enumerated normalisations applied, bytes compared — and *idempotence*
