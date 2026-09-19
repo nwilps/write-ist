@@ -11,8 +11,15 @@
  *
  * Input is expected to have been through `normaliseSource`.
  */
+import {
+  liftComments,
+  locateComments,
+  PROSE_COMMENTS,
+  type ElementSource,
+  type SourceLine,
+} from "../comments.ts";
 import type { ProseDocument, ProseElement } from "./document.ts";
-import { parseMarks } from "./marks.ts";
+import { parseMarksMapped } from "./marks.ts";
 
 /** `## Heading`. Exactly one space, so an oddly spaced line stays a paragraph. */
 const ATX_HEADING = /^(#{1,6}) (.*)$/;
@@ -82,12 +89,70 @@ const FOOTNOTE_DEFINITION = /^\[\^[^\]]+\]:/;
 const COMMENT_OPEN = "<!--";
 const COMMENT_CLOSE = "-->";
 
+/** Read a prose manuscript. */
 export function parse(text: string): ProseDocument {
+  return parseReporting(text).document;
+}
+
+/**
+ * Read a prose manuscript, reporting the comment delimiters it had to leave
+ * in the text as characters (ADR-0018).
+ */
+export function parseReporting(text: string): {
+  document: ProseDocument;
+  unmatchedCommentDelimiters: number;
+} {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
   if (endsWithNewline) lines.pop();
 
-  const elements: ProseElement[] = [];
+  // Comment delimiters come out before any block is recognised, so a comment
+  // wrapped round a heading leaves a heading (ADR-0018). Every other HTML
+  // comment stays where it is and is still a passthrough.
+  const lifted = liftComments(lines, 0, PROSE_COMMENTS);
+  const built = parseLines(lifted.lines);
+  const comments = locateComments(lifted.comments, lifted.lines, built.sources);
+
+  return {
+    document: { elements: markOmitted(built.elements), comments, endsWithNewline },
+    unmatchedCommentDelimiters: lifted.unmatched,
+  };
+}
+
+/** The elements, and where each came from in the source. */
+interface Builder {
+  readonly elements: ProseElement[];
+  readonly sources: ElementSource[];
+}
+
+/**
+ * Add one element, read from `lines`, whose text before its marks are lifted
+ * is `raw`. A literal element — a passthrough, a footnote, a break, a cut
+ * delimiter — keeps its text exactly and carries no marks.
+ */
+function emit(
+  into: Builder,
+  shape: Omit<ProseElement, "text" | "marks">,
+  raw: string,
+  lines: readonly SourceLine[],
+  literal = false,
+): void {
+  if (literal) {
+    into.elements.push({ ...shape, text: raw });
+    into.sources.push({ lines, raw, offsets: Array.from({ length: raw.length + 1 }, (_, i) => i) });
+    return;
+  }
+  const { marked, offsets } = parseMarksMapped(raw);
+  into.elements.push({ ...shape, ...marked });
+  into.sources.push({ lines, raw, offsets });
+}
+
+/** Source lines `start` to `end`, exclusive, with no syntax in front of them. */
+const span = (start: number, end: number): SourceLine[] =>
+  Array.from({ length: end - start }, (_, i) => ({ line: start + i, prefix: 0 }));
+
+function parseLines(lines: readonly string[]): Builder {
+  const into: Builder = { elements: [], sources: [] };
   let index = 0;
 
   while (index < lines.length) {
@@ -101,19 +166,20 @@ export function parse(text: string): ProseDocument {
     }
 
     if (line === CUT_OPEN && closesLater(lines, index)) {
-      elements.push({ type: "cut-start", text: line });
+      emit(into, { type: "cut-start" }, line, span(index, index + 1), true);
       index++;
       continue;
     }
     if (line === CUT_CLOSE) {
-      elements.push({ type: "cut-end", text: line });
+      emit(into, { type: "cut-end" }, line, span(index, index + 1), true);
       index++;
       continue;
     }
 
     const atx = ATX_HEADING.exec(line);
     if (atx !== null) {
-      elements.push({ type: "heading", ...parseMarks(atx[2]!), level: atx[1]!.length });
+      const level = atx[1]!.length;
+      emit(into, { type: "heading", level }, atx[2]!, [{ line: index, prefix: level + 1 }]);
       index++;
       continue;
     }
@@ -121,7 +187,7 @@ export function parse(text: string): ProseDocument {
     if (line.startsWith(COMMENT_OPEN)) {
       const block = readCommentBlock(lines, index);
       if (block !== null) {
-        elements.push({ type: "passthrough", text: block.text });
+        emit(into, { type: "passthrough" }, block.text, span(index, block.next), true);
         index = block.next;
         continue;
       }
@@ -129,7 +195,7 @@ export function parse(text: string): ProseDocument {
 
     if (FOOTNOTE_DEFINITION.test(line)) {
       const end = runEnd(lines, index);
-      elements.push({ type: "footnote", text: lines.slice(index, end).join("\n") });
+      emit(into, { type: "footnote" }, lines.slice(index, end).join("\n"), span(index, end), true);
       index = end;
       continue;
     }
@@ -137,32 +203,32 @@ export function parse(text: string): ProseDocument {
     // At a block start, these characters are a thematic break. The same
     // characters under a line of text are handled below, as an underline.
     if (THEMATIC_BREAK.test(line)) {
-      elements.push({ type: "scene-break", text: line });
+      emit(into, { type: "scene-break" }, line, span(index, index + 1), true);
       index++;
       continue;
     }
 
     if (QUOTE_LINE.test(line)) {
-      const block = readMarkedBlock(lines, index, "block-quote", QUOTE_LINE);
+      const block = readMarkedBlock(lines, index, QUOTE_LINE);
       if (block !== null) {
-        elements.push(block.element);
+        emit(into, { type: "block-quote" }, block.raw, block.lines);
         index = block.next;
         continue;
       }
     }
 
     if (PIPE_START.test(line)) {
-      const next = readPipeRun(lines, index, elements);
+      const next = readPipeRun(lines, index, into);
       if (next !== null) {
         index = next;
         continue;
       }
     }
 
-    index = readTextBlock(lines, index, elements);
+    index = readTextBlock(lines, index, into);
   }
 
-  return { elements: markOmitted(elements), endsWithNewline };
+  return into;
 }
 
 /**
@@ -237,11 +303,7 @@ function readCommentBlock(
  * run — that is Markdown's rule, not a simplification. Otherwise the run is a
  * paragraph, holding its lines exactly as the writer wrapped them.
  */
-function readTextBlock(
-  lines: readonly string[],
-  start: number,
-  elements: ProseElement[],
-): number {
+function readTextBlock(lines: readonly string[], start: number, into: Builder): number {
   let end = start;
   while (end < lines.length && lines[end] !== "") {
     // A line that opens a block interrupts the paragraph. Checked only past
@@ -254,16 +316,12 @@ function readTextBlock(
   const text = lines.slice(start, end).join("\n");
 
   if (underline !== undefined && underline !== "" && SETEXT_UNDERLINE.test(underline)) {
-    elements.push({
-      type: "heading",
-      ...parseMarks(text),
-      level: underline.startsWith("=") ? 1 : 2,
-      underline,
-    });
+    const level = underline.startsWith("=") ? 1 : 2;
+    emit(into, { type: "heading", level, underline }, text, span(start, end));
     return end + 1;
   }
 
-  elements.push({ type: "paragraph", ...parseMarks(text) });
+  emit(into, { type: "paragraph" }, text, span(start, end));
   return end;
 }
 
@@ -285,17 +343,20 @@ function readTextBlock(
 function readMarkedBlock(
   lines: readonly string[],
   start: number,
-  type: "block-quote" | "verse",
   pattern: RegExp,
-): { element: ProseElement; next: number } | null {
+): { raw: string; lines: SourceLine[]; next: number } | null {
   const content: string[] = [];
+  const source: SourceLine[] = [];
   let index = start;
 
   while (index < lines.length && lines[index] !== "") {
     const match = pattern.exec(lines[index]!);
     if (match === null) break;
     // A bare `>` has no capture group: it is an empty line inside the block.
-    content.push(match[1] ?? "");
+    const text = match[1] ?? "";
+    content.push(text);
+    // The marker and its space are syntax in front of the line's text.
+    source.push({ line: index, prefix: lines[index]!.length - text.length });
     index++;
   }
 
@@ -306,7 +367,7 @@ function readMarkedBlock(
   }
   if (content.length === 0) return null;
 
-  return { element: { type, ...parseMarks(content.join("\n")) }, next: index };
+  return { raw: content.join("\n"), lines: source, next: index };
 }
 
 /** Whether the line opens with this construct's marker but is spelled oddly. */
@@ -318,22 +379,18 @@ function startsWith(line: string, pattern: RegExp): boolean {
  * A run of lines beginning with `|`: a pipe table if its second line is a
  * delimiter row, otherwise Pandoc's line block, which is verse.
  */
-function readPipeRun(
-  lines: readonly string[],
-  start: number,
-  elements: ProseElement[],
-): number | null {
+function readPipeRun(lines: readonly string[], start: number, into: Builder): number | null {
   const second = lines[start + 1];
   if (second !== undefined && TABLE_DELIMITER.test(second)) {
     let end = start;
     while (end < lines.length && PIPE_START.test(lines[end]!)) end++;
-    elements.push({ type: "passthrough", text: lines.slice(start, end).join("\n") });
+    emit(into, { type: "passthrough" }, lines.slice(start, end).join("\n"), span(start, end), true);
     return end;
   }
 
-  const block = readMarkedBlock(lines, start, "verse", VERSE_LINE);
+  const block = readMarkedBlock(lines, start, VERSE_LINE);
   if (block === null) return null;
-  elements.push(block.element);
+  emit(into, { type: "verse" }, block.raw, block.lines);
   return block.next;
 }
 

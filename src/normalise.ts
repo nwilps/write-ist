@@ -50,7 +50,14 @@ export type NormalisationKind =
    * (ADR-0027). Counted per **line changed** — every element a spanning mark
    * reached — not per mark: Big Fish is 15, not 3.
    */
-  | "marks-spanning-elements";
+  | "marks-spanning-elements"
+  /**
+   * Not a normalisation — nothing changes — but a finding the report must
+   * carry (ADR-0018, ADR-0008 rule 4): a comment delimiter with no partner,
+   * kept in the text as the characters the writer has. Counted per delimiter.
+   * The file opens regardless; "loudly" means the report says so.
+   */
+  | "unmatched-comment-delimiters";
 
 export interface Normalisation {
   readonly kind: NormalisationKind;

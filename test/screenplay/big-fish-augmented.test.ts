@@ -33,9 +33,25 @@ import { lineEdits } from "../support/line-diff.ts";
 
 const FIXTURE = "Big-Fish-augmented.fountain";
 
-const SOURCE_BYTES = 147_206;
+/**
+ * The five comment remarks, added to the fixture on 2026-09-19. The fixture
+ * predated the decision that a comment's remark lives inside its opening
+ * delimiter (ADR-0018), so its five comments had none — a deliberate
+ * correction to a fixture of our own making, as 835a4f1 was for prose.
+ */
+const REMARKS = [
+  "is this too on the nose?",
+  "tighten",
+  "cut superstition?",
+  "keep",
+  "Edward's voice, not mine",
+];
+/** Each remark and the space before it: 81 bytes, all ASCII. */
+const REMARK_BYTES = REMARKS.reduce((sum, remark) => sum + 1 + remark.length, 0);
+
+const SOURCE_BYTES = 147_206 + REMARK_BYTES;
 /** Trailing whitespace trimmed: the same 352 bytes as the unaugmented file. */
-const NORMALISED_BYTES = 146_854;
+const NORMALISED_BYTES = 146_854 + REMARK_BYTES;
 /** The blank between two adjacent centered lines, which cannot be stored. */
 const BLANKS_LOST = 1;
 /** The tight run of two action lines inside the boneyard gains one. */
@@ -69,16 +85,20 @@ const ofType = (type: string, options = {}) =>
   document(options).elements.filter((element) => element.type === type);
 
 describe("the augmented fixture, measured as bytes", () => {
-  it("imports to 147,058 bytes", () => {
+  it("imports to 147,139 bytes", () => {
     const bytes = writeBytesAndReadBack("big-fish-augmented.roundtrip.fountain", imported());
 
     expect(readFixtureBytes(FIXTURE).length).toBe(SOURCE_BYTES);
     expect(new TextEncoder().encode(normalisedText()).length).toBe(NORMALISED_BYTES);
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(147_058);
+    // The remarks, and nothing else: source and import both grew by 81.
+    expect(REMARK_BYTES).toBe(81);
+    expect(SOURCE_BYTES).toBe(147_287);
+    expect(IMPORTED_BYTES).toBe(147_139);
+    expect(IMPORTED_BYTES - REMARK_BYTES).toBe(147_058);
     // The three songs it shares with the unaugmented cut, and nothing more.
     expect(DELIMITERS_ADDED).toBe(24);
-    expect(IMPORTED_BYTES - DELIMITERS_ADDED).toBe(147_034);
+    expect(IMPORTED_BYTES - REMARK_BYTES - DELIMITERS_ADDED).toBe(147_034);
   });
 
   it("changes two blank lines, 20 cues and 15 song lines, and nothing else", () => {
@@ -257,33 +277,77 @@ describe("sections, synopses, lyrics and notes", () => {
   });
 });
 
-describe("comments stay in the text they are about", () => {
-  // ADR-0018 stores a comment inline, delimited in band and matched by id, so
-  // it cannot come adrift from the span it was left on. Until Phase F they are
-  // plain text inside the element, and they must survive as written.
-  it("keeps a comment that wraps part of a line", () => {
-    const line = ofType("dialogue").find((element) => element.text.startsWith("[[c:a1]]"));
-
-    expect(line?.text).toBe(
-      "[[c:a1]]There are some fish that cannot be caught.[[/c:a1]]  It's not that they're" +
-        " faster or stronger than other fish.  They're just touched by something extra.  Call" +
-        " it luck.  Call it grace.  One such fish was The Beast.",
+describe("comments are modelled, held once on the document (ADR-0018)", () => {
+  // Until 2026-09-19 these were plain text inside the element. They are now
+  // lifted out before classification and held as comments, so the element's
+  // text is what the writer sees and the comment says what it covers.
+  const comments = () => document().comments;
+  /** The text a comment covers, when it starts and ends in one element. */
+  const covered = (id: string): string => {
+    const comment = comments().find((c) => c.id === id)!;
+    expect(comment.start.element).toBe(comment.end.element);
+    return document().elements[comment.start.element]!.text.slice(
+      comment.start.offset,
+      comment.end.offset,
     );
+  };
+
+  it("finds five, with their ids and remarks exactly as written", () => {
+    expect(comments().map((c) => [c.id, c.remark])).toEqual([
+      ["a1", "is this too on the nose?"],
+      ["b1", "tighten"],
+      ["b2", "cut superstition?"],
+      ["c1", "keep"],
+      ["c2", "Edward's voice, not mine"],
+    ]);
   });
 
-  it("keeps a pair of comments that cross rather than nest", () => {
-    // b1 opens, b2 opens, b1 closes, b2 closes. Marks are a set and may not do
-    // this; a comment carries an id, so its pairing is recorded rather than
-    // inferred, and crossing is allowed (ADR-0018, ADR-0019).
-    expect(output()).toContain(
-      "[[c:b1]]I didn't put any stock [[c:b2]]into such speculation[[/c:b1]] or superstition.[[/c:b2]]",
+  it("puts each one over the words it was written round", () => {
+    expect(covered("a1")).toBe("There are some fish that cannot be caught.");
+    expect(covered("b1")).toBe("I didn't put any stock into such speculation");
+    expect(covered("b2")).toBe("into such speculation or superstition.");
+    expect(covered("c1")).toBe(
+      "All I knew was I'd been trying to catch that fish since I was a boy no bigger than you.",
     );
+    expect(covered("c2")).toBe("I'd been trying to catch that fish");
   });
 
-  it("keeps nested comments", () => {
-    expect(output()).toContain(
-      "[[c:c1]]All I knew was [[c:c2]]I'd been trying to catch that fish[[/c:c2]] since I was a boy no bigger than you.[[/c:c1]]",
+  it("lets b1 and b2 cross, which marks may not do", () => {
+    // b1 opens, b2 opens, b1 closes, b2 closes. A comment carries an id, so
+    // its pairing is recorded rather than inferred (ADR-0018, ADR-0019).
+    const [b1, b2] = ["b1", "b2"].map((id) => comments().find((c) => c.id === id)!);
+    expect(b1!.start.offset).toBeLessThan(b2!.start.offset);
+    expect(b2!.start.offset).toBeLessThan(b1!.end.offset);
+    expect(b1!.end.offset).toBeLessThan(b2!.end.offset);
+  });
+
+  it("holds c2 inside c1", () => {
+    const [c1, c2] = ["c1", "c2"].map((id) => comments().find((c) => c.id === id)!);
+    expect(c1!.start.offset).toBeLessThan(c2!.start.offset);
+    expect(c2!.end.offset).toBeLessThan(c1!.end.offset);
+  });
+
+  it("leaves no comment delimiter in any element's text", () => {
+    for (const element of document().elements) {
+      expect(element.text).not.toMatch(/\[\[\/?c:/);
+    }
+  });
+
+  it("leaves line 29 one plain note, because it carries no c:", () => {
+    expect(normalisedText().split("\n")[28]).toBe(
+      "[[Check the catfish is described the same way in the wedding scene]]",
     );
+    expect(ofType("note")).toHaveLength(1);
+  });
+
+  it("writes both commented lines back exactly as they stand in the file", () => {
+    const source = normalisedText().split("\n");
+    const written = output();
+
+    expect(source[31]).toMatch(/^\[\[c:a1 is this too on the nose\?\]\]There are some fish/);
+    expect(written).toContain(source[31]);
+    expect(source[43]).toMatch(/^\[\[c:b1 tighten\]\]I didn't put any stock \[\[c:b2 /);
+    expect(written).toContain(source[43]);
   });
 });
 

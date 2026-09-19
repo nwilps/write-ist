@@ -5,6 +5,7 @@
  * Nothing here nests. A scene is a range over `elements`, computed when it is
  * wanted, never a container.
  */
+import type { Comment } from "../comments.ts";
 import type { MarkRange } from "../marks.ts";
 
 /**
@@ -126,6 +127,14 @@ export interface MarkedValue {
 export interface ScreenplayDocument {
   readonly titlePage: readonly TitlePageField[];
   readonly elements: readonly Element[];
+  /**
+   * The writer's comments, held once each, in the order they open (ADR-0018).
+   *
+   * On the document rather than on an element, because a comment may start
+   * in one element and end in another and has one remark. Each end is an
+   * index into `elements` and an offset into that element's text.
+   */
+  readonly comments: readonly Comment[];
   /**
    * Whether the source ended with a newline.
    *

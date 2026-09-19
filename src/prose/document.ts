@@ -19,6 +19,7 @@
  * element whose text carries its own newlines. ADR-0019's one element, one
  * line was measured on screenplays, where no such construct exists.
  */
+import type { Comment } from "../comments.ts";
 import type { MarkRange } from "../marks.ts";
 
 /**
@@ -109,6 +110,12 @@ export interface ProseElement {
 
 export interface ProseDocument {
   readonly elements: readonly ProseElement[];
+  /**
+   * The writer's comments, held once each, in the order they open (ADR-0018).
+   * Each end is an index into `elements` and an offset into that element's
+   * text — which, for a paragraph, may be on any of its wrapped lines.
+   */
+  readonly comments: readonly Comment[];
   /** Whether the source ended with a newline. Carried, never added. */
   readonly endsWithNewline: boolean;
 }

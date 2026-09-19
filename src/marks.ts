@@ -87,12 +87,21 @@ export interface MarkDelimiters {
  * another, the longer-lived one is outermost, so the nesting is well formed
  * without the model ever having stored a nesting.
  */
-export function renderMarked(value: MarkedText, delimiters: MarkDelimiters): string {
-  const marks = value.marks;
-  if (marks === undefined || marks.length === 0) return value.text;
+export function renderMarked(
+  value: MarkedText,
+  delimiters: MarkDelimiters,
+  inserts: ReadonlyMap<number, string> = new Map(),
+): string {
+  const marks = value.marks ?? [];
+  if (marks.length === 0 && inserts.size === 0) return value.text;
 
   const boundaries = [
-    ...new Set([0, value.text.length, ...marks.flatMap((m) => [m.start, m.end])]),
+    ...new Set([
+      0,
+      value.text.length,
+      ...marks.flatMap((m) => [m.start, m.end]),
+      ...inserts.keys(),
+    ]),
   ]
     .filter((at) => at >= 0 && at <= value.text.length)
     .sort((a, b) => a - b);
@@ -109,6 +118,10 @@ export function renderMarked(value: MarkedText, delimiters: MarkDelimiters): str
     while (kept < open.length && kept < wanted.length && open[kept] === wanted[kept]) kept++;
     for (let k = open.length - 1; k >= kept; k--) out += delimiters.close(open[k]!);
     open.length = kept;
+    // Between the marks that close here and the marks that open here: a
+    // comment delimiter sits outside any mark that begins or ends at the same
+    // character (ADR-0018 puts a forcing marker outside both).
+    out += inserts.get(from) ?? "";
     for (let k = kept; k < wanted.length; k++) {
       out += delimiters.open(wanted[k]!);
       open.push(wanted[k]!);
@@ -118,6 +131,7 @@ export function renderMarked(value: MarkedText, delimiters: MarkDelimiters): str
   }
 
   for (let k = open.length - 1; k >= 0; k--) out += delimiters.close(open[k]!);
+  out += inserts.get(value.text.length) ?? "";
   return out;
 }
 
@@ -316,7 +330,34 @@ export function buildMarked(
   found: readonly RawMark[],
   isDefaultSpelling: (mark: Mark, spelling: string) => boolean,
 ): MarkedText {
-  if (found.length === 0) return { text: raw };
+  return buildMarkedMapped(raw, removals, found, isDefaultSpelling).marked;
+}
+
+/** Marked text, and where each raw position ended up. */
+export interface MappedMarks {
+  readonly marked: MarkedText;
+  /**
+   * `offsets[i]` is the offset in `marked.text` that raw position `i` maps to,
+   * for every `i` from 0 to the raw length inclusive. A removed delimiter maps
+   * to where the text it touched begins.
+   *
+   * This is what lets a comment — whose delimiters were cut out of the line
+   * before any of this ran — land on the right character once the mark
+   * delimiters are gone too.
+   */
+  readonly offsets: readonly number[];
+}
+
+/** `buildMarked`, also reporting where each raw position ended up. */
+export function buildMarkedMapped(
+  raw: string,
+  removals: readonly Removal[],
+  found: readonly RawMark[],
+  isDefaultSpelling: (mark: Mark, spelling: string) => boolean,
+): MappedMarks {
+  if (found.length === 0) {
+    return { marked: { text: raw }, offsets: Array.from({ length: raw.length + 1 }, (_, i) => i) };
+  }
 
   const removed = new Array<boolean>(raw.length).fill(false);
   for (const { start, end } of removals) {
@@ -344,5 +385,5 @@ export function buildMarked(
     ...(isDefaultSpelling(mark.mark, mark.spelling) ? {} : { spelling: mark.spelling }),
   }));
 
-  return { text, marks: canonicalMarks(marks) };
+  return { marked: { text, marks: canonicalMarks(marks) }, offsets: plain };
 }

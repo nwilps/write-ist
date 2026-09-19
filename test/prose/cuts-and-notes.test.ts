@@ -163,13 +163,21 @@ describe("an HTML comment standing as its own block", () => {
   it("does not mistake the fixture's inline comments for blocks", () => {
     // Three paragraphs in the fixture open with a comment, and one of them
     // ends with `-->` as well. All three are prose.
-    const paragraphs = ofType("paragraph").filter((element) =>
-      element.text.startsWith("<!--"),
+    //
+    // Since comments were modelled (ADR-0018) the delimiters are no longer in
+    // the paragraph's text, so the three are found through the comments that
+    // open at their first character rather than by `<!--` in their text.
+    const { document } = importProse(readFixtureBytes("Republic-manuscript.md"));
+    const opening = document.comments.filter((comment) => comment.start.offset === 0);
+    const elements = [...new Set(opening.map((comment) => comment.start.element))].map(
+      (index) => document.elements[index]!,
     );
 
-    expect(paragraphs).toHaveLength(3);
-    for (const paragraph of paragraphs) {
-      expect(paragraph.text.startsWith("<!--c:")).toBe(true);
+    expect(opening.map((comment) => comment.id)).toEqual(["a1", "b1", "c1"]);
+    expect(elements).toHaveLength(3);
+    for (const element of elements) {
+      expect(element.type).toBe("paragraph");
+      expect(element.text).not.toContain("<!--");
     }
   });
 
