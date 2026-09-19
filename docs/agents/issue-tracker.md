@@ -33,6 +33,22 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
+## Specs and their tickets
+
+A spec from `/to-spec` is the parent issue for one slice of work. Every ticket `/to-tickets` makes
+from it is **attached to it as a GitHub sub-issue**, not only named in the ticket's "Parent"
+section — the sub-issue link is what shows the slice's progress on the spec ("4 of 13"). The
+skill's own instructions only promise the text reference and the blocking edges, so this step is
+added here.
+
+- **Attach**: `gh api --method POST repos/<owner>/<repo>/issues/<spec>/sub_issues -F sub_issue_id=<ticket-db-id>`, where `<ticket-db-id>` is the ticket's database **id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`), not its `#number`.
+- **Blocking edges** use the native dependencies endpoint, as in *Wayfinding operations* below.
+- **Publish from inside the repository**, or pass `--repo`: `gh` infers the repository from the working directory and fails outside it.
+- **Check afterwards** that the spec's `sub_issues_summary` counts every ticket and that each ticket's `blocked_by` list matches the approved breakdown.
+- The `ready-for-agent` label exists as of 2026-09-19; it was named in `triage-labels.md` long before it was created.
+
+The first slice, #37, was published this way on 2026-09-19: thirteen tickets, #38–#50.
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
