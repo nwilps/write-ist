@@ -37,9 +37,19 @@ deliberate, and from autosave, which is neither.
 _Avoid_: history, versions, rollback
 
 **Autosave**:
-Writing the in-progress draft to disk without the writer asking. Autosave preserves the
-present; it never creates a draft and never appears in history.
+Writing the in-progress draft to disk without the writer asking — a couple of seconds after they
+stop typing, when they switch away, and when they close the project. Autosave preserves the
+present; it never creates a draft and never appears in history. It never writes over a file that
+something else has changed since Write-ist last touched it: if the writer has typed too, it keeps
+both (ADR-0028).
 _Avoid_: save, checkpoint, snapshot, backup
+
+**Import**:
+Bringing a script Write-ist has never seen into a new project. The script is copied into a new
+bundle and saved at once, with the enumerated normalisations of ADR-0020 applied and named in the
+import report; the file it came from is never touched. Opening a project Write-ist already holds is
+not an import.
+_Avoid_: open (that is a project Write-ist already holds), convert, load
 
 **Chain**:
 The sequence of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while

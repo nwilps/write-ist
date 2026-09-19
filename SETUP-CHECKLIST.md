@@ -118,8 +118,12 @@ bytes on disk ↔ a flat sequence of typed elements**, both surfaces, in `src/`.
   as fields, `(CONT'D)` maintained (ADR-0026).
 - The prose vocabulary of ADR-0023, paragraphs holding their own line wraps.
 - Marks as a set, read across elements and stored inside one (ADR-0027).
-- The eight enumerated normalisations of ADR-0020, applied at import.
-- The gate: bytes at both ends, real files compared on disk. Five manuscripts, 286 tests.
+- The nine enumerated normalisations of ADR-0020, applied at import and reported, each counted
+  per occurrence changed (#27).
+- Comments (ADR-0018): held once on the document, with an id, a remark and two ends, and removed
+  from element text so nothing reading text sees them.
+- A file in any encoding opens with every character kept, and nothing refuses to open (#33).
+- The gate: bytes at both ends, real files compared on disk. Five manuscripts, 346 tests.
   The acceptance corpus is read from `$WRITE_IST_CORPUS` and its tests skip when it is absent;
   it is not in the repo and must not enter it.
 
@@ -127,16 +131,17 @@ Two defects the byte gate could not see were found by measuring the element cens
 independently and are fixed: a cue recognised without its blank line (#23), and marks that
 stopped at the element boundary (#26).
 
-### Not done, in the same layer
+### Not done, and belonging to the editor rather than to this layer
 
-- [ ] **Comments are not modelled** (ADR-0018). The syntax round-trips as text — ADR-0018's own
-      example parses as one `note` element — but there is no comment carrying an id and no span
-      it anchors to. Comments live *in the manuscript*, so this belongs here rather than above.
-      It is also the only thing in v2 that anchors (ADR-0022).
 - [ ] **Ranges** — scenes and chapters computed from the flat sequence (ADR-0019). No code yet.
-- [ ] **Element identity** — the in-memory handle the editor redraws against (ADR-0019).
-- [ ] **#27** — the import report does not name the blank lines it places, and counts the mark
-      re-spelling per span where every other count is per occurrence.
+- [ ] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). Comment
+      ends are element *indices* for now; the editor turns those into stable handles.
+
+### Decided before `/to-tickets`, 2026-09-19
+
+The four steps agreed as the way into Phase 5 are done: the code merged and the status corrected
+(#29, #30); the import report fixed (#27); comments modelled (#35); and autosave and spellcheck
+decided — **ADR-0028** and **ADR-0029**, closing #11 and #12.
 
 ### Not started, and deliberately above this layer
 
@@ -149,8 +154,8 @@ itself — shell, workspace bar, workspaces, editor.
 - [ ] `/to-tickets` — tracer-bullet slices with blocking edges
 - [ ] `/implement` — drives `/tdd` at pre-agreed seams, closes with `/code-review`
 
-Open questions that shape those tickets live in GitHub Issues and nowhere else: #11 autosave,
-#12 spellcheck, #15 leading whitespace (deferred, preserve by default).
+Open questions live in GitHub Issues and nowhere else. The one left is #15, leading whitespace,
+deferred with a working default: preserve it.
 
 ---
 

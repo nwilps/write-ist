@@ -122,6 +122,21 @@ The evidence for both, and for everything in Considered options, is
   exactly that kind of data. The way to keep the invariant is per-bundle event logs with the
   cross-project view computed by reading bundles — which ADR-0014 already sets up, the Log
   being project-level and inside the bundle. Recorded as a constraint, not as that decision.
+- **Relocation is kept, behind a deliberate barrier.** *Added 2026-09-19, from the autosave
+  decision ([ADR-0028](0028-autosave-saves-after-a-pause-and-never-overwrites-what-it-did-not-write.md)).*
+  Most writers should never meet the idea of a project on disk: they open the application, write,
+  and export. Moving a project out of the default location is for the writer who wants it — a
+  cloud drive, another editor — and who accepts what follows from editing in two places.
+
+  So it lives in the **File menu under a deliberately technical label**, along the lines of
+  *"Change project path…"*, which reads as disk plumbing to anyone who has no use for it. **Choosing
+  it opens a warning** in plain words: the project is leaving the place Write-ist looks after, and
+  editing it with other tools or across synced machines becomes the writer's to manage. The label
+  keeps most writers away; the warning catches the accidental click.
+
+  The protection itself is **not** tied to relocation. ADR-0028's rule that autosave never
+  overwrites a changed file applies to every project, because the default location may already be
+  synced by the operating system.
 - **`CONTEXT.md` gains **Registry****, naming the record specifically rather than the whole
   layer — the config file sits outside every bundle too, and is not part of it. A term was
   held out of the glossary pending this decision, because there was no word for the thing.

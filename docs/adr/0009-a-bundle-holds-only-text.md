@@ -37,3 +37,7 @@ cheap, backups small, and ADR-0008's integrity rules about text alone.
   nothing outside a bundle is ever copied by a lock.
 - **App resources are not project content.** The bundled Courier Prime font (ADR-0001) and
   spellcheck dictionaries ship with the application, not inside each project.
+
+  *Amended 2026-09-19 by [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md):*
+  spellcheck is the system's, so its dictionaries are the platform's and nothing ships for it. The
+  font still ships, and the rule stands — neither lives inside a project.
