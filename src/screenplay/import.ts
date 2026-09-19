@@ -68,8 +68,10 @@ export function importScreenplay(
   // ADR-0020's eighth entry. Applied by the parser rather than by
   // `normaliseSource`, because it is a property of the element sequence and
   // not of the text — so it is reported here, where the two meet.
-  const { document: parsed, markDelimitedLines } = parseReporting(text);
+  const { document: parsed, markDelimitedLines, unmatchedCommentDelimiters } =
+    parseReporting(text);
   report("marks-spanning-elements", markDelimitedLines);
+  report("unmatched-comment-delimiters", unmatchedCommentDelimiters);
 
   let document = parsed;
   if (options.maintainContinuations !== false) {

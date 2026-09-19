@@ -19,6 +19,7 @@ import type {
   ScreenplayDocument,
   TitlePageField,
 } from "./document.ts";
+import { liftComments, locateComments, SCREENPLAY_COMMENTS } from "../comments.ts";
 import { parseMarks, parseMarksAcross } from "./marks.ts";
 
 /** `Key: value` at the top of the file. Fountain's title page (ADR-0021). */
@@ -96,23 +97,74 @@ const UNFORCED_TRANSITIONS: ReadonlySet<string> = new Set([
 
 const LEADING_WHITESPACE = /^[ \t]*/;
 
-function parseInternal(text: string): {
+interface Parsed {
   document: ScreenplayDocument;
   markDelimitedLines: number;
-} {
+  /** Comment delimiters left in the text as characters (ADR-0018). */
+  unmatchedCommentDelimiters: number;
+}
+
+function parseInternal(text: string): Parsed {
   const endsWithNewline = text.endsWith("\n");
   const lines = text.split("\n");
   // `split` leaves an empty string after a final newline; it is not a line.
   if (endsWithNewline) lines.pop();
 
   const { fields, nextIndex } = parseTitlePage(lines);
-  const body = parseBody(lines, nextIndex);
+
+  // Comment delimiters come out of the body before any of it is classified,
+  // so `[[c:a1 weak]]INT. KITCHEN - DAY[[/c:a1]]` is a scene heading rather
+  // than a note, and a commented cue is still a cue (ADR-0018).
+  const lifted = liftComments(lines, nextIndex, SCREENPLAY_COMMENTS);
+  const body = parseBody(lifted.lines, nextIndex);
   const resolved = resolveMarks(body.elements, body.startsRun);
 
+  const comments = locateComments(
+    lifted.comments,
+    lifted.lines,
+    body.elements.map((element, index) => ({
+      lines: [
+        { line: body.sourceLines[index]!, prefix: element.indent.length + prefixLength(element) },
+      ],
+      // The text as classified, before its marks were lifted.
+      raw: element.text,
+      offsets: resolved.offsets[index]!,
+    })),
+  );
+
   return {
-    document: { titlePage: fields, elements: resolved.elements, endsWithNewline },
+    document: { titlePage: fields, elements: resolved.elements, comments, endsWithNewline },
     markDelimitedLines: resolved.delimitedLines,
+    unmatchedCommentDelimiters: lifted.unmatched,
   };
+}
+
+/**
+ * How many characters at the front of an element's line are its syntax — the
+ * forcing marker, a section's hashes, the `>` of a centered line — rather than
+ * its text. The exact inverse of what the serialiser puts back in front.
+ */
+function prefixLength(element: Element): number {
+  switch (element.type) {
+    case "scene-heading":
+    case "action":
+    case "character":
+    case "transition":
+      return element.forced ? 1 : 0;
+    case "centered":
+    case "lyrics":
+    case "synopsis":
+      return 1;
+    case "section":
+      return element.depth ?? 1;
+    case "dialogue":
+    case "parenthetical":
+    case "page-break":
+    case "note":
+    case "boneyard-start":
+    case "boneyard-end":
+      return 0;
+  }
 }
 
 /**
@@ -125,10 +177,7 @@ function parseInternal(text: string): {
  * element a spanning mark reached — and not how many marks did the reaching.
  * ADR-0020: the report counts occurrences changed, never findings.
  */
-export function parseReporting(text: string): {
-  document: ScreenplayDocument;
-  markDelimitedLines: number;
-} {
+export function parseReporting(text: string): Parsed {
   return parseInternal(text);
 }
 
@@ -189,9 +238,11 @@ function parseTitlePage(lines: readonly string[]): {
 function parseBody(
   lines: readonly string[],
   from: number,
-): { elements: Element[]; startsRun: boolean[] } {
+): { elements: Element[]; startsRun: boolean[]; sourceLines: number[] } {
   const elements: Element[] = [];
   const startsRun: boolean[] = [];
+  // The line each element was read from, which is where its comments were.
+  const sourceLines: number[] = [];
   let inSpeech = false;
   let omitted = false;
 
@@ -215,6 +266,7 @@ function parseBody(
     if (!omitted && content === BONEYARD_OPEN && closesLater(lines, index)) {
       elements.push({ type: "boneyard-start", text: content, indent, forced: false, omitted: true });
       startsRun.push(above);
+      sourceLines.push(index);
       omitted = true;
       inSpeech = false;
       continue;
@@ -222,6 +274,7 @@ function parseBody(
     if (omitted && content === BONEYARD_CLOSE) {
       elements.push({ type: "boneyard-end", text: content, indent, forced: false, omitted: true });
       startsRun.push(above);
+      sourceLines.push(index);
       omitted = false;
       inSpeech = false;
       continue;
@@ -238,13 +291,14 @@ function parseBody(
     });
     elements.push(omitted ? { ...element, omitted: true } : element);
     startsRun.push(above);
+    sourceLines.push(index);
 
     inSpeech =
       element.type === "character" ||
       (inSpeech && (element.type === "dialogue" || element.type === "parenthetical"));
   }
 
-  return { elements, startsRun };
+  return { elements, startsRun, sourceLines };
 }
 
 /**
@@ -264,14 +318,19 @@ function parseBody(
 function resolveMarks(
   elements: readonly Element[],
   startsRun: readonly boolean[],
-): { elements: Element[]; delimitedLines: number } {
+): { elements: Element[]; delimitedLines: number; offsets: (readonly number[])[] } {
   const resolved: Element[] = [];
+  // Per element, where each position of its classified text ended up once
+  // the mark delimiters were lifted. Comments need it to find their character.
+  const offsets: (readonly number[])[] = [];
   let delimitedLines = 0;
   let at = 0;
 
   while (at < elements.length) {
     if (LITERAL.has(elements[at]!.type)) {
+      const text = elements[at]!.text;
       resolved.push(elements[at]!);
+      offsets.push(Array.from({ length: text.length + 1 }, (_, i) => i));
       at++;
       continue;
     }
@@ -289,10 +348,11 @@ function resolveMarks(
     const marks = parseMarksAcross(run.map((element) => element.text));
     delimitedLines += marks.delimitedLines;
     run.forEach((element, index) => resolved.push({ ...element, ...marks.marked[index]! }));
+    offsets.push(...marks.offsets);
     at = end;
   }
 
-  return { elements: resolved, delimitedLines };
+  return { elements: resolved, delimitedLines, offsets };
 }
 
 /**

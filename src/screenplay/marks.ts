@@ -14,6 +14,7 @@
  */
 import {
   buildMarked,
+  buildMarkedMapped,
   canonicalMarks,
   renderMarked,
   scanDelimiters,
@@ -72,6 +73,13 @@ export interface MarksAcross {
    * changed lines, and four is what the writer is told.
    */
   readonly delimitedLines: number;
+  /**
+   * For each text handed in, where each of its positions ended up in that
+   * element's marked text — `offsets[e][i]` for `i` from 0 to the text's
+   * length. Comments use it to find their character once the mark delimiters
+   * are gone.
+   */
+  readonly offsets: readonly (readonly number[])[];
 }
 
 /**
@@ -100,14 +108,13 @@ export interface MarksAcross {
  * long italic span.
  */
 export function parseMarksAcross(texts: readonly string[]): MarksAcross {
-  if (texts.length === 1) return { marked: [parseMarks(texts[0]!)], delimitedLines: 0 };
-
   // Joined with the newlines the source had between them, so the scanner sees
   // the run as the writer wrote it. No screenplay element holds a newline of
   // its own (ADR-0019), so splitting the result back apart is exact.
   const raw = texts.join("\n");
   const { removals, found } = scanDelimiters(raw, SYNTAX);
-  const whole = buildMarked(raw, removals, found, () => true);
+  const mapped = buildMarkedMapped(raw, removals, found, () => true);
+  const whole = mapped.marked;
   const lines = whole.text.split("\n");
 
   // A delimiter is never a newline, so nothing removed can have changed the
@@ -148,10 +155,28 @@ export function parseMarksAcross(texts: readonly string[]): MarksAcross {
     return marks.length === 0 ? { text } : { text, marks: canonicalMarks(marks) };
   });
 
-  return { marked, delimitedLines: delimited.size };
+  // Each element's slice of the run's position map, rebased to the element.
+  const offsets: number[][] = [];
+  let rawStart = 0;
+  texts.forEach((text, index) => {
+    const own: number[] = [];
+    for (let at = 0; at <= text.length; at++) {
+      own.push(mapped.offsets[rawStart + at]! - starts[index]!);
+    }
+    offsets.push(own);
+    rawStart += text.length + 1;
+  });
+
+  return { marked, delimitedLines: delimited.size, offsets };
 }
 
-/** Put them back, in ADR-0020's declared order. */
-export function renderMarks(value: MarkedText): string {
-  return renderMarked(value, DELIMITERS);
+/**
+ * Put them back, in ADR-0020's declared order, with any comment delimiters
+ * inserted at their offsets.
+ */
+export function renderMarks(
+  value: MarkedText,
+  inserts?: ReadonlyMap<number, string>,
+): string {
+  return renderMarked(value, DELIMITERS, inserts);
 }

@@ -21,13 +21,14 @@
  * — a change ADR-0020 does not permit.
  */
 import {
-  buildMarked,
+  buildMarkedMapped,
   renderMarked,
   scanDelimiters,
   type DelimiterSyntax,
   type Mark,
   type MarkDelimiters,
   type MarkRange,
+  type MappedMarks,
   type MarkedText,
   type RawMark,
   type Removal,
@@ -63,10 +64,15 @@ const emphasis = (range: MarkRange): string => range.spelling ?? DEFAULT_SPELLIN
 
 /** Lift the marks out of one element's text. */
 export function parseMarks(raw: string): MarkedText {
+  return parseMarksMapped(raw).marked;
+}
+
+/** `parseMarks`, also reporting where each raw position ended up. */
+export function parseMarksMapped(raw: string): MappedMarks {
   const spans = scanSpans(raw);
   const runs = scanDelimiters(raw, SYNTAX);
 
-  return buildMarked(
+  return buildMarkedMapped(
     raw,
     [...spans.removals, ...runs.removals],
     [...spans.found, ...runs.found],
@@ -74,9 +80,15 @@ export function parseMarks(raw: string): MarkedText {
   );
 }
 
-/** Put them back, in ADR-0020's declared order. */
-export function renderMarks(value: MarkedText): string {
-  return renderMarked(value, DELIMITERS);
+/**
+ * Put them back, in ADR-0020's declared order, with any comment delimiters
+ * inserted at their offsets.
+ */
+export function renderMarks(
+  value: MarkedText,
+  inserts?: ReadonlyMap<number, string>,
+): string {
+  return renderMarked(value, DELIMITERS, inserts);
 }
 
 /**

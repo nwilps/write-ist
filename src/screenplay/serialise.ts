@@ -6,6 +6,7 @@
  * the spacing model, and it is what makes ADR-0020's claim — spacing is
  * derived from adjacent element types — actually true.
  */
+import { commentInserts, SCREENPLAY_COMMENTS } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { renderMarks } from "./marks.ts";
 
@@ -24,16 +25,20 @@ export function serialise(document: ScreenplayDocument): string {
 
   for (const field of document.titlePage) {
     lines.push(`${field.key}:${renderMarks(field.inline)}`);
-    lines.push(...field.continuations.map(renderMarks));
+    lines.push(...field.continuations.map((line) => renderMarks(line)));
   }
   if (document.titlePage.length > 0 && document.elements.length > 0) lines.push("");
 
+  // Each comment is written once, its opener in the element it starts in and
+  // its closer in the element it ends in, across lines if need be (ADR-0018).
+  const inserts = commentInserts(document.comments, SCREENPLAY_COMMENTS);
+
   let previous: Element | undefined;
-  for (const element of document.elements) {
+  document.elements.forEach((element, index) => {
     if (previous !== undefined && needsBlankLine(previous, element)) lines.push("");
-    lines.push(element.indent + renderContent(element));
+    lines.push(element.indent + renderContent(element, inserts.get(index)));
     previous = element;
-  }
+  });
 
   return lines.join("\n") + (document.endsWithNewline ? "\n" : "");
 }
@@ -67,9 +72,13 @@ function needsBlankLine(previous: Element, next: Element): boolean {
  * forced heading is `.` followed by the heading *as the writer sees it*, so
  * `.**INT. HOSPITAL - DAY**` is a dot, a bold mark and a heading, in that
  * order, and never a dot inside the bold.
+ *
+ * Comment delimiters go in with the marks, outside any mark that begins or
+ * ends at the same character, and so inside the forcing marker too:
+ * `.[[c:a1 remark]]INT. KITCHEN - DAY[[/c:a1]]` (ADR-0018).
  */
-function renderContent(element: Element): string {
-  const text = renderMarks(element);
+function renderContent(element: Element, comments?: ReadonlyMap<number, string>): string {
+  const text = renderMarks(element, comments);
   switch (element.type) {
     case "scene-heading": {
       const heading = element.forced ? `.${text}` : text;

@@ -9,7 +9,7 @@
 import type { ProseDocument } from "./document.ts";
 import { decodeFile } from "../decode.ts";
 import { normaliseSource, type Normalisation } from "../normalise.ts";
-import { parse } from "./parse.ts";
+import { parse, parseReporting } from "./parse.ts";
 import { serialise } from "./serialise.ts";
 
 export interface ProseImportReport {
@@ -29,11 +29,16 @@ export function importProse(bytes: Uint8Array): ImportedProse {
   // replaces a character. Its conversion is reported first, as it happens first.
   const decoded = decodeFile(bytes);
   const { text, applied: textApplied } = normaliseSource(decoded.text);
-  const applied: readonly Normalisation[] =
-    decoded.converted > 0
-      ? [{ kind: "converted-to-utf-8", count: decoded.converted }, ...textApplied]
-      : textApplied;
-  return { document: parse(text), report: { applied } };
+  const { document, unmatchedCommentDelimiters } = parseReporting(text);
+
+  // Absent, never zero (ADR-0020).
+  const applied: Normalisation[] = [];
+  if (decoded.converted > 0) applied.push({ kind: "converted-to-utf-8", count: decoded.converted });
+  applied.push(...textApplied);
+  if (unmatchedCommentDelimiters > 0) {
+    applied.push({ kind: "unmatched-comment-delimiters", count: unmatchedCommentDelimiters });
+  }
+  return { document, report: { applied } };
 }
 
 /** Save a document. The result is the file, byte for byte. */

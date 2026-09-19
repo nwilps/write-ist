@@ -7,18 +7,22 @@
  * `---` throughout a novel, changing nothing a reader sees and every byte on
  * disk. ADR-0020 does not permit that, so the element remembers.
  */
+import { commentInserts, PROSE_COMMENTS } from "../comments.ts";
 import type { ProseDocument, ProseElement } from "./document.ts";
 import { renderMarks } from "./marks.ts";
 
 export function serialise(document: ProseDocument): string {
   const lines: string[] = [];
+  // Each comment written once, across wrapped lines or paragraphs if that is
+  // what it covers (ADR-0018).
+  const inserts = commentInserts(document.comments, PROSE_COMMENTS);
   let previous: ProseElement | undefined;
 
-  for (const element of document.elements) {
+  document.elements.forEach((element, index) => {
     if (previous !== undefined && needsBlankLine(previous, element)) lines.push("");
-    lines.push(render(element));
+    lines.push(render(element, inserts.get(index)));
     previous = element;
-  }
+  });
 
   return lines.join("\n") + (document.endsWithNewline ? "\n" : "");
 }
@@ -52,10 +56,11 @@ function needsBlankLine(previous: ProseElement, next: ProseElement): boolean {
  * Marks go back before the block markers do. A `>` or `|` belongs to the line,
  * and a mark belongs to the text — so a mark that crosses a wrap inside a
  * quote is written once, around the whole run, and each line still gets its
- * own marker.
+ * own marker. Comment delimiters go in with the marks, so they too sit inside
+ * a quote's markers and after a heading's hashes.
  */
-function render(element: ProseElement): string {
-  const text = renderMarks(element);
+function render(element: ProseElement, comments?: ReadonlyMap<number, string>): string {
+  const text = renderMarks(element, comments);
   switch (element.type) {
     case "heading":
       // Setext if the source was setext, ATX if it was ATX. Never converted.
