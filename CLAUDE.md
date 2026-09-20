@@ -17,8 +17,30 @@ The work is cut into slices. **Issue #37** is the current slice's spec — the s
 screenplay can be written in — and **#38–#50** are its tickets, attached to it and ordered by what
 blocks what.
 
-- **Read the ticket you are given, and read its parent spec.** The spec's *Testing Decisions* govern
-  how the work is checked; the ticket's acceptance criteria are what "done" means.
+### What to read
+
+**Read the ticket, its parent spec, and the decisions they cite — not the whole record.** There are
+thirty ADRs, some 2,800 lines of them, and a ticket about keyboard shortcuts has no use for the one
+about the ledger. The tickets cite what applies; follow the citations and stop there.
+
+So, before starting:
+
+1. **The ticket.** Its acceptance criteria are what "done" means.
+2. **Its parent spec.** The spec's *Testing Decisions* govern how the work is checked.
+3. **Every ADR the two of them name**, and no others.
+4. **`CONTEXT.md`** — the glossary, for the project's words. Short, and it stops a ticket being
+   implemented in the wrong vocabulary.
+5. **`docs/STANDARDS.md`** — the rules, each naming the bug that produced it. Also short; read it
+   whole.
+
+Everything else — the rest of `docs/adr/`, `docs/PLANNING.md`, `docs/research/`,
+`SETUP-CHECKLIST.md` — is reference. Open it when a question sends you there, not before.
+
+### Working
+
+- **Work in this folder, on a branch. Don't make a separate working copy.** One session runs at a
+  time here, so a second copy buys nothing and costs a gigabyte and a fresh build of everything —
+  builds in this folder are incremental.
 - **A ticket starts only when everything in its "Blocked by" is closed.**
 - **`npm test` runs everything.** The acceptance corpus is the writer's unpublished screenplay, read
   from `$WRITE_IST_CORPUS`. Its tests skip when it is absent, and **it is never committed.**
@@ -36,15 +58,19 @@ blocks what.
   because the corpus is not in the repo: run those locally and put their numbers in the pull request
   too. A green CI plus those numbers is the hand-off.
 
-## Start here
+## Start here — for work that proposes or decides
 
-Read these before proposing anything, in this order:
+**This list is for deciding, not for implementing.** Writing an ADR, a spec or a ticket, changing
+the glossary, or answering "should we…" means reading the whole record, because a decision can
+contradict any part of it. Implementing a ticket does not: see *What to read* above.
+
+In this order:
 
 1. **`CONTEXT.md`** — the glossary. Use its terms; don't drift to synonyms it tells you to avoid.
 2. **`docs/adr/`** — the decisions, each with its forcing reason. The spine runs
    0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose) → 0019 and 0020 (the
    document model, and what the app may change in a writer's file), with 0008 (sidecar
-   integrity) explaining why v2 is a rewrite. 0019–0025 are the newest and the most
+   integrity) explaining why v2 is a rewrite. 0019–0030 are the newest and the most
    load-bearing for implementation.
 3. **`docs/STANDARDS.md`** — the rules, which are not decisions. Each one names the bug that
    produced it. Short; read it whole.
