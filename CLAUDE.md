@@ -11,7 +11,9 @@ application launches — a Tauri window over the system webview, opening on a ho
 **Open Project** its own screen, listing projects and importing a screenplay into a new one
 (#38, #55). Opening one shows the manuscript in the **Editor**, a ProseMirror workspace the shell
 hosts through a manifest, with the round-trip holding through it (#39). **Nothing is typed into
-it yet** — no keyboard, no saving, no industry layout, no ranges, no counts, no pagination.
+it yet** — no keyboard, no saving, no ranges, no counts, no pagination. The manuscript is laid
+out in **industry format** (#40): Courier Prime bundled, and one geometry table, measured from
+Final Draft's PDF, that the page count will read too.
 
 Before proposing work, read `SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The
 round-trip gate is the acceptance test for anything touching `src/`: `npm test`.

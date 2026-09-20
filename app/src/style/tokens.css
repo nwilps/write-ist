@@ -18,6 +18,38 @@
  */
 
 @font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/CourierPrime-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/CourierPrime-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/CourierPrime-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/fonts/CourierPrime-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
   font-family: "JetBrainsMono Nerd Font";
   src: url("/fonts/JetBrainsMonoNerdFont-Regular.ttf") format("truetype");
   font-weight: 400;
@@ -82,19 +114,22 @@
   /**
    * The screenplay, and nothing else.
    *
-   * **Bundled by #40**, which owns the industry layout the face's metrics
-   * define (ADR-0001, ADR-0030). Until then it resolves from the system, and
-   * the fallbacks are the spike's.
+   * **Bundled, four weights, never taken from the system** (ADR-0001,
+   * ADR-0030): pagination is defined against this face's metrics, and a
+   * fraction-of-a-point difference in advance width moves a page break. The
+   * writer's own machine has no Courier Prime at all — fontconfig answered the
+   * request with Liberation Sans, a proportional face — so before it was
+   * bundled the page was laid out correctly and set in the wrong one.
    *
-   * Measured on the writer's machine, 2026-09-20: it has no Courier Prime, and
-   * fontconfig answers the request with **Liberation Sans** — a proportional
-   * face — rather than falling through to the next name. So the page here is
-   * laid out correctly and set in the wrong face until #40 bundles the four
-   * weights, which is exactly the argument ADR-0030 makes for bundling: *the
-   * machine the screenplay is being written on cannot render it correctly
-   * without the bundle.*
+   * **No system Courier is named behind it.** ADR-0001 says the face is bundled
+   * and "never resolved from the system", and listing `"Courier New", Courier`
+   * is exactly that: those faces are metrically close enough that a bundle that
+   * failed to load would draw a page which looked almost right and measured
+   * wrong, with nothing to see. The generic `monospace` is the last resort and
+   * looks like one. `font-display: block` means the moment before the bundled
+   * file arrives is not drawn at all.
    */
-  --face-manuscript: "Courier Prime", "Courier New", Courier, monospace;
+  --face-manuscript: "Courier Prime", monospace;
 
   /* --- Size ------------------------------------------------------------ */
 
@@ -116,37 +151,15 @@
   /* --- The manuscript's page ------------------------------------------- */
 
   /*
-   * The page the writer types on, from the spike (`nwilps/write-ist-ng`,
-   * `spike/src/style.css`), which took its geometry from v1's constants: an
-   * 8.5in sheet at 96dpi, a 1.5in left margin and a 1in right one.
+   * **Not here.** The sheet, the type on it and every element's indent and
+   * measure are one table (#40) in `src/screenplay/geometry.ts`, rendered into
+   * `app/src/style/geometry.css` and imported beside this file.
    *
-   * **The per-element indents and widths are #40's**, along with 12pt against
-   * Courier Prime's own metrics — that ticket holds them as one table the page
-   * count reads too, so they are deliberately not here. What is here is the
-   * sheet: how wide it is, and how far its margins hold the text off its edges.
+   * They live there rather than here because the pagination engine reads the
+   * same table, and it cannot read CSS. One table is the point: what the writer
+   * sees and what gets counted are the same numbers, or the page count is a
+   * lie about the page.
    */
-  --page-width: 816px;
-  --page-inset-top: 48px;
-  --page-inset-right: 96px;
-  --page-inset-bottom: 48px;
-  --page-inset-left: 144px;
-
-  /** Provisional, from the spike. #40 sets the size the page count is defined against. */
-  --manuscript-size: 16px;
-  --manuscript-leading: 1.4;
-  /**
-   * How tall a blank line in the manuscript is — the size times the leading.
-   *
-   * Blank lines are not elements (ADR-0019): where one falls is a lookup on the
-   * pair of types either side of it, and this is that lookup drawn as space
-   * rather than written as a character.
-   *
-   * Computed rather than restated. Written out as the number it comes to, the
-   * two above could be changed and this one left behind, and the page would go
-   * quietly wrong about the spacing — which is the failure a stylesheet is
-   * especially good at hiding (`docs/STANDARDS.md`).
-   */
-  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
 
   /* --- The shell's furniture ------------------------------------------- */
 

@@ -1,0 +1,69 @@
+/*
+ * GENERATED FROM `src/screenplay/geometry.ts`. Do not edit.
+ *
+ * `npm run geometry` rewrites it and `test/app/manuscript-geometry.test.ts`
+ * fails if it is stale. The industry layout is one table (#40), and this is
+ * that table in the only language the page speaks.
+ */
+
+:root {
+  /* --- The sheet ------------------------------------------------------- */
+
+  --page-width: 816px;
+  --page-inset-top: 96px;
+  --page-inset-right: 86.7813px;
+  --page-inset-bottom: 80px;
+  --page-inset-left: 144px;
+
+  /* --- The type on it -------------------------------------------------- */
+
+  --manuscript-size: 16px;
+  --manuscript-leading: 1;
+  /* One blank line: the serialiser's spacing table, drawn as space. */
+  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
+
+  /* --- Each element's place on it -------------------------------------- */
+
+  --indent-scene-heading: 0ch;
+  --width-scene-heading: 61ch;
+  --align-scene-heading: left;
+  --indent-action: 0ch;
+  --width-action: 61ch;
+  --align-action: left;
+  --indent-character: 18.75ch;
+  --width-character: 41.25ch;
+  --align-character: left;
+  --indent-dialogue: 8.75ch;
+  --width-dialogue: 39ch;
+  --align-dialogue: left;
+  --indent-parenthetical: 12.7778ch;
+  --width-parenthetical: 47.2222ch;
+  --align-parenthetical: left;
+  --indent-transition: 0ch;
+  --width-transition: 60ch;
+  --align-transition: right;
+  --indent-centered: 0ch;
+  --width-centered: 61ch;
+  --align-centered: center;
+  --indent-lyrics: 0ch;
+  --width-lyrics: 61ch;
+  --align-lyrics: left;
+  --indent-section: 0ch;
+  --width-section: 61ch;
+  --align-section: left;
+  --indent-synopsis: 0ch;
+  --width-synopsis: 61ch;
+  --align-synopsis: left;
+  --indent-page-break: 0ch;
+  --width-page-break: 61ch;
+  --align-page-break: left;
+  --indent-note: 0ch;
+  --width-note: 61ch;
+  --align-note: left;
+  --indent-boneyard-start: 0ch;
+  --width-boneyard-start: 61ch;
+  --align-boneyard-start: left;
+  --indent-boneyard-end: 0ch;
+  --width-boneyard-end: 61ch;
+  --align-boneyard-end: left;
+}

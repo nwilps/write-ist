@@ -20,10 +20,12 @@
  * so neither is here — the status bar carries the project's name, and the page
  * count joins it when it arrives (#48).
  *
- * **The industry layout is #40's**: Courier Prime's metrics, 12pt, and each
- * element at its indent and width, held as one table the page count reads too.
- * What is below is the page itself and the spacing that mirrors the blank-line
- * table — a plain page, not an invented look.
+ * **The industry layout is #40's, and it is here.** Courier Prime at 12pt, the
+ * sheet's margins, and each element at its indent and measure — every one of
+ * those numbers a named value from `app/src/style/geometry.css`, which is
+ * generated from `src/screenplay/geometry.ts`, the one table the page count
+ * reads too. Nothing below is a number; the numbers are all measured from
+ * Final Draft's PDF of *Big Fish* and carry their provenance in that table.
  *
  * **Both of #40's named traps are already avoided here**, so that ticket
  * inherits them rather than deciding them again:
@@ -44,11 +46,19 @@
   flex-direction: column;
 }
 
-/* The workspace fills the column and scrolls; the status bar does not move. */
+/*
+ * The workspace fills the column and scrolls; the status bar does not move.
+ *
+ * It scrolls both ways, because the page below keeps its width rather than
+ * narrowing (#40). On a window too narrow for an 8.5in sheet the writer scrolls
+ * across to the rest of the line, which is a small annoyance; the alternative
+ * is a page that wraps somewhere the page count does not, which is a wrong
+ * number.
+ */
 .shell__view {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 /*
@@ -95,17 +105,27 @@
 /* --- The page ----------------------------------------------------------- */
 
 /*
- * One sheet, centred. `max-width` rather than a bare width so the page narrows
- * on a small window instead of scrolling sideways; #40 decides what the
- * measured column does when it no longer fits.
+ * One sheet, centred, at exactly its width.
+ *
+ * **It does not narrow, and #40 is the ticket that decided that.** A page that
+ * shrank to fit the window would wrap its text somewhere the page count does
+ * not, and the writer would be reading one layout while the foot of the window
+ * counted another. The window scrolls sideways instead, which is visible and
+ * honest; the count is defined against the sheet, not against the furniture.
  */
 .page {
   width: var(--page-width);
-  max-width: 100%;
   margin: 0 auto;
   min-height: 100%;
   background: var(--colour-raised);
-  border: var(--rule-thin) solid var(--colour-border);
+  /*
+   * An `outline` and not a `border`, because the application draws with
+   * `box-sizing: border-box` and a border would be taken out of the paper: the
+   * left margin would start a pixel in from the sheet's edge and the content
+   * box would come out 1.6px narrower than the 61 characters that have to fit
+   * across it. The hairline is where the paper ends, not part of it.
+   */
+  outline: var(--rule-thin) solid var(--colour-border);
   padding: var(--page-inset-top) var(--page-inset-right) var(--page-inset-bottom)
     var(--page-inset-left);
 }
@@ -143,6 +163,136 @@
   /* The page already shows where the caret is; a ring round the whole sheet
      would only say which window has focus. */
   outline: none;
+}
+
+/*
+ * **The industry layout** (#40): each element at its indent and its measure.
+ *
+ * Written out one type at a time, from `app/src/style/geometry.css`, rather
+ * than folded into a loop or a shorthand — the same reason the spacing rules
+ * below are written out pair by pair. `test/app/manuscript-geometry.test.ts`
+ * reads every one of these selectors back and checks it against the table, and
+ * a rule that cannot be read back cannot be checked.
+ *
+ * `ch` is Courier Prime's own advance width, so a measure of 61 characters is
+ * 61 advances exactly on all three platforms — which is ADR-0024's mitigation
+ * for the one risk its wrap measurement did not cover, at the cost of the one
+ * CSS rule it said it would cost.
+ *
+ * **Nothing here is a `text-transform`.** A scene heading and a cue are in
+ * capitals because the writer's text is in capitals; faking them in CSS would
+ * hide a cue that was never capitalised at all.
+ *
+ * Alignment comes from the table as well, rather than being written here for
+ * the two types that are not left-aligned. It is the one part of an element's
+ * place on the page that a stylesheet could plausibly hold on its own, which is
+ * exactly why it should not: the table would then say a transition is
+ * right-aligned while the page decided it, and the two could disagree without
+ * anything failing.
+ */
+.manuscript > [data-element="scene-heading"] {
+  margin-left: var(--indent-scene-heading);
+  width: var(--width-scene-heading);
+  text-align: var(--align-scene-heading);
+}
+
+.manuscript > [data-element="action"] {
+  margin-left: var(--indent-action);
+  width: var(--width-action);
+  text-align: var(--align-action);
+}
+
+.manuscript > [data-element="character"] {
+  margin-left: var(--indent-character);
+  width: var(--width-character);
+  text-align: var(--align-character);
+}
+
+.manuscript > [data-element="dialogue"] {
+  margin-left: var(--indent-dialogue);
+  width: var(--width-dialogue);
+  text-align: var(--align-dialogue);
+}
+
+.manuscript > [data-element="parenthetical"] {
+  margin-left: var(--indent-parenthetical);
+  width: var(--width-parenthetical);
+  text-align: var(--align-parenthetical);
+}
+
+.manuscript > [data-element="transition"] {
+  margin-left: var(--indent-transition);
+  width: var(--width-transition);
+  text-align: var(--align-transition);
+}
+
+.manuscript > [data-element="centered"] {
+  margin-left: var(--indent-centered);
+  width: var(--width-centered);
+  text-align: var(--align-centered);
+}
+
+.manuscript > [data-element="lyrics"] {
+  margin-left: var(--indent-lyrics);
+  width: var(--width-lyrics);
+  text-align: var(--align-lyrics);
+}
+
+.manuscript > [data-element="section"] {
+  margin-left: var(--indent-section);
+  width: var(--width-section);
+  text-align: var(--align-section);
+}
+
+.manuscript > [data-element="synopsis"] {
+  margin-left: var(--indent-synopsis);
+  width: var(--width-synopsis);
+  text-align: var(--align-synopsis);
+}
+
+.manuscript > [data-element="page-break"] {
+  margin-left: var(--indent-page-break);
+  width: var(--width-page-break);
+  text-align: var(--align-page-break);
+}
+
+.manuscript > [data-element="note"] {
+  margin-left: var(--indent-note);
+  width: var(--width-note);
+  text-align: var(--align-note);
+}
+
+.manuscript > [data-element="boneyard-start"] {
+  margin-left: var(--indent-boneyard-start);
+  width: var(--width-boneyard-start);
+  text-align: var(--align-boneyard-start);
+}
+
+.manuscript > [data-element="boneyard-end"] {
+  margin-left: var(--indent-boneyard-end);
+  width: var(--width-boneyard-end);
+  text-align: var(--align-boneyard-end);
+}
+
+/*
+ * The look, which is the spike's and not Final Draft's (#40).
+ *
+ * The comparison with the PDF is about geometry — margins, indents, widths,
+ * leading — and not about colour: the reference page is dark, not white paper.
+ *
+ * **Final Draft does not bold its scene headings** and the spike does, and this
+ * follows the spike, because weight here is feel rather than geometry: Courier
+ * Prime's bold cut is metrically identical to its regular — the same 1228/2048
+ * em advance, asserted in `test/app/manuscript-geometry.test.ts` — so it cannot
+ * move a page break, which is the only thing the PDF is the authority on.
+ */
+.manuscript > [data-element="scene-heading"] {
+  font-weight: var(--weight-bold);
+  color: var(--colour-accent);
+}
+
+.manuscript > [data-element="parenthetical"] {
+  color: var(--colour-muted);
 }
 
 /*
@@ -194,9 +344,20 @@
  * The title page, displayed at the top (ADR-0021).
  *
  * It is stored in the manuscript file and shown here as what it is: the
- * writer's values, as real text. **Editing it through a form comes later**, and
- * laying it out as a produced title page belongs with the rest of the layout
- * (#40), so it is set apart from the screenplay and nothing more.
+ * writer's values, as real text. **Editing it through a form comes later.**
+ *
+ * **Laying it out as Final Draft prints it is #62, not #40**, and the reason is
+ * recorded there along with the measurements: Final Draft centres the title,
+ * credit, author and source, right-aligns the notes to the screenplay's own
+ * 7.5in margin, and puts the copyright at 1.0in — half an inch outside the text
+ * margin. Two things stop that being done here. The vertical placement is a
+ * position on a *page*, and the Editor draws one continuous sheet until
+ * pagination (#48) gives a page a height; and a continuation line carries no
+ * key, so the page cannot tell which field it belongs to without a change to
+ * the mapping in `src/screenplay/editor.ts`. Reaching for a CSS sibling rule
+ * instead would be the trap #40 was told to avoid.
+ *
+ * So it is set apart from the screenplay, and nothing more.
  */
 .manuscript > [data-title-line] {
   color: var(--colour-muted);
