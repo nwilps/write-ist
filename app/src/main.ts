@@ -14,6 +14,7 @@
  * any of them is (ADR-0005); everything about the manuscript is behind that.
  */
 import "./style/tokens.css";
+import "./style/geometry.css";
 import "./style/app.css";
 import "./style/editor.css";
 // Named for what it is here. `open` on its own is what a writer does to a

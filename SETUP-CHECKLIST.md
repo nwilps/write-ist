@@ -189,13 +189,36 @@ not built.
   the serialiser's blank-line table, checked over all 196 ordered pairs of element types with
   the browser's own CSS parser, because CSS fails silently.
 - **Typing is off** (`editable: () => false`) until #41 gives a keystroke somewhere to go.
-  **Courier Prime is not bundled** — that is #40's first criterion — so on a machine without it
-  fontconfig answers with Liberation Sans, and the page is laid out correctly in the wrong face.
+
+### Done: the screenplay is laid out in industry format (#40)
+
+**Courier Prime is bundled**, four weights, 304 KB, OFL with no reserved font name — so the page
+is set in the face its pagination is defined against rather than in whatever fontconfig answers
+with (ADR-0001, ADR-0030). The writer's machine has no Courier Prime and was answering with
+Liberation Sans, a proportional face.
+
+- **The geometry is one table**, `src/screenplay/geometry.ts`: the sheet, the type on it, and
+  every element type's indent and measure in characters, each with its provenance beside it. The
+  page reads it through `app/src/style/geometry.css`, which is *generated* from it and which a
+  test fails on if it is stale; the page count (#48) reads the table directly. Two tables would
+  let what the writer sees and what gets counted drift silently.
+- **The numbers are measured from Final Draft's PDF of *Big Fish***, not from the spec and not
+  from the reference stylesheet: all 122 pages decompressed and every text run's `Tm` matrix
+  read, so the values are Final Draft's own pen positions rather than an extractor's guess at an
+  ink box. Where the spike disagrees, the PDF wins and the disagreement is recorded beside the
+  value — dialogue is 39 characters wide, not the spike's 35, and the leading is 12pt, not 1.4.
+- **Action wraps at 61 characters where the margins imply 60.** Final Draft lays its own text out
+  at about 7.0pt a character rather than Courier's 7.2, so 61 fit inside its 7.5in right margin.
+  Write-ist matches the character count, because that is what moves a page break; the cost is a
+  0.9in right margin rather than 1.0in, written down in the table.
+- Measures are emitted as CSS `ch`, which *is* the advance width — ADR-0024's mitigation for the
+  one risk its wrap measurement did not cover, at the one CSS rule it said it would cost.
+- **No `text-transform` and no CSS-decided spacing**, the ticket's two named traps: capitals are
+  in the writer's text or they are not there, and the serialiser's table decides blank lines.
 
 ### Not started, and deliberately above this layer
 
-Counts and pagination (ADR-0024), typing and autosave (#41, ADR-0028), the industry layout
-(#40), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017, and the
+Counts and pagination (ADR-0024), typing and autosave (#41, ADR-0028), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017, and the
 registry half of ADR-0015/0016), and the rest of the application — workspace bar, the other
 workspaces.
 

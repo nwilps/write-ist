@@ -20,10 +20,12 @@
  * so neither is here — the status bar carries the project's name, and the page
  * count joins it when it arrives (#48).
  *
- * **The industry layout is #40's**: Courier Prime's metrics, 12pt, and each
- * element at its indent and width, held as one table the page count reads too.
- * What is below is the page itself and the spacing that mirrors the blank-line
- * table — a plain page, not an invented look.
+ * **The industry layout is #40's, and it is here.** Courier Prime at 12pt, the
+ * sheet's margins, and each element at its indent and measure — every one of
+ * those numbers a named value from `app/src/style/geometry.css`, which is
+ * generated from `src/screenplay/geometry.ts`, the one table the page count
+ * reads too. Nothing below is a number; the numbers are all measured from
+ * Final Draft's PDF of *Big Fish* and carry their provenance in that table.
  *
  * **Both of #40's named traps are already avoided here**, so that ticket
  * inherits them rather than deciding them again:
@@ -44,11 +46,19 @@
   flex-direction: column;
 }
 
-/* The workspace fills the column and scrolls; the status bar does not move. */
+/*
+ * The workspace fills the column and scrolls; the status bar does not move.
+ *
+ * It scrolls both ways, because the page below keeps its width rather than
+ * narrowing (#40). On a window too narrow for an 8.5in sheet the writer scrolls
+ * across to the rest of the line, which is a small annoyance; the alternative
+ * is a page that wraps somewhere the page count does not, which is a wrong
+ * number.
+ */
 .shell__view {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 /*
@@ -95,13 +105,16 @@
 /* --- The page ----------------------------------------------------------- */
 
 /*
- * One sheet, centred. `max-width` rather than a bare width so the page narrows
- * on a small window instead of scrolling sideways; #40 decides what the
- * measured column does when it no longer fits.
+ * One sheet, centred, at exactly its width.
+ *
+ * **It does not narrow, and #40 is the ticket that decided that.** A page that
+ * shrank to fit the window would wrap its text somewhere the page count does
+ * not, and the writer would be reading one layout while the foot of the window
+ * counted another. The window scrolls sideways instead, which is visible and
+ * honest; the count is defined against the sheet, not against the furniture.
  */
 .page {
   width: var(--page-width);
-  max-width: 100%;
   margin: 0 auto;
   min-height: 100%;
   background: var(--colour-raised);
@@ -143,6 +156,113 @@
   /* The page already shows where the caret is; a ring round the whole sheet
      would only say which window has focus. */
   outline: none;
+}
+
+/*
+ * **The industry layout** (#40): each element at its indent and its measure.
+ *
+ * Written out one type at a time, from `app/src/style/geometry.css`, rather
+ * than folded into a loop or a shorthand — the same reason the spacing rules
+ * below are written out pair by pair. `test/app/manuscript-geometry.test.ts`
+ * reads every one of these selectors back and checks it against the table, and
+ * a rule that cannot be read back cannot be checked.
+ *
+ * `ch` is Courier Prime's own advance width, so a measure of 61 characters is
+ * 61 advances exactly on all three platforms — which is ADR-0024's mitigation
+ * for the one risk its wrap measurement did not cover, at the cost of the one
+ * CSS rule it said it would cost.
+ *
+ * **Nothing here is a `text-transform`.** A scene heading and a cue are in
+ * capitals because the writer's text is in capitals; faking them in CSS would
+ * hide a cue that was never capitalised at all.
+ */
+.manuscript > [data-element="scene-heading"] {
+  margin-left: var(--indent-scene-heading);
+  width: var(--measure-scene-heading);
+}
+
+.manuscript > [data-element="action"] {
+  margin-left: var(--indent-action);
+  width: var(--measure-action);
+}
+
+.manuscript > [data-element="character"] {
+  margin-left: var(--indent-character);
+  width: var(--measure-character);
+}
+
+.manuscript > [data-element="dialogue"] {
+  margin-left: var(--indent-dialogue);
+  width: var(--measure-dialogue);
+}
+
+.manuscript > [data-element="parenthetical"] {
+  margin-left: var(--indent-parenthetical);
+  width: var(--measure-parenthetical);
+}
+
+.manuscript > [data-element="transition"] {
+  margin-left: var(--indent-transition);
+  width: var(--measure-transition);
+  text-align: right;
+}
+
+.manuscript > [data-element="centered"] {
+  margin-left: var(--indent-centered);
+  width: var(--measure-centered);
+  text-align: center;
+}
+
+.manuscript > [data-element="lyrics"] {
+  margin-left: var(--indent-lyrics);
+  width: var(--measure-lyrics);
+}
+
+.manuscript > [data-element="section"] {
+  margin-left: var(--indent-section);
+  width: var(--measure-section);
+}
+
+.manuscript > [data-element="synopsis"] {
+  margin-left: var(--indent-synopsis);
+  width: var(--measure-synopsis);
+}
+
+.manuscript > [data-element="page-break"] {
+  margin-left: var(--indent-page-break);
+  width: var(--measure-page-break);
+}
+
+.manuscript > [data-element="note"] {
+  margin-left: var(--indent-note);
+  width: var(--measure-note);
+}
+
+.manuscript > [data-element="boneyard-start"] {
+  margin-left: var(--indent-boneyard-start);
+  width: var(--measure-boneyard-start);
+}
+
+.manuscript > [data-element="boneyard-end"] {
+  margin-left: var(--indent-boneyard-end);
+  width: var(--measure-boneyard-end);
+}
+
+/*
+ * The look, which is the spike's and not Final Draft's (#40).
+ *
+ * The comparison with the PDF is about geometry — margins, indents, measures,
+ * leading — and not about colour: the reference page is dark, not white paper.
+ * Weight is safe to take from the reference because Courier Prime's bold cut is
+ * metrically identical to its regular, so it cannot move a page break.
+ */
+.manuscript > [data-element="scene-heading"] {
+  font-weight: var(--weight-bold);
+  color: var(--colour-accent);
+}
+
+.manuscript > [data-element="parenthetical"] {
+  color: var(--colour-muted);
 }
 
 /*

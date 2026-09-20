@@ -1,0 +1,57 @@
+/*
+ * GENERATED FROM `src/screenplay/geometry.ts`. Do not edit.
+ *
+ * `npm run geometry` rewrites it and `test/app/manuscript-geometry.test.ts`
+ * fails if it is stale. The industry layout is one table (#40), and this is
+ * that table in the only language the page speaks.
+ */
+
+:root {
+  /* --- The sheet ------------------------------------------------------- */
+
+  --page-width: 816px;
+  --page-height: 1056px;
+  --page-inset-top: 96px;
+  --page-inset-right: 86.4px;
+  --page-inset-bottom: 80px;
+  --page-inset-left: 144px;
+
+  /* --- The type on it -------------------------------------------------- */
+
+  --manuscript-size: 16px;
+  --manuscript-leading: 1;
+  /* One blank line: the serialiser's spacing table, drawn as space. */
+  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
+  --manuscript-lines-per-page: 55;
+
+  /* --- Each element's place on it -------------------------------------- */
+
+  --indent-scene-heading: 0ch;
+  --measure-scene-heading: 61ch;
+  --indent-action: 0ch;
+  --measure-action: 61ch;
+  --indent-character: 18.75ch;
+  --measure-character: 41.25ch;
+  --indent-dialogue: 8.75ch;
+  --measure-dialogue: 39ch;
+  --indent-parenthetical: 12.7778ch;
+  --measure-parenthetical: 47.2222ch;
+  --indent-transition: 0ch;
+  --measure-transition: 60ch;
+  --indent-centered: 0ch;
+  --measure-centered: 61ch;
+  --indent-lyrics: 0ch;
+  --measure-lyrics: 61ch;
+  --indent-section: 0ch;
+  --measure-section: 61ch;
+  --indent-synopsis: 0ch;
+  --measure-synopsis: 61ch;
+  --indent-page-break: 0ch;
+  --measure-page-break: 61ch;
+  --indent-note: 0ch;
+  --measure-note: 61ch;
+  --indent-boneyard-start: 0ch;
+  --measure-boneyard-start: 61ch;
+  --indent-boneyard-end: 0ch;
+  --measure-boneyard-end: 61ch;
+}

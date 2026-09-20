@@ -27,6 +27,18 @@ const APP = join(root, "app");
 const TOKENS = join(APP, "src", "style", "tokens.css");
 
 /**
+ * The second, and the reason it is not a third.
+ *
+ * `geometry.css` is **generated** from `src/screenplay/geometry.ts` — the one
+ * table the industry layout and the page count both read (#40) — and
+ * `test/app/manuscript-geometry.test.ts` fails if it is not exactly what that
+ * table renders. So its literals are not a component's opinion escaping into
+ * the stylesheet; they are the table, in the only language the page speaks, and
+ * the check that keeps them honest is stricter than this one.
+ */
+const GENERATED = join(APP, "src", "style", "geometry.css");
+
+/**
  * What a styling literal looks like.
  *
  * Deliberately not a ban on every number: a percentage, a `fr`, a unitless
@@ -60,7 +72,7 @@ function componentFiles(): readonly string[] {
         continue;
       }
       if (!/\.(css|ts|html)$/.test(name)) continue;
-      if (path === TOKENS) continue;
+      if (path === TOKENS || path === GENERATED) continue;
       found.push(path);
     }
   };
@@ -129,6 +141,10 @@ describe("the look is data (ADR-0030)", () => {
     expect(interfaceFace).toContain("JetBrainsMono Nerd Font");
     expect(interfaceFace).not.toContain("Courier");
     expect(manuscriptFace).toContain("Courier Prime");
+
+    // And the generated file is exempt for a reason, not by oversight: it has
+    // to still be there, and still be generated.
+    expect(readFileSync(GENERATED, "utf8")).toContain("GENERATED FROM");
   });
 
   it("bundles the interface typeface rather than resolving it from the system", () => {
@@ -140,7 +156,14 @@ describe("the look is data (ADR-0030)", () => {
     const bundled = readdirSync(join(APP, "public", "fonts")).filter((name) =>
       name.endsWith(".ttf"),
     );
+    // Both faces, four weights each. Courier Prime's four are ADR-0001's, and
+    // `test/app/manuscript-geometry.test.ts` is where they are checked against
+    // the layout they define.
     expect(bundled.sort()).toEqual([
+      "CourierPrime-Bold.ttf",
+      "CourierPrime-BoldItalic.ttf",
+      "CourierPrime-Italic.ttf",
+      "CourierPrime-Regular.ttf",
       "JetBrainsMonoNerdFont-Bold.ttf",
       "JetBrainsMonoNerdFont-BoldItalic.ttf",
       "JetBrainsMonoNerdFont-Italic.ttf",

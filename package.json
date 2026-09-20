@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "geometry": "vite-node scripts/geometry.mjs",
     "app": "tauri dev",
     "app:build": "tauri build",
     "test": "vitest run",
