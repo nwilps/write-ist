@@ -59,9 +59,18 @@ function go(next: Screen): void {
   // would be telling the writer about a folder they are no longer looking at.
   trouble = undefined;
   draw();
+  if (next !== "open-project") return;
+
   // The listing is read on arrival rather than at launch, so the screen that
   // shows projects is the screen that goes and looks.
-  if (next === "open-project") void refresh().then(draw);
+  void readProjects().then((wrong) => {
+    // Escape is a keystroke away and a folder takes as long as it takes. A
+    // writer who left before the read came back must not be shown an error
+    // about a folder they are no longer looking at.
+    if (screen !== next) return;
+    trouble = wrong;
+    draw();
+  });
 }
 
 /**
@@ -79,12 +88,22 @@ window.addEventListener("keydown", (event) => {
   gesture.act();
 });
 
-async function refresh(): Promise<void> {
+/**
+ * Read the default location, and say what went wrong if anything did.
+ *
+ * It reports rather than setting `trouble` itself, because by the time a read
+ * comes back the writer may be looking at another screen — and an answer
+ * belongs to the screen that asked the question.
+ */
+async function readProjects(): Promise<string | undefined> {
   try {
     const directory = await defaultProjectsDirectory();
     listing = await listProjects(tauriFilesystem, directory);
+    return undefined;
   } catch (error) {
-    trouble = `Write-ist could not read its projects folder. ${message(error)}`;
+    return listing === undefined
+      ? `Write-ist could not read its projects folder. ${message(error)}`
+      : `Write-ist could not read its projects folder again, so this list may be out of date. ${message(error)}`;
   }
 }
 
@@ -112,7 +131,7 @@ async function importOne(): Promise<void> {
 
     // The new project is in the list before the report is dismissed, so the
     // screen behind it is already true.
-    await refresh();
+    trouble = await readProjects();
     importing = false;
     draw();
 

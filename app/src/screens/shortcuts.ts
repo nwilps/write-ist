@@ -56,10 +56,7 @@ export function shortcutOf(press: KeyPress): string | undefined {
 }
 
 /** The gesture a key press chooses, if it chooses one. */
-export function chosenBy<T extends Gesture>(
-  gestures: readonly T[],
-  press: KeyPress,
-): T | undefined {
+export function chosenBy(gestures: readonly Gesture[], press: KeyPress): Gesture | undefined {
   const shortcut = shortcutOf(press);
   if (shortcut === undefined) return undefined;
   return gestures.find((gesture) => gesture.key === shortcut && gesture.unavailable !== true);

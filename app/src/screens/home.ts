@@ -16,7 +16,7 @@
 import { element } from "./element.ts";
 import { menu } from "./menu.ts";
 import type { Gesture } from "./shortcuts.ts";
-import { trouble } from "./trouble.ts";
+import { trouble as troublePanel } from "./trouble.ts";
 
 export interface HomeScreen {
   /** To the Open Project screen, which is where a project comes from. */
@@ -37,7 +37,7 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
     element("div", { className: "composition" }, [
       element("h1", { className: "wordmark", textContent: "Write-ist" }),
       menu(gestures),
-      ...(screen.trouble === undefined ? [] : [trouble(screen.trouble)]),
+      ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
     ]),
   );
 

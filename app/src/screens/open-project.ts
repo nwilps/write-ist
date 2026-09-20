@@ -24,7 +24,7 @@ import type { Project } from "../../../src/project/bundle.ts";
 import { element } from "./element.ts";
 import { menuRow } from "./menu.ts";
 import { LEAVE, type Gesture } from "./shortcuts.ts";
-import { trouble } from "./trouble.ts";
+import { trouble as troublePanel } from "./trouble.ts";
 
 export interface OpenProjectScreen {
   /**
@@ -60,20 +60,24 @@ export function renderOpenProject(
     { label: "Back", key: LEAVE, act: screen.onBack },
   ];
 
-  const { listing, trouble: wrong } = screen;
+  const { listing, trouble } = screen;
   into.replaceChildren(
     element("div", { className: "composition composition--wide" }, [
       element("h1", { className: "screen__name", textContent: "Open Project" }),
+      // A failed read must never read as an empty folder, and never as one
+      // still being read either — both are the screen telling the writer
+      // something about their disk that nobody checked. That is ADR-0008
+      // rule 3's instinct applied to the screen. Once a read has succeeded,
+      // "No projects yet" is a claim someone made good on, and a later read
+      // that fails says so beneath the list rather than emptying it.
       ...(listing === undefined
-        ? [reading()]
+        ? trouble === undefined
+          ? [reading()]
+          : []
         : listing.projects.length > 0
           ? [projectsList(listing.projects)]
-          : // A failed read must never read as an empty folder — that is
-            // ADR-0008 rule 3's instinct applied to the screen.
-            wrong === undefined
-            ? [nothingYet()]
-            : []),
-      ...(wrong === undefined ? [] : [trouble(wrong)]),
+          : [nothingYet()]),
+      ...(trouble === undefined ? [] : [troublePanel(trouble)]),
       ...(listing === undefined || listing.unreadable.length === 0
         ? []
         : [declined(listing.unreadable)]),
@@ -120,7 +124,7 @@ function nothingYet(): HTMLElement {
  * and told that it is untouched, because the repair is theirs to make.
  */
 function declined(folders: readonly string[]): HTMLElement {
-  return element("div", { className: "trouble" }, [
+  const panel = element("div", { className: "trouble" }, [
     element("p", {
       className: "trouble__line",
       textContent:
@@ -134,4 +138,8 @@ function declined(folders: readonly string[]): HTMLElement {
       folders.map((name) => element("li", { textContent: name })),
     ),
   ]);
+  // Loud means announced: a screen reader is told about this the same way it
+  // is told about a failed read.
+  panel.setAttribute("role", "alert");
+  return panel;
 }
