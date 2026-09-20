@@ -24,6 +24,16 @@
  * element at its indent and width, held as one table the page count reads too.
  * What is below is the page itself and the spacing that mirrors the blank-line
  * table — a plain page, not an invented look.
+ *
+ * **Both of #40's named traps are already avoided here**, so that ticket
+ * inherits them rather than deciding them again:
+ *
+ *   - *"CSS uppercase must not be used to fake capitals, because it would hide
+ *     a cue that was never actually capitalised."* There is no `text-transform`
+ *     in this file. The capitals are in the text or they are not there.
+ *   - *"CSS spacing is only how it looks, and must never be what decides what is
+ *     written."* It decides nothing: the serialiser's table decides, and the
+ *     rules below are checked against what it actually writes.
  */
 
 /* --- The shell ---------------------------------------------------------- */
@@ -49,7 +59,7 @@
  */
 .workspace {
   min-height: 100%;
-  padding: var(--space-chrome) var(--space-roomy) var(--space-vast);
+  padding: var(--space-workspace-bar) var(--space-roomy) var(--space-vast);
 }
 
 .statusbar {
@@ -112,9 +122,21 @@
   font-size: var(--manuscript-size);
   line-height: var(--manuscript-leading);
   /*
-   * The writer's leading whitespace is theirs (issue #15), so it is drawn
-   * rather than collapsed — and wrapping is left to the webview, which is the
-   * seam ADR-0024 settles: the view wraps, our engine owns the count.
+   * Whitespace *inside* an element's text is the writer's and is drawn: the
+   * corpus sets two spaces after a full stop throughout, and collapsing them
+   * would be the page disagreeing with the file about the writer's own prose.
+   *
+   * **Leading whitespace is a different thing and is deliberately not drawn.**
+   * It is an attribute on the element rather than part of its text (issue #15,
+   * `src/screenplay/document.ts`), so this rule never sees it — and that is the
+   * wanted answer, not an oversight: #40 gives every element its industry
+   * indent, and a cue that arrived from an old export with three tabs in front
+   * of it would then be indented twice. It is preserved in the file, which is
+   * what #15 deferred it as. Measured 2026-09-20: 7 of Brick & Steel's 91
+   * elements and 31 of the corpus's 3,457 carry one; Big Fish carries none.
+   *
+   * Wrapping is left to the webview, which is the seam ADR-0024 settles: the
+   * view wraps, our engine owns the count.
    */
   white-space: pre-wrap;
   overflow-wrap: break-word;

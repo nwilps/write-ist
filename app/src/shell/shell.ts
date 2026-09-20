@@ -3,15 +3,15 @@
  *
  * `CONTEXT.md`: *the application frame that hosts the workspaces and the
  * workspace bar without knowing what any workspace is.* So this file draws the
- * chrome, hands one element to a workspace, and knows nothing else — not which
+ * furniture, hands one element to a workspace, and knows nothing else — not which
  * surface the project runs on, not what an element is, not that a screenplay
  * exists. The registry in `app/src/workspaces/` is where that is known.
  *
- * **The chrome is the prototype's** (`nwilps/write-ist-ng`, `spike/plan.html`):
+ * **The furniture is the prototype's** (`nwilps/write-ist-ng`, `spike/plan.html`):
  * a full-height column, the workspace filling it and scrolling, and a status bar
  * along the foot carrying the project's name. Its floating workspace bar sits
  * over the top of that column, which is why the workspace is given room above
- * it — slice 1 does not build the bar, and the chrome it will join is here
+ * it — slice 1 does not build the bar, and the furniture it will join is here
  * already rather than waiting to be retrofitted.
  *
  * **Placement and proportion, not contents.** The prototype's side panels hold
@@ -53,7 +53,7 @@ export interface MountedShell {
  * Draw the shell and mount its workspace.
  *
  * The workspace is mounted **once**, into an element the shell then leaves
- * alone. Redrawing the chrome around a live editing engine would throw away its
+ * alone. Redrawing the furniture around a live editing engine would throw away its
  * selection, its scroll position and eventually its undo stack, so the shell
  * does not own a `draw()` the way the menu screens do — it is put up when a
  * project opens and taken down when it closes.

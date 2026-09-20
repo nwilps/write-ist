@@ -52,6 +52,17 @@ export interface WorkspaceManifest {
    * workspace *is*, and adding it later would mean touching every manifest.
    */
   readonly key: string;
+  /**
+   * **The third thing ADR-0005 names is deliberately absent**: *"which formats
+   * show it by default"*.
+   *
+   * It is missing rather than forgotten. A format is data (ADR-0006) and today
+   * there is exactly one, `Feature`, so a field listing which formats show this
+   * workspace could only ever hold the same single value — an abstraction for a
+   * need nothing has yet. It arrives with the second format or the second
+   * workspace, whichever comes first, and it costs one line in each manifest
+   * then.
+   */
   /** Draw it into the element given, and answer how to take it down. */
   readonly mount: (into: HTMLElement, context: WorkspaceContext) => MountedWorkspace;
 }

@@ -127,11 +127,16 @@ describe("the title page is displayed at the top (ADR-0021)", () => {
     );
   });
 
-  it("draws the writer's values as real text, with the key beside them", () => {
+  it("draws the writer's values, and keeps each key out of the text", () => {
+    // **The values are what a title page is.** `Title:` is the file's structure,
+    // not the writer's words, and a page that printed it would be showing
+    // syntax — which ADR-0018 rules out. The key rides on the element instead,
+    // where the form that edits the title page will find it (a later ticket).
     const lines = [...page().querySelectorAll<HTMLElement>("[data-title-line]")];
     const titled = lines.find((line) => line.dataset["titleLine"] === "Title");
 
     expect(titled?.textContent).toBe(" Big Fish");
+    expect(page().textContent).not.toContain("Title:");
     // A continuation line carries no key of its own: the field is the run.
     expect(lines.some((line) => line.dataset["titleLine"] === "")).toBe(true);
   });

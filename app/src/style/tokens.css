@@ -140,8 +140,13 @@
    * Blank lines are not elements (ADR-0019): where one falls is a lookup on the
    * pair of types either side of it, and this is that lookup drawn as space
    * rather than written as a character.
+   *
+   * Computed rather than restated. Written out as the number it comes to, the
+   * two above could be changed and this one left behind, and the page would go
+   * quietly wrong about the spacing — which is the failure a stylesheet is
+   * especially good at hiding (`docs/STANDARDS.md`).
    */
-  --manuscript-blank: 22.4px;
+  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
 
   /* --- The shell's furniture ------------------------------------------- */
 
@@ -154,9 +159,9 @@
    * The room the floating workspace bar needs above the workspace.
    *
    * The bar is not built in slice 1 (#37). The space it sits in is, so that the
-   * chrome it later joins is the chrome that is already here.
+   * furniture it later joins is the furniture that is already here.
    */
-  --space-chrome: 52px;
+  --space-workspace-bar: 52px;
 
   /* --- Spacing --------------------------------------------------------- */
 
