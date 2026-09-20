@@ -2,11 +2,12 @@
  * The application's surfaces. **Every value here is a token** (ADR-0030) —
  * there is not a hex colour, a pixel size or a font name below this line.
  *
- * Three surfaces exist in slice 1: the home screen the application opens to,
- * the Open Project screen reached from it, and the import report shown once an
- * import completes. Both screens are a centred composition over the window,
- * which is v1's shape. The workspace bar and the Editor arrive in later
- * tickets.
+ * Three surfaces are here: the home screen the application opens to, the Open
+ * Project screen reached from it, and the import report shown once an import
+ * completes. Both screens are a centred composition over the window, which is
+ * v1's shape. **The shell and the Editor's page are in `editor.css`**, because
+ * they answer to different references — v1 for these screens, the spike and the
+ * prototype for those (#37). The workspace bar arrives in a later slice.
  */
 
 *,
@@ -16,7 +17,17 @@
 }
 
 html,
-body {
+body,
+/*
+ * The element every screen is drawn into.
+ *
+ * **It has to have a height, not only a minimum one.** The menu screens are
+ * centred compositions and were happy either way; the shell is a column with a
+ * status bar along its foot, and a host of automatic height lets that column
+ * grow with the manuscript until the foot is below the window. The bar was
+ * drawn, correctly, several thousand pixels down.
+ */
+#app {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -42,9 +53,10 @@ body {
 /* --- The screen --------------------------------------------------------- */
 
 /*
- * v1's shape: one composition, centred in the window, on both screens. Nothing
- * is anchored to a corner, so moving between them moves the eye as little as
- * possible.
+ * v1's shape: one composition, centred in the window, on both menu screens.
+ * Nothing is anchored to a corner, so moving between them moves the eye as
+ * little as possible. The shell is not one of these: it wants the whole window
+ * (`editor.css`).
  */
 .screen {
   min-height: 100%;
@@ -220,13 +232,14 @@ body {
 }
 
 /*
- * A row, not a control. Opening a project belongs to #39; until then the list
- * shows the writer what is there and offers no gesture that does nothing.
- * `docs/STANDARDS.md`: an interface that needs explaining is the interface's
- * fault, and a row that looks clickable and is not is the same defect.
+ * A row, and a real button: choosing one opens it (#39). It looks clickable
+ * because it is — `docs/STANDARDS.md` warns about the row that looks like a
+ * control and is not, and until #39 it was deliberately not one. Nothing
+ * captions the gesture, because a list of names is its own affordance.
  */
 .project {
   display: flex;
+  width: 100%;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-roomy);
@@ -235,6 +248,23 @@ body {
   border: var(--rule-thin) solid var(--colour-border);
   border-left: var(--rule-thick) solid var(--colour-accent);
   border-radius: var(--radius-slight);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: var(--leading-tight);
+  color: var(--colour-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-quick), color var(--duration-quick);
+}
+
+.project:hover,
+.project:focus-visible {
+  border-color: var(--colour-accent);
+}
+
+.project:hover .project__name,
+.project:focus-visible .project__name {
+  color: var(--colour-accent);
 }
 
 .project__name {

@@ -9,8 +9,8 @@
  *
  * The list is a listing of the default location and nothing more (ADR-0015,
  * ADR-0016): there is no store behind it, so it cannot go stale and cannot be
- * corrupted. Opening a project from here belongs to #39; until then the list
- * shows the writer what is there.
+ * corrupted. Choosing one opens it in the Editor (#39), which is the whole of
+ * what this screen decides: the shell and the workspace do the rest.
  *
  * Shape and flow are v1's `OpenProjectScreen`: a titled composition, the
  * projects as rows of name and format, and the screen's own gestures along
@@ -35,6 +35,8 @@ export interface OpenProjectScreen {
   readonly listing: ProjectsListing | undefined;
   /** What the writer does here: bring a screenplay in. */
   readonly onImport: () => void;
+  /** Open one of them, which is what the list is for. */
+  readonly onOpen: (project: Project) => void;
   /** Back to the home screen. */
   readonly onBack: () => void;
   /** Set while an import is running, so it cannot be started twice. */
@@ -62,42 +64,61 @@ export function renderOpenProject(
 
   const { listing, trouble } = screen;
   into.replaceChildren(
-    element("div", { className: "composition composition--wide" }, [
-      element("h1", { className: "screen__name", textContent: "Open Project" }),
-      // A failed read must never read as an empty folder, and never as one
-      // still being read either — both are the screen telling the writer
-      // something about their disk that nobody checked. That is ADR-0008
-      // rule 3's instinct applied to the screen. Once a read has succeeded,
-      // "No projects yet" is a claim someone made good on, and a later read
-      // that fails says so beneath the list rather than emptying it.
-      ...(listing === undefined
-        ? trouble === undefined
-          ? [reading()]
-          : []
-        : listing.projects.length > 0
-          ? [projectsList(listing.projects)]
-          : [nothingYet()]),
-      ...(trouble === undefined ? [] : [troublePanel(trouble)]),
-      ...(listing === undefined || listing.unreadable.length === 0
-        ? []
-        : [declined(listing.unreadable)]),
-      menuRow(gestures),
+    element("main", { className: "screen" }, [
+      element("div", { className: "composition composition--wide" }, [
+        element("h1", { className: "screen__name", textContent: "Open Project" }),
+        // A failed read must never read as an empty folder, and never as one
+        // still being read either — both are the screen telling the writer
+        // something about their disk that nobody checked. That is ADR-0008
+        // rule 3's instinct applied to the screen. Once a read has succeeded,
+        // "No projects yet" is a claim someone made good on, and a later read
+        // that fails says so beneath the list rather than emptying it.
+        ...(listing === undefined
+          ? trouble === undefined
+            ? [reading()]
+            : []
+          : listing.projects.length > 0
+            ? [projectsList(listing.projects, screen.onOpen)]
+            : [nothingYet()]),
+        ...(trouble === undefined ? [] : [troublePanel(trouble)]),
+        ...(listing === undefined || listing.unreadable.length === 0
+          ? []
+          : [declined(listing.unreadable)]),
+        menuRow(gestures),
+      ]),
     ]),
   );
 
   return gestures;
 }
 
-function projectsList(projects: readonly Project[]): HTMLElement {
+/**
+ * The projects, each a real button.
+ *
+ * **A row is the gesture, and the row says so by being a button.** There is no
+ * letter beside it and no caption explaining how to choose one: a list of names
+ * is its own affordance, and `docs/STANDARDS.md` bans captioning a gesture that
+ * already exists. Tab reaches them and Enter opens one, which is what a button
+ * does without a line of code here — the same reason the menus are buttons.
+ *
+ * Letters are deliberately not handed out. A writer may have thirty projects
+ * and the alphabet does not stretch; the screen's own two gestures keep theirs.
+ */
+function projectsList(
+  projects: readonly Project[],
+  onOpen: (project: Project) => void,
+): HTMLElement {
   return element(
     "ul",
     { className: "projects" },
-    projects.map((project) =>
-      element("li", { className: "project" }, [
+    projects.map((project) => {
+      const row = element("button", { className: "project", type: "button" }, [
         element("span", { className: "project__name", textContent: project.marker.name }),
         element("span", { className: "project__format", textContent: project.marker.format }),
-      ]),
-    ),
+      ]);
+      row.addEventListener("click", () => onOpen(project));
+      return element("li", {}, [row]);
+    }),
   );
 }
 

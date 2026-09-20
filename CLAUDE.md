@@ -6,10 +6,12 @@ GitHub Issues, never a doc.
 
 **Status: v2, building slice 1 — the first application.** The document model is built and tested:
 **bytes on disk ↔ a flat sequence of typed elements**, both surfaces, with marks and comments, in
-`src/`. Above it, `src/project/` holds the bundle, the `project.md` marker and import. The
+`src/`. Above it, `src/project/` holds the bundle, the `project.md` marker, import and open. The
 application launches — a Tauri window over the system webview, opening on a home screen, with
 **Open Project** its own screen, listing projects and importing a screenplay into a new one
-(#38, #55). **There is no Editor yet** — no ranges, no element identity, no counts, no pagination.
+(#38, #55). Opening one shows the manuscript in the **Editor**, a ProseMirror workspace the shell
+hosts through a manifest, with the round-trip holding through it (#39). **Nothing is typed into
+it yet** — no keyboard, no saving, no industry layout, no ranges, no counts, no pagination.
 
 Before proposing work, read `SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The
 round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
