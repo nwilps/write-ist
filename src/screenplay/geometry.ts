@@ -42,9 +42,18 @@
  * risk its wrap measurement did not cover: *"if the editor column is not an
  * exact whole number of Courier Prime advance widths, three engines can round
  * the fit differently."* The stylesheet emits these as CSS `ch`, which **is**
- * the advance width, so the column is an exact multiple of it by construction
- * on all three platforms rather than by arithmetic that could be a fraction of
- * a pixel out.
+ * the advance width, so a measure is a multiple of it by construction on all
+ * three platforms rather than by arithmetic that could be a fraction of a pixel
+ * out.
+ *
+ * **That mitigation is only complete where the measure is a whole number**, and
+ * it is for every element whose wrapping the PDF actually shows: action, scene
+ * headings and dialogue. A cue's and a parenthetical's are fractional because
+ * they are not measured at all — they run to the right margin from an indent
+ * that is itself a fraction — and neither wraps anywhere in *Big Fish*, so
+ * neither exercises the rounding. `test/app/manuscript-geometry.test.ts` holds
+ * that division, so a measure cannot quietly become fractional once something
+ * does wrap against it.
  *
  * Two of Final Draft's indents are not whole characters. They are recorded as
  * measured rather than rounded to something tidier: rounding a cue's indent by
@@ -98,8 +107,8 @@ export const PAGE = {
   /**
    * Inches from the sheet's left edge to the left margin.
    *
-   * Measured: 1,882 of the PDF's runs — every scene heading and every action
-   * line — begin at exactly x = 108pt.
+   * Measured: 1,882 of the PDF's lines begin at exactly x = 108pt — 1,690
+   * action lines and 192 scene-heading lines, which share the margin.
    */
   marginLeftInches: 1.5,
   /**
@@ -126,7 +135,7 @@ export const PAGE = {
    *
    * **Measured, and it disagrees with the arithmetic.** 1.5in of left margin
    * and Final Draft's nominal 1in right margin leave 6.0in, which is 60
-   * characters at ten to the inch. The PDF wraps action at **61**: of 1,882
+   * characters at ten to the inch. The PDF wraps action at **61**: of its 1,690
    * action lines, 144 are exactly 61 characters and none is 63. Final Draft
    * lays its own text out at about 7.0pt per character rather than 7.2, so 61
    * of them fit inside its 7.5in right margin; drawn at Courier Prime's true
@@ -151,12 +160,26 @@ export const PAGE = {
   rightMarginCharacters: 60,
 } as const;
 
-/** Inches per character, from Courier Prime's own advance at `fontSizePoints`. */
+/**
+ * Inches per character, from Courier Prime's own advance at `fontSizePoints`.
+ *
+ * **Ten to the inch is the nominal figure and not this one.** The advance is
+ * 1228/2048 em, so a character is 0.09993in and sixty-one of them are 0.004in
+ * short of 6.1. Every length below is derived through this rather than through
+ * a tidier division by ten, because the file's whole argument for holding the
+ * table in characters is that inches are a little bit wrong sixty-one times
+ * over — and doing that arithmetic in the one place the argument is made would
+ * be a poor joke. The difference is a pixel and a half on the sheet, which is
+ * a pixel and a half of the right margin.
+ */
 export const CHARACTER_INCHES = (PAGE.fontSizePoints * (1228 / 2048)) / 72;
+
+/** Inches a run of characters occupies. */
+export const inchesFor = (characters: number): number => characters * CHARACTER_INCHES;
 
 /** Inches from the sheet's right edge to where the widest measure ends. */
 export const marginRightInches = (): number =>
-  PAGE.widthInches - PAGE.marginLeftInches - PAGE.measureCharacters / 10;
+  PAGE.widthInches - PAGE.marginLeftInches - inchesFor(PAGE.measureCharacters);
 
 /** Inches of type down the page, and so where the bottom margin starts. */
 export const bodyHeightInches = (): number =>
@@ -171,12 +194,12 @@ export const bodyHeightInches = (): number =>
  * action block, which is the page's own measure, and the reason is recorded
  * once here rather than repeated fourteen times.
  */
-function marginalia(what: string): ElementMeasure {
+function marginalia(element: string): ElementMeasure {
   return {
     indent: 0,
     width: PAGE.measureCharacters,
     alignment: "left",
-    source: `${what} is Fountain's, not Final Draft's — it never reaches a printed page, so the PDF fixes no geometry for it. It takes the action block.`,
+    source: `${element} is Fountain's, not Final Draft's — it never reaches a printed page, so the PDF fixes no geometry for it. It takes action's indent and measure.`,
   };
 }
 
@@ -194,7 +217,7 @@ export const ELEMENT_GEOMETRY: Readonly<Record<ElementType, ElementMeasure>> = {
     width: PAGE.measureCharacters,
     alignment: "left",
     source:
-      "Measured: scene headings share action's x = 108pt (1.5in) in the PDF, which 1,882 runs begin at. The reference agrees.",
+      "Measured: 192 scene-heading lines at exactly x = 108pt (1.5in), which is action's indent — the two share the margin. None is longer than 55 characters, so the measure below is action's rather than one the PDF exercised on a heading. The reference agrees.",
   },
 
   action: {
@@ -202,7 +225,7 @@ export const ELEMENT_GEOMETRY: Readonly<Record<ElementType, ElementMeasure>> = {
     width: PAGE.measureCharacters,
     alignment: "left",
     source:
-      "Measured: x = 108pt (1.5in). The measure is 61 characters — 144 action lines are exactly 61, three are 62 and every one of those three breaks after a hyphen, and none is 63. See PAGE.measureCharacters for why 61 and not the 60 the margins imply.",
+      "Measured: 1,690 action lines at exactly x = 108pt (1.5in). The measure is 61 characters — 144 of those lines are exactly 61, three are 62 and every one of the three breaks after a hyphen, and none is 63. See PAGE.measureCharacters for why 61 and not the 60 the margins imply.",
   },
 
   character: {
@@ -256,18 +279,26 @@ export const ELEMENT_GEOMETRY: Readonly<Record<ElementType, ElementMeasure>> = {
 
 /** CSS custom property names, so the stylesheet and its test cannot drift. */
 export const indentProperty = (type: ElementType): string => `--indent-${type}`;
-export const measureProperty = (type: ElementType): string => `--measure-${type}`;
+export const widthProperty = (type: ElementType): string => `--width-${type}`;
+export const alignProperty = (type: ElementType): string => `--align-${type}`;
 
-/** Trim a computed length to what CSS needs, without a trailing `.0`. */
-function round(value: number): string {
+/** What CSS calls each of our alignments. Ours is spelled the English way. */
+const CSS_ALIGNMENT: Readonly<Record<Alignment, string>> = {
+  left: "left",
+  right: "right",
+  centre: "center",
+};
+
+/** A number as CSS should read it: four decimals at most, no trailing zeroes. */
+function shortest(value: number): string {
   return String(Number(value.toFixed(4)));
 }
 
 /** CSS pixels per inch. The one number in the whole file that is a convention. */
 const PIXELS_PER_INCH = 96;
 
-const inches = (value: number): string => `${round(value * PIXELS_PER_INCH)}px`;
-const characters = (value: number): string => `${round(value)}ch`;
+const inches = (value: number): string => `${shortest(value * PIXELS_PER_INCH)}px`;
+const characters = (value: number): string => `${shortest(value)}ch`;
 
 /**
  * **The table, rendered as the stylesheet the Editor reads.**
@@ -299,7 +330,6 @@ export function stylesheet(): string {
     "  /* --- The sheet ------------------------------------------------------- */",
     "",
     `  --page-width: ${inches(PAGE.widthInches)};`,
-    `  --page-height: ${inches(PAGE.heightInches)};`,
     `  --page-inset-top: ${inches(PAGE.marginTopInches)};`,
     `  --page-inset-right: ${inches(marginRightInches())};`,
     `  --page-inset-bottom: ${inches(
@@ -310,19 +340,19 @@ export function stylesheet(): string {
     "  /* --- The type on it -------------------------------------------------- */",
     "",
     `  --manuscript-size: ${inches(PAGE.fontSizePoints / 72)};`,
-    `  --manuscript-leading: ${round(PAGE.leadingPoints / PAGE.fontSizePoints)};`,
+    `  --manuscript-leading: ${shortest(PAGE.leadingPoints / PAGE.fontSizePoints)};`,
     "  /* One blank line: the serialiser's spacing table, drawn as space. */",
     "  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));",
-    `  --manuscript-lines-per-page: ${PAGE.linesPerPage};`,
     "",
     "  /* --- Each element's place on it -------------------------------------- */",
     "",
   ];
 
   for (const type of types) {
-    const { indent, width } = ELEMENT_GEOMETRY[type];
+    const { indent, width, alignment } = ELEMENT_GEOMETRY[type];
     lines.push(`  ${indentProperty(type)}: ${characters(indent)};`);
-    lines.push(`  ${measureProperty(type)}: ${characters(width)};`);
+    lines.push(`  ${widthProperty(type)}: ${characters(width)};`);
+    lines.push(`  ${alignProperty(type)}: ${CSS_ALIGNMENT[alignment]};`);
   }
 
   lines.push("}", "");

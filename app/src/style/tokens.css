@@ -121,10 +121,15 @@
    * request with Liberation Sans, a proportional face — so before it was
    * bundled the page was laid out correctly and set in the wrong one.
    *
-   * The fallbacks stay for the moment before the bundled file has loaded;
-   * `font-display: block` means that moment is not drawn.
+   * **No system Courier is named behind it.** ADR-0001 says the face is bundled
+   * and "never resolved from the system", and listing `"Courier New", Courier`
+   * is exactly that: those faces are metrically close enough that a bundle that
+   * failed to load would draw a page which looked almost right and measured
+   * wrong, with nothing to see. The generic `monospace` is the last resort and
+   * looks like one. `font-display: block` means the moment before the bundled
+   * file arrives is not drawn at all.
    */
-  --face-manuscript: "Courier Prime", "Courier New", Courier, monospace;
+  --face-manuscript: "Courier Prime", monospace;
 
   /* --- Size ------------------------------------------------------------ */
 

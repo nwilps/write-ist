@@ -10,9 +10,8 @@
   /* --- The sheet ------------------------------------------------------- */
 
   --page-width: 816px;
-  --page-height: 1056px;
   --page-inset-top: 96px;
-  --page-inset-right: 86.4px;
+  --page-inset-right: 86.7813px;
   --page-inset-bottom: 80px;
   --page-inset-left: 144px;
 
@@ -22,36 +21,49 @@
   --manuscript-leading: 1;
   /* One blank line: the serialiser's spacing table, drawn as space. */
   --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
-  --manuscript-lines-per-page: 55;
 
   /* --- Each element's place on it -------------------------------------- */
 
   --indent-scene-heading: 0ch;
-  --measure-scene-heading: 61ch;
+  --width-scene-heading: 61ch;
+  --align-scene-heading: left;
   --indent-action: 0ch;
-  --measure-action: 61ch;
+  --width-action: 61ch;
+  --align-action: left;
   --indent-character: 18.75ch;
-  --measure-character: 41.25ch;
+  --width-character: 41.25ch;
+  --align-character: left;
   --indent-dialogue: 8.75ch;
-  --measure-dialogue: 39ch;
+  --width-dialogue: 39ch;
+  --align-dialogue: left;
   --indent-parenthetical: 12.7778ch;
-  --measure-parenthetical: 47.2222ch;
+  --width-parenthetical: 47.2222ch;
+  --align-parenthetical: left;
   --indent-transition: 0ch;
-  --measure-transition: 60ch;
+  --width-transition: 60ch;
+  --align-transition: right;
   --indent-centered: 0ch;
-  --measure-centered: 61ch;
+  --width-centered: 61ch;
+  --align-centered: center;
   --indent-lyrics: 0ch;
-  --measure-lyrics: 61ch;
+  --width-lyrics: 61ch;
+  --align-lyrics: left;
   --indent-section: 0ch;
-  --measure-section: 61ch;
+  --width-section: 61ch;
+  --align-section: left;
   --indent-synopsis: 0ch;
-  --measure-synopsis: 61ch;
+  --width-synopsis: 61ch;
+  --align-synopsis: left;
   --indent-page-break: 0ch;
-  --measure-page-break: 61ch;
+  --width-page-break: 61ch;
+  --align-page-break: left;
   --indent-note: 0ch;
-  --measure-note: 61ch;
+  --width-note: 61ch;
+  --align-note: left;
   --indent-boneyard-start: 0ch;
-  --measure-boneyard-start: 61ch;
+  --width-boneyard-start: 61ch;
+  --align-boneyard-start: left;
   --indent-boneyard-end: 0ch;
-  --measure-boneyard-end: 61ch;
+  --width-boneyard-end: 61ch;
+  --align-boneyard-end: left;
 }

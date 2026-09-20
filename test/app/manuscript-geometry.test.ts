@@ -27,11 +27,13 @@ import {
   CHARACTER_INCHES,
   ELEMENT_GEOMETRY,
   PAGE,
+  alignProperty,
   bodyHeightInches,
+  inchesFor,
   indentProperty,
   marginRightInches,
-  measureProperty,
   stylesheet,
+  widthProperty,
 } from "../../src/screenplay/geometry.ts";
 import { ELEMENT_TYPES } from "../../src/screenplay/schema.ts";
 
@@ -40,9 +42,9 @@ const GENERATED = join(root, "app", "src", "style", "geometry.css");
 const EDITOR = join(root, "app", "src", "style", "editor.css");
 const FONTS = join(root, "app", "public", "fonts");
 
-/** Points from the sheet's left edge to an element's left edge, as the PDF has it. */
-const pointsFromSheetLeft = (indent: number): number =>
-  (PAGE.marginLeftInches + indent / 10) * 72;
+/** Points from the sheet's left edge to a position `characters` in from the margin. */
+const pointsFromSheetLeft = (characters: number): number =>
+  (PAGE.marginLeftInches + inchesFor(characters)) * 72;
 
 /**
  * Every x position Final Draft set a line at, and how many lines it set there.
@@ -52,8 +54,12 @@ const pointsFromSheetLeft = (indent: number): number =>
  * indent at all.
  */
 const MEASURED_X_POINTS: ReadonlyArray<readonly [string, number, number]> = [
-  ["scene-heading", 108, 1882],
-  ["action", 108, 1882],
+  // 1,882 lines begin at x = 108pt: 1,690 action and 192 scene headings, which
+  // share the margin. The two populations are counted apart because the measure
+  // below is action's — no scene heading in the PDF exceeds 55 characters, so
+  // none of them exercises it.
+  ["scene-heading", 108, 192],
+  ["action", 108, 1690],
   ["character", 243, 784],
   ["dialogue", 171, 1720],
   ["parenthetical", 200, 97],
@@ -63,7 +69,13 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
   for (const [type, x, lines] of MEASURED_X_POINTS) {
     it(`puts ${type} where the PDF puts it: x = ${x}pt, over ${lines} lines`, () => {
       const measure = ELEMENT_GEOMETRY[type as keyof typeof ELEMENT_GEOMETRY];
-      expect(pointsFromSheetLeft(measure.indent)).toBeCloseTo(x, 3);
+      // Within a tenth of a point, stated as a tolerance rather than as a
+      // precision digit, because the size of the disagreement is the thing
+      // worth saying. Courier Prime's advance is 1228/2048 em and not exactly
+      // 0.6, so a cue 18.75 characters in lands 0.088pt short of where Final
+      // Draft set it. That is the whole of the difference, and it is 0.001in.
+      const drift = Math.abs(pointsFromSheetLeft(measure.indent) - x);
+      expect(drift, `${type} is ${drift.toFixed(3)}pt from the PDF`).toBeLessThan(0.1);
     });
   }
 
@@ -75,8 +87,12 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     // count, because the character count is what moves a page break.
     expect(ELEMENT_GEOMETRY.action.width).toBe(61);
     expect(ELEMENT_GEOMETRY["scene-heading"].width).toBe(61);
-    // And the consequence is written down rather than quietly absorbed.
-    expect(marginRightInches()).toBeCloseTo(0.9, 6);
+    // And the consequence is written down rather than quietly absorbed. 0.904in
+    // rather than a round 0.9, because 61 characters of Courier Prime are
+    // 6.096in and not 6.1 — the same 0.06% the whole table is held in
+    // characters to avoid compounding.
+    expect(marginRightInches()).toBeCloseTo(0.904, 3);
+    expect(marginRightInches()).not.toBeCloseTo(0.9, 3);
     expect(PAGE.measureCharacters).toBeGreaterThan(PAGE.rightMarginCharacters);
   });
 
@@ -93,9 +109,7 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     // Solved from four transitions at four x positions — `CUT TO:` at 491pt
     // with 7 characters against `MATCH CUT TO:` at 449pt with 13 — giving a
     // right edge of 540pt with no remainder on the other two.
-    const rightEdgePoints =
-      (PAGE.marginLeftInches + (transition.indent + transition.width) / 10) * 72;
-    expect(rightEdgePoints).toBeCloseTo(540, 6);
+    expect(pointsFromSheetLeft(transition.indent + transition.width)).toBeCloseTo(540, 0);
   });
 
   it("sets the leading to the PDF's 12 points, not the reference's 1.4", () => {
@@ -112,7 +126,7 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     // A margin that does not add up is the quiet kind of layout bug: every
     // element looks right and the page is the wrong height.
     expect(
-      PAGE.marginLeftInches + PAGE.measureCharacters / 10 + marginRightInches(),
+      PAGE.marginLeftInches + inchesFor(PAGE.measureCharacters) + marginRightInches(),
     ).toBeCloseTo(PAGE.widthInches, 6);
 
     const bottom = PAGE.heightInches - PAGE.marginTopInches - bodyHeightInches();
@@ -143,8 +157,23 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
   it("keeps every element inside the sheet", () => {
     for (const type of ELEMENT_TYPES) {
       const { indent, width } = ELEMENT_GEOMETRY[type];
-      const rightInches = PAGE.marginLeftInches + (indent + width) / 10;
+      const rightInches = PAGE.marginLeftInches + inchesFor(indent + width);
       expect(rightInches, type).toBeLessThanOrEqual(PAGE.widthInches);
+    }
+  });
+
+  it("keeps a whole number of characters wherever the PDF shows a wrap", () => {
+    // ADR-0024's mitigation — a column that is an exact multiple of the advance
+    // — only holds where the measure is a whole number of characters. It is,
+    // for every element whose wrapping the PDF actually exercises.
+    for (const type of ["action", "scene-heading", "dialogue", "transition"] as const) {
+      expect(Number.isInteger(ELEMENT_GEOMETRY[type].width), type).toBe(true);
+    }
+    // The two that are fractional are the two the PDF never wraps, and they are
+    // fractional because they run to the right margin from a fractional indent.
+    // If one ever gains a measured wrap, it gains a whole number with it.
+    for (const type of ["character", "parenthetical"] as const) {
+      expect(ELEMENT_GEOMETRY[type].source, type).toContain("not observed");
     }
   });
 });
@@ -158,11 +187,12 @@ describe("the layout and the page count read one table (#40)", () => {
     expect(readFileSync(GENERATED, "utf8")).toBe(stylesheet());
   });
 
-  it("declares an indent and a measure for every element type", () => {
+  it("declares an indent, a width and an alignment for every element type", () => {
     const css = readFileSync(GENERATED, "utf8");
     for (const type of ELEMENT_TYPES) {
       expect(css, type).toContain(`${indentProperty(type)}:`);
-      expect(css, type).toContain(`${measureProperty(type)}:`);
+      expect(css, type).toContain(`${widthProperty(type)}:`);
+      expect(css, type).toContain(`${alignProperty(type)}:`);
     }
   });
 
@@ -172,10 +202,22 @@ describe("the layout and the page count read one table (#40)", () => {
       const rule = new RegExp(
         `\\.manuscript > \\[data-element="${type}"\\]\\s*\\{[^}]*` +
           `margin-left: var\\(${indentProperty(type)}\\);[^}]*` +
-          `width: var\\(${measureProperty(type)}\\);`,
+          `width: var\\(${widthProperty(type)}\\);[^}]*` +
+          `text-align: var\\(${alignProperty(type)}\\);`,
       );
       expect(rule.test(css), `${type} is not laid out from the table`).toBe(true);
     }
+  });
+
+  it("aligns from the table rather than from the stylesheet", () => {
+    // The one part of an element's place a stylesheet could plausibly hold on
+    // its own, and so the one most likely to drift from the table unnoticed:
+    // nothing else would fail if the table said "left" and the page centred.
+    const css = readFileSync(GENERATED, "utf8");
+    expect(css).toContain(`${alignProperty("transition")}: right;`);
+    expect(css).toContain(`${alignProperty("centered")}: center;`);
+    expect(css).toContain(`${alignProperty("action")}: left;`);
+    expect(ELEMENT_GEOMETRY.centered.alignment).toBe("centre");
   });
 
   it("measures in `ch`, which is the advance width itself", () => {
@@ -185,7 +227,7 @@ describe("the layout and the page count read one table (#40)", () => {
     // multiple of it by construction rather than by arithmetic.
     const css = readFileSync(GENERATED, "utf8");
     for (const type of ELEMENT_TYPES) {
-      expect(css).toMatch(new RegExp(`${measureProperty(type)}: [\\d.]+ch;`));
+      expect(css).toMatch(new RegExp(`${widthProperty(type)}: [\\d.]+ch;`));
     }
   });
 
@@ -196,8 +238,10 @@ describe("the layout and the page count read one table (#40)", () => {
     // that its own subject's name satisfies is not a check.
     const rules = readFileSync(EDITOR, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(rules).not.toContain("text-transform");
-    // The rule can still fail: the stripping leaves declarations alone.
-    expect(rules).toContain("text-align: right");
+    // The rule can still fail: the stripping leaves declarations alone. The
+    // sentinel is `text-align`, which is next to `text-transform` in both the
+    // alphabet and in what it would be reaching for.
+    expect(rules).toContain("text-align: var(--align-transition)");
   });
 });
 
@@ -263,5 +307,9 @@ describe("Courier Prime is bundled, not borrowed (ADR-0001, ADR-0030)", () => {
     expect(advances[0]).toBeCloseTo(1228 / 2048, 10);
     expect(CHARACTER_INCHES).toBeCloseTo(0.1, 3);
     expect(CHARACTER_INCHES).not.toBe(0.1);
+    // And the table's arithmetic goes through it, rather than through a tidier
+    // division by ten that would be wrong 61 times over.
+    expect(inchesFor(61)).toBeCloseTo(6.096, 3);
+    expect(inchesFor(61)).not.toBeCloseTo(6.1, 3);
   });
 });
