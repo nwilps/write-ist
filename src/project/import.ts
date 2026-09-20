@@ -45,8 +45,6 @@ export interface ImportedProject {
   readonly project: Project;
   /** Shown at once, and dismissed by the writer (ADR-0028). */
   readonly report: ImportReport;
-  /** The document as imported, for the editor to open without re-reading. */
-  readonly document: ScreenplayDocument;
 }
 
 /** The default way to mint a project id: a UUID4 (ADR-0015). */
@@ -88,7 +86,7 @@ export async function importProject(
     new TextEncoder().encode(serialiseMarker(marker)),
   );
 
-  return { bundlePath, project: { path: bundlePath, marker }, report, document };
+  return { bundlePath, project: { path: bundlePath, marker }, report };
 }
 
 /**

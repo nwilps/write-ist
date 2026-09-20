@@ -10,9 +10,15 @@
  * screen reader can read and a writer can select. Nothing is drawn.
  */
 import type { Project } from "../../../src/project/bundle.ts";
+import { element } from "./element.ts";
 
 export interface ProjectsScreen {
   readonly projects: readonly Project[];
+  /**
+   * Folders holding a marker Write-ist could not read (ADR-0008 rule 4). Named
+   * so the writer is told, never adopted, never written into.
+   */
+  readonly unreadable: readonly string[];
   /** What the writer does here: bring a screenplay in. */
   readonly onImport: () => void;
   /** Set while an import is running, so it cannot be started twice. */
@@ -27,8 +33,16 @@ export function renderProjects(into: HTMLElement, screen: ProjectsScreen): void 
       element("h1", { className: "screen__name", textContent: "Write-ist" }),
       importButton(screen),
     ]),
-    screen.projects.length === 0 ? nothingYet() : projectsList(screen.projects),
+    // "No projects yet" is a claim about the folder, so it is only made when
+    // the folder was actually read. A failed read must never read as an empty
+    // one — that is ADR-0008 rule 3's instinct applied to the screen.
+    ...(screen.projects.length > 0
+      ? [projectsList(screen.projects)]
+      : screen.trouble === undefined
+        ? [nothingYet()]
+        : []),
     ...(screen.trouble === undefined ? [] : [trouble(screen.trouble)]),
+    ...(screen.unreadable.length === 0 ? [] : [declined(screen.unreadable)]),
   );
 }
 
@@ -68,20 +82,34 @@ function nothingYet(): HTMLElement {
   ]);
 }
 
+/**
+ * Folders that look like projects and could not be read.
+ *
+ * ADR-0008 rule 4: an unresolvable record fails **loudly** and is retained.
+ * Retaining is automatic here — nothing is written — so being loud is the
+ * whole of the work, and it is what this says. The writer is told which folder
+ * and told that it is untouched, because the repair is theirs to make.
+ */
+function declined(folders: readonly string[]): HTMLElement {
+  return element("div", { className: "trouble" }, [
+    element("p", {
+      className: "trouble__line",
+      textContent:
+        folders.length === 1
+          ? "One folder looks like a project but could not be read. It has been left exactly as it is:"
+          : `${folders.length} folders look like projects but could not be read. They have been left exactly as they are:`,
+    }),
+    element(
+      "ul",
+      { className: "trouble__folders" },
+      folders.map((name) => element("li", { textContent: name })),
+    ),
+  ]);
+}
+
 function trouble(message: string): HTMLElement {
   // `role="alert"` so a screen reader is told without the writer going looking.
   const panel = element("p", { className: "trouble", textContent: message });
   panel.setAttribute("role", "alert");
   return panel;
-}
-
-/** Build an element, set its plain properties, and give it its children. */
-export function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  properties: Partial<HTMLElementTagNameMap[K]> = {},
-  children: readonly Node[] = [],
-): HTMLElementTagNameMap[K] {
-  const node = Object.assign(document.createElement(tag), properties);
-  node.append(...children);
-  return node;
 }

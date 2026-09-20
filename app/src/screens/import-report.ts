@@ -10,7 +10,7 @@
  * checkable. This file only puts those lines on the page.
  */
 import type { ImportReportLine } from "../../../src/project/report.ts";
-import { element } from "./projects.ts";
+import { element } from "./element.ts";
 
 export interface ImportReportScreen {
   readonly projectName: string;
@@ -28,7 +28,7 @@ export function showImportReport(
     textContent: "Done",
   });
 
-  const dialogue = element("dialog", { className: "report" }, [
+  const modal = element("dialog", { className: "report" }, [
     element("h2", { className: "report__heading", textContent: `${projectName} is imported` }),
     element("p", {
       className: "report__standfirst",
@@ -39,16 +39,16 @@ export function showImportReport(
     element("div", { className: "report__actions" }, [done]),
   ]);
 
-  dialogue.addEventListener("close", () => {
-    dialogue.remove();
+  modal.addEventListener("close", () => {
+    modal.remove();
     onDismiss();
   });
-  done.addEventListener("click", () => dialogue.close());
+  done.addEventListener("click", () => modal.close());
 
-  into.append(dialogue);
-  dialogue.showModal();
+  into.append(modal);
+  modal.showModal();
   done.focus();
-  return dialogue;
+  return modal;
 }
 
 function changes(lines: readonly ImportReportLine[]): HTMLElement {

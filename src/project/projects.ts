@@ -12,56 +12,98 @@
  */
 import { join, type Filesystem } from "./filesystem.ts";
 import { MARKER_FILE, type Project } from "./bundle.ts";
-import { parseMarker } from "./marker.ts";
+import { parseMarker, type ProjectMarker } from "./marker.ts";
 
+// Lenient, and the only lenient decode in the application: nothing downstream
+// ever writes this text back. A marker full of replacement characters simply
+// fails to parse, and failing to parse is an answer this module has a name
+// for. The manuscript, which *is* written back, goes through `decodeFile`'s
+// strict path instead.
 const decoder = new TextDecoder("utf-8", { fatal: false });
 
+export interface ProjectsListing {
+  /** Every folder that is a project, sorted by name without case. */
+  readonly projects: readonly Project[];
+  /**
+   * Folders that hold a `project.md` which could not be read.
+   *
+   * **Absent and unparseable are different** (ADR-0016), and this is the
+   * difference. A folder with no marker is not a project and is not mentioned
+   * — most folders in `Documents` are not projects, and listing them as
+   * problems would be noise. A folder that *has* a marker Write-ist cannot
+   * read is a project-shaped thing that went wrong, and ADR-0008 rule 4 is
+   * that such a record fails **loudly** and is retained: it is named here so
+   * the writer is told, and it is never adopted and never written into
+   * (ADR-0015).
+   */
+  readonly unreadable: readonly string[];
+}
+
 /**
- * Every project in the default location.
- *
- * **A folder with no marker, or with one that cannot be read, is not listed
- * and is never written into** (ADR-0015, #38). That is a fail-closed rule, not
- * a tidy-up: adopting an ambiguous folder is ADR-0008 rule 3 one step earlier,
- * at the point of deciding what a folder even is. So an unreadable marker is
- * skipped exactly as an absent one is — the folder stays whatever it was.
- *
- * Sorted by name, without case, so the list the writer sees does not depend on
- * the order the filesystem happened to hand the folders over in.
+ * Every project in the default location, and every folder that looked like one
+ * and could not be read.
  */
 export async function listProjects(
   filesystem: Filesystem,
   projectsDirectory: string,
-): Promise<readonly Project[]> {
+): Promise<ProjectsListing> {
   const entries = await filesystem.readDirectory(projectsDirectory);
   const projects: Project[] = [];
+  const unreadable: string[] = [];
 
   for (const entry of entries) {
     if (!entry.isDirectory) continue;
+    // A hidden folder is never a project. Write-ist does not make them, and
+    // the default location is inside `Documents`, where other tools do — the
+    // writer's own `.catalog-snapshot` sits there today. Reading one to find
+    // out costs a line in the report the moment anything about it is
+    // unusual, and it could never have been a project anyway.
+    if (entry.name.startsWith(".")) continue;
     const path = join(projectsDirectory, entry.name);
+
     const marker = await readMarker(filesystem, path);
-    if (marker !== null) projects.push({ path, marker });
+    if (marker === "no marker") continue;
+    if (marker === "unreadable") {
+      unreadable.push(entry.name);
+      continue;
+    }
+    projects.push({ path, marker });
   }
 
-  return projects.sort((one, other) =>
+  projects.sort((one, other) =>
     one.marker.name.localeCompare(other.marker.name, "en", { sensitivity: "base" }),
   );
+  return { projects, unreadable: unreadable.sort() };
 }
 
 /**
- * A folder's marker, or `null` if this folder is not a bundle.
+ * What a folder's marker turns out to be.
  *
- * A read that throws and a marker that will not parse are the same answer
- * here, and the answer is *not a bundle*. The decoder is deliberately lenient
- * — the only lenient decode in the application — because nothing downstream
- * ever writes this text back: it is read to decide whether to list a folder,
- * and a marker full of replacement characters simply fails to parse. The
- * manuscript, which is written back, goes through `decodeFile`'s strict path.
+ * Whether the marker is *there* is answered by listing the folder rather than
+ * by whether reading it threw, because those are two different questions and
+ * a thrown read cannot tell them apart. A permission error on a marker that
+ * exists is `"unreadable"`, which is what makes it loud.
  */
-async function readMarker(filesystem: Filesystem, bundlePath: string) {
+async function readMarker(
+  filesystem: Filesystem,
+  bundlePath: string,
+): Promise<ProjectMarker | "no marker" | "unreadable"> {
+  let held;
+  try {
+    held = await filesystem.readDirectory(bundlePath);
+  } catch {
+    // The folder itself would not open. Nothing can be said about what is in
+    // it, so it is not claimed as a project.
+    return "unreadable";
+  }
+  if (!held.some((entry) => entry.name === MARKER_FILE && !entry.isDirectory)) {
+    return "no marker";
+  }
+
   try {
     const bytes = await filesystem.readFile(join(bundlePath, MARKER_FILE));
-    return parseMarker(decoder.decode(bytes));
+    return parseMarker(decoder.decode(bytes)) ?? "unreadable";
   } catch {
-    return null;
+    return "unreadable";
   }
 }

@@ -54,12 +54,8 @@
 
   /** The window behind everything. */
   --colour-base: #1d2021;
-  /** Anything sitting on top of it: a panel, a row, a dialogue. */
+  /** Anything sitting on top of it: a panel, a row, a modal. */
   --colour-raised: #282828;
-  /** The page a manuscript is drawn on. Its own value, not `raised`, because
-      the day they stop being the same colour is a theme, not a code change. */
-  --colour-page: #282828;
-
   /** Text the writer is reading. */
   --colour-text: #ebdbb2;
   /** Text beside it: a label, a subtitle. */
@@ -114,7 +110,7 @@
 
   /** How wide a column of text is allowed to get before it is hard to read. */
   --measure-reading: 62ch;
-  /** The widest the projects list or a dialogue grows on a large screen. */
+  /** The widest the projects list or a modal grows on a large screen. */
   --measure-screen: 760px;
 
   /* --- Edges ----------------------------------------------------------- */

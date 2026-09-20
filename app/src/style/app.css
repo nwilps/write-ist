@@ -63,12 +63,6 @@ body {
   color: var(--colour-accent);
 }
 
-.screen__note {
-  margin: 0;
-  font-size: var(--size-hint);
-  color: var(--colour-faint);
-}
-
 /* --- Buttons ------------------------------------------------------------ */
 
 .button {
@@ -240,4 +234,14 @@ body {
   border-radius: var(--radius-slight);
   color: var(--colour-text);
   font-size: var(--size-label);
+}
+
+.trouble__line {
+  margin: 0;
+}
+
+.trouble__folders {
+  margin: var(--space-tight) 0 0;
+  padding-left: var(--space-roomy);
+  color: var(--colour-muted);
 }

@@ -17,20 +17,31 @@ import { renderProjects } from "./screens/projects.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { defaultProjectsDirectory, tauriFilesystem } from "./tauri-filesystem.ts";
 
-const into = document.querySelector<HTMLElement>("#app");
-if (into === null) throw new Error("Write-ist has no window to draw into.");
+const found = document.querySelector<HTMLElement>("#app");
+if (found === null) throw new Error("Write-ist has no window to draw into.");
+/** Where every screen is drawn. Narrowed once, here, rather than at each use. */
+const into: HTMLElement = found;
 
 let projects: readonly Project[] = [];
+let unreadable: readonly string[] = [];
 let importing = false;
 let trouble: string | undefined;
 
 async function draw(): Promise<void> {
-  renderProjects(into!, { projects, importing, trouble, onImport: () => void importOne() });
+  renderProjects(into, {
+    projects,
+    unreadable,
+    importing,
+    trouble,
+    onImport: () => void importOne(),
+  });
 }
 
 async function refresh(): Promise<void> {
   const directory = await defaultProjectsDirectory();
-  projects = await listProjects(tauriFilesystem, directory);
+  const listing = await listProjects(tauriFilesystem, directory);
+  projects = listing.projects;
+  unreadable = listing.unreadable;
 }
 
 async function importOne(): Promise<void> {
@@ -61,7 +72,7 @@ async function importOne(): Promise<void> {
 
     // Shown at the moment the import completes, and dismissed by the writer
     // (ADR-0028).
-    showImportReport(into!, {
+    showImportReport(into, {
       projectName: imported.project.marker.name,
       lines: describeImportReport(imported.report),
       onDismiss: () => void draw(),
