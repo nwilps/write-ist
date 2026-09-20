@@ -27,8 +27,14 @@ blocks what.
   Check the element census, not just the file.
 - **Never edit an expected value to match what the code produced.** Say which number disagrees and
   why; one of the two is a bug.
-- **Work on a branch, commit, and push. Do not open a pull request.** A separate session checks the
-  work against the ticket and opens it.
+- **Finish the ticket yourself: branch, commit, push, and open the pull request.** Reference the
+  ticket so that merging closes it. No one is checking behind you ticket by ticket.
+- **The pull request carries the numbers its acceptance criteria name** — byte counts, element
+  counts, page counts, timings — measured, not asserted. That is what makes the next person's start
+  clean.
+- **CI runs the type check and the test suite on every pull request.** The corpus tests skip there,
+  because the corpus is not in the repo: run those locally and put their numbers in the pull request
+  too. A green CI plus those numbers is the hand-off.
 
 ## Start here
 
