@@ -4,12 +4,31 @@ A fully local, offline writing application. See [`README.md`](README.md) for the
 project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem. Open questions are
 GitHub Issues, never a doc.
 
-**Status: v2, building the document model.** One layer exists and is tested: **bytes on disk ↔ a
-flat sequence of typed elements**, for both surfaces, in `src/`. Nothing above that layer does —
-no comments modelled, no ranges, no counts, no pagination, no application.
+**Status: v2, building slice 1 — the first application.** The document model is built and tested:
+**bytes on disk ↔ a flat sequence of typed elements**, both surfaces, with marks and comments, in
+`src/`. **There is no application yet** — no ranges, no counts, no pagination, no window.
 
 Before proposing work, read `SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The
 round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
+
+## Working a ticket
+
+The work is cut into slices. **Issue #37** is the current slice's spec — the smallest Write-ist a
+screenplay can be written in — and **#38–#50** are its tickets, attached to it and ordered by what
+blocks what.
+
+- **Read the ticket you are given, and read its parent spec.** The spec's *Testing Decisions* govern
+  how the work is checked; the ticket's acceptance criteria are what "done" means.
+- **A ticket starts only when everything in its "Blocked by" is closed.**
+- **`npm test` runs everything.** The acceptance corpus is the writer's unpublished screenplay, read
+  from `$WRITE_IST_CORPUS`. Its tests skip when it is absent, and **it is never committed.**
+- **Assert what a result means, not only that the bytes survived.** Two defects here round-tripped
+  perfectly while being wrong — a cue misread as action, and marks that stopped at the wrong place.
+  Check the element census, not just the file.
+- **Never edit an expected value to match what the code produced.** Say which number disagrees and
+  why; one of the two is a bug.
+- **Work on a branch, commit, and push. Do not open a pull request.** A separate session checks the
+  work against the ticket and opens it.
 
 ## Start here
 
