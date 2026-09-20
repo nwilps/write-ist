@@ -2,9 +2,11 @@
  * The application's surfaces. **Every value here is a token** (ADR-0030) —
  * there is not a hex colour, a pixel size or a font name below this line.
  *
- * Two screens exist in slice 1: the projects list the application opens to,
- * and the import report shown once an import completes. The workspace bar and
- * the Editor arrive in later tickets.
+ * Three surfaces exist in slice 1: the home screen the application opens to,
+ * the Open Project screen reached from it, and the import report shown once an
+ * import completes. Both screens are a centred composition over the window,
+ * which is v1's shape. The workspace bar and the Editor arrive in later
+ * tickets.
  */
 
 *,
@@ -39,28 +41,140 @@ body {
 
 /* --- The screen --------------------------------------------------------- */
 
+/*
+ * v1's shape: one composition, centred in the window, on both screens. Nothing
+ * is anchored to a corner, so moving between them moves the eye as little as
+ * possible.
+ */
 .screen {
-  max-width: var(--measure-screen);
-  margin: 0 auto;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-vast) var(--space-loose);
 }
 
-.screen__banner {
+.composition {
+  width: 100%;
+  max-width: var(--measure-reading);
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-roomy);
-  flex-wrap: wrap;
-  padding-bottom: var(--space-snug);
-  border-bottom: var(--rule-thin) solid var(--colour-border);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-loose);
 }
 
-.screen__name {
+/* A composition that holds a list of projects rather than a menu alone. */
+.composition--wide {
+  max-width: var(--measure-screen);
+  align-items: stretch;
+}
+
+/* Write-ist's own name, on the home screen. */
+.wordmark {
   margin: 0;
   font-size: var(--size-title);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-label);
   color: var(--colour-accent);
+}
+
+/* What this screen is, on every screen that is not home. */
+.screen__name {
+  margin: 0;
+  font-size: var(--size-heading);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--colour-accent);
+  padding-bottom: var(--space-snug);
+  border-bottom: var(--rule-thin) solid var(--colour-border);
+}
+
+/* --- Menus -------------------------------------------------------------- */
+
+/*
+ * A column of gestures, each with its letter — v1's menu. The `>` is
+ * decoration: focus is what tells a screen reader, and the button is what
+ * Enter, Tab and the space bar already act on.
+ */
+.menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+}
+
+.menu--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-snug);
+  padding-top: var(--space-snug);
+  border-top: var(--rule-thin) solid var(--colour-border);
+}
+
+.gesture {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-snug);
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--size-body);
+  font-weight: inherit;
+  line-height: var(--leading-tight);
+  text-align: left;
+  padding: var(--space-tight) var(--space-roomy);
+  border: var(--rule-thin) solid transparent;
+  border-radius: var(--radius-slight);
+  background: transparent;
+  color: var(--colour-text);
+  cursor: pointer;
+  transition: background var(--duration-quick), color var(--duration-quick);
+}
+
+.menu--row .gesture {
+  width: auto;
+}
+
+.gesture:hover,
+.gesture:focus-visible {
+  background: var(--colour-raised);
+  color: var(--colour-accent);
+}
+
+/* Reserved rather than removed, so nothing shifts when the eye arrives. */
+.gesture__cursor {
+  visibility: hidden;
+  color: var(--colour-accent);
+}
+
+.gesture:hover .gesture__cursor,
+.gesture:focus-visible .gesture__cursor {
+  visibility: visible;
+}
+
+.gesture__label {
+  flex: 1;
+}
+
+.gesture__key {
+  color: var(--colour-faint);
+  font-size: var(--size-hint);
+}
+
+.gesture:disabled {
+  color: var(--colour-faint);
+  cursor: default;
+}
+
+.gesture:disabled:hover {
+  background: transparent;
+  color: var(--colour-faint);
 }
 
 /* --- Buttons ------------------------------------------------------------ */
@@ -95,11 +209,11 @@ body {
   color: var(--colour-on-accent);
 }
 
-/* --- The projects list -------------------------------------------------- */
+/* --- The projects -------------------------------------------------- */
 
 .projects {
   list-style: none;
-  margin: var(--space-loose) 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: var(--space-tight);
@@ -134,8 +248,14 @@ body {
   letter-spacing: var(--tracking-label);
 }
 
+.reading {
+  margin: 0;
+  color: var(--colour-faint);
+  text-align: center;
+}
+
 .nothing-yet {
-  margin: var(--space-loose) 0 0;
+  margin: 0 auto;
   padding: var(--space-loose);
   max-width: var(--measure-reading);
   border: var(--rule-thin) dashed var(--colour-border);
@@ -226,7 +346,7 @@ body {
 /* --- Trouble ------------------------------------------------------------ */
 
 .trouble {
-  margin: var(--space-loose) 0 0;
+  margin: 0;
   padding: var(--space-snug) var(--space-roomy);
   max-width: var(--measure-reading);
   border: var(--rule-thin) solid var(--colour-alarm);

@@ -143,19 +143,24 @@ The four steps agreed as the way into Phase 5 are done: the code merged and the 
 (#29, #30); the import report fixed (#27); comments modelled (#35); and autosave and spellcheck
 decided — **ADR-0028** and **ADR-0029**, closing #11 and #12.
 
-### Done: the application launches, and a screenplay can be brought into it (#38)
+### Done: the application launches, and a screenplay can be brought into it (#38, #55)
 
-A Tauri shell over the system webview, Linux/WebKitGTK (ADR-0001, ADR-0024), opening to the
-projects screen. `src/project/` holds the layer above the document model: the bundle on disk
-(ADR-0025), the `project.md` marker with its format version and minted project id (ADR-0004,
-ADR-0015), **import** into the default location (ADR-0016, ADR-0028), and the import report in
-the writer's words (ADR-0020).
+A Tauri shell over the system webview, Linux/WebKitGTK (ADR-0001, ADR-0024), opening on the home
+screen, with **Open Project** its own screen — the shape Phase 1 recorded above, restored by #55
+after #38 built the single screen an earlier draft of #37 described. `src/project/` holds the
+layer above the document model: the bundle on disk (ADR-0025), the `project.md` marker with its
+format version and minted project id (ADR-0004, ADR-0015), **import** into the default location
+(ADR-0016, ADR-0028), and the import report in the writer's words (ADR-0020).
 
 - Everything is above a four-method `Filesystem` port, so the disk tests use real files in a
   temporary folder and the application uses Tauri's plugin. No logic lives in the window.
 - The look is data (ADR-0030): one set of values in `app/src/style/tokens.css`, JetBrainsMono
   Nerd Font bundled, and a test that fails on a styling literal in any component.
-- 425 tests, 79 of them new.
+- Shape and flow of both screens follow v1's `HomeScreen` and `OpenProjectScreen`: a centred
+  composition, a column of gestures each with its letter, Escape to leave. v1's editor is not a
+  reference for anything.
+- 443 tests with the acceptance corpus present, 9 of them new in #55 — the letter beside each
+  gesture, which is the part of a screen decidable without a window.
 
 ### Not started, and deliberately above this layer
 

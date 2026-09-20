@@ -13,10 +13,10 @@ No accounts. No sync. No network. Your documents remain readable if this app dis
 The parser and serialiser for both surfaces are built and tested: five manuscripts go in and come
 back out, the largest 645 KB, compared as bytes on disk rather than strings in memory.
 
-Above that sits the application, now begun. It launches on Linux, opens to a list of projects, and
-**imports** a Fountain screenplay into a new project saved at once — leaving the file it came from
-exactly as it was, and naming everything it adjusted. Counts, pagination and the editor itself are
-still to come.
+Above that sits the application, now begun. It launches on Linux, opens on a home screen, and from
+its **Open Project** screen lists the projects and **imports** a Fountain screenplay into a new
+project saved at once — leaving the file it came from exactly as it was, and naming everything it
+adjusted. Counts, pagination and the editor itself are still to come.
 
 v1 shipped and produced a complete feature screenplay. It is being rewritten because its
 screenplay parse/serialise engine isn't good enough — the editor is slow, locked to
