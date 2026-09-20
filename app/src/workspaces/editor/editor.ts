@@ -31,6 +31,7 @@ import { openProject } from "../../../../src/project/open.ts";
 import { toEditorDocument } from "../../../../src/screenplay/editor.ts";
 import { screenplaySchema } from "../../../../src/screenplay/schema.ts";
 import { element } from "../../screens/element.ts";
+import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
   WorkspaceContext,
@@ -92,8 +93,4 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       view = undefined;
     },
   };
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -27,6 +27,7 @@ import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { chosenBy, type Gesture } from "./screens/shortcuts.ts";
+import { message } from "./screens/trouble.ts";
 import { mountShell, type MountedShell } from "./shell/shell.ts";
 import { WORKSPACES } from "./workspaces/registry.ts";
 import type { Project } from "../../src/project/bundle.ts";
@@ -47,7 +48,7 @@ let opened: Project | undefined;
  *
  * The shell is **mounted, not redrawn**: a live editing engine holds the
  * selection, the scroll position and eventually the undo stack, and rebuilding
- * the chrome around it would throw all three away. So `draw()` puts it up once
+ * the furniture around it would throw all three away. So `draw()` puts it up once
  * and `go()` takes it down.
  */
 let shell: MountedShell | undefined;
@@ -82,7 +83,7 @@ function draw(): void {
           importing,
           trouble,
           onImport: () => void importOne(),
-          onOpen: openProject,
+          onOpen: goToProject,
           onBack: () => go("home"),
         });
 }
@@ -90,7 +91,7 @@ function draw(): void {
 /**
  * The project the shell is being drawn for.
  *
- * Unreachable — `openProject` sets it before going to the screen — and loud
+ * Unreachable — `goToProject` sets it before going to the screen — and loud
  * rather than a blank window if it ever is reached (`docs/STANDARDS.md`: know
  * which of your tools fail silently).
  */
@@ -100,7 +101,7 @@ function projectOnScreen(): Project {
 }
 
 /** Open a project: the shell, hosting the workspaces it shows. */
-function openProject(project: Project): void {
+function goToProject(project: Project): void {
   opened = project;
   go("project");
 }
@@ -221,8 +222,5 @@ function quit(): void {
     });
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 draw();

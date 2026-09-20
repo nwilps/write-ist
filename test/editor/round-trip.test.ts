@@ -105,8 +105,11 @@ function through(manuscript: Uint8Array): {
 }
 
 /**
- * The four screenplay manuscripts, with the byte counts seam 1 pinned. The
- * editor may not move one of them by a byte.
+ * The three committed screenplay manuscripts, with the byte counts seam 1
+ * pinned. The fourth is the acceptance corpus, which is not in the repo and so
+ * has its own block at the foot of this file.
+ *
+ * The editor may not move one of them by a byte.
  */
 const MANUSCRIPTS: readonly (readonly [string, number])[] = [
   ["Brick-&-Steel.fountain", 2_901],

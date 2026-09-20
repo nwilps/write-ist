@@ -63,9 +63,6 @@ export const ELEMENT_TYPES: readonly ElementType[] = [
   "boneyard-end",
 ];
 
-/** The attribute every rendered element carries its type in (ADR-0029). */
-export const ELEMENT_TYPE_ATTRIBUTE = "data-element";
-
 /**
  * One line of the manuscript.
  *
@@ -103,7 +100,7 @@ const element: NodeSpec = {
   toDOM: (node) => [
     "div",
     {
-      [ELEMENT_TYPE_ATTRIBUTE]: String(node.attrs["type"]),
+      "data-element": String(node.attrs["type"]),
       // Present only when true, so `[data-omitted]` is a selector and the
       // attribute means what it says on every element that has it.
       ...(node.attrs["omitted"] === true ? { "data-omitted": "true" } : {}),
