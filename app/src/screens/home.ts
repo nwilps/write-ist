@@ -34,10 +34,12 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
   ];
 
   into.replaceChildren(
-    element("div", { className: "composition" }, [
-      element("h1", { className: "wordmark", textContent: "Write-ist" }),
-      menu(gestures),
-      ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
+    element("main", { className: "screen" }, [
+      element("div", { className: "composition" }, [
+        element("h1", { className: "wordmark", textContent: "Write-ist" }),
+        menu(gestures),
+        ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
+      ]),
     ]),
   );
 

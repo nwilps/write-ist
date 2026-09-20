@@ -79,7 +79,21 @@
 
   /** Everything in the application except a manuscript (ADR-0030). */
   --face-interface: "JetBrainsMono Nerd Font", ui-monospace, monospace;
-  /** The screenplay, and nothing else. Bundled by the editor's ticket. */
+  /**
+   * The screenplay, and nothing else.
+   *
+   * **Bundled by #40**, which owns the industry layout the face's metrics
+   * define (ADR-0001, ADR-0030). Until then it resolves from the system, and
+   * the fallbacks are the spike's.
+   *
+   * Measured on the writer's machine, 2026-09-20: it has no Courier Prime, and
+   * fontconfig answers the request with **Liberation Sans** — a proportional
+   * face — rather than falling through to the next name. So the page here is
+   * laid out correctly and set in the wrong face until #40 bundles the four
+   * weights, which is exactly the argument ADR-0030 makes for bundling: *the
+   * machine the screenplay is being written on cannot render it correctly
+   * without the bundle.*
+   */
   --face-manuscript: "Courier Prime", "Courier New", Courier, monospace;
 
   /* --- Size ------------------------------------------------------------ */
@@ -98,6 +112,51 @@
 
   /** Letter-spacing for the small capitals a label is set in. */
   --tracking-label: 0.08em;
+
+  /* --- The manuscript's page ------------------------------------------- */
+
+  /*
+   * The page the writer types on, from the spike (`nwilps/write-ist-ng`,
+   * `spike/src/style.css`), which took its geometry from v1's constants: an
+   * 8.5in sheet at 96dpi, a 1.5in left margin and a 1in right one.
+   *
+   * **The per-element indents and widths are #40's**, along with 12pt against
+   * Courier Prime's own metrics — that ticket holds them as one table the page
+   * count reads too, so they are deliberately not here. What is here is the
+   * sheet: how wide it is, and how far its margins hold the text off its edges.
+   */
+  --page-width: 816px;
+  --page-inset-top: 48px;
+  --page-inset-right: 96px;
+  --page-inset-bottom: 48px;
+  --page-inset-left: 144px;
+
+  /** Provisional, from the spike. #40 sets the size the page count is defined against. */
+  --manuscript-size: 16px;
+  --manuscript-leading: 1.4;
+  /**
+   * How tall a blank line in the manuscript is — the size times the leading.
+   *
+   * Blank lines are not elements (ADR-0019): where one falls is a lookup on the
+   * pair of types either side of it, and this is that lookup drawn as space
+   * rather than written as a character.
+   */
+  --manuscript-blank: 22.4px;
+
+  /* --- The shell's furniture ------------------------------------------- */
+
+  /*
+   * From the prototype (`nwilps/write-ist-ng`, `spike/plan.html`) — placement
+   * and proportion, not contents.
+   */
+  --statusbar-height: 26px;
+  /**
+   * The room the floating workspace bar needs above the workspace.
+   *
+   * The bar is not built in slice 1 (#37). The space it sits in is, so that the
+   * chrome it later joins is the chrome that is already here.
+   */
+  --space-chrome: 52px;
 
   /* --- Spacing --------------------------------------------------------- */
 

@@ -134,8 +134,11 @@ stopped at the element boundary (#26).
 ### Not done, and belonging to the editor rather than to this layer
 
 - [ ] **Ranges** — scenes and chapters computed from the flat sequence (ADR-0019). No code yet.
-- [ ] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). Comment
-      ends are element *indices* for now; the editor turns those into stable handles.
+- [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
+      ProseMirror node: a persistent value, created on load, dead when the project closes, never
+      written to a file (#39). **Comment ends are still element *indices***, which nothing moves
+      while nothing edits; the ticket that turns typing on has to move them, and
+      `fromEditorDocument` throws rather than letting one land on the wrong words meanwhile.
 
 ### Decided before `/to-tickets`, 2026-09-19
 
@@ -162,11 +165,39 @@ format version and minted project id (ADR-0004, ADR-0015), **import** into the d
 - 443 tests with the acceptance corpus present, 9 of them new in #55 — the letter beside each
   gesture, which is the part of a screen decidable without a window.
 
+### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
+
+Opening a project from the list shows its manuscript. The **Editor** is a workspace declared
+through a manifest and hosted by the **shell**, which knows nothing about what it hosts
+(ADR-0005) — a rule with a test that fails on it, over `app/src/shell/`: no `"screenplay"`, no
+element type by name, no import from a surface. It is the only workspace; the workspace bar is
+not built.
+
+- The editing engine is **ProseMirror** (ADR-0024), its document mapped from the existing model
+  and back to it (`src/screenplay/schema.ts`, `src/screenplay/editor.ts`). Nothing in `src/`
+  touches a DOM: the schema's `toDOM` returns specifications, which are data.
+- **The round-trip holds through the editor.** All four screenplay manuscripts come back byte
+  for byte — 2,901 / 146,097 / 147,139 / 172,451 — *and* as the same model, asserted whole
+  rather than only as bytes, because ADR-0021 records twice that the byte gate cannot see a
+  misread element.
+- Every one of ADR-0021's fourteen element types is displayed, each carrying its type in the
+  page as `data-element`, which is what spellcheck keys on next slice (ADR-0029). Marks are
+  `em`, `strong` and `u`; no delimiter is drawn. The title page is at the top, cut material is
+  struck through, dual dialogue is stacked with its flag intact, and the five comments survive
+  invisibly.
+- The page follows the **spike** and the furniture the **prototype**; the page's spacing mirrors
+  the serialiser's blank-line table, checked over all 196 ordered pairs of element types with
+  the browser's own CSS parser, because CSS fails silently.
+- **Typing is off** (`editable: () => false`) until #41 gives a keystroke somewhere to go.
+  **Courier Prime is not bundled** — that is #40's first criterion — so on a machine without it
+  fontconfig answers with Liberation Sans, and the page is laid out correctly in the wrong face.
+
 ### Not started, and deliberately above this layer
 
-Counts and pagination (ADR-0024), drafts and locking (ADR-0002, ADR-0014), the ledger and
-registry (ADR-0017, and the registry half of ADR-0015/0016), and the rest of the application —
-workspace bar, workspaces, editor.
+Counts and pagination (ADR-0024), typing and autosave (#41, ADR-0028), the industry layout
+(#40), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017, and the
+registry half of ADR-0015/0016), and the rest of the application — workspace bar, the other
+workspaces.
 
 ### Still to run
 
