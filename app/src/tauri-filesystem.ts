@@ -1,0 +1,54 @@
+/**
+ * The `Filesystem` port over Tauri's filesystem plugin.
+ *
+ * This is the only file in the application that knows the disk is reached
+ * through Tauri. Everything the import and the projects list actually do lives
+ * in `src/project/`, above the port, where the tests reach it through
+ * `node:fs` and real files in a temporary folder.
+ */
+import { exists, mkdir, readDir, readFile, rename, writeFile } from "@tauri-apps/plugin-fs";
+import { documentDir, join } from "@tauri-apps/api/path";
+import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
+
+export const tauriFilesystem: Filesystem = {
+  async readDirectory(path: string): Promise<readonly DirectoryEntry[]> {
+    // Absent reads as empty: a writer who has never imported anything has no
+    // default location yet, and that is a first run rather than an error.
+    if (!(await exists(path))) return [];
+    const entries = await readDir(path);
+    return entries.map((entry) => ({ name: entry.name, isDirectory: entry.isDirectory }));
+  },
+
+  async readFile(path: string): Promise<Uint8Array> {
+    // Rejects when the file cannot be read, and never resolves to empty bytes
+    // — ADR-0008 rule 3, the exact failure that cost v1 its highlights.
+    return readFile(path);
+  },
+
+  async writeFile(path: string, bytes: Uint8Array): Promise<void> {
+    // Temp, then rename (ADR-0008 rule 5). The rename is atomic within a
+    // filesystem, so a reader — another tool, or Write-ist next time — never
+    // sees a half-written manuscript.
+    const temporary = `${path}.writing`;
+    await writeFile(temporary, bytes);
+    await rename(temporary, path);
+  },
+
+  async createDirectory(path: string): Promise<void> {
+    await mkdir(path, { recursive: true });
+  },
+};
+
+/** The folder inside `Documents` that holds every project (ADR-0016). */
+export const PROJECTS_FOLDER = "write-ist";
+
+/**
+ * `~/Documents/write-ist/` (ADR-0016) — the place the writer never has to
+ * think about.
+ *
+ * Resolved through Tauri rather than built from `$HOME`, so that the folder is
+ * the platform's own Documents directory on each of the three.
+ */
+export async function defaultProjectsDirectory(): Promise<string> {
+  return join(await documentDir(), PROJECTS_FOLDER);
+}

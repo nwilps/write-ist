@@ -28,3 +28,43 @@ jobs:
 
       - name: Tests
         run: npm test
+
+  # "The application builds and launches on Linux (WebKitGTK)" is an acceptance
+  # criterion (#38), so it is checked by a machine from here on rather than
+  # taken on the word of whoever last built it. Launching needs a display and is
+  # the writer's check (#37's fourth seam); building is this job's.
+  builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: WebKitGTK and its dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: The webview bundle
+        run: npm run build
+
+      - name: The shell
+        working-directory: src-tauri
+        run: cargo build --locked

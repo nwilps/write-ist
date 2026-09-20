@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    // The engine runs in the system webview (ADR-0024), so DOM is in scope for
+    // the application in `app/`. Nothing in `src/` touches it.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "types": ["node"],
+    "types": ["node", "vite/client"],
 
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -18,5 +20,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "app/src", "test", "vite.config.ts", "vitest.config.ts"]
 }
