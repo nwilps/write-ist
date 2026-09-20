@@ -1,0 +1,30 @@
+# Every pull request is checked by a machine, not by an agent's word.
+#
+# The acceptance corpus is the writer's unpublished screenplay and is not in the
+# repository, so the tests that need it skip here (see test/support/corpus.ts).
+# Those numbers are run locally and quoted in the pull request instead.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
