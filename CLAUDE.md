@@ -56,6 +56,17 @@ Everything else — the rest of `docs/adr/`, `docs/PLANNING.md`, `docs/research/
   why; one of the two is a bug.
 - **Finish the ticket yourself: branch, commit, push, and open the pull request.** Reference the
   ticket so that merging closes it. No one is checking behind you ticket by ticket.
+- **The ticket is not finished until the pull request shows your last commit.** The review pass
+  happens *after* the pull request is opened, so its fixes need pushing too — `git status` saying
+  *up to date with* the remote is the check, and `git log origin/main..HEAD` says what the remote
+  has not got. A commit that was never pushed is invisible to CI, to the pull request and to
+  whoever merges it, and the branch is deleted on merge — which is how #39's review fixes came to
+  exist on one disk only (#60).
+- **Leave this folder on `main`.** Once the pull request is open and pushed, `git switch main &&
+  git pull`, and remove any worktree you made. The writer opens this folder too, and a folder
+  sitting on a half-finished branch — or a `.claude/worktrees/` left behind from a session weeks
+  gone — reads as something broken when it is not. Your branch survives on the remote; nothing is
+  lost by putting the page back.
 - **The pull request carries the numbers its acceptance criteria name** — byte counts, element
   counts, page counts, timings — measured, not asserted. That is what makes the next person's start
   clean.
