@@ -7,8 +7,9 @@ honour, has no real alternative worth recording, and is expensive to rediscover.
 Every rule here cost real time somewhere, and the cost is named. A rule with no scar is not a
 standard, it is a preference; keep preferences out.
 
-Provenance: **v1** is the shipped application; **prototype** is the throwaway
-`write-ist-ng` spike, whose planning notes recorded twelve of these. Neither repo is edited
+Provenance: **v1** is the shipped application; the throwaway `write-ist-ng` repository holds both
+the **spike** — the editor experiment — and the **prototype** — the Plan and Log mockups — whose
+planning notes recorded twelve of these. `CONTEXT.md` keeps the three apart. Neither repo is edited
 any more, so the rules live here.
 
 ---
@@ -18,7 +19,7 @@ any more, so the rules live here.
 **Measure the measurer.** A performance readout that excludes its own cost is not a
 measurement, it is a reassurance.
 
-> The prototype's editor HUD timed the editing engine's work and not its own. It stayed green
+> The spike's editor HUD timed the editing engine's work and not its own. It stayed green
 > while burning ~3.6 ms per keystroke just outside the window it measured — walking every
 > block and running a word count on each, on every keystroke. The readout was lying by
 > omission, and the machine felt it before the number did.
@@ -87,7 +88,8 @@ somewhere unrelated, stop writing it off as cosmetic and go find what both have 
 
 **A prototype is done when the next change you want to make would not change what you would
 build.** Adjusting a border colour is past the line. Asking whether twelve lanes is too many
-at this cell size is not.
+at this cell size is not. *(Either kind: a spike, which answers a technical question, or a
+prototype, which shows what something should feel like — `CONTEXT.md` separates them.)*
 
 This is the operational form of `SETUP-CHECKLIST.md`'s timebox: v1 got built while
 procrastinating on the screenplay it was for, and a prototype that keeps getting nicer is the

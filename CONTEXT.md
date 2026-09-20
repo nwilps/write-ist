@@ -327,3 +327,42 @@ for any document model. It holds in two strengths: on a file Write-ist has never
 result equals the source after an enumerated list of normalisations and nothing else; on a
 file Write-ist itself wrote, the result is identical, always.
 _Avoid_: parse cycle, reparse, import/export
+
+### The prior work
+
+Three names for three things that already exist, all of them finished and none of them edited any
+more. They are read as references, never as code to carry forward.
+
+**v1**:
+The shipped application, built in Tauri and React, that produced a complete feature screenplay. It
+is the bar v2 has to clear and the reason v2 exists: its parse and serialise engine was not good
+enough, its editor was slow and locked to single lines, and it had no undo. **Reference it for the
+shape and flow of the screens around the editor — its home screen and its open-project screen — and
+never for how it edits.**
+_Avoid_: the old app, legacy, the first version
+
+**Spike**:
+The editor experiment in `nwilps/write-ist-ng`, under `spike/`. Built to answer one technical
+question — model-first or buffer-first — and it answered it, at 3,457 blocks, with the corpus
+round-tripping ([ADR-0019](docs/adr/0019-the-document-model-is-flat-typed-elements.md)). Its output
+is knowledge, not code. **It is the reference for the page itself** — the manuscript surface the
+writer types on, centred on its dark ground — and for the palette
+([ADR-0030](docs/adr/0030-look-is-data-two-typefaces-and-no-styling-value-in-code.md)).
+_Avoid_: prototype (that is the next entry), experiment, proof of concept
+
+**Prototype**:
+The mockups in the same repository, `plan.html` — built to see what the application should feel
+like rather than to answer a technical question, and reviewed in
+`docs/reviews/2026-09-11-prototype-review.md`. It holds Plan, the Log and a Draft mockup, and with
+them the application's furniture: a workspace bar of numbered tabs, panels, an inspector.
+**It is the reference for everything outside the page** — v1 elevated, which is the direction
+chosen.
+_Avoid_: spike (that is the entry above), mockup when the Plan and Log ones are meant
+
+**The line between them is the edge of the page.** The spike drew the page; the prototype drew the
+application around it. An Editor built from both takes its manuscript surface from one and its
+furniture from the other, which is why a reference names which.
+
+Both live in one repository, which is why a reference names the path rather than the nickname. A
+session told to "follow the prototype" for the Editor could reasonably open the Plan mockup and copy
+the wrong thing.
