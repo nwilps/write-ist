@@ -8,16 +8,34 @@ No accounts. No sync. No network. Your documents remain readable if this app dis
 
 ## Status
 
-**v2 — building the document model.** This repository is the source of truth for the v2 rewrite.
+**v2 — building the first application.** This repository is the source of truth for the v2 rewrite.
 
 The parser and serialiser for both surfaces are built and tested: five manuscripts go in and come
-back out, the largest 645 KB, compared as bytes on disk rather than strings in memory. Everything
-above that layer — comments, counts, pagination, the editor itself — is still to come.
+back out, the largest 645 KB, compared as bytes on disk rather than strings in memory.
+
+Above that sits the application, now begun. It launches on Linux, opens to a list of projects, and
+**imports** a Fountain screenplay into a new project saved at once — leaving the file it came from
+exactly as it was, and naming everything it adjusted. Counts, pagination and the editor itself are
+still to come.
 
 v1 shipped and produced a complete feature screenplay. It is being rewritten because its
 screenplay parse/serialise engine isn't good enough — the editor is slow, locked to
 single-line edits and selections, and has no undo/redo, spellcheck, or rich text.
 **v1, jank and all, produced a finished screenplay. That is the bar.**
+
+## Running it
+
+A Rust toolchain and WebKitGTK 4.1 are needed; everything else is `npm install`.
+
+```
+npm install
+npm run app          # launch it
+npm test             # the suite, including the round-trip gate
+npm run typecheck
+```
+
+The acceptance corpus is the writer's unpublished screenplay and is not in this repository. Tests
+that need it read `$WRITE_IST_CORPUS` and skip when it is absent.
 
 ## Decisions
 

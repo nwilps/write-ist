@@ -1,0 +1,247 @@
+/*
+ * The application's surfaces. **Every value here is a token** (ADR-0030) —
+ * there is not a hex colour, a pixel size or a font name below this line.
+ *
+ * Two screens exist in slice 1: the projects list the application opens to,
+ * and the import report shown once an import completes. The workspace bar and
+ * the Editor arrive in later tickets.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--colour-base);
+  color: var(--colour-text);
+  font-family: var(--face-interface);
+  font-size: var(--size-body);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-body);
+  /* The interface never renders a manuscript, so it is free to hyphenate and
+     wrap like ordinary text. */
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--colour-accent);
+  outline-offset: var(--focus-offset);
+}
+
+/* --- The screen --------------------------------------------------------- */
+
+.screen {
+  max-width: var(--measure-screen);
+  margin: 0 auto;
+  padding: var(--space-vast) var(--space-loose);
+}
+
+.screen__banner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-roomy);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-snug);
+  border-bottom: var(--rule-thin) solid var(--colour-border);
+}
+
+.screen__name {
+  margin: 0;
+  font-size: var(--size-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--colour-accent);
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.button {
+  font-family: inherit;
+  font-size: var(--size-label);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  padding: var(--space-tight) var(--space-roomy);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-slight);
+  background: var(--colour-raised);
+  color: var(--colour-text);
+  cursor: pointer;
+  transition: background var(--duration-quick), border-color var(--duration-quick);
+}
+
+.button:hover {
+  border-color: var(--colour-accent);
+}
+
+.button:disabled {
+  color: var(--colour-faint);
+  cursor: default;
+  border-color: var(--colour-border);
+}
+
+.button--leading {
+  background: var(--colour-accent);
+  border-color: var(--colour-accent);
+  color: var(--colour-on-accent);
+}
+
+/* --- The projects list -------------------------------------------------- */
+
+.projects {
+  list-style: none;
+  margin: var(--space-loose) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-tight);
+}
+
+/*
+ * A row, not a control. Opening a project belongs to #39; until then the list
+ * shows the writer what is there and offers no gesture that does nothing.
+ * `docs/STANDARDS.md`: an interface that needs explaining is the interface's
+ * fault, and a row that looks clickable and is not is the same defect.
+ */
+.project {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-roomy);
+  padding: var(--space-snug) var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-left: var(--rule-thick) solid var(--colour-accent);
+  border-radius: var(--radius-slight);
+}
+
+.project__name {
+  font-weight: var(--weight-bold);
+}
+
+.project__format {
+  font-size: var(--size-hint);
+  color: var(--colour-faint);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+.nothing-yet {
+  margin: var(--space-loose) 0 0;
+  padding: var(--space-loose);
+  max-width: var(--measure-reading);
+  border: var(--rule-thin) dashed var(--colour-border);
+  border-radius: var(--radius-round);
+  color: var(--colour-muted);
+}
+
+.nothing-yet p {
+  margin: 0 0 var(--space-snug);
+}
+
+.nothing-yet p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- The import report -------------------------------------------------- */
+
+.report {
+  max-width: var(--measure-reading);
+  padding: var(--space-loose);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-round);
+  background: var(--colour-raised);
+  color: var(--colour-text);
+}
+
+.report::backdrop {
+  /* The window behind, dimmed. `color-mix` keeps this a token too. */
+  background: color-mix(in srgb, var(--colour-base) 80%, transparent);
+}
+
+.report__heading {
+  margin: 0;
+  font-size: var(--size-heading);
+  line-height: var(--leading-tight);
+  color: var(--colour-accent);
+}
+
+.report__standfirst {
+  margin: var(--space-tight) 0 0;
+  color: var(--colour-muted);
+  font-size: var(--size-label);
+}
+
+.report__changes {
+  list-style: none;
+  margin: var(--space-roomy) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.change {
+  display: flex;
+  gap: var(--space-snug);
+  align-items: baseline;
+  font-size: var(--size-label);
+}
+
+.change__count {
+  font-weight: var(--weight-bold);
+  color: var(--colour-affirm);
+  font-variant-numeric: tabular-nums;
+  min-width: var(--space-vast);
+  text-align: right;
+}
+
+.change--finding .change__count {
+  color: var(--colour-alarm);
+}
+
+.change__description {
+  color: var(--colour-muted);
+}
+
+.report__nothing {
+  margin: var(--space-roomy) 0 0;
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+}
+
+.report__actions {
+  margin-top: var(--space-loose);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* --- Trouble ------------------------------------------------------------ */
+
+.trouble {
+  margin: var(--space-loose) 0 0;
+  padding: var(--space-snug) var(--space-roomy);
+  max-width: var(--measure-reading);
+  border: var(--rule-thin) solid var(--colour-alarm);
+  border-left: var(--rule-thick) solid var(--colour-alarm);
+  border-radius: var(--radius-slight);
+  color: var(--colour-text);
+  font-size: var(--size-label);
+}
+
+.trouble__line {
+  margin: 0;
+}
+
+.trouble__folders {
+  margin: var(--space-tight) 0 0;
+  padding-left: var(--space-roomy);
+  color: var(--colour-muted);
+}
