@@ -298,11 +298,21 @@ function closeWindow(): void {
  * took is not a reason to lose the last thing they wrote. The close is
  * stopped, the project closes itself, and `quit` closes the window for real.
  */
-void getCurrentWindow().onCloseRequested((event) => {
-  if (shell === undefined) return;
-  event.preventDefault();
-  quit();
-});
+getCurrentWindow()
+  .onCloseRequested((event) => {
+    if (shell === undefined) return;
+    event.preventDefault();
+    quit();
+  })
+  .catch((error: unknown) => {
+    // Loud rather than an unhandled rejection nobody reads. Without this
+    // listener, closing from the titlebar costs at most the last pause of
+    // typing — which is worth saying, and not worth refusing to start over.
+    trouble =
+      `Write-ist could not listen for its window closing, so closing it from the ` +
+      `title bar may lose the last few seconds of typing. Use Quit instead. ${message(error)}`;
+    draw();
+  });
 
 
 draw();
