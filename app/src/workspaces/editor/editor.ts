@@ -1,5 +1,6 @@
 /**
- * The Editor workspace: the manuscript, on the page (#39).
+ * The Editor workspace: the manuscript, on the page, and written into (#39,
+ * #41).
  *
  * `CONTEXT.md`: *the workspace the in-progress draft is written in, running the
  * project's surface. A workspace like any other, not a frame around the
@@ -13,24 +14,48 @@
  *
  * ## What this file does and does not do
  *
- * It reads the manuscript, maps it into ProseMirror, and mounts the view.
- * Everything about *what the page holds* is decided by the surface's schema in
- * `src/screenplay/schema.ts` and its mapping in `src/screenplay/editor.ts`,
- * both of which are reached by tests with no window at all. What is left here is
- * the window, which is seam 4 — checked by the writer, writing in it.
+ * It reads the manuscript, maps it into ProseMirror, mounts the view, and
+ * connects three wires: a keystroke to the model, the model to the save
+ * routine, and the three moments ADR-0028 names to that routine. Everything
+ * each of those wires carries is decided above the window — the surface's
+ * schema and mapping in `src/screenplay/`, the save routine in
+ * `src/project/save.ts`, the timing in `src/project/autosave.ts` — and every
+ * one of them is reached by a test with no window at all. What is left here is
+ * the window, which is seam 4, checked by the writer writing in it.
  *
- * **Nothing is typed into yet.** The view is not editable, deliberately: typing
- * and saving are one ticket (#41), and an editable page that dropped every
- * keystroke on the floor would be a quieter failure than a page that plainly
- * does not take them. #41 turns this on with the transaction handler and the
- * save routine that make a keystroke mean something.
+ * ## Why the state is held here and the view is told about it
+ *
+ * The usual ProseMirror shape is `view.updateState(view.state.apply(tr))`,
+ * which makes the view the holder of the document. It is held here instead so
+ * that **the thing the save routine reads is not the view**: ADR-0024 and #37
+ * both require the manuscript to be produced by the serialiser from the model,
+ * *never* from ProseMirror's own format and never from the DOM, and a save
+ * that reached through `view` would be one refactor away from reaching through
+ * `view.dom`.
+ *
+ * ## Saving is asked for here and decided elsewhere
+ *
+ * A keystroke restarts the pause; switching to another application, asking for
+ * a save, and closing the project save at once (ADR-0028). All of them call
+ * `autosave`, which calls the one save routine — so there is no second path to
+ * a written file and nothing here owns a timer.
+ *
+ * ## It will not come down over a save it could not finish
+ *
+ * `unmount` answers whether the workspace came down, and answers `false` when
+ * the last save failed. The words are still on screen and nowhere else, so
+ * destroying the view would destroy them — the silent destruction ADR-0008 was
+ * written from, arrived at by a different road. It says what happened beside
+ * the page, which it still has because it is still up, and the writer can try
+ * again.
  */
-import { EditorState } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
+import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
-import { toEditorDocument } from "../../../../src/screenplay/editor.ts";
-import { screenplaySchema } from "../../../../src/screenplay/schema.ts";
+import { editingSession } from "../../../../src/project/save.ts";
+import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { element } from "../../screens/element.ts";
+import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
@@ -57,6 +82,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   into.replaceChildren(page);
 
   let view: EditorView | undefined;
+  /** How to finish and let go. Undefined until the manuscript has been read. */
+  let leave: (() => Promise<boolean>) | undefined;
   let gone = false;
 
   void (async () => {
@@ -66,11 +93,83 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // view nobody takes down.
       if (gone) return;
 
+      // The model, as the writer has it. Replaced on every transaction, and
+      // read by the save routine — never by the view (see the head of this
+      // file).
+      let state = editorStateFor(opened.document);
+      const session = editingSession(context.filesystem, opened, () =>
+        manuscriptOf(state.doc),
+      );
+      /** A save that failed, in the writer's words. */
+      const failure = (error: unknown): string =>
+        `Write-ist could not save your screenplay, so your last few words are ` +
+        `only on screen. ${message(error)}`;
+
+      let unfinished: unknown;
+      let leaving = false;
+      const saving = autosave({
+        save: session.save,
+        // Autosave is the thing the writer is not watching, so a failure it
+        // swallowed would be a failure nobody ever learned about (ADR-0008
+        // rule 4). Their words are still on screen and still unsaved, and the
+        // next save will try again — which is what this says.
+        //
+        // **Except on the way out**, where there is no next save and the words
+        // are handed back to `leave` to say something truer about instead. Two
+        // panels for one failure would be the application talking over itself.
+        trouble: (error) => {
+          if (leaving) {
+            unfinished = error;
+            return;
+          }
+          context.report(`${failure(error)} It will try again.`);
+        },
+      });
+
+      // Switching to another application (ADR-0028).
+      const stopListening = context.whenSwitchedAway(() => void saving.now());
+
+      leave = async () => {
+        // Closing the project (ADR-0028), through the same routine as every
+        // other save.
+        unfinished = undefined;
+        leaving = true;
+        await saving.now();
+        leaving = false;
+        // **The one save with nothing after it.** There is no later autosave
+        // to try again, because the page is about to go — so it does not go.
+        if (unfinished !== undefined) {
+          context.report(
+            `${failure(unfinished)} This project stays open until it saves, ` +
+              `so nothing you have written is lost.`,
+          );
+          return false;
+        }
+        stopListening();
+        return true;
+      };
+
       reading.remove();
       view = new EditorView(page, {
-        state: EditorState.create({ doc: toEditorDocument(opened.document) }),
-        // #41. See the note at the head of this file.
-        editable: () => false,
+        state,
+        dispatchTransaction: (transaction) => {
+          state = state.apply(transaction);
+          view?.updateState(state);
+          // A selection move is not a change to the screenplay, so it neither
+          // marks the manuscript unsaved nor restarts the pause.
+          if (!transaction.docChanged) return;
+          session.changed();
+          saving.typed();
+        },
+        // The explicit save ADR-0028 pairs with autosave — the same routine,
+        // asked for rather than waited for. It is held here rather than in the
+        // surface's keymap because *when to save* belongs to the workspace
+        // that owns the project, not to the screenplay surface.
+        handleKeyDown: (_editor, event) => {
+          if (!asksToSave(event)) return false;
+          void saving.now();
+          return true;
+        },
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },
@@ -87,10 +186,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   })();
 
   return {
-    unmount: () => {
+    unmount: async () => {
+      // Still reading, so there is nothing to save and nothing but a line of
+      // text to take down. The read's own continuation sees this and stops.
+      if (leave === undefined) {
+        gone = true;
+        return true;
+      }
+      // The final save first, and it decides: the page comes down only once
+      // the writer's last sentence is on disk.
+      if (!(await leave())) return false;
+
       gone = true;
+      leave = undefined;
       view?.destroy();
       view = undefined;
+      return true;
     },
   };
 }

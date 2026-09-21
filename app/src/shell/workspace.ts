@@ -33,12 +33,37 @@ export interface WorkspaceContext {
    * which that is.
    */
   readonly report: (trouble: string) => void;
+  /**
+   * The writer switched to another application. Answers how to stop listening.
+   *
+   * ADR-0028 makes that one of the three moments autosave fires, and it is
+   * given to a workspace rather than found by one because *how the window
+   * knows* is the window's business: the application asks Tauri, and a test
+   * asks whatever it likes. A workspace that reached for the DOM's own `blur`
+   * would be guessing at the system webview's behaviour, which is a guess that
+   * fails quietly (`docs/STANDARDS.md`).
+   */
+  readonly whenSwitchedAway: (act: () => void) => () => void;
 }
 
 /** A workspace that has been put on screen. */
 export interface MountedWorkspace {
-  /** Take it down again, releasing whatever it holds. */
-  readonly unmount: () => void;
+  /**
+   * Take it down again, releasing whatever it holds — **and answer whether it
+   * came down.**
+   *
+   * A workspace may have work to finish. The Editor saves the manuscript on
+   * the way out (ADR-0028), and a save that fails leaves the writer's last
+   * sentence nowhere but on screen. So it answers `false` rather than tearing
+   * down over work it could not finish: it stays up, with what happened said
+   * beside it, and the writer can try again or take their own copy.
+   *
+   * The alternative was to come down anyway and report. There is nowhere to
+   * report to — the frame the message would go in is the frame being removed —
+   * and the words being removed with it is the silent destruction ADR-0008
+   * exists to end.
+   */
+  readonly unmount: () => Promise<boolean>;
 }
 
 export interface WorkspaceManifest {

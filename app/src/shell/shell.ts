@@ -40,13 +40,26 @@ export interface ShellScreen {
   readonly workspaces: readonly WorkspaceManifest[];
   /** Close the project and go back to where it was chosen. */
   readonly onClose: () => void;
+  /**
+   * The writer switched to another application. Handed straight to the
+   * workspace, which is the only thing that has anything to do about it — the
+   * shell does not know what a workspace saves, or whether it saves at all.
+   */
+  readonly whenSwitchedAway: (act: () => void) => () => void;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
 export interface MountedShell {
   readonly gestures: readonly Gesture[];
-  /** Take the shell and its workspace down. */
-  readonly unmount: () => void;
+  /**
+   * Take the shell and its workspace down, and answer whether it came down.
+   *
+   * The shell does not know what a workspace has left to finish, only that it
+   * is not instant and that it may not be possible — the Editor's last save
+   * (#41, ADR-0028). `false` means the project is still open and the writer
+   * has been told why.
+   */
+  readonly unmount: () => Promise<boolean>;
 }
 
 /**
@@ -89,6 +102,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     // workspace again, which would fail again, which would report again — a
     // loop rather than a message.
     report: (wrong) => view.append(troublePanel(wrong)),
+    whenSwitchedAway: screen.whenSwitchedAway,
   });
 
   return { gestures, unmount: mounted.unmount };

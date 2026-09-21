@@ -55,6 +55,24 @@ export function shortcutOf(press: KeyPress): string | undefined {
   return press.key.toLowerCase();
 }
 
+/**
+ * Whether a key press is the writer asking for a save.
+ *
+ * ADR-0028 makes autosave and an explicit save **one routine**, and this is
+ * the explicit one: the reflex every writer already has. It is here rather
+ * than in the Editor for the same reason every other key decision is — so it
+ * can be decided without a window, and so there is one file to read to know
+ * what Write-ist answers to.
+ *
+ * It needs a modifier, which is why `shortcutOf` cannot answer it: a bare `s`
+ * is the letter `s`, and the writer is typing.
+ */
+export function asksToSave(press: KeyPress): boolean {
+  if (press.altKey) return false;
+  if (!press.ctrlKey && !press.metaKey) return false;
+  return press.key.toLowerCase() === "s";
+}
+
 /** The gesture a key press chooses, if it chooses one. */
 export function chosenBy(gestures: readonly Gesture[], press: KeyPress): Gesture | undefined {
   const shortcut = shortcutOf(press);

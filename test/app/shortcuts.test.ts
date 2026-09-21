@@ -9,7 +9,7 @@
  * shortcuts is the bug this seam exists to keep out.
  */
 import { describe, expect, it } from "vitest";
-import { chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
+import { asksToSave, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
 
 /** A key press as the window reports it, with nothing held down. */
 function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shift", true>> = {}) {
@@ -78,5 +78,28 @@ describe("the gesture a key press chooses", () => {
     // beside it must be disabled with it or the two disagree.
     const halted: readonly Gesture[] = [{ key: "i", label: "Import", act: noop, unavailable: true }];
     expect(chosenBy(halted, press("i"))).toBeUndefined();
+  });
+});
+
+describe("the writer asking for a save (ADR-0028)", () => {
+  it("is Ctrl+S, and Cmd+S on a Mac", () => {
+    expect(asksToSave(press("s", { ctrl: true }))).toBe(true);
+    expect(asksToSave(press("s", { meta: true }))).toBe(true);
+    expect(asksToSave(press("S", { ctrl: true, shift: true }))).toBe(true);
+  });
+
+  it("is not a bare `s`, which is the writer typing", () => {
+    expect(asksToSave(press("s"))).toBe(false);
+  });
+
+  it("is not a letter beside a menu item either, so the two never disagree", () => {
+    // `shortcutOf` refuses anything with a modifier and `asksToSave` requires
+    // one, so no key press can be both.
+    expect(shortcutOf(press("s", { ctrl: true }))).toBeUndefined();
+    expect(asksToSave(press("o"))).toBe(false);
+  });
+
+  it("is not Alt+S, which belongs to the window manager", () => {
+    expect(asksToSave(press("s", { ctrl: true, alt: true }))).toBe(false);
   });
 });

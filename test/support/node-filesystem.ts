@@ -7,9 +7,9 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
 export const nodeFilesystem: Filesystem = {
@@ -31,11 +31,28 @@ export const nodeFilesystem: Filesystem = {
   },
 
   async writeFile(path: string, bytes: Uint8Array): Promise<void> {
-    // Temp, then rename: the rename is atomic within a filesystem, so a
-    // reader never sees a half-written file (ADR-0008 rule 5).
+    // **Temp, flush, rename** (ADR-0008 rule 5), the same three steps the
+    // application's port takes — there they are a plugin call and a command in
+    // `src-tauri/src/lib.rs`, here they are `node:fs`. A test port that skipped
+    // the flush would be testing a weaker promise than the one that ships.
     const temporary = `${path}.writing`;
-    await writeFile(temporary, bytes);
+    const file = await open(temporary, "w");
+    try {
+      await file.write(bytes);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
     await rename(temporary, path);
+
+    // The rename is a directory entry, and the file's bytes being durable does
+    // not make the name that refers to them durable.
+    const folder = await open(dirname(path), "r");
+    try {
+      await folder.sync();
+    } finally {
+      await folder.close();
+    }
   },
 
   async createDirectory(path: string): Promise<void> {

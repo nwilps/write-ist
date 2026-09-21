@@ -6,7 +6,8 @@
  * in `src/project/`, above the port, where the tests reach it through
  * `node:fs` and real files in a temporary folder.
  */
-import { exists, mkdir, readDir, readFile, rename, writeFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readDir, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { documentDir, join } from "@tauri-apps/api/path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
@@ -26,12 +27,16 @@ export const tauriFilesystem: Filesystem = {
   },
 
   async writeFile(path: string, bytes: Uint8Array): Promise<void> {
-    // Temp, then rename (ADR-0008 rule 5). The rename is atomic within a
-    // filesystem, so a reader — another tool, or Write-ist next time — never
-    // sees a half-written manuscript.
+    // **Temp, flush, rename** (ADR-0008 rule 5), and all three words matter.
+    // The rename is atomic within a filesystem, so a reader — another tool, or
+    // Write-ist next time — never sees a half-written manuscript. The flush is
+    // what makes that true after a power cut rather than only after a crash,
+    // and the plugin has no call for it, so the last two steps are one command
+    // in `src-tauri/src/lib.rs`. The bytes do not cross that boundary: the
+    // plugin writes the temporary file, and the command only finishes it.
     const temporary = `${path}.writing`;
     await writeFile(temporary, bytes);
-    await rename(temporary, path);
+    await invoke("commit_write", { temporary, path });
   },
 
   async createDirectory(path: string): Promise<void> {

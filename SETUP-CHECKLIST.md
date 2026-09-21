@@ -136,9 +136,10 @@ stopped at the element boundary (#26).
 - [ ] **Ranges** — scenes and chapters computed from the flat sequence (ADR-0019). No code yet.
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
-      written to a file (#39). **Comment ends are still element *indices***, which nothing moves
-      while nothing edits; the ticket that turns typing on has to move them, and
-      `fromEditorDocument` throws rather than letting one land on the wrong words meanwhile.
+      written to a file (#39). Comment ends were still element *indices*, which nothing moved
+      while nothing edited; **#41 moves them**, holding each end as a document position for as
+      long as the project is open and rebuilding the indices after every change. The check in
+      `fromEditorDocument` stays, as the guard it always was.
 
 ### Decided before `/to-tickets`, 2026-09-19
 
@@ -188,7 +189,7 @@ not built.
 - The page follows the **spike** and the furniture the **prototype**; the page's spacing mirrors
   the serialiser's blank-line table, checked over all 196 ordered pairs of element types with
   the browser's own CSS parser, because CSS fails silently.
-- **Typing is off** (`editable: () => false`) until #41 gives a keystroke somewhere to go.
+- Typing was off (`editable: () => false`) until #41 gave a keystroke somewhere to go; it is on.
 
 ### Done: the screenplay is laid out in industry format (#40)
 
@@ -216,11 +217,64 @@ Liberation Sans, a proportional face.
 - **No `text-transform` and no CSS-decided spacing**, the ticket's two named traps: capitals are
   in the writer's text or they are not there, and the serialiser's table decides blank lines.
 
+### Done: the writer types, and it saves itself (#41)
+
+The page is editable and Write-ist saves without being asked: a couple of seconds after typing
+stops, when the window loses focus, and when the project is closed (ADR-0028). Close it, reopen
+it, and the words are there.
+
+- **One save routine**, `src/project/save.ts`, and autosave is only a clock over it
+  (`src/project/autosave.ts`, a clock a test can be rather than wait for). Four things call it: the
+  pause after typing, switching to another application, closing the project, and **Ctrl/Cmd+S**.
+  It writes through the **existing serialiser** and nothing else.
+- **Temp, flush, rename** (ADR-0008 rule 5), and the middle word needed the shell's first command:
+  `@tauri-apps/plugin-fs` writes and renames but exposes no flush, so `commit_write` in
+  `src-tauri/src/lib.rs` flushes the temporary file, renames it, and flushes the directory the
+  rename is an entry in. The bytes do not cross that boundary. The test port does the same three
+  steps with `node:fs`, because a test port that flushed less would be testing a weaker promise
+  than the one that ships.
+- **Switching away is asked of Tauri, not of the DOM.** `window`'s own `blur` is what a web page
+  has; whether the system webview fires it when the *window* loses focus is the webview's business
+  rather than a promise, and a leg of autosave that quietly never fires is the failure
+  `docs/STANDARDS.md` is written against. The window's close button is the same gesture as **Quit**,
+  so a writer who closes from the titlebar has closed the project.
+- **The Editor will not come down over a save it could not finish.** Its `unmount` answers whether
+  it came down; on a failed last save it says so beside the page and stays up, because the words
+  are on screen and nowhere else and destroying the view would destroy them. Closing a project is
+  awaited for the same reason: closing and immediately reopening must not read the file while the
+  save that closing asked for is still in flight.
+- **A manuscript that could not be read is never written over** as a *type* rather than a check:
+  a session is made from an `OpenedProject`, and a failed read produces none (ADR-0008 rule 3).
+- **Opening a project and closing it without typing writes nothing at all** — not equal bytes, no
+  write, so nothing watching the file for an outside change (#42) sees one that never happened.
+- **Comments move with the words they were left on.** Held as document positions while the
+  project is open and mapped through every transaction, so the cost is the number of comments and
+  not the length of the manuscript (ADR-0018, ADR-0019). Deleting everything a comment covers
+  removes it with the text.
+- **A blank line the writer makes is not written to the file.** ADR-0019: blank lines are not
+  stored. Deleting every character of a line leaves an empty element on screen, and writing it
+  out as a blank line would give a file that does not read back as itself — ADR-0020 point 2. All
+  four screenplay manuscripts hold no element with empty text, which is what makes the rule safe,
+  and a test pins that.
+- **The keystroke budget: 0.07 ms** on the full acceptance corpus, measured including the
+  measurement's own cost, against a 16 ms budget — and 0.04 ms on `Big-Fish-augmented.fountain`,
+  which is the manuscript with comments in it, because the corpus has none. Everything the
+  application does per keystroke is in that figure and is the real call rather than a stand-in;
+  drawing the result is `prosemirror-view`'s and the webview's, which ADR-0024 puts on the other
+  side of the line and #37's fourth seam gives to the writer. Turning the model back into bytes
+  costs 11–14 ms on the corpus and is deliberately off that path: once per save, seconds after
+  the writer stopped typing.
+- **Enter and the two joining keys do nothing yet, deliberately** (#43). With no handler they fall
+  through to the browser, which splits a `div` and leaves the engine reading back an element with
+  no type. Inert is a missing feature; invented is a corrupted manuscript.
+- 563 tests with the acceptance corpus present.
+
 ### Not started, and deliberately above this layer
 
-Counts and pagination (ADR-0024), typing and autosave (#41, ADR-0028), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017, and the
-registry half of ADR-0015/0016), and the rest of the application — workspace bar, the other
-workspaces.
+Counts and pagination (ADR-0024), the rest of the keyboard (#43–#47), guarding against a change
+made elsewhere (#42), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017,
+and the registry half of ADR-0015/0016), and the rest of the application — workspace bar, the
+other workspaces.
 
 ### Still to run
 
