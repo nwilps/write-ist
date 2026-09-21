@@ -37,8 +37,15 @@ export interface WorkspaceContext {
 
 /** A workspace that has been put on screen. */
 export interface MountedWorkspace {
-  /** Take it down again, releasing whatever it holds. */
-  readonly unmount: () => void;
+  /**
+   * Take it down again, releasing whatever it holds.
+   *
+   * **It may have work to finish.** The Editor saves the manuscript on the way
+   * out (ADR-0028), so this answers when it is safe to close the window rather
+   * than when the last element was removed. A caller that is only swapping
+   * screens need not wait; one that is about to quit must (#41).
+   */
+  readonly unmount: () => Promise<void>;
 }
 
 export interface WorkspaceManifest {

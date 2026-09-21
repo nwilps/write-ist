@@ -45,8 +45,14 @@ export interface ShellScreen {
 /** A shell that has been drawn, and what the window answers to while it is up. */
 export interface MountedShell {
   readonly gestures: readonly Gesture[];
-  /** Take the shell and its workspace down. */
-  readonly unmount: () => void;
+  /**
+   * Take the shell and its workspace down.
+   *
+   * Awaitable, because a workspace may have work to finish — the Editor's
+   * last save (#41). The shell does not know what that work is, only that it
+   * is not instant.
+   */
+  readonly unmount: () => Promise<void>;
 }
 
 /**

@@ -110,7 +110,13 @@ function goToProject(project: Project): void {
 function go(next: Screen): void {
   // Whatever the last screen was holding goes with it. A workspace left mounted
   // behind another screen keeps its listeners and its engine alive.
-  shell?.unmount();
+  //
+  // Not awaited: taking the Editor down saves the manuscript (ADR-0028) and
+  // the writer should not watch a screen fail to change while a disk answers.
+  // The write is atomic and the application stays up, so it lands
+  // (ADR-0008 rule 5). Quitting is the one case that cannot rely on that, and
+  // `quit` does wait.
+  void shell?.unmount();
   shell = undefined;
   if (next !== "project") opened = undefined;
 
@@ -212,11 +218,18 @@ async function importOne(): Promise<void> {
 }
 
 function quit(): void {
+  // **The last save before the window goes** (ADR-0028). Quit is reachable
+  // from the home screen, where no project is open and this is nothing; with
+  // one open it is the writer's last sentence, and the only moment in the
+  // application where nothing survives waiting a beat longer.
+  const closed = shell === undefined ? Promise.resolve() : shell.unmount();
+  shell = undefined;
+
   // A gesture that quietly does nothing is `docs/STANDARDS.md`'s silent
   // failure: closing needs `core:window:allow-close` in the capability, and
   // without it the promise rejects where nobody is looking.
-  getCurrentWindow()
-    .close()
+  closed
+    .then(() => getCurrentWindow().close())
     .catch((error: unknown) => {
       trouble = `Write-ist could not close its window. ${message(error)}`;
       draw();
