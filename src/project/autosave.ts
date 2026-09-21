@@ -54,7 +54,6 @@ export interface AutosaveDependencies {
    * is a failure nobody ever learns about — ADR-0008 rule 4.
    */
   readonly trouble: (error: unknown) => void;
-  readonly pause?: number;
   readonly clock?: Clock;
 }
 
@@ -73,12 +72,7 @@ export interface Autosave {
   readonly pending: () => boolean;
 }
 
-export function autosave({
-  save,
-  trouble,
-  pause = PAUSE,
-  clock = windowClock,
-}: AutosaveDependencies): Autosave {
+export function autosave({ save, trouble, clock = windowClock }: AutosaveDependencies): Autosave {
   let waiting: Pending | undefined;
 
   const cancel = (): void => {
@@ -104,7 +98,7 @@ export function autosave({
       waiting = clock.wait(() => {
         waiting = undefined;
         void run();
-      }, pause);
+      }, PAUSE);
     },
     now: async () => {
       cancel();

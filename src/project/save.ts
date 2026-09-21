@@ -50,8 +50,6 @@ export interface SaveOutcome {
    * file (ADR-0020 point 2).
    */
   readonly written: boolean;
-  /** What is now on disk, which is what the next save compares against. */
-  readonly manuscript: Uint8Array;
 }
 
 /**
@@ -67,8 +65,6 @@ export interface EditingSession {
   readonly changed: () => void;
   /** Whether anything has changed since the last save. */
   readonly unsaved: () => boolean;
-  /** The bytes Write-ist last read or wrote (ADR-0028's comparison, #42). */
-  readonly lastSaved: () => Uint8Array;
   /** The one save routine. Autosave and an explicit save both call this. */
   readonly save: () => Promise<SaveOutcome>;
 }
@@ -98,10 +94,10 @@ export function editingSession(
    * milliseconds. Two writes racing for one path is the kind of thing that
    * works on every machine it is tried on.
    */
-  let running: Promise<SaveOutcome> = Promise.resolve({ written: false, manuscript: onDisk });
+  let running: Promise<SaveOutcome> = Promise.resolve({ written: false });
 
   const write = async (): Promise<SaveOutcome> => {
-    if (!dirty) return { written: false, manuscript: onDisk };
+    if (!dirty) return { written: false };
 
     const bytes = exportScreenplay(manuscript());
     // Cleared before the write, so a keystroke that arrives *during* it is
@@ -109,7 +105,7 @@ export function editingSession(
     // late.
     dirty = false;
 
-    if (identical(bytes, onDisk)) return { written: false, manuscript: onDisk };
+    if (identical(bytes, onDisk)) return { written: false };
 
     try {
       // Atomic — temp, flush, rename — which the `Filesystem` port promises
@@ -126,7 +122,7 @@ export function editingSession(
       throw error;
     }
     onDisk = bytes;
-    return { written: true, manuscript: bytes };
+    return { written: true };
   };
 
   return {
@@ -135,7 +131,6 @@ export function editingSession(
       dirty = true;
     },
     unsaved: () => dirty,
-    lastSaved: () => onDisk,
     save: () => {
       running = running.then(write, write);
       return running;

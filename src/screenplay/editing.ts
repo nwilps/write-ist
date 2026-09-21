@@ -51,9 +51,9 @@
  * pointing at a seam. *"Deleting all the text a comment covers removes the
  * comment with it."*
  */
-import { keymap } from "prosemirror-keymap";
-import { Plugin, PluginKey, TextSelection, type Command, type EditorState as State } from "prosemirror-state";
+import { Plugin, PluginKey, type EditorState as State } from "prosemirror-state";
 import { EditorState } from "prosemirror-state";
+import { heldKeys } from "./held-keys.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
@@ -89,7 +89,7 @@ const placedComments = new PluginKey<readonly PlacedComment[]>("write-ist:commen
 export const maintainComments = new Plugin<readonly PlacedComment[]>({
   key: placedComments,
   state: {
-    init: (_config, state) => place(state.doc),
+    init: (_config, state) => placeComments(state.doc),
     apply: (transaction, placed) => {
       if (!transaction.docChanged) return placed;
       const moved: PlacedComment[] = [];
@@ -110,67 +110,11 @@ export const maintainComments = new Plugin<readonly PlacedComment[]>({
     if (!transactions.some((transaction) => transaction.docChanged)) return null;
 
     const placed = placedComments.getState(state) ?? [];
-    const rebuilt = ends(state.doc, placed);
+    const rebuilt = commentsFrom(state.doc, placed);
     const held = state.doc.attrs["comments"];
     if (Array.isArray(held) && same(held as readonly Comment[], rebuilt)) return null;
     return state.tr.setDocAttribute("comments", rebuilt);
   },
-});
-
-/* --------------------------------------------- the keys that are not here yet */
-
-/**
- * Enter, and the two keys that join one element onto another, **held until
- * #43**.
- *
- * This ticket is typing *within* an element. Enter, Tab and splitting and
- * joining lines are the next one, and between the two there is a gap that has
- * to be closed rather than left open: with no handler at all these keys fall
- * through to the browser, which happily splits a `div` in the page — and what
- * the editing engine then reads back off that is a second element with no
- * type, which is not a screenplay.
- *
- * So they do nothing, visibly and deliberately, rather than doing something
- * nobody chose. A key that is inert is a missing feature; a key that invents
- * an element is a corrupted manuscript, and `docs/STANDARDS.md` is about which
- * failures are allowed to be quiet.
- *
- * **Deleting a selection that covers several elements is not held**, because
- * it needs nothing invented: the elements it covers go, the ones left keep
- * their own types, and the comments over them are mapped like any other edit.
- */
-
-/** Enter would split an element into two, and only #43 knows what the second is. */
-export const holdSplit: Command = () => true;
-
-/** Backspace at the very start of an element would join it onto the one above. */
-export const holdJoinBackwards: Command = (state) => atEdge(state, "start");
-
-/** Delete at the very end of an element would pull the one below onto it. */
-export const holdJoinForwards: Command = (state) => atEdge(state, "end");
-
-/**
- * Whether the caret is sitting on an element's boundary with nothing selected
- * — the one position at which a delete key stops removing a character and
- * starts removing a line.
- */
-function atEdge(state: State, which: "start" | "end"): boolean {
-  const selection = state.selection;
-  if (!(selection instanceof TextSelection) || !selection.empty) return false;
-  const at = selection.$head;
-  if (at.parent.type.name !== "element") return false;
-  return which === "start" ? at.parentOffset === 0 : at.parentOffset === at.parent.content.size;
-}
-
-/** The keys held, as one plugin, so there is one list of them to delete in #43. */
-export const heldKeys = keymap({
-  Enter: holdSplit,
-  "Shift-Enter": holdSplit,
-  "Mod-Enter": holdSplit,
-  Backspace: holdJoinBackwards,
-  "Mod-Backspace": holdJoinBackwards,
-  Delete: holdJoinForwards,
-  "Mod-Delete": holdJoinForwards,
 });
 
 /**
@@ -197,7 +141,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
  * This is the one pass over the manuscript, and it is at load rather than per
  * keystroke: from here on the positions are mapped.
  */
-function place(doc: EditorNode): readonly PlacedComment[] {
+function placeComments(doc: EditorNode): readonly PlacedComment[] {
   const held = doc.attrs["comments"];
   if (!Array.isArray(held) || held.length === 0) return [];
   const comments = held as readonly Comment[];
@@ -244,7 +188,7 @@ function positionOf(
 }
 
 /** The comments as the model holds them, rebuilt from the positions. */
-function ends(doc: EditorNode, placed: readonly PlacedComment[]): readonly Comment[] {
+function commentsFrom(doc: EditorNode, placed: readonly PlacedComment[]): readonly Comment[] {
   if (placed.length === 0) return [];
   const titleLines = titleLineCount(doc);
 
@@ -337,11 +281,11 @@ export function manuscriptOf(doc: EditorNode): ScreenplayDocument {
 
 function withoutBlankLines(document: ScreenplayDocument): ScreenplayDocument {
   const elements: Element[] = [];
-  /** Old element index → new index, or −1 for a blank line. */
-  const moved: number[] = [];
+  /** Old element index → new index, or undefined where a blank line was. */
+  const moved: (number | undefined)[] = [];
   for (const element of document.elements) {
     if (element.text === "") {
-      moved.push(-1);
+      moved.push(undefined);
       continue;
     }
     moved.push(elements.length);
@@ -355,8 +299,8 @@ function withoutBlankLines(document: ScreenplayDocument): ScreenplayDocument {
   // instead would lose a remark whose text is still there (ADR-0008 rule 4).
   const relocate = (end: CommentEnd, towards: 1 | -1): CommentEnd | undefined => {
     for (let at = end.element; at >= 0 && at < moved.length; at += towards) {
-      const to = moved[at]!;
-      if (to === -1) continue;
+      const to = moved[at];
+      if (to === undefined) continue;
       if (at === end.element) return { element: to, offset: end.offset };
       return { element: to, offset: towards === 1 ? 0 : elements[to]!.text.length };
     }

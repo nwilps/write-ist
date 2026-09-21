@@ -25,17 +25,32 @@
  *
  * ## What is deliberately outside the budget
  *
- * Turning the editor's document back into the model and serialising it is
- * **not** on this path, and that is a decision rather than an omission: it
- * happens once per save, a couple of seconds after the writer stops typing
- * (ADR-0028), not once per keystroke. Its cost is measured and printed here
- * too, so the thing being kept off the keystroke path is a number somebody can
- * see rather than a claim.
+ * **Turning the editor's document back into the model and serialising it** is
+ * not on this path, and that is a decision rather than an omission: it happens
+ * once per save, a couple of seconds after the writer stops typing (ADR-0028),
+ * not once per keystroke. Its cost is measured and printed here too, so the
+ * thing being kept off the keystroke path is a number somebody can see rather
+ * than a claim.
+ *
+ * **Drawing the result** is not measured either, and cannot be from here:
+ * there is no window, which is what makes this seam reachable at all.
+ * ADR-0024 divides it exactly there — *the engine owns the count, the webview
+ * draws* — so what this number claims is Write-ist's own work behind a
+ * keystroke, and the redraw is `prosemirror-view`'s and WebKit's. That half is
+ * #37's fourth seam: the writer, writing in it.
+ *
+ * Everything else the application does per keystroke *is* in here, and by
+ * being the real thing rather than a stand-in for it: the manuscript is marked
+ * unsaved through a real `editingSession`, and the pause is restarted through
+ * a real `autosave`.
  */
 import { describe, expect, it } from "vitest";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
 import { autosave } from "../../src/project/autosave.ts";
+import { editingSession } from "../../src/project/save.ts";
+import type { Filesystem } from "../../src/project/filesystem.ts";
+import { FORMAT_VERSION } from "../../src/project/marker.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
@@ -58,10 +73,36 @@ function budget(document: ScreenplayDocument, bytes: number): number {
 
   // The rest of what a keystroke costs the application: the manuscript is
   // marked unsaved and the autosave pause is restarted. Both are inside the
-  // measured region, because both happen before the frame is drawn.
-  let unsaved = false;
+  // measured region, because both happen before the frame is drawn, and both
+  // are the real call rather than a stand-in for it.
+  //
+  // Nothing reaches the disk — no save is asked for — so the port below the
+  // session refuses everything, which is the loudest way of saying so.
+  const nothing: Filesystem = {
+    readDirectory: () => Promise.reject(new Error("the budget asks nothing of the disk")),
+    readFile: () => Promise.reject(new Error("the budget asks nothing of the disk")),
+    writeFile: () => Promise.reject(new Error("the budget asks nothing of the disk")),
+    createDirectory: () => Promise.reject(new Error("the budget asks nothing of the disk")),
+  };
+  const session = editingSession(
+    nothing,
+    {
+      project: {
+        path: "/nowhere",
+        marker: {
+          name: "The budget",
+          formatVersion: FORMAT_VERSION,
+          projectId: "00000000-0000-4000-8000-000000000000",
+          format: "Feature",
+        },
+      },
+      document,
+      manuscript: new Uint8Array(),
+    },
+    () => manuscriptOf(state.doc),
+  );
   const saving = autosave({
-    save: () => Promise.resolve(),
+    save: session.save,
     trouble: () => {},
     // The clock is a stub: arming a real timer 500 times would measure
     // `setTimeout`, and what is being measured is Write-ist's own work.
@@ -74,7 +115,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
 
   const keystroke = (): void => {
     state = state.apply(state.tr.insertText("a", caret));
-    unsaved = true;
+    session.changed();
     saving.typed();
   };
 
@@ -109,7 +150,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
 
   // The bookkeeping inside the measured region really ran; a budget met by
   // measuring nothing is the failure this whole file is written against.
-  expect(unsaved).toBe(true);
+  expect(session.unsaved()).toBe(true);
   return measured;
 }
 

@@ -56,6 +56,8 @@ let shell: MountedShell | undefined;
 /** Undefined until the default location has been read. */
 let listing: ProjectsListing | undefined;
 let importing = false;
+/** A project on its way closed: its last save is still running. */
+let closing = false;
 let trouble: string | undefined;
 
 /** What the screen now showing answers to. Replaced every time one is drawn. */
@@ -71,6 +73,7 @@ function draw(): void {
       filesystem: tauriFilesystem,
       workspaces: WORKSPACES,
       onClose: () => go("open-project"),
+      whenSwitchedAway,
     });
     gestures = shell.gestures;
     return;
@@ -107,17 +110,43 @@ function goToProject(project: Project): void {
   go("project");
 }
 
+/**
+ * Close the project that is open, if one is, and then do the thing that was
+ * actually asked for.
+ *
+ * **The shell is asked, not told.** Taking a workspace down may mean finishing
+ * work — the Editor's last save (ADR-0028) — and it answers `false` when it
+ * could not, in which case nothing happens: the project stays open, with what
+ * went wrong said beside the page, and the writer can ask again.
+ *
+ * It is awaited rather than left running, so that closing a project and
+ * immediately reopening it cannot read the file while the save that closing
+ * asked for is still in flight.
+ */
+function closeProject(andThen: () => void): void {
+  if (shell === undefined) {
+    andThen();
+    return;
+  }
+  // Escape is a keystroke and a disk takes as long as it takes. A second ask
+  // while the first is still finishing would take the page down underneath a
+  // save that is still running.
+  if (closing) return;
+  closing = true;
+
+  void shell.unmount().then((down) => {
+    closing = false;
+    if (!down) return;
+    shell = undefined;
+    andThen();
+  });
+}
+
 function go(next: Screen): void {
-  // Whatever the last screen was holding goes with it. A workspace left mounted
-  // behind another screen keeps its listeners and its engine alive.
-  //
-  // Not awaited: taking the Editor down saves the manuscript (ADR-0028) and
-  // the writer should not watch a screen fail to change while a disk answers.
-  // The write is atomic and the application stays up, so it lands
-  // (ADR-0008 rule 5). Quitting is the one case that cannot rely on that, and
-  // `quit` does wait.
-  void shell?.unmount();
-  shell = undefined;
+  closeProject(() => show(next));
+}
+
+function show(next: Screen): void {
   if (next !== "project") opened = undefined;
 
   screen = next;
@@ -217,24 +246,63 @@ async function importOne(): Promise<void> {
   }
 }
 
-function quit(): void {
-  // **The last save before the window goes** (ADR-0028). Quit is reachable
-  // from the home screen, where no project is open and this is nothing; with
-  // one open it is the writer's last sentence, and the only moment in the
-  // application where nothing survives waiting a beat longer.
-  const closed = shell === undefined ? Promise.resolve() : shell.unmount();
-  shell = undefined;
+/**
+ * The writer switched to another application (ADR-0028).
+ *
+ * Asked of Tauri rather than of the DOM. `window`'s own `blur` is what a web
+ * page has, and whether the system webview fires it when the *window* loses
+ * focus is the webview's business rather than a promise — a leg of autosave
+ * that quietly never fires is exactly the failure `docs/STANDARDS.md` is
+ * written against. Tauri answers for the window it opened.
+ */
+function whenSwitchedAway(act: () => void): () => void {
+  const listening = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (!focused) act();
+  });
+  // The subscription is asked for now and arrives in a moment; stopping is
+  // whatever it turns into. A workspace taken down before it arrives still
+  // stops it, because this waits for it first.
+  return () => void listening.then((stop) => stop()).catch(() => {});
+}
 
+/**
+ * Close the window — **after the project has closed itself** (ADR-0028).
+ *
+ * Quit is reachable from the home screen, where no project is open and the
+ * first half is nothing. With one open it is the writer's last sentence, and
+ * the only moment in the application where nothing survives waiting a beat
+ * longer. If that save cannot be made, the window does not close: the Editor
+ * has already said so beside the page.
+ */
+function quit(): void {
+  closeProject(closeWindow);
+}
+
+function closeWindow(): void {
   // A gesture that quietly does nothing is `docs/STANDARDS.md`'s silent
   // failure: closing needs `core:window:allow-close` in the capability, and
   // without it the promise rejects where nobody is looking.
-  closed
-    .then(() => getCurrentWindow().close())
+  getCurrentWindow()
+    .close()
     .catch((error: unknown) => {
       trouble = `Write-ist could not close its window. ${message(error)}`;
       draw();
     });
 }
+
+/**
+ * The window's own close button is the same gesture as **Quit**.
+ *
+ * ADR-0028 says autosave fires when the project is closed, and a writer who
+ * closes Write-ist from the titlebar has closed the project — the route they
+ * took is not a reason to lose the last thing they wrote. The close is
+ * stopped, the project closes itself, and `quit` closes the window for real.
+ */
+void getCurrentWindow().onCloseRequested((event) => {
+  if (shell === undefined) return;
+  event.preventDefault();
+  quit();
+});
 
 
 draw();

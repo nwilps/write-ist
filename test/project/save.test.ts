@@ -21,10 +21,10 @@ import { importProject } from "../../src/project/import.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
 import { editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
-import type { EditorState } from "prosemirror-state";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
+import { startOfElement } from "../support/editor-positions.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 
@@ -62,28 +62,6 @@ function edited(document: ScreenplayDocument, at: number, text: string): Screenp
   const elements = [...document.elements];
   elements[at] = { ...elements[at]!, text };
   return { ...document, elements };
-}
-
-/**
- * Where an element's text starts in the editor's document.
- *
- * Not position 1: `Brick & Steel` opens with a title page, and its lines come
- * before the elements (`src/screenplay/schema.ts`). A test that assumed
- * otherwise would be typing into the title rather than into the screenplay.
- */
-function startOfElement(state: EditorState, element: number): number {
-  let at = 0;
-  let index = 0;
-  let found: number | undefined;
-  state.doc.forEach((child) => {
-    if (child.type.name === "element") {
-      if (index === element) found = at + 1;
-      index++;
-    }
-    at += child.nodeSize;
-  });
-  if (found === undefined) throw new Error(`no element ${element}`);
-  return found;
 }
 
 /** A clock a test is, rather than a clock a test waits for. */
@@ -209,6 +187,44 @@ describe("the one save routine (ADR-0028)", () => {
     session.changed();
     await expect(session.save()).rejects.toThrow("the disk is full");
     expect(session.unsaved()).toBe(true);
+  });
+});
+
+describe("the port really is temp, flush, rename (ADR-0008 rule 5)", () => {
+  it("leaves no temporary file behind, and the manuscript is what was written", async () => {
+    const opened = await aProject();
+    let document = opened.document;
+    const session = editingSession(nodeFilesystem, opened, () => document);
+
+    document = edited(document, 0, "INT. REALLY WRITTEN - DAY");
+    session.changed();
+    await session.save();
+
+    // The real port, not a stub: `test/support/node-filesystem.ts` writes the
+    // temporary file, flushes it, renames it, and flushes the directory. The
+    // test asserts what is observable from outside — the manuscript holds the
+    // new bytes and nothing is left lying beside it.
+    const entries = await nodeFilesystem.readDirectory(opened.project.path);
+    expect(entries.map((entry) => entry.name).sort()).toEqual([
+      MANUSCRIPT_FILE,
+      "project.md",
+    ]);
+    expect(parse(new TextDecoder().decode(onDisk(opened))).elements[0]!.text).toBe(
+      "INT. REALLY WRITTEN - DAY",
+    );
+  });
+
+  it("does not read a temporary file left by an interrupted save", async () => {
+    const opened = await aProject();
+    const before = onDisk(opened);
+
+    // What a power cut before the rename leaves: the new bytes in the
+    // temporary file, the manuscript untouched.
+    writeFileSync(`${manuscriptPath(opened)}.writing`, new TextEncoder().encode("INT. LOST - DAY"));
+
+    const reopened = await openProject(nodeFilesystem, opened.project);
+    expect(reopened.manuscript).toEqual(before);
+    expect(reopened.document.elements[0]!.text).toBe(opened.document.elements[0]!.text);
   });
 });
 

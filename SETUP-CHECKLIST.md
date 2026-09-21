@@ -224,8 +224,25 @@ stops, when the window loses focus, and when the project is closed (ADR-0028). C
 it, and the words are there.
 
 - **One save routine**, `src/project/save.ts`, and autosave is only a clock over it
-  (`src/project/autosave.ts`, a clock a test can be rather than wait for). It writes through the
-  **existing serialiser** and nothing else, atomically — temp, flush, rename (ADR-0008 rule 5).
+  (`src/project/autosave.ts`, a clock a test can be rather than wait for). Four things call it: the
+  pause after typing, switching to another application, closing the project, and **Ctrl/Cmd+S**.
+  It writes through the **existing serialiser** and nothing else.
+- **Temp, flush, rename** (ADR-0008 rule 5), and the middle word needed the shell's first command:
+  `@tauri-apps/plugin-fs` writes and renames but exposes no flush, so `commit_write` in
+  `src-tauri/src/lib.rs` flushes the temporary file, renames it, and flushes the directory the
+  rename is an entry in. The bytes do not cross that boundary. The test port does the same three
+  steps with `node:fs`, because a test port that flushed less would be testing a weaker promise
+  than the one that ships.
+- **Switching away is asked of Tauri, not of the DOM.** `window`'s own `blur` is what a web page
+  has; whether the system webview fires it when the *window* loses focus is the webview's business
+  rather than a promise, and a leg of autosave that quietly never fires is the failure
+  `docs/STANDARDS.md` is written against. The window's close button is the same gesture as **Quit**,
+  so a writer who closes from the titlebar has closed the project.
+- **The Editor will not come down over a save it could not finish.** Its `unmount` answers whether
+  it came down; on a failed last save it says so beside the page and stays up, because the words
+  are on screen and nowhere else and destroying the view would destroy them. Closing a project is
+  awaited for the same reason: closing and immediately reopening must not read the file while the
+  save that closing asked for is still in flight.
 - **A manuscript that could not be read is never written over** as a *type* rather than a check:
   a session is made from an `OpenedProject`, and a failed read produces none (ADR-0008 rule 3).
 - **Opening a project and closing it without typing writes nothing at all** — not equal bytes, no
@@ -239,14 +256,18 @@ it, and the words are there.
   out as a blank line would give a file that does not read back as itself — ADR-0020 point 2. All
   four screenplay manuscripts hold no element with empty text, which is what makes the rule safe,
   and a test pins that.
-- **The keystroke budget: 0.054 ms** on the full acceptance corpus, measured including the
-  measurement's own cost, against a 16 ms budget — and 0.043 ms on `Big-Fish-augmented.fountain`,
-  which is the manuscript with comments in it, because the corpus has none. Turning the model
-  back into bytes costs ~8 ms and is deliberately off that path: it happens once per save.
+- **The keystroke budget: 0.07 ms** on the full acceptance corpus, measured including the
+  measurement's own cost, against a 16 ms budget — and 0.04 ms on `Big-Fish-augmented.fountain`,
+  which is the manuscript with comments in it, because the corpus has none. Everything the
+  application does per keystroke is in that figure and is the real call rather than a stand-in;
+  drawing the result is `prosemirror-view`'s and the webview's, which ADR-0024 puts on the other
+  side of the line and #37's fourth seam gives to the writer. Turning the model back into bytes
+  costs 11–14 ms on the corpus and is deliberately off that path: once per save, seconds after
+  the writer stopped typing.
 - **Enter and the two joining keys do nothing yet, deliberately** (#43). With no handler they fall
   through to the browser, which splits a `div` and leaves the engine reading back an element with
   no type. Inert is a missing feature; invented is a corrupted manuscript.
-- 557 tests with the acceptance corpus present.
+- 563 tests with the acceptance corpus present.
 
 ### Not started, and deliberately above this layer
 

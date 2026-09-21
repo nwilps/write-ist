@@ -16,13 +16,13 @@ import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import type { EditorState } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
+import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import {
-  editorStateFor,
   holdJoinBackwards,
   holdJoinForwards,
   holdSplit,
-  manuscriptOf,
-} from "../../src/screenplay/editing.ts";
+} from "../../src/screenplay/held-keys.ts";
+import { startOfElement } from "../support/editor-positions.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import type { ElementType } from "../../src/screenplay/document.ts";
@@ -42,35 +42,14 @@ function types(state: EditorState): readonly ElementType[] {
   return manuscriptOf(state.doc).elements.map((element) => element.type);
 }
 
-/**
- * Where an element's text starts in the editor's document.
- *
- * The tests do their own arithmetic rather than borrowing the editor's, so a
- * bug in the editor's cannot hide itself here.
- */
-function startOf(state: EditorState, element: number): number {
-  let at = 0;
-  let index = 0;
-  let found: number | undefined;
-  state.doc.forEach((child) => {
-    if (child.type.name === "element") {
-      if (index === element) found = at + 1;
-      index++;
-    }
-    at += child.nodeSize;
-  });
-  if (found === undefined) throw new Error(`no element ${element}`);
-  return found;
-}
-
 /** Type `text` at an offset into an element, the way a keystroke does. */
 function type(state: EditorState, element: number, offset: number, text: string): EditorState {
-  return state.apply(state.tr.insertText(text, startOf(state, element) + offset));
+  return state.apply(state.tr.insertText(text, startOfElement(state, element) + offset));
 }
 
 /** Delete a span of one element's text, the way a selection and a key do. */
 function remove(state: EditorState, element: number, from: number, to: number): EditorState {
-  const start = startOf(state, element);
+  const start = startOfElement(state, element);
   return state.apply(state.tr.delete(start + from, start + to));
 }
 
@@ -230,7 +209,7 @@ describe("a comment stays on the words it was left on (ADR-0018)", () => {
 describe("the keys #43 owns do nothing rather than something nobody chose", () => {
   /** Put the caret at an offset into an element, the way a click does. */
   function caretAt(state: EditorState, element: number, offset: number): EditorState {
-    const at = startOf(state, element) + offset;
+    const at = startOfElement(state, element) + offset;
     return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at)));
   }
 
@@ -254,9 +233,9 @@ describe("the keys #43 owns do nothing rather than something nobody chose", () =
 
   it("does not hold a selection that covers whole elements: they go, and the rest keep their types", () => {
     const state = opened(SCENE);
-    const from = startOf(state, 2);
+    const from = startOfElement(state, 2);
     // From the start of the cue through the end of the dialogue below it.
-    const to = startOf(state, 3) + "Morning.".length;
+    const to = startOfElement(state, 3) + "Morning.".length;
     const after = state.apply(state.tr.delete(from, to));
 
     // The two join, as #43 will have Backspace do, and the survivor keeps the

@@ -35,10 +35,19 @@
  *
  * ## Saving is asked for here and decided elsewhere
  *
- * A keystroke restarts the pause; losing the window and closing the project
- * save at once (ADR-0028). All three call `autosave`, which calls the one save
- * routine — so there is no second path to a written file and nothing here owns
- * a timer.
+ * A keystroke restarts the pause; switching to another application, asking for
+ * a save, and closing the project save at once (ADR-0028). All of them call
+ * `autosave`, which calls the one save routine — so there is no second path to
+ * a written file and nothing here owns a timer.
+ *
+ * ## It will not come down over a save it could not finish
+ *
+ * `unmount` answers whether the workspace came down, and answers `false` when
+ * the last save failed. The words are still on screen and nowhere else, so
+ * destroying the view would destroy them — the silent destruction ADR-0008 was
+ * written from, arrived at by a different road. It says what happened beside
+ * the page, which it still has because it is still up, and the writer can try
+ * again.
  */
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
@@ -46,6 +55,7 @@ import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { element } from "../../screens/element.ts";
+import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
@@ -72,7 +82,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   into.replaceChildren(page);
 
   let view: EditorView | undefined;
-  let leave: (() => Promise<void>) | undefined;
+  /** How to finish and let go. Undefined until the manuscript has been read. */
+  let leave: (() => Promise<boolean>) | undefined;
   let gone = false;
 
   void (async () => {
@@ -89,29 +100,53 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       const session = editingSession(context.filesystem, opened, () =>
         manuscriptOf(state.doc),
       );
+      /** A save that failed, in the writer's words. */
+      const failure = (error: unknown): string =>
+        `Write-ist could not save your screenplay, so your last few words are ` +
+        `only on screen. ${message(error)}`;
+
+      let unfinished: unknown;
+      let leaving = false;
       const saving = autosave({
         save: session.save,
         // Autosave is the thing the writer is not watching, so a failure it
         // swallowed would be a failure nobody ever learned about (ADR-0008
         // rule 4). Their words are still on screen and still unsaved, and the
         // next save will try again — which is what this says.
-        trouble: (error) =>
-          context.report(
-            `Write-ist could not save your screenplay, so your last few words are ` +
-              `only on screen. It will try again. ${message(error)}`,
-          ),
+        //
+        // **Except on the way out**, where there is no next save and the words
+        // are handed back to `leave` to say something truer about instead. Two
+        // panels for one failure would be the application talking over itself.
+        trouble: (error) => {
+          if (leaving) {
+            unfinished = error;
+            return;
+          }
+          context.report(`${failure(error)} It will try again.`);
+        },
       });
 
-      // Switching to another application (ADR-0028). The window's own blur,
-      // rather than a Tauri listener, because it is the same event on all
-      // three platforms and needs no capability.
-      const switchedAway = (): void => void saving.now();
-      window.addEventListener("blur", switchedAway);
+      // Switching to another application (ADR-0028).
+      const stopListening = context.whenSwitchedAway(() => void saving.now());
+
       leave = async () => {
-        window.removeEventListener("blur", switchedAway);
-        // Closing the project (ADR-0028). Awaited, so that a writer who
-        // closes and quits has the save land before the window goes.
+        // Closing the project (ADR-0028), through the same routine as every
+        // other save.
+        unfinished = undefined;
+        leaving = true;
         await saving.now();
+        leaving = false;
+        // **The one save with nothing after it.** There is no later autosave
+        // to try again, because the page is about to go — so it does not go.
+        if (unfinished !== undefined) {
+          context.report(
+            `${failure(unfinished)} This project stays open until it saves, ` +
+              `so nothing you have written is lost.`,
+          );
+          return false;
+        }
+        stopListening();
+        return true;
       };
 
       reading.remove();
@@ -125,6 +160,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           if (!transaction.docChanged) return;
           session.changed();
           saving.typed();
+        },
+        // The explicit save ADR-0028 pairs with autosave — the same routine,
+        // asked for rather than waited for. It is held here rather than in the
+        // surface's keymap because *when to save* belongs to the workspace
+        // that owns the project, not to the screenplay surface.
+        handleKeyDown: (_editor, event) => {
+          if (!asksToSave(event)) return false;
+          void saving.now();
+          return true;
         },
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
@@ -143,14 +187,21 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   return {
     unmount: async () => {
+      // Still reading, so there is nothing to save and nothing but a line of
+      // text to take down. The read's own continuation sees this and stops.
+      if (leave === undefined) {
+        gone = true;
+        return true;
+      }
+      // The final save first, and it decides: the page comes down only once
+      // the writer's last sentence is on disk.
+      if (!(await leave())) return false;
+
       gone = true;
-      // The final save first: taking the view down destroys nothing the model
-      // needs, but there is no reason to have the page disappear before the
-      // writer's last sentence is on disk.
-      await leave?.();
       leave = undefined;
       view?.destroy();
       view = undefined;
+      return true;
     },
   };
 }
