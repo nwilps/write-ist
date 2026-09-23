@@ -54,6 +54,7 @@ import { FORMAT_VERSION } from "../../src/project/marker.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
+import { unwatched } from "../support/unwatched.ts";
 
 /** One frame. */
 const BUDGET = 16;
@@ -100,14 +101,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
       manuscript: new Uint8Array(),
     },
     () => manuscriptOf(state.doc),
-    {
-      reload: () => {
-        throw new Error("the budget asks nothing of the disk");
-      },
-      keptBoth: () => {
-        throw new Error("the budget asks nothing of the disk");
-      },
-    },
+    unwatched,
   );
   const saving = autosave({
     save: session.save,

@@ -290,7 +290,7 @@ it is open, and Write-ist never writes over it (ADR-0028).
   answers is given up on at the same `DISK_LIMIT` as a write.
 - Every save now compares at least once, so the comparison is a plain loop: 0.28 ms over the
   corpus, against 3.9 ms for `every`. Reading the corpus takes 0.3 ms; a reload's import, 48 ms.
-- 581 tests with the acceptance corpus present.
+- 582 tests with the acceptance corpus present.
 
 ### Not started, and deliberately above this layer
 

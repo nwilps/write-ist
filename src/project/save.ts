@@ -117,7 +117,8 @@ export interface ChangedElsewhere {
   readonly reload: (imported: ImportedScreenplay) => void;
   /**
    * The writer had typed too, so both were kept: theirs as the manuscript, the
-   * other at this path, beside it. Tell them where.
+   * other at this path, beside it. Tell them where. Called only once the
+   * writer's version has been saved.
    */
   readonly keptBoth: (path: string) => void;
   /** When it is, for dating the copy. The system clock unless a test is it. */
@@ -180,6 +181,8 @@ export function editingSession(
   let unsettled = false;
   /** The writer typed since the last save. */
   let dirty = false;
+  /** A copy kept beside the manuscript that the writer has not been told of. */
+  let untold: string | undefined;
   /**
    * Saves run one at a time.
    *
@@ -215,10 +218,12 @@ export function editingSession(
       // It is kept, so it is safe to replace — and a retry after the
       // manuscript's own write fails must not keep it a second time.
       ours.push(found);
-      keptBoth(copy);
+      // Told once the writer's version is saved too, and not before: the
+      // telling says it is, and a write that then failed would make it a lie.
+      untold = copy;
     }
 
-    if (!dirty) return { written: false };
+    if (!dirty) return told({ written: false });
 
     const bytes = exportScreenplay(manuscript());
     // Cleared before the write, so a keystroke that arrives *during* it is
@@ -226,7 +231,7 @@ export function editingSession(
     // late.
     dirty = false;
 
-    if (!unsettled && identical(bytes, found)) return { written: false };
+    if (!unsettled && identical(bytes, found)) return told({ written: false });
 
     try {
       // Atomic — temp, flush, rename — which the `Filesystem` port promises
@@ -249,14 +254,29 @@ export function editingSession(
     }
     ours = [bytes];
     unsettled = false;
-    return { written: true };
+    return told({ written: true });
+  };
+
+  /**
+   * The writer's version is on disk, so a copy kept beside it can be said.
+   * Held across a failed write, because the retry finds the other version
+   * already kept and would otherwise never mention it.
+   */
+  const told = (outcome: SaveOutcome): SaveOutcome => {
+    if (untold !== undefined) {
+      keptBoth(untold);
+      untold = undefined;
+    }
+    return outcome;
   };
 
   /** A name beside the manuscript that nothing already has. */
   const freeCopyName = async (): Promise<string> => {
-    const taken = new Set(
-      (await filesystem.readDirectory(opened.project.path)).map((entry) => entry.name),
-    );
+    // Within the limit like every other question a save asks of the disk: a
+    // listing that never answered would hold up this save and every one
+    // queued behind it (#64).
+    const entries = await withinLimit(filesystem.readDirectory(opened.project.path), clock);
+    const taken = new Set(entries.map((entry) => entry.name));
     return copyNameFor(now(), taken);
   };
 
@@ -287,8 +307,9 @@ export function copyNameFor(moment: Date, taken: ReadonlySet<string>): string {
   const two = (value: number): string => String(value).padStart(2, "0");
   const date = `${moment.getFullYear()}-${two(moment.getMonth() + 1)}-${two(moment.getDate())}`;
   const time = `${two(moment.getHours())}.${two(moment.getMinutes())}.${two(moment.getSeconds())}`;
-  const stem = MANUSCRIPT_FILE.slice(0, MANUSCRIPT_FILE.lastIndexOf("."));
-  const extension = MANUSCRIPT_FILE.slice(MANUSCRIPT_FILE.lastIndexOf("."));
+  const dot = MANUSCRIPT_FILE.lastIndexOf(".");
+  const stem = MANUSCRIPT_FILE.slice(0, dot);
+  const extension = MANUSCRIPT_FILE.slice(dot);
   const base = `${stem} changed elsewhere ${date} ${time}`;
 
   const lowercased = new Set([...taken].map((name) => name.toLowerCase()));

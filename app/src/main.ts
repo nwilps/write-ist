@@ -287,6 +287,16 @@ function whenFocus(wanted: boolean, act: () => void): () => void {
   const listening = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
     if (focused === wanted) act();
   });
+  // Loud rather than an unhandled rejection nobody reads, as the close button
+  // is: without this, a save on switching away — or the check for a change
+  // made elsewhere on switching back (#42) — quietly never happens.
+  listening.catch((error: unknown) => {
+    shell?.report(
+      `Write-ist could not tell when you switch ${wanted ? "back to it" : "to another app"}, ` +
+        `so it will not ${wanted ? "check then whether this screenplay was changed outside it" : "save then"}. ` +
+        `It still saves a couple of seconds after you stop typing. ${message(error)}`,
+    );
+  });
   // The subscription is asked for now and arrives in a moment; stopping is
   // whatever it turns into. A workspace taken down before it arrives still
   // stops it, because this waits for it first.

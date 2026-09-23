@@ -19,7 +19,7 @@ import { MANUSCRIPT_FILE } from "../../src/project/bundle.ts";
 import { autosave, PAUSE, type Clock, type Pending } from "../../src/project/autosave.ts";
 import { importProject } from "../../src/project/import.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
-import { DISK_LIMIT, editingSession, type ChangedElsewhere } from "../../src/project/save.ts";
+import { DISK_LIMIT, editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -27,6 +27,7 @@ import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { startOfElement } from "../support/editor-positions.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
+import { unwatched } from "../support/unwatched.ts";
 
 let temporary: { path: string; remove: () => void };
 let projects: string;
@@ -63,20 +64,6 @@ function edited(document: ScreenplayDocument, at: number, text: string): Screenp
   elements[at] = { ...elements[at]!, text };
   return { ...document, elements };
 }
-
-/**
- * Nothing else writes the manuscript in this file — that is
- * `changed-elsewhere.test.ts` — so finding a change made elsewhere is a
- * failure here, and a loud one.
- */
-const unwatched: ChangedElsewhere = {
-  reload: () => {
-    throw new Error("nothing else wrote this manuscript, but a save found a change");
-  },
-  keptBoth: () => {
-    throw new Error("nothing else wrote this manuscript, but a save kept a copy");
-  },
-};
 
 /** A clock a test is, rather than a clock a test waits for. */
 function driven(): Clock & { readonly tick: () => void; readonly waiting: () => number | undefined } {

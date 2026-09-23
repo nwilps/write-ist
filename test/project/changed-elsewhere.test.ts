@@ -303,11 +303,50 @@ describe("changed elsewhere, while the writer was also typing", () => {
     writtenElsewhere(opened, elsewhereVersion(opened));
 
     await expect(session.save()).rejects.toThrow("the disk is full");
+    // Not told yet: being told says the writer's version is saved, and it is
+    // not.
+    expect(writer.kept).toHaveLength(0);
     await session.save();
 
-    expect(writer.kept).toHaveLength(1);
+    const copy = copyNameFor(new Date(2026, 8, 23, 14, 5, 9), new Set());
+    expect(writer.kept).toEqual([join(opened.project.path, copy)]);
     expect(parse(text(onDisk(opened))).elements[0]!.text).toBe(EDITED_BY_WRITER);
-    expect(readdirSync(opened.project.path)).toHaveLength(3);
+    expect(readdirSync(opened.project.path).sort()).toEqual([copy, MANUSCRIPT_FILE, "project.md"]);
+  });
+});
+
+describe("a disk that never answers while a copy is being kept (#64)", () => {
+  it("stops waiting for the folder listing, and writes nothing", async () => {
+    const opened = await aProject();
+    const { writer, handlers } = aWriter(opened);
+    let pending: (() => void) | undefined;
+    const clock = {
+      wait: (run: () => void) => ((pending = run), run),
+      cancel: () => void (pending = undefined),
+    };
+    const silentListing: Filesystem = {
+      ...nodeFilesystem,
+      readDirectory: () => new Promise(() => {}),
+    };
+    const session = editingSession(silentListing, opened, () => writer.document, {
+      ...handlers,
+      clock,
+    });
+
+    writer.document = edited(writer.document, 0, EDITED_BY_WRITER);
+    session.changed();
+    const theirs = elsewhereVersion(opened);
+    writtenElsewhere(opened, theirs);
+
+    const saving = session.save();
+    // The read answers on its own; the listing after it never does.
+    while (pending === undefined) await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    pending();
+
+    await expect(saving).rejects.toThrow("Your disk did not answer within 10 seconds.");
+    expect(onDisk(opened)).toEqual(theirs);
+    expect(session.unsaved()).toBe(true);
   });
 });
 
