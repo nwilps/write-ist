@@ -68,3 +68,9 @@ jobs:
       - name: The shell
         working-directory: src-tauri
         run: cargo build --locked
+
+      # The shell's one command orders the writes to a manuscript, so that a
+      # save given up on cannot land over a later one (#64).
+      - name: The shell's tests
+        working-directory: src-tauri
+        run: cargo test --locked

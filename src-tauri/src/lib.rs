@@ -8,8 +8,20 @@
 //! There is **one** command, and it is here because the plugin cannot do what
 //! ADR-0008 rule 5 asks for: see `commit_write`.
 
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+/// The newest write that has landed on each path, by the number the webview
+/// gave it.
+///
+/// The webview gives up on a write that takes too long (#64), so that a disk
+/// that never answers cannot hold the writer in the application. Giving up does
+/// not stop the write: it may still land, seconds later, after a newer save has
+/// already put the writer's later words on disk. This is what refuses it.
+#[derive(Default)]
+struct Landed(Mutex<HashMap<PathBuf, u64>>);
 
 /// Finish an atomic write: **flush, then rename** (ADR-0008 rule 5).
 ///
@@ -25,12 +37,36 @@ use std::path::Path;
 /// entry: the file's own bytes being durable does not make the name that now
 /// refers to them durable. Unix only — Windows has no directory handle to sync
 /// and its rename is already ordered — and slice 1 ships Linux (ADR-0001).
-#[tauri::command]
-fn commit_write(temporary: String, path: String) -> Result<(), String> {
-    commit(Path::new(&temporary), Path::new(&path)).map_err(|error| error.to_string())
+///
+/// **`sequence` orders the writes to one path**, and a write numbered below one
+/// that has already landed is thrown away rather than renamed over it. That is
+/// not a failure — the newer words are on disk — so it answers `Ok`.
+///
+/// **Run off the main thread** (`async`). A command without it runs on the
+/// thread that draws the window, so a flush the disk takes its time over would
+/// freeze the window with it.
+#[tauri::command(async)]
+fn commit_write(
+    temporary: String,
+    path: String,
+    sequence: u64,
+    landed: tauri::State<'_, Landed>,
+) -> Result<(), String> {
+    commit(&landed, Path::new(&temporary), Path::new(&path), sequence)
+        .map_err(|error| error.to_string())
 }
 
-fn commit(temporary: &Path, path: &Path) -> std::io::Result<()> {
+fn commit(landed: &Landed, temporary: &Path, path: &Path, sequence: u64) -> std::io::Result<()> {
+    // Held across the flush and the rename, so two writes to one path finish
+    // one at a time and the check below cannot go stale while one is running.
+    // A panic elsewhere while holding it leaves the map as it was, which is
+    // still true, so a poisoned lock is taken rather than refused.
+    let mut landed = landed.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    if landed.get(path).is_some_and(|&newest| newest >= sequence) {
+        return fs::remove_file(temporary);
+    }
+
     OpenOptions::new().write(true).open(temporary)?.sync_all()?;
     fs::rename(temporary, path)?;
 
@@ -39,6 +75,7 @@ fn commit(temporary: &Path, path: &Path) -> std::io::Result<()> {
         File::open(folder)?.sync_all()?;
     }
 
+    landed.insert(path.to_path_buf(), sequence);
     Ok(())
 }
 
@@ -46,7 +83,83 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(Landed::default())
         .invoke_handler(tauri::generate_handler![commit_write])
         .run(tauri::generate_context!())
         .expect("Write-ist could not open a window");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A folder of its own under the system's temporary directory, removed
+    /// when the test is done with it.
+    struct Folder(PathBuf);
+
+    impl Folder {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("write-ist-commit-{name}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            Folder(path)
+        }
+    }
+
+    impl Drop for Folder {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn written(folder: &Folder, name: &str, text: &str) -> PathBuf {
+        let path = folder.0.join(name);
+        fs::write(&path, text).unwrap();
+        path
+    }
+
+    #[test]
+    fn renames_the_temporary_file_over_the_manuscript() {
+        let folder = Folder::new("renames");
+        let manuscript = written(&folder, "manuscript.fountain", "OLD");
+        let temporary = written(&folder, "manuscript.fountain.writing-1", "NEW");
+
+        commit(&Landed::default(), &temporary, &manuscript, 1).unwrap();
+
+        assert_eq!(fs::read_to_string(&manuscript).unwrap(), "NEW");
+        assert!(!temporary.exists());
+    }
+
+    #[test]
+    fn a_write_that_lands_after_a_newer_one_is_thrown_away() {
+        let folder = Folder::new("late");
+        let landed = Landed::default();
+        let manuscript = written(&folder, "manuscript.fountain", "OLD");
+        let earlier = written(&folder, "manuscript.fountain.writing-1", "EARLIER");
+        let later = written(&folder, "manuscript.fountain.writing-2", "LATER");
+
+        // The webview gave up on write 1 and made write 2, which landed. Then
+        // write 1 arrived after all.
+        commit(&landed, &later, &manuscript, 2).unwrap();
+        commit(&landed, &earlier, &manuscript, 1).unwrap();
+
+        assert_eq!(fs::read_to_string(&manuscript).unwrap(), "LATER");
+        // Nothing is left lying in the bundle beside the manuscript.
+        assert!(!earlier.exists());
+        assert!(!later.exists());
+    }
+
+    #[test]
+    fn orders_each_path_on_its_own() {
+        let folder = Folder::new("paths");
+        let landed = Landed::default();
+        let one = written(&folder, "one.fountain", "OLD");
+        let two = written(&folder, "two.fountain", "OLD");
+
+        commit(&landed, &written(&folder, "one.writing", "ONE"), &one, 5).unwrap();
+        commit(&landed, &written(&folder, "two.writing", "TWO"), &two, 3).unwrap();
+
+        assert_eq!(fs::read_to_string(&two).unwrap(), "TWO");
+    }
 }

@@ -34,11 +34,27 @@
  * running it again at save time would make saving a second, quieter author of
  * the writer's text — and one whose result the writer never saw on screen.
  */
+import { windowClock, type Clock } from "./autosave.ts";
 import { exportScreenplay } from "../screenplay/import.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { MANUSCRIPT_FILE, type Project } from "./bundle.ts";
 import { join, type Filesystem } from "./filesystem.ts";
 import type { OpenedProject } from "./open.ts";
+
+/**
+ * How long a save waits for the disk before it stops waiting (#64).
+ *
+ * A write crosses from the webview into the operating system, and an answer
+ * that never comes back is a promise that never settles. Everything waiting
+ * behind it would wait for ever: every later save, and closing the project,
+ * which saves first (ADR-0028). So a save that has not landed by now is a save
+ * that failed, and is said as one.
+ *
+ * Long enough that no disk this runs on takes it for a manuscript — a save is
+ * a couple of hundred kilobytes and takes milliseconds — and short enough that
+ * a writer closing Write-ist is not left waiting on a disk that is not there.
+ */
+export const DISK_LIMIT = 10_000;
 
 export interface SaveOutcome {
   /**
@@ -82,9 +98,14 @@ export function editingSession(
   filesystem: Filesystem,
   opened: OpenedProject,
   manuscript: () => ScreenplayDocument,
+  { clock = windowClock }: { readonly clock?: Clock } = {},
 ): EditingSession {
   const path = join(opened.project.path, MANUSCRIPT_FILE);
-  let onDisk = opened.manuscript;
+  /**
+   * What the manuscript on disk holds — or undefined once a write has failed,
+   * because a write that failed may still have landed, or may yet land.
+   */
+  let onDisk: Uint8Array | undefined = opened.manuscript;
   let dirty = false;
   /**
    * Saves run one at a time.
@@ -93,6 +114,10 @@ export function editingSession(
    * typing and immediately switches away asks for both within a few
    * milliseconds. Two writes racing for one path is the kind of thing that
    * works on every machine it is tried on.
+   *
+   * **Each save waits at most `DISK_LIMIT`**, so one that never lands cannot
+   * hold up the next. The port promises that a write given up on never lands
+   * over a later one.
    */
   let running: Promise<SaveOutcome> = Promise.resolve({ written: false });
 
@@ -111,7 +136,7 @@ export function editingSession(
       // Atomic — temp, flush, rename — which the `Filesystem` port promises
       // and both of its implementations provide (ADR-0008 rule 5). A save
       // interrupted before the rename leaves the previous manuscript intact.
-      await filesystem.writeFile(path, bytes);
+      await withinLimit(filesystem.writeFile(path, bytes), clock);
     } catch (error) {
       // **The writer's work is still only in memory, so it is still
       // unsaved.** A full disk that cleared the flag would mean the next
@@ -119,6 +144,10 @@ export function editingSession(
       // — a failed write authorising silence is ADR-0008 rule 3 wearing the
       // other face.
       dirty = true;
+      // And the disk is no longer known, so the next save writes whatever
+      // it has rather than trusting a comparison with bytes that may not be
+      // there.
+      onDisk = undefined;
       throw error;
     }
     onDisk = bytes;
@@ -138,7 +167,28 @@ export function editingSession(
   };
 }
 
-function identical(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length) return false;
+/** The write, or a failure in the writer's words once `DISK_LIMIT` has passed. */
+function withinLimit(write: Promise<void>, clock: Clock): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const limit = clock.wait(
+      () =>
+        reject(new Error(`Your disk did not answer within ${DISK_LIMIT / 1000} seconds.`)),
+      DISK_LIMIT,
+    );
+    write.then(
+      () => {
+        clock.cancel(limit);
+        resolve();
+      },
+      (error: unknown) => {
+        clock.cancel(limit);
+        reject(error);
+      },
+    );
+  });
+}
+
+function identical(left: Uint8Array, right: Uint8Array | undefined): boolean {
+  if (right === undefined || left.length !== right.length) return false;
   return left.every((byte, index) => byte === right[index]);
 }

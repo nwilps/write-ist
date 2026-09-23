@@ -133,13 +133,27 @@ function closeProject(andThen: () => void): void {
   // save that is still running.
   if (closing) return;
   closing = true;
+  const closingShell = shell;
 
-  void shell.unmount().then((down) => {
-    closing = false;
+  void (async () => {
+    let down = false;
+    try {
+      down = await closingShell.unmount();
+    } catch (error) {
+      // Nothing the Editor does on the way out is meant to throw, so this is
+      // a fault in Write-ist rather than in the writer's disk — and the
+      // writer's last words may be only on screen, so the page stays up.
+      closingShell.report(`Write-ist could not close this project. ${message(error)}`);
+    } finally {
+      // **Released however the unmount ended** (#64). Released only when it
+      // succeeded, one close that went wrong would swallow every close after it,
+      // from every route, and say nothing.
+      closing = false;
+    }
     if (!down) return;
     shell = undefined;
     andThen();
-  });
+  })();
 }
 
 function go(next: Screen): void {
@@ -279,12 +293,21 @@ function quit(): void {
 }
 
 function closeWindow(): void {
+  // **`destroy`, not `close`.** `close` asks, and the asking arrives back at
+  // the listener below, which would stop it again. `destroy` is the answer.
+  //
   // A gesture that quietly does nothing is `docs/STANDARDS.md`'s silent
-  // failure: closing needs `core:window:allow-close` in the capability, and
-  // without it the promise rejects where nobody is looking.
+  // failure: this needs `core:window:allow-destroy` in the capability, and
+  // without it the promise rejects where nobody is looking. That is #64 — every
+  // way of closing Write-ist did nothing, because the destroy was Tauri's own
+  // and its refusal was nobody's to report.
   getCurrentWindow()
-    .close()
+    .destroy()
     .catch((error: unknown) => {
+      // The project, if one was open, has already closed, so the screen to
+      // say it on is the home screen rather than a project that is gone.
+      screen = "home";
+      opened = undefined;
       trouble = `Write-ist could not close its window. ${message(error)}`;
       draw();
     });
@@ -297,10 +320,14 @@ function closeWindow(): void {
  * closes Write-ist from the titlebar has closed the project — the route they
  * took is not a reason to lose the last thing they wrote. The close is
  * stopped, the project closes itself, and `quit` closes the window for real.
+ *
+ * **Stopped always, even with no project open**, so that every close is
+ * finished by `closeWindow`, which says so when it cannot. Left to go ahead,
+ * Tauri finishes it by destroying the window itself — and when that was
+ * refused, nothing anywhere said so (#64).
  */
 getCurrentWindow()
   .onCloseRequested((event) => {
-    if (shell === undefined) return;
     event.preventDefault();
     quit();
   })

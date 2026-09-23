@@ -47,6 +47,11 @@ export interface Filesystem {
    * The atomicity is the implementation's to provide, because only it knows
    * what its platform offers. Nothing above this line may assume a partially
    * written file is possible.
+   *
+   * **A write its caller gave up on never lands over a later one.** The save
+   * routine stops waiting for a disk that has not answered (#64), and stopping
+   * waiting does not stop the write. If it lands at all, it lands before the
+   * next write or not at all, so older words never replace newer ones.
    */
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
 

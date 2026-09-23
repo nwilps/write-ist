@@ -7,10 +7,15 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, open, readdir, readFile, rename } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
+
+let written = 0;
+/** The newest write landed on each path, by number. */
+const landed = new Map<string, number>();
+let committing: Promise<void> = Promise.resolve();
 
 export const nodeFilesystem: Filesystem = {
   async readDirectory(path: string): Promise<readonly DirectoryEntry[]> {
@@ -35,7 +40,12 @@ export const nodeFilesystem: Filesystem = {
     // application's port takes — there they are a plugin call and a command in
     // `src-tauri/src/lib.rs`, here they are `node:fs`. A test port that skipped
     // the flush would be testing a weaker promise than the one that ships.
-    const temporary = `${path}.writing`;
+    //
+    // Numbered, each with its own temporary file, and a write that arrives
+    // after a newer one has landed is thrown away — the promise
+    // `commit_write` keeps, kept here too.
+    const sequence = ++written;
+    const temporary = `${path}.writing-${sequence}`;
     const file = await open(temporary, "w");
     try {
       await file.write(bytes);
@@ -43,16 +53,28 @@ export const nodeFilesystem: Filesystem = {
     } finally {
       await file.close();
     }
-    await rename(temporary, path);
 
-    // The rename is a directory entry, and the file's bytes being durable does
-    // not make the name that refers to them durable.
-    const folder = await open(dirname(path), "r");
-    try {
-      await folder.sync();
-    } finally {
-      await folder.close();
-    }
+    const commit = committing.then(async () => {
+      if ((landed.get(path) ?? 0) >= sequence) {
+        await rm(temporary);
+        return;
+      }
+      await rename(temporary, path);
+
+      // The rename is a directory entry, and the file's bytes being durable
+      // does not make the name that refers to them durable.
+      const folder = await open(dirname(path), "r");
+      try {
+        await folder.sync();
+      } finally {
+        await folder.close();
+      }
+      landed.set(path, sequence);
+    });
+    // One commit at a time, as the command's lock makes it; a commit that
+    // failed does not stop the next one.
+    committing = commit.catch(() => {});
+    await commit;
   },
 
   async createDirectory(path: string): Promise<void> {

@@ -19,7 +19,7 @@ import { MANUSCRIPT_FILE } from "../../src/project/bundle.ts";
 import { autosave, PAUSE, type Clock, type Pending } from "../../src/project/autosave.ts";
 import { importProject } from "../../src/project/import.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
-import { editingSession } from "../../src/project/save.ts";
+import { DISK_LIMIT, editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -187,6 +187,115 @@ describe("the one save routine (ADR-0028)", () => {
     session.changed();
     await expect(session.save()).rejects.toThrow("the disk is full");
     expect(session.unsaved()).toBe(true);
+  });
+});
+
+/**
+ * A disk that never answers (#64).
+ *
+ * A write crosses into the operating system, and a reply that never comes is
+ * a promise that never settles. Unbounded, it held up every later save, and
+ * closing the project — which saves first — with them. The window here is
+ * absent on purpose: the shape is a save that never settles and then a close,
+ * and neither needs one.
+ */
+describe("a disk that never answers (#64)", () => {
+  /** A disk that takes the first write and never replies; later ones land. */
+  function stallingFirst(): Filesystem {
+    let writes = 0;
+    return {
+      ...nodeFilesystem,
+      writeFile: (path, bytes) =>
+        writes++ === 0 ? new Promise<void>(() => {}) : nodeFilesystem.writeFile(path, bytes),
+    };
+  }
+
+  it("stops waiting after the limit, says so in the writer's words, and keeps the change unsaved", async () => {
+    const opened = await aProject();
+    const clock = driven();
+    const session = editingSession(
+      stallingFirst(),
+      opened,
+      () => edited(opened.document, 0, "INT. NOWHERE - DAY"),
+      { clock },
+    );
+
+    session.changed();
+    const saving = session.save();
+    await Promise.resolve();
+    expect(clock.waiting()).toBe(DISK_LIMIT);
+    clock.tick();
+
+    await expect(saving).rejects.toThrow("Your disk did not answer within 10 seconds.");
+    expect(session.unsaved()).toBe(true);
+  });
+
+  it("does not let one write that never answered hold up the next", async () => {
+    const opened = await aProject();
+    let document = opened.document;
+    const clock = driven();
+    const session = editingSession(stallingFirst(), opened, () => document, { clock });
+
+    document = edited(document, 0, "INT. FIRST - DAY");
+    session.changed();
+    const first = session.save();
+    await Promise.resolve();
+    clock.tick();
+    await expect(first).rejects.toThrow();
+
+    document = edited(document, 0, "INT. SECOND - DAY");
+    session.changed();
+    await session.save();
+
+    expect(parse(new TextDecoder().decode(onDisk(opened))).elements[0]!.text).toBe(
+      "INT. SECOND - DAY",
+    );
+    expect(session.unsaved()).toBe(false);
+  });
+
+  it("writes again after a write that never answered, even when the words went back to what the file held", async () => {
+    const opened = await aProject();
+    let document = opened.document;
+    const clock = driven();
+    const session = editingSession(stallingFirst(), opened, () => document, { clock });
+
+    document = edited(document, 0, "INT. CHANGED - DAY");
+    session.changed();
+    const first = session.save();
+    await Promise.resolve();
+    clock.tick();
+    await expect(first).rejects.toThrow();
+
+    // Undone. The write given up on may yet have landed, so the file is no
+    // longer known to hold the original, and the original is written again.
+    document = opened.document;
+    session.changed();
+    const outcome = await session.save();
+
+    expect(outcome.written).toBe(true);
+  });
+
+  it("closes the project over a save that never answers, and says why the words did not save", async () => {
+    const opened = await aProject();
+    const disk = driven();
+    const session = editingSession(
+      stallingFirst(),
+      opened,
+      () => edited(opened.document, 0, "INT. NOWHERE - DAY"),
+      { clock: disk },
+    );
+    const told: unknown[] = [];
+    const saving = autosave({ save: session.save, trouble: (error) => told.push(error), clock: driven() });
+
+    session.changed();
+    // What the Editor does on the way out.
+    const closing = saving.now();
+    await Promise.resolve();
+    disk.tick();
+    await closing;
+
+    expect(told).toHaveLength(1);
+    expect((told[0] as Error).message).toBe("Your disk did not answer within 10 seconds.");
   });
 });
 

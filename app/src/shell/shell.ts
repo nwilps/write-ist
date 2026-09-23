@@ -60,6 +60,8 @@ export interface MountedShell {
    * has been told why.
    */
   readonly unmount: () => Promise<boolean>;
+  /** Say something beside the workspace, the way a workspace does. */
+  readonly report: (wrong: string) => void;
 }
 
 /**
@@ -94,18 +96,20 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     ]),
   );
 
+  // **Said beside the workspace that could not load, without taking the shell
+  // down and putting it back up.** Remounting would mount the workspace again,
+  // which would fail again, which would report again — a loop rather than a
+  // message.
+  const report = (wrong: string): void => void view.append(troublePanel(wrong));
+
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
     project: screen.project,
     filesystem: screen.filesystem,
-    // **Said beside the workspace that could not load, without taking the
-    // shell down and putting it back up.** Remounting would mount the
-    // workspace again, which would fail again, which would report again — a
-    // loop rather than a message.
-    report: (wrong) => view.append(troublePanel(wrong)),
+    report,
     whenSwitchedAway: screen.whenSwitchedAway,
   });
 
-  return { gestures, unmount: mounted.unmount };
+  return { gestures, unmount: mounted.unmount, report };
 }
 
 /**
