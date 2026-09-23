@@ -40,6 +40,16 @@
  * `autosave`, which calls the one save routine — so there is no second path to
  * a written file and nothing here owns a timer.
  *
+ * ## When something else changed the manuscript
+ *
+ * Switching back to Write-ist asks for a save, and a save compares the disk
+ * with what Write-ist last read or wrote (#42, ADR-0028). The session decides;
+ * this does what it is told. **Reloaded:** the view is given the new version
+ * and the writer is shown what was adjusted in it, as an import is. **Both
+ * kept:** the writer is told where the other version went — and on the way
+ * out, the project stays open to say so, because a message in a page being
+ * taken down is a message nobody reads.
+ *
  * ## It will not come down over a save it could not finish
  *
  * `unmount` answers whether the workspace came down, and answers `false` when
@@ -52,9 +62,11 @@
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
+import { describeImportReport } from "../../../../src/project/report.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { element } from "../../screens/element.ts";
+import { showReport } from "../../screens/import-report.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
@@ -97,16 +109,46 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // read by the save routine — never by the view (see the head of this
       // file).
       let state = editorStateFor(opened.document);
-      const session = editingSession(context.filesystem, opened, () =>
-        manuscriptOf(state.doc),
-      );
+      let unfinished: unknown;
+      let leaving = false;
+      /** Where the other version was kept, by a save on the way out. */
+      let keptOnLeaving: string | undefined;
+      const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
+        // Changed elsewhere, and nothing typed here: the other version is the
+        // screenplay now. A fresh state, so undo cannot walk back into the
+        // version that was replaced.
+        reload: (imported) => {
+          state = editorStateFor(imported.document);
+          view?.updateState(state);
+          // On the way out there is no page left to show it on, and nothing
+          // was lost: the file on disk is the version that was loaded.
+          if (leaving) return;
+          showReport(into, {
+            heading: "Changed outside Write-ist",
+            standfirst:
+              "Something other than Write-ist changed this screenplay since you last saw it — " +
+              "another app, or another computer. That version is now on screen. Here is what " +
+              "Write-ist adjusted so it can be edited here; the file itself changes only when " +
+              "you next type.",
+            nothing: "Nothing needed adjusting.",
+            lines: describeImportReport(imported.report),
+            onDismiss: () => view?.focus(),
+          });
+        },
+        keptBoth: (path) => {
+          if (leaving) keptOnLeaving = path;
+          context.report(
+            `This screenplay was also changed outside Write-ist while you were writing here. ` +
+              `Your version is on screen and saved as the screenplay. The other version is ` +
+              `kept exactly as it was, beside it: ${path}`,
+          );
+        },
+      });
       /** A save that failed, in the writer's words. */
       const failure = (error: unknown): string =>
         `Write-ist could not save your screenplay, so your last few words are ` +
         `only on screen. ${message(error)}`;
 
-      let unfinished: unknown;
-      let leaving = false;
       const saving = autosave({
         save: session.save,
         // Autosave is the thing the writer is not watching, so a failure it
@@ -122,17 +164,29 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             unfinished = error;
             return;
           }
-          context.report(`${failure(error)} It will try again.`);
+          // A save with nothing typed still reads the disk to compare it
+          // (#42), and a read that failed then put nothing at risk — so it
+          // says so, rather than that words are only on screen.
+          context.report(
+            session.unsaved()
+              ? `${failure(error)} It will try again.`
+              : `Write-ist could not check whether your screenplay was changed outside it. ` +
+                  `Nothing has been changed. ${message(error)}`,
+          );
         },
       });
 
       // Switching to another application (ADR-0028).
-      const stopListening = context.whenSwitchedAway(() => void saving.now());
+      const stopSwitchingAway = context.whenSwitchedAway(() => void saving.now());
+      // And back, which is when something else is most likely to have changed
+      // the manuscript. The save compares before it writes anything (#42).
+      const stopSwitchingBack = context.whenSwitchedBack(() => void saving.now());
 
       leave = async () => {
         // Closing the project (ADR-0028), through the same routine as every
         // other save.
         unfinished = undefined;
+        keptOnLeaving = undefined;
         leaving = true;
         await saving.now();
         leaving = false;
@@ -145,7 +199,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           );
           return false;
         }
-        stopListening();
+        // Both versions kept by this very save. The writer has been told
+        // where, beside the page — so the page stays for them to read it, and
+        // closing again closes.
+        if (keptOnLeaving !== undefined) return false;
+        stopSwitchingAway();
+        stopSwitchingBack();
         return true;
       };
 

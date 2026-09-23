@@ -100,6 +100,14 @@ function budget(document: ScreenplayDocument, bytes: number): number {
       manuscript: new Uint8Array(),
     },
     () => manuscriptOf(state.doc),
+    {
+      reload: () => {
+        throw new Error("the budget asks nothing of the disk");
+      },
+      keptBoth: () => {
+        throw new Error("the budget asks nothing of the disk");
+      },
+    },
   );
   const saving = autosave({
     save: session.save,

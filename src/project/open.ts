@@ -11,7 +11,8 @@
  * That leaves one question this deliberately does not answer: what to do when
  * the manuscript on disk is not what Write-ist last wrote. Comparing the two,
  * reloading, and keeping both when the writer has also typed, is ADR-0028's and
- * belongs to #42. Nothing here guesses at it.
+ * is the save routine's (#42, `src/project/save.ts`), which reads the disk
+ * before every save. Nothing here guesses at it.
  */
 import { decodeFile } from "../decode.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";

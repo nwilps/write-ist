@@ -19,7 +19,7 @@ import { MANUSCRIPT_FILE } from "../../src/project/bundle.ts";
 import { autosave, PAUSE, type Clock, type Pending } from "../../src/project/autosave.ts";
 import { importProject } from "../../src/project/import.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
-import { DISK_LIMIT, editingSession } from "../../src/project/save.ts";
+import { DISK_LIMIT, editingSession, type ChangedElsewhere } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -64,6 +64,20 @@ function edited(document: ScreenplayDocument, at: number, text: string): Screenp
   return { ...document, elements };
 }
 
+/**
+ * Nothing else writes the manuscript in this file — that is
+ * `changed-elsewhere.test.ts` — so finding a change made elsewhere is a
+ * failure here, and a loud one.
+ */
+const unwatched: ChangedElsewhere = {
+  reload: () => {
+    throw new Error("nothing else wrote this manuscript, but a save found a change");
+  },
+  keptBoth: () => {
+    throw new Error("nothing else wrote this manuscript, but a save kept a copy");
+  },
+};
+
 /** A clock a test is, rather than a clock a test waits for. */
 function driven(): Clock & { readonly tick: () => void; readonly waiting: () => number | undefined } {
   let run: (() => void) | undefined;
@@ -92,7 +106,7 @@ describe("the one save routine (ADR-0028)", () => {
   it("writes the edited manuscript through the existing serialiser", async () => {
     const opened = await aProject();
     let document = opened.document;
-    const session = editingSession(nodeFilesystem, opened, () => document);
+    const session = editingSession(nodeFilesystem, opened, () => document, unwatched);
 
     document = edited(document, 0, "INT. A DIFFERENT PLACE - NIGHT");
     session.changed();
@@ -112,7 +126,7 @@ describe("the one save routine (ADR-0028)", () => {
     const opened = await aProject();
     const before = onDisk(opened);
     const stamp = statSync(manuscriptPath(opened)).mtimeMs;
-    const session = editingSession(nodeFilesystem, opened, () => opened.document);
+    const session = editingSession(nodeFilesystem, opened, () => opened.document, unwatched);
 
     // Closing the project calls the same routine autosave does.
     const outcome = await session.save();
@@ -127,7 +141,7 @@ describe("the one save routine (ADR-0028)", () => {
   it("does not write when an edit leaves the same bytes", async () => {
     const opened = await aProject();
     const stamp = statSync(manuscriptPath(opened)).mtimeMs;
-    const session = editingSession(nodeFilesystem, opened, () => opened.document);
+    const session = editingSession(nodeFilesystem, opened, () => opened.document, unwatched);
 
     // Typed a letter and deleted it again: the writer changed nothing, so
     // their file changes nothing.
@@ -141,7 +155,7 @@ describe("the one save routine (ADR-0028)", () => {
   it("closes and reopens with every edit there", async () => {
     const opened = await aProject();
     let document = opened.document;
-    const session = editingSession(nodeFilesystem, opened, () => document);
+    const session = editingSession(nodeFilesystem, opened, () => document, unwatched);
 
     document = edited(document, 2, "Brick hesitates at the door.");
     session.changed();
@@ -157,7 +171,7 @@ describe("the one save routine (ADR-0028)", () => {
   it("runs two overlapping saves one at a time", async () => {
     const opened = await aProject();
     let document = opened.document;
-    const session = editingSession(nodeFilesystem, opened, () => document);
+    const session = editingSession(nodeFilesystem, opened, () => document, unwatched);
 
     document = edited(document, 0, "INT. FIRST - DAY");
     session.changed();
@@ -182,6 +196,7 @@ describe("the one save routine (ADR-0028)", () => {
     };
     const session = editingSession(refusing, opened, () =>
       edited(opened.document, 0, "INT. NOWHERE - DAY"),
+      unwatched,
     );
 
     session.changed();
@@ -200,29 +215,43 @@ describe("the one save routine (ADR-0028)", () => {
  * and neither needs one.
  */
 describe("a disk that never answers (#64)", () => {
-  /** A disk that takes the first write and never replies; later ones land. */
-  function stallingFirst(): Filesystem {
+  /**
+   * A disk that takes the first write and never replies; later ones land.
+   *
+   * `stalled` settles once that write has begun. A save reads the manuscript
+   * before it writes (#42), so the write is some way off from the call that
+   * asked for it, and a test that ticked the clock sooner would be timing out
+   * the read instead.
+   */
+  function stallingFirst(): Filesystem & { readonly stalled: Promise<void> } {
     let writes = 0;
+    let begun!: () => void;
+    const stalled = new Promise<void>((resolve) => (begun = resolve));
     return {
       ...nodeFilesystem,
-      writeFile: (path, bytes) =>
-        writes++ === 0 ? new Promise<void>(() => {}) : nodeFilesystem.writeFile(path, bytes),
+      writeFile: (path, bytes) => {
+        if (writes++ !== 0) return nodeFilesystem.writeFile(path, bytes);
+        begun();
+        return new Promise<void>(() => {});
+      },
+      stalled,
     };
   }
 
   it("stops waiting after the limit, says so in the writer's words, and keeps the change unsaved", async () => {
     const opened = await aProject();
     const clock = driven();
+    const disk = stallingFirst();
     const session = editingSession(
-      stallingFirst(),
+      disk,
       opened,
       () => edited(opened.document, 0, "INT. NOWHERE - DAY"),
-      { clock },
+      { ...unwatched, clock },
     );
 
     session.changed();
     const saving = session.save();
-    await Promise.resolve();
+    await disk.stalled;
     expect(clock.waiting()).toBe(DISK_LIMIT);
     clock.tick();
 
@@ -234,12 +263,13 @@ describe("a disk that never answers (#64)", () => {
     const opened = await aProject();
     let document = opened.document;
     const clock = driven();
-    const session = editingSession(stallingFirst(), opened, () => document, { clock });
+    const disk = stallingFirst();
+    const session = editingSession(disk, opened, () => document, { ...unwatched, clock });
 
     document = edited(document, 0, "INT. FIRST - DAY");
     session.changed();
     const first = session.save();
-    await Promise.resolve();
+    await disk.stalled;
     clock.tick();
     await expect(first).rejects.toThrow();
 
@@ -257,12 +287,13 @@ describe("a disk that never answers (#64)", () => {
     const opened = await aProject();
     let document = opened.document;
     const clock = driven();
-    const session = editingSession(stallingFirst(), opened, () => document, { clock });
+    const disk = stallingFirst();
+    const session = editingSession(disk, opened, () => document, { ...unwatched, clock });
 
     document = edited(document, 0, "INT. CHANGED - DAY");
     session.changed();
     const first = session.save();
-    await Promise.resolve();
+    await disk.stalled;
     clock.tick();
     await expect(first).rejects.toThrow();
 
@@ -278,11 +309,12 @@ describe("a disk that never answers (#64)", () => {
   it("closes the project over a save that never answers, and says why the words did not save", async () => {
     const opened = await aProject();
     const disk = driven();
+    const stalling = stallingFirst();
     const session = editingSession(
-      stallingFirst(),
+      stalling,
       opened,
       () => edited(opened.document, 0, "INT. NOWHERE - DAY"),
-      { clock: disk },
+      { ...unwatched, clock: disk },
     );
     const told: unknown[] = [];
     const saving = autosave({ save: session.save, trouble: (error) => told.push(error), clock: driven() });
@@ -290,12 +322,41 @@ describe("a disk that never answers (#64)", () => {
     session.changed();
     // What the Editor does on the way out.
     const closing = saving.now();
-    await Promise.resolve();
+    await stalling.stalled;
     disk.tick();
     await closing;
 
     expect(told).toHaveLength(1);
     expect((told[0] as Error).message).toBe("Your disk did not answer within 10 seconds.");
+  });
+
+  it("stops waiting for a read that never answers, and writes nothing (#42)", async () => {
+    const opened = await aProject();
+    const clock = driven();
+    let written = 0;
+    const silent: Filesystem = {
+      ...nodeFilesystem,
+      readFile: () => new Promise<Uint8Array>(() => {}),
+      writeFile: async () => void written++,
+    };
+    const session = editingSession(
+      silent,
+      opened,
+      () => edited(opened.document, 0, "INT. NOWHERE - DAY"),
+      { ...unwatched, clock },
+    );
+
+    session.changed();
+    const saving = session.save();
+    await Promise.resolve();
+    expect(clock.waiting()).toBe(DISK_LIMIT);
+    clock.tick();
+
+    // The save compares before it writes, and a comparison it could not make
+    // is not permission to write.
+    await expect(saving).rejects.toThrow("Your disk did not answer within 10 seconds.");
+    expect(written).toBe(0);
+    expect(session.unsaved()).toBe(true);
   });
 });
 
@@ -303,7 +364,7 @@ describe("the port really is temp, flush, rename (ADR-0008 rule 5)", () => {
   it("leaves no temporary file behind, and the manuscript is what was written", async () => {
     const opened = await aProject();
     let document = opened.document;
-    const session = editingSession(nodeFilesystem, opened, () => document);
+    const session = editingSession(nodeFilesystem, opened, () => document, unwatched);
 
     document = edited(document, 0, "INT. REALLY WRITTEN - DAY");
     session.changed();
@@ -410,7 +471,7 @@ describe("when autosave fires (ADR-0028)", () => {
   it("saves when the project is closed, and the edit is on disk afterwards", async () => {
     const opened = await aProject();
     let document = opened.document;
-    const session = editingSession(nodeFilesystem, opened, () => document);
+    const session = editingSession(nodeFilesystem, opened, () => document, unwatched);
     const saving = autosave({ save: session.save, trouble: () => {}, clock: driven() });
 
     document = edited(document, 0, "INT. CLOSED - NIGHT");
@@ -455,6 +516,7 @@ describe("when autosave fires (ADR-0028)", () => {
     };
     const session = editingSession(interrupted, opened, () =>
       edited(opened.document, 0, "INT. HALF WRITTEN - DAY"),
+      unwatched,
     );
 
     session.changed();
@@ -477,7 +539,7 @@ describe("a keystroke, a pause, and the words are on disk", () => {
   it("types, autosaves, and finds every edit there on reopening", async () => {
     const opened = await aProject();
     let state = editorStateFor(opened.document);
-    const session = editingSession(nodeFilesystem, opened, () => manuscriptOf(state.doc));
+    const session = editingSession(nodeFilesystem, opened, () => manuscriptOf(state.doc), unwatched);
     const clock = driven();
     const saving = autosave({ save: session.save, trouble: () => {}, clock });
 
@@ -510,7 +572,7 @@ describe("a keystroke, a pause, and the words are on disk", () => {
   it("opens the file it wrote and writes it back byte for byte (ADR-0020 point 2)", async () => {
     const opened = await aProject();
     let state = editorStateFor(opened.document);
-    const session = editingSession(nodeFilesystem, opened, () => manuscriptOf(state.doc));
+    const session = editingSession(nodeFilesystem, opened, () => manuscriptOf(state.doc), unwatched);
 
     state = state.apply(
       state.tr.insertText(
@@ -524,7 +586,7 @@ describe("a keystroke, a pause, and the words are on disk", () => {
 
     // Reopened and saved again with nothing typed: the file must not move.
     const again = await openProject(nodeFilesystem, opened.project);
-    const second = editingSession(nodeFilesystem, again, () => again.document);
+    const second = editingSession(nodeFilesystem, again, () => again.document, unwatched);
     second.changed();
     const outcome = await second.save();
 

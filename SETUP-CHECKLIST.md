@@ -269,10 +269,32 @@ it, and the words are there.
   no type. Inert is a missing feature; invented is a corrupted manuscript.
 - 563 tests with the acceptance corpus present.
 
+### Done: never overwrite a change made elsewhere (#42)
+
+Something other than Write-ist — another editor, a sync service — can change the manuscript while
+it is open, and Write-ist never writes over it (ADR-0028).
+
+- **Every save reads the manuscript first** and compares it, byte for byte, with what Write-ist
+  last read or wrote. Switching back to Write-ist is a save too, asked of Tauri as switching away
+  is, so the comparison runs at both of ADR-0028's moments through the one routine.
+- **Changed, nothing typed:** the new version is loaded through the importer — ADR-0020's
+  normalisations applied to the model and shown in the same report an import shows — and nothing
+  is written. The normalisations reach the file with the writer's next typed save, so loading
+  someone else's file does not change it under them.
+- **Changed, and typed:** the version found is written beside the manuscript, byte for byte, as
+  `manuscript changed elsewhere YYYY-MM-DD HH.MM.SS.fountain`, **before** the manuscript is
+  replaced — a copy that could not be written stops the save. Then the writer's version is saved
+  and they are told where the other went. A copy kept by the save on closing holds the project
+  open so the writer reads where it is; closing again closes.
+- **A manuscript that cannot be read at save time is not written over**, and a read that never
+  answers is given up on at the same `DISK_LIMIT` as a write.
+- Every save now compares at least once, so the comparison is a plain loop: 0.28 ms over the
+  corpus, against 3.9 ms for `every`. Reading the corpus takes 0.3 ms; a reload's import, 48 ms.
+- 581 tests with the acceptance corpus present.
+
 ### Not started, and deliberately above this layer
 
-Counts and pagination (ADR-0024), the rest of the keyboard (#43–#47), guarding against a change
-made elsewhere (#42), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017,
+Counts and pagination (ADR-0024), the rest of the keyboard (#43–#47), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017,
 and the registry half of ADR-0015/0016), and the rest of the application — workspace bar, the
 other workspaces.
 
