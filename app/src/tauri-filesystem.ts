@@ -11,6 +11,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { documentDir, join } from "@tauri-apps/api/path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
+/**
+ * The number of the last write begun.
+ *
+ * Starts from the time rather than from nought, so that a webview reloaded
+ * under a shell that is still running numbers its writes above the ones the
+ * shell has already seen land.
+ */
+let written = Date.now();
+
 export const tauriFilesystem: Filesystem = {
   async readDirectory(path: string): Promise<readonly DirectoryEntry[]> {
     // Absent reads as empty: a writer who has never imported anything has no
@@ -34,9 +43,16 @@ export const tauriFilesystem: Filesystem = {
     // and the plugin has no call for it, so the last two steps are one command
     // in `src-tauri/src/lib.rs`. The bytes do not cross that boundary: the
     // plugin writes the temporary file, and the command only finishes it.
-    const temporary = `${path}.writing`;
+    //
+    // **Every write is numbered, and has a temporary file of its own.** The
+    // save routine gives up on a write the disk has not answered (#64), and
+    // the write carries on regardless. Its own file means a later write cannot
+    // overwrite it half-way through, and its number means that if it lands
+    // late, the command throws it away instead of putting older words over newer.
+    const sequence = ++written;
+    const temporary = `${path}.writing-${sequence}`;
     await writeFile(temporary, bytes);
-    await invoke("commit_write", { temporary, path });
+    await invoke("commit_write", { temporary, path, sequence });
   },
 
   async createDirectory(path: string): Promise<void> {

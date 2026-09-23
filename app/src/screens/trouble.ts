@@ -5,7 +5,7 @@
  * words the writer can act on and never a stack trace, and it is announced:
  * `docs/STANDARDS.md`, *"know which of your tools fail silently"*. A gesture
  * that quietly does nothing is the failure that rule is about — Quit did
- * exactly that until the window was given permission to close itself.
+ * exactly that, twice, for want of the permission to close the window (#64).
  */
 import { element } from "./element.ts";
 
