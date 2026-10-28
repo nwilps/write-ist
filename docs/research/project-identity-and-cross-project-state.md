@@ -5,7 +5,7 @@ Research for ticket [#3](https://github.com/nwilps/write-ist/issues/3), which as
 evidence and trade-offs, **not a recommendation** — the decisions belong to #4 and #5. Written
 2026-09-12.
 
-Terms follow `CONTEXT.md`. Three collisions to watch, since every tool surveyed uses one of our
+Terms follow `GLOSSARY.md`. Three collisions to watch, since every tool surveyed uses one of our
 words for something else:
 
 - **Lock.** Ours is declaring a draft finished (permanent, archival). novelWriter's "lock file"

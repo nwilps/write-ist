@@ -23,6 +23,8 @@ round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
 
 - Every change goes through a pull request that Noah reviews and merges.
   Prefer feature branches; leave the default branch alone.
+- **Agents never push to `main` and never merge into `main`.** Noah reviews and approves every
+  pull request before it lands; an agent opens the pull request and stops there.
 
 ## Working a ticket
 

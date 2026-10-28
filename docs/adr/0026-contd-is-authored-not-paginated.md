@@ -94,7 +94,7 @@ looks wrong to every reader and every other tool.
   `EDWARD (V.O.) (CONT'D)` is one element carrying two extensions, and it is the easiest
   mis-parse in Fountain because it looks exactly like a parenthetical on the same line. The
   acceptance corpus has 198 `(V.O.)`/`(O.S.)` extensions and 97 standalone parentheticals, so
-  both paths are exercised. `CONTEXT.md` gains **Extension**.
+  both paths are exercised. `GLOSSARY.md` gains **Extension**.
 - **It is written when the writer moves on to the dialogue, not when the cue is typed.** That
   gap is deliberate: a writer beginning a cue may be about to type `(V.O.)`, and inserting
   `(CONT'D)` under their hands would be a fight. Once they commit to the dialogue line, their

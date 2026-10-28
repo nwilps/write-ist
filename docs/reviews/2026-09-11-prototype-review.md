@@ -5,7 +5,7 @@ Phase 2 of `SETUP-CHECKLIST.md`, 2026-09-11. Reviewed: `nwilps/write-ist-ng` at 
 (`updated: 2026-09-07`), and the code in `spike/` (the ProseMirror editor spike and
 `plan.html`, which holds a Draft mockup, Plan and the Log).
 
-Read against `CONTEXT.md` and ADRs 0001–0012, which were written 2026-09-10→09-11 — **every
+Read against `GLOSSARY.md` and ADRs 0001–0012, which were written 2026-09-10→09-11 — **every
 ADR postdates every line of NG's planning.** Where they conflict, the ADR is later by
 construction. Later is not righter; §3 and §4 below name the places the prototype is right
 and the decision should change.
@@ -18,7 +18,7 @@ and the decision should change.
 
 **The collision.** NG ships "three workspaces — **Draft** writes it, Plan shapes it, Log
 paces it" (README, MASTER-PLAN §17, `ARCHITECTURE.yaml: draft-editor`, and the tab in
-`plan.html:695`). `CONTEXT.md` defines **Draft** as "a numbered state of the work… exactly
+`plan.html:695`). `GLOSSARY.md` defines **Draft** as "a numbered state of the work… exactly
 one draft is in progress at any moment", and names the workspace **Editor** — "the Editor,
 where the in-progress draft is written, is a workspace like any other."
 
@@ -40,7 +40,7 @@ should be near the top: locking is the only thing that mints a number, and a dra
 not lock cannot be reconstructed afterwards.
 
 **The consequence NG has never had to meet.** ADR-0002 freezes the manuscript *and the
-sidecar* together on every lock, and `CONTEXT.md`'s **Sidecar** names "notes, plan cards, log
+sidecar* together on every lock, and `GLOSSARY.md`'s **Sidecar** names "notes, plan cards, log
 entries" explicitly. So locking copies the Plan and the Log.
 
 For Plan that is probably right — the plan for draft 2 is a fact about draft 2.
@@ -60,7 +60,7 @@ prototypes are what made the question visible.
 `ARCHITECTURE.yaml` has `workspace-registry: "Mode and workspace registration"`, and §3.5
 defines it: "A **Mode** declares: id, label, workspaces, file layout, serializers."
 
-`CONTEXT.md` lists "mode" under **Surface**'s _Avoid_. But NG's Mode is not Surface — it is
+`GLOSSARY.md` lists "mode" under **Surface**'s _Avoid_. But NG's Mode is not Surface — it is
 the *union* of ADR-0005's Surface (element vocabulary + layout rules ≈ "serializers") and
 Format (a label plus defaults, including which workspaces show). ADR-0005 is exactly the
 decision that splits them, and the split is what makes the format list cheap enough to be
@@ -75,7 +75,7 @@ mode, screenplay, so nothing forced it apart. It breaks the moment prose arrives
 · 4 pages · ends p15`. The card record is literally `{id, label, desc, page, lane, len}`
 (`plan.html:878`).
 
-`CONTEXT.md` — **Page**: "computed from the manuscript by our own pagination engine. Always a
+`GLOSSARY.md` — **Page**: "computed from the manuscript by our own pagination engine. Always a
 fact, never authored." **Target**: "A page number the writer authors on a plan card… Comparing
 the two is the point of the Plan workspace, which is why they never share a word."
 
@@ -104,7 +104,7 @@ to prose:
   cells wide against a number the writer never thinks in.
 
 This is allowed — ADR-0006 lets a format choose which workspaces a new project shows — but it
-is *not* what `CONTEXT.md` implies when it lists Plan among workspaces any format may show.
+is *not* what `GLOSSARY.md` implies when it lists Plan among workspaces any format may show.
 Two honest resolutions; pick one rather than leaving it ambiguous:
 
 1. **Plan's X axis becomes a manifest choice** — pages for screenplay, chapters or thousands
@@ -195,9 +195,9 @@ DOCX — written wherever the writer chooses, outside the bundle", and that an e
 
 ## 2. Vocabulary
 
-### 2.1 Different words for things `CONTEXT.md` already names
+### 2.1 Different words for things `GLOSSARY.md` already names
 
-| NG term | `CONTEXT.md` term | Note |
+| NG term | `GLOSSARY.md` term | Note |
 |---|---|---|
 | Draft *(workspace)* | **Editor** | Collides with **Draft**, the numbered state. §1.1 above. |
 | Mode | **Format** + **Surface** | One concept where ADR-0005 has two. "mode" is on Surface's _Avoid_ list. |
@@ -209,7 +209,7 @@ DOCX — written wherever the writer chooses, outside the bundle", and that an e
 
 ### 2.2 Concepts NG has that the glossary is missing
 
-Worth adding to `CONTEXT.md`:
+Worth adding to `GLOSSARY.md`:
 
 1. **Push** — a named date range with a pace readout; "a deadline is a push with no tasks in
    it" (§18.9). One object that starts tracking the moment it has something to track. No repo
@@ -222,7 +222,7 @@ Worth adding to `CONTEXT.md`:
    set of collisions." That is the same reasoning that makes **Line** computed rather than
    stored; the rule wants generalising.
 4. **Structure sheet** and its **beats** — stored as fractions of the whole. Naming hazard:
-   `CONTEXT.md` currently _Avoid_s "beat" as a synonym for **Scene**, but NG's beat is a mark
+   `GLOSSARY.md` currently _Avoid_s "beat" as a synonym for **Scene**, but NG's beat is a mark
    on a structure sheet, a different thing. Either coin **structure mark**, or define "beat"
    narrowly and cross-reference it out of Scene's avoid-list.
 5. **Lane** and **cell** — Plan's Y carries no meaning; a lane is pure layout. The glossary
@@ -231,7 +231,7 @@ Worth adding to `CONTEXT.md`:
    something rather than deferring it." Sharper than anything in the ADRs. ADR-0004 already
    contains an unnamed instance: "write a format version into the bundle from day one — it
    costs one field now and is unrecoverable later."
-7. **Project identity** — an id surviving rename and move. `CONTEXT.md` defines **Project**
+7. **Project identity** — an id surviving rename and move. `GLOSSARY.md` defines **Project**
    and says nothing about its identity; `ARCHITECTURE.yaml` correctly marks it absent.
 8. **Cross-project store** — the layer *above* a bundle. **Bundle** is per-project by
    definition and ADR-0009 governs only what is inside one; metrics, backup, recent projects
@@ -240,7 +240,7 @@ Worth adding to `CONTEXT.md`:
 9. **Event log** — an append-only record of time in a workspace. Absent from the glossary and
    from every ADR, and the one thing NG flags as accruing.
 10. **Capture overlay / global surface** (§17.5) — reachable from anywhere, outside any
-    workspace. `CONTEXT.md`'s **Workspace** is "a full screen the writer switches to, one at a
+    workspace. `GLOSSARY.md`'s **Workspace** is "a full screen the writer switches to, one at a
     time", so an overlay is explicitly not one: ADR-0005's shell contract has a hole here.
 11. **Quiet break / gap** (§18.3) — past and future emptiness as different objects. Lovely,
     probably too specific for the glossary.
@@ -316,12 +316,12 @@ colour is bookkeeping, and structured text holds it fine.
    available alongside every workspace is not itself a workspace" — is right, and led NG to
    conclude it needs a *third registration kind* and a day-one shell contract change. But
    ADR-0006 already lets the writer add or remove any workspace regardless of format, and
-   `CONTEXT.md`'s **Workspace bar** is persistent with keybindings. Specified as a shell
+   `GLOSSARY.md`'s **Workspace bar** is persistent with keybindings. Specified as a shell
    affordance over the existing registry rather than a new kind, it may be a smaller change.
    Worth re-costing before treating it as a day-one blocker.
 
 8. **Half-easier: undo.** §19.2 — "There is none, anywhere. Delete is final." For the
-   manuscript, `CONTEXT.md`'s three-way split (session undo / autosave / drafts) plus ADR-0002
+   manuscript, `GLOSSARY.md`'s three-way split (session undo / autosave / drafts) plus ADR-0002
    means nothing is ever lost that was locked. For the **Log** it gives you nothing: the Log
    spans drafts, so it cannot borrow the draft model's safety. That is a real gap and the
    glossary is what tells you it cannot be hand-waved.
@@ -410,7 +410,7 @@ ADR-per-decision format does not have the problem.
 3. **Take `ARCHITECTURE.yaml`'s idea, not its file.** `accrues`, detectors and hazards are
    worth more than the YAML, which depends on a skill that is not in the repo. At minimum add
    `accrues` as a concept, add the missing foundations (draft lineage), and add
-   `cross-project-store` and `project-identity` to `CONTEXT.md`.
+   `cross-project-store` and `project-identity` to `GLOSSARY.md`.
 4. **Then mark `write-ist-ng` reference-only** — the same status it already gives v1. Its
    README calls itself throwaway; make that operative by ceasing edits to `MASTER-PLAN.md`,
    not by deleting it.
@@ -430,11 +430,11 @@ Recorded separately because these are gaps in the repo, not in NG:
 - **ADR-0002** freezes manuscript and sidecar together without asking whether every part of
   the sidecar should be per-draft. The Log is the counter-example. Needs an amendment.
 - **ADR-0005**'s registry has no slot for a surface reachable from anywhere outside a
-  workspace (the capture overlay). `CONTEXT.md`'s **Workspace** definition rules it out by
+  workspace (the capture overlay). `GLOSSARY.md`'s **Workspace** definition rules it out by
   wording.
 - **ADR-0009** governs what is inside a bundle and is silent on the layer above it, which
   metrics, backup, recent projects and global search all require.
-- **`CONTEXT.md`** has no word for project identity surviving a rename, and none for the
+- **`GLOSSARY.md`** has no word for project identity surviving a rename, and none for the
   cross-project layer.
 - **ADR-0012** sets a standard without a worked example; Plan and the Log supply the first one
   (§1.6's table).

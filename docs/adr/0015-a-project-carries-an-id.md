@@ -90,5 +90,5 @@ Evidence for all four: `docs/research/project-identity-and-cross-project-state.m
   The writer never sees it. ADR-0012's readability guarantee is met by the field being named
   and the file being text, which is what makes the id greppable when a writer has lost a
   folder.
-- **`CONTEXT.md` gains **Project id**.** The term was held out of the glossary pending this
+- **`GLOSSARY.md` gains **Project id**.** The term was held out of the glossary pending this
   decision.
