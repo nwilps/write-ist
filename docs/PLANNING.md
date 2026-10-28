@@ -60,7 +60,7 @@ Pass `out_dir` to save the documents as files rather than loading them into cont
 re-triages continuously.
 
 **It has a sunset.** The catalog is scaffolding for *deciding*, not a system of record to
-maintain in parallel. As its load-bearing content lands in `CONTEXT.md`, the ADRs and the
+maintain in parallel. As its load-bearing content lands in `GLOSSARY.md`, the ADRs and the
 tracker, it is retired rather than synced. Extract from it; never add to it.
 
 ### Data shape
@@ -99,7 +99,7 @@ there is one record, never duplicates.
 
 ## How to work on this
 
-- **Read before advising**: `CONTEXT.md`, then `docs/adr/`, then `docs/STANDARDS.md`. Use the
+- **Read before advising**: `GLOSSARY.md`, then `docs/adr/`, then `docs/STANDARDS.md`. Use the
   glossary's words; don't drift to synonyms it tells you to avoid.
 - **Push back on scope.** Noah built v1 while procrastinating on the screenplay it was for,
   and named that risk himself. A small, finishable v2 beats a complete one.
