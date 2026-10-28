@@ -7,7 +7,7 @@
  * > shell, and v1 still produced a 3,535-line `Draft.tsx`. Stating the rule is
  * > what failed last time, so the rule needs a form a test can fail on.
  *
- * So here is the check. **The shell is `app/src/shell/`** — `CONTEXT.md`: *the
+ * So here is the check. **The shell is `app/src/shell/`** — `GLOSSARY.md`: *the
  * application frame that hosts the workspaces and the workspace bar without
  * knowing what any workspace is.* The menu screens and the launcher are not the
  * shell; they are what the writer sees before a project is open, and slice 1's

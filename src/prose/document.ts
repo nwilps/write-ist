@@ -35,7 +35,7 @@ import type { MarkRange } from "../marks.ts";
  * ordinary block quote; what makes it an epigraph is standing before the first
  * part. *Front and back matter* are likewise everything before the first part
  * and after the last chapter. Both are ranges computed over the sequence, the
- * same treatment `CONTEXT.md` gives a scene, a chapter and a part.
+ * same treatment `GLOSSARY.md` gives a scene, a chapter and a part.
  */
 export type ProseElementType =
   | "heading"
@@ -80,7 +80,7 @@ export interface ProseElement {
   readonly marks?: readonly MarkRange[];
   /**
    * Heading level, 1 to 6. Parts and chapters are *ranges* over the sequence
-   * computed from these, never element types of their own — `CONTEXT.md` fixes
+   * computed from these, never element types of their own — `GLOSSARY.md` fixes
    * that, and it is why the book's own title and a front-matter heading do not
    * have to be mistaken for a part and a chapter.
    */

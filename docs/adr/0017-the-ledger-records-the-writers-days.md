@@ -88,5 +88,5 @@ writer a chart, never a word, because every word is still in a bundle.
 - **It lives beside the registry**, in `appLocalDataDir()`, under the same contract: a record,
   with ADR-0008 rule 3 in full, and a separate file — the registry and the ledger fail in
   different ways and must not share one.
-- **`CONTEXT.md` gains **Ledger**.** The term was held out of the glossary pending this
+- **`GLOSSARY.md` gains **Ledger**.** The term was held out of the glossary pending this
   decision.

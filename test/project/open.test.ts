@@ -2,7 +2,7 @@
  * Opening a project, with real files in a temporary folder — slice 1's third
  * testing seam (#37), and the front half of #39.
  *
- * **Opening is not importing** (`CONTEXT.md`). An import brings a script
+ * **Opening is not importing** (`GLOSSARY.md`). An import brings a script
  * Write-ist has never seen into a new bundle, applying ADR-0020's enumerated
  * normalisations and reporting them. Opening a bundle Write-ist already holds
  * changes nothing at all: the manuscript is read and parsed as it stands, and

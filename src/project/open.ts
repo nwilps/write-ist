@@ -1,7 +1,7 @@
 /**
  * Opening a project: reading the manuscript a bundle already holds.
  *
- * **Opening is not importing** (`CONTEXT.md`). An import brings in a script
+ * **Opening is not importing** (`GLOSSARY.md`). An import brings in a script
  * Write-ist has never seen, applies ADR-0020's enumerated normalisations and
  * reports them. Opening applies none of them and reports nothing: the
  * manuscript is parsed as it stands, and nothing is written. A writer's file

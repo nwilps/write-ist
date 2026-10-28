@@ -1,4 +1,5 @@
 # Write-ist
 
-See the standing orders file in this repo.
-Full standing orders live in AGENTS.md.
+Standing orders for every agent live in AGENTS.md. Claude Code loads them through the import below.
+
+@AGENTS.md

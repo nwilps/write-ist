@@ -1,7 +1,7 @@
 /**
  * The shell: the frame a project is worked in.
  *
- * `CONTEXT.md`: *the application frame that hosts the workspaces and the
+ * `GLOSSARY.md`: *the application frame that hosts the workspaces and the
  * workspace bar without knowing what any workspace is.* So this file draws the
  * furniture, hands one element to a workspace, and knows nothing else — not which
  * surface the project runs on, not what an element is, not that a screenplay
