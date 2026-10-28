@@ -20,11 +20,11 @@ producing workflow tuning, it has become the new v1.
 - [x] Restart Claude Code so the plugin skills load
 - [x] Run `/setup-matt-pocock-skills` in this repo — tracker = **GitHub Issues** (native dependency
       edges are UI-visible; a dependency graph is a picture of "the whole"). Docs stay in-repo:
-      `CONTEXT.md` + `docs/adr/` at root, single-context.
+      `GLOSSARY.md` + `docs/adr/` at root, single-context.
 
 ## Phase 1 — See the whole
 
-- [x] **Write `CONTEXT.md`** — the shared glossary. *First pass: 25 terms.* *This is the "I can't see the whole" deliverable.*
+- [x] **Write `GLOSSARY.md`** — the shared glossary. *First pass: 25 terms.* *This is the "I can't see the whole" deliverable.*
       Source it from `docs/PLANNING.md` plus the catalog's 101 load-bearing notes.
       Terms already in play: surface, format, manifest, sidecar, bundle, anchor,
       manuscript, element, workspace, round-trip, project.
@@ -72,7 +72,7 @@ producing workflow tuning, it has become the new v1.
       with the spike's GO verdict, ADR-0001's reflow trap and ADR-0018's never-show-syntax
       requirement all in hand, as this list intended.
 
-      `CONTEXT.md` gained **Mark**, **Synopsis**, **Tag**, **Boneyard**, **Passthrough** and
+      `GLOSSARY.md` gained **Mark**, **Synopsis**, **Tag**, **Boneyard**, **Passthrough** and
       **Element identity**, sharpened **Round-trip**, **Anchor**, **Element** and **Page**,
       and **renamed the draft `Line` to `Chain`** — pagination needs the word "line" for a
       line of text, and one word could not carry both.
@@ -89,7 +89,7 @@ producing workflow tuning, it has become the new v1.
       **Closed 2026-09-14**, seven tickets for seven decisions: what freezes at a lock
       (ADR-0014), project identity (ADR-0015), the layer above a bundle (ADR-0016), the ledger
       (ADR-0017), comments (ADR-0018), the default bundle location, and the research that
-      unblocked two of them. `CONTEXT.md` gained **Comment**, **Project id**, **Registry** and
+      unblocked two of them. `GLOSSARY.md` gained **Comment**, **Project id**, **Registry** and
       **Ledger**. What is left on the map is fog that Phase 3 *produces* rather than needs:
       the sidecar's file formats, and retention for locked drafts.
 
@@ -291,10 +291,10 @@ deferred with a working default: preserve it.
 - **Ralph loop / AFK agents.** Built for grinding through well-specified tickets. The
   current goal is understanding the whole yourself; an unattended loop defeats that.
 - **Migrating the feature catalog.** It works, it's edited between sessions, and it
-  becomes an *input* to `CONTEXT.md` — not a casualty of it.
+  becomes an *input* to `GLOSSARY.md` — not a casualty of it.
 
   **But it has a sunset.** Decided 2026-09-10: as implementation approaches, the repo
   becomes the single source of truth. The catalog is scaffolding for *deciding*, not a
   system of record to maintain in parallel — a second store that drifts is exactly the
   staleness problem the anchor rules exist to prevent. Once its load-bearing content has
-  landed in `CONTEXT.md`, the ADRs, and the tracker, retire it rather than syncing it.
+  landed in `GLOSSARY.md`, the ADRs, and the tracker, retire it rather than syncing it.

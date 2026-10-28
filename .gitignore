@@ -18,7 +18,14 @@ out/
 .env.local
 
 # Agent worktrees and local session state
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/commands/
+!.claude/agents/
+!.claude/settings.json
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
 
 # Files the round-trip tests write to disk (they compare real files, not strings)
 test/.out/
