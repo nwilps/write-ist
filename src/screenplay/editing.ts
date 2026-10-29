@@ -53,7 +53,7 @@
  */
 import { Plugin, PluginKey, type EditorState as State } from "prosemirror-state";
 import { EditorState } from "prosemirror-state";
-import { heldKeys } from "./held-keys.ts";
+import { elementKeys } from "./element-keys.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
@@ -128,7 +128,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
   return EditorState.create({
     schema: screenplaySchema,
     doc: toEditorDocument(document),
-    plugins: [heldKeys, maintainComments],
+    plugins: [elementKeys, maintainComments],
   });
 }
 

@@ -264,9 +264,8 @@ it, and the words are there.
   side of the line and #37's fourth seam gives to the writer. Turning the model back into bytes
   costs 11–14 ms on the corpus and is deliberately off that path: once per save, seconds after
   the writer stopped typing.
-- **Enter and the two joining keys do nothing yet, deliberately** (#43). With no handler they fall
-  through to the browser, which splits a `div` and leaves the engine reading back an element with
-  no type. Inert is a missing feature; invented is a corrupted manuscript.
+- **Enter, Tab and the two joining keys are #43's** (`src/screenplay/element-keys.ts`), and they
+  leave no gap for the browser to split a `div` into an element with no type.
 - 563 tests with the acceptance corpus present.
 
 ### Done: never overwrite a change made elsewhere (#42)
