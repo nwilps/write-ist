@@ -137,6 +137,6 @@ The evidence for both, and for everything in Considered options, is
   The protection itself is **not** tied to relocation. ADR-0028's rule that autosave never
   overwrites a changed file applies to every project, because the default location may already be
   synced by the operating system.
-- **`CONTEXT.md` gains **Registry****, naming the record specifically rather than the whole
+- **`GLOSSARY.md` gains **Registry****, naming the record specifically rather than the whole
   layer — the config file sits outside every bundle too, and is not part of it. A term was
   held out of the glossary pending this decision, because there was no word for the thing.

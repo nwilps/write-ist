@@ -7,7 +7,7 @@ surface.
 
 The structure is **a flat sequence of elements with no container nodes**. Scenes and chapters
 are computed as ranges — this heading through the element before the next — exactly as
-`CONTEXT.md` already defines them. Nothing nests.
+`GLOSSARY.md` already defines them. Nothing nests.
 
 Inline formatting is carried as a **set of marks** per span, not a tree. `_**x**_` and
 `**_x_**` are therefore indistinguishable to the model, and one order is chosen on the way
@@ -112,7 +112,7 @@ own element, which is the `precededByBlank` design rejected above wearing a long
 
 ## Headings carry a level; parts and chapters are computed
 
-Confirmed by the prose implementation rather than decided here, because `CONTEXT.md` already
+Confirmed by the prose implementation rather than decided here, because `GLOSSARY.md` already
 fixes it: **Chapter** is *"the range from one chapter heading to the next"*, and **Scene** is
 worded identically. So a prose heading is one element carrying a level, and which range it opens
 is computed from the sequence — there is no `part` element and no `chapter` element.
@@ -188,7 +188,7 @@ accepted, and also recorded so it is not later mistaken for a bug.
   that a given paragraph is the same object it was a keystroke ago — to render incrementally,
   to keep undo coherent, and to hold a comment card still while text above it changes. That
   identity is created on parse and dies when the project closes, exactly like undo/redo, which
-  `CONTEXT.md` already fixes as session-level and deliberately not durable. It is not an
+  `GLOSSARY.md` already fixes as session-level and deliberately not durable. It is not an
   **anchor** and must never be confused with one: an anchor is durable, lives in the
   manuscript, and freezes into locked drafts. See ADR-0022 for how few of those v2 actually
   writes.

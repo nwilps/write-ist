@@ -2,7 +2,7 @@
  * The workspaces the application offers (ADR-0005).
  *
  * One list, and the shell hosts whatever is in it. Notes, Plan, Log, Outline and
- * Characters are candidates rather than a fixed set (`CONTEXT.md`), and each
+ * Characters are candidates rather than a fixed set (`GLOSSARY.md`), and each
  * arrives as a line here plus a manifest of its own — never as a change in the
  * shell.
  *

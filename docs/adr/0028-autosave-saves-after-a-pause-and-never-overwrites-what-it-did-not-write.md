@@ -75,7 +75,7 @@ moving one ([ADR-0016](0016-the-layer-above-a-bundle-holds-no-work.md)).
 - **It is never stopped by a comment missing its closing delimiter**
   ([ADR-0018](0018-comments-are-the-text.md)). The file loaded completely, every character kept,
   so there is nothing unsafe in saving it.
-- **It never creates a draft** and never appears in history (`CONTEXT.md`).
+- **It never creates a draft** and never appears in history (`GLOSSARY.md`).
 
 Saves are atomic — temp, flush, rename — under ADR-0008 rule 5, already decided. ADR-0008 rule 6's
 fear, notes pointing at scenes that no longer exist after a crash, cannot arise in v2: the only

@@ -1,6 +1,6 @@
 /**
  * Import: bringing a script Write-ist has never seen into a new project
- * (`CONTEXT.md`, ADR-0028).
+ * (`GLOSSARY.md`, ADR-0028).
  *
  * Three promises, in the order they matter:
  *

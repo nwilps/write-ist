@@ -37,4 +37,17 @@ describe("lineEdits", () => {
     expect(lineEdits([], ["a"])).toEqual([{ kind: "added", line: 1, text: "a" }]);
     expect(lineEdits(["a"], [])).toEqual([{ kind: "removed", line: 1, text: "a" }]);
   });
+
+  it("reports nothing for large identical input without building the table", () => {
+    // 100k x 100k Int32 entries would be ~40 GB; this only passes by taking the fast path.
+    const lines = Array.from({ length: 100_000 }, (_, i) => `line ${i}`);
+    expect(lineEdits(lines, [...lines])).toEqual([]);
+  });
+
+  it("still reports a single difference in input of equal length", () => {
+    expect(lineEdits(["a", "b", "c"], ["a", "x", "c"])).toEqual([
+      { kind: "removed", line: 2, text: "b" },
+      { kind: "added", line: 2, text: "x" },
+    ]);
+  });
 });

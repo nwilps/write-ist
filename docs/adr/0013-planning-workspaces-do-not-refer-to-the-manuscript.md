@@ -42,5 +42,5 @@ through its whole build; it earned nothing, and it is gone.
 - **Plan and the Log cannot drift, because they hold nothing that could.** This is the same
   property that let v1's `notes.md` survive the bug that emptied every highlight — it anchored
   to nothing. ADR-0008 treats that as the lucky case; here it is the designed one.
-- Plan's independence is already part of what a plan card *is* in `CONTEXT.md`. This ADR is
+- Plan's independence is already part of what a plan card *is* in `GLOSSARY.md`. This ADR is
   where its reason lives, and it extends the same rule to the Log.

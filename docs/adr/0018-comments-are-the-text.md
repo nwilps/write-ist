@@ -156,6 +156,6 @@ byte-identical. That is invisible to the writer and is not a product constraint.
   prose is full of double hyphens. Escaping one three-character sequence stays inside ADR-0012's
   line, which forbids prose *"escaped past recognition"* rather than escaped at all — and the
   writer never types or reads a delimiter in the first place.
-- **`CONTEXT.md`'s **Comment** entry gains where a comment lives.** The term arrived from the
+- **`GLOSSARY.md`'s **Comment** entry gains where a comment lives.** The term arrived from the
   sidecar-freeze ticket describing what a comment *is*; it now also says that its text is stored
   in the manuscript and never shown as syntax.

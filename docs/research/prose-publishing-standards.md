@@ -439,7 +439,7 @@ All sourced in §2:
 ## 4. Plain-text markup languages for a novel
 
 Each language is judged against the §3.2 vocabulary, against ADR-0003 (readable in a text
-editor) and against round-trip (CONTEXT.md).
+editor) and against round-trip (GLOSSARY.md).
 
 ### 4.0 Round-trip: a finding that applies to all of them
 

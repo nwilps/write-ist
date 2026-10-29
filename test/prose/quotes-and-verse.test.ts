@@ -19,7 +19,7 @@
  * *Epigraph* is deliberately not an element type. The fixture's epigraph is a
  * block quote and nothing distinguishes it from any other block quote except
  * that it stands before the first part — so it is a range over the sequence,
- * like a part, a chapter or a scene (`CONTEXT.md`), and the same is true of
+ * like a part, a chapter or a scene (`GLOSSARY.md`), and the same is true of
  * front and back matter.
  */
 import { describe, expect, it } from "vitest";

@@ -2,7 +2,7 @@
  * The Editor workspace: the manuscript, on the page, and written into (#39,
  * #41).
  *
- * `CONTEXT.md`: *the workspace the in-progress draft is written in, running the
+ * `GLOSSARY.md`: *the workspace the in-progress draft is written in, running the
  * project's surface. A workspace like any other, not a frame around the
  * others.* So this is the only file in the application that knows the project
  * runs on the screenplay surface — the shell hosting it does not, which is

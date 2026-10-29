@@ -9,7 +9,7 @@ standard, it is a preference; keep preferences out.
 
 Provenance: **v1** is the shipped application; the throwaway `write-ist-ng` repository holds both
 the **spike** — the editor experiment — and the **prototype** — the Plan and Log mockups — whose
-planning notes recorded twelve of these. `CONTEXT.md` keeps the three apart. Neither repo is edited
+planning notes recorded twelve of these. `GLOSSARY.md` keeps the three apart. Neither repo is edited
 any more, so the rules live here.
 
 ---
@@ -89,7 +89,7 @@ somewhere unrelated, stop writing it off as cosmetic and go find what both have 
 **A prototype is done when the next change you want to make would not change what you would
 build.** Adjusting a border colour is past the line. Asking whether twelve lanes is too many
 at this cell size is not. *(Either kind: a spike, which answers a technical question, or a
-prototype, which shows what something should feel like — `CONTEXT.md` separates them.)*
+prototype, which shows what something should feel like — `GLOSSARY.md` separates them.)*
 
 This is the operational form of `SETUP-CHECKLIST.md`'s timebox: v1 got built while
 procrastinating on the screenplay it was for, and a prototype that keeps getting nicer is the

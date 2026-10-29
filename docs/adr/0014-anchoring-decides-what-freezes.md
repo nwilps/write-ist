@@ -5,7 +5,7 @@ ADR-0002 said a lock freezes the draft's manuscript and sidecar together. That w
 that anchors to nothing is project-level: there is one of it per project, it never freezes,
 and it carries on across every lock.**
 
-The forcing reason is ADR-0008 rule 1, read together with `CONTEXT.md`'s **Anchor**: *anchors
+The forcing reason is ADR-0008 rule 1, read together with `GLOSSARY.md`'s **Anchor**: *anchors
 are scoped to a draft — the same anchor in two drafts refers to two different places.* So
 anchored content is only meaningful against the manuscript it points into, and it has to
 freeze with it or it is describing text that has moved. Content that points at nothing cannot
@@ -53,7 +53,7 @@ The split as it stands:
 - **A draft's own bookkeeping lives in a project-level index**, not beside the frozen draft —
   its number, its lock date, whether a revision or a new draft follows. It is presentation:
   it shapes how the draft tree is drawn and a stranger reading the screenplay needs none of
-  it. `CONTEXT.md`'s **Chain** already required this, saying membership is "computed from where
+  it. `GLOSSARY.md`'s **Chain** already required this, saying membership is "computed from where
   work is happening now, never stored on a draft".
   - **The guard that makes this safe:** a locked draft is stored under its own name, so its
     identity is self-evident and the index holds only presentation. Losing or corrupting the

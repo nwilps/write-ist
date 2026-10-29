@@ -3,7 +3,7 @@
 Research for the open question: **what is a prose manuscript on disk?** This is evidence and
 trade-offs, not a recommendation. Written 2026-09-10.
 
-Terms follow `CONTEXT.md`. One collision to watch: Scrivener and Longform both use the word
+Terms follow `GLOSSARY.md`. One collision to watch: Scrivener and Longform both use the word
 "draft" for something unrelated to our **draft**. Scrivener's "Draft" is the manuscript folder
 in its binder, and Longform's `draftNumber` is a project copy. Where a tool's own word is
 quoted it is marked as theirs.
@@ -463,7 +463,7 @@ three places:
    CommonMark's semantics. Reading it with "every newline is intent" rules would change
    what its author meant.
 3. **Round-trip.** A document model that parses with a CommonMark parser will not
-   round-trip authored indentation or line breaks (see `CONTEXT.md`, **round-trip**).
+   round-trip authored indentation or line breaks (see `GLOSSARY.md`, **round-trip**).
 
 A prose manuscript that *looks like* Markdown but follows Fountain-style rules (newlines as
 intent, leading whitespace respected, `_` as underline) would read fine in a text editor. It
@@ -516,7 +516,7 @@ as a technical one: whether it carries a `.md` extension, and what it claims to 
 5. **Obsidian's default line-break behaviour.** Its help page describes the default and a
    "strict" toggle in terms that seem to overlap.
 6. **Whether a manifest counts as manuscript or sidecar** under our own vocabulary. This is
-   not an evidence question. It is a definitional one for `CONTEXT.md`, and model B1 cannot
+   not an evidence question. It is a definitional one for `GLOSSARY.md`, and model B1 cannot
    be evaluated against ADR-0003 and ADR-0008 until it is answered.
 7. **Split and merge.** The craft sources list them alongside moving. What identity a
    chapter keeps when split or merged is unaddressed by every tool I read, and it is the

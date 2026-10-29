@@ -18,6 +18,10 @@ export type LineEdit =
  * `removed` line numbers into `before`, an `added` line into `after`.
  */
 export function lineEdits(before: readonly string[], after: readonly string[]): LineEdit[] {
+  // The common case is no difference at all. The LCS table is O(n·m) — over a
+  // gigabyte for a 16k-line manuscript — so don't build it unless something differs.
+  if (sameLines(before, after)) return [];
+
   const lengths = longestCommonSubsequence(before, after);
 
   const edits: LineEdit[] = [];
@@ -40,6 +44,10 @@ export function lineEdits(before: readonly string[], after: readonly string[]): 
   while (j < after.length) edits.push({ kind: "added", line: ++j, text: after[j - 1]! });
 
   return edits;
+}
+
+function sameLines(before: readonly string[], after: readonly string[]): boolean {
+  return before.length === after.length && before.every((line, i) => line === after[i]);
 }
 
 /** `lengths[i][j]` is the length of the LCS of `before[i..]` and `after[j..]`. */
