@@ -17,8 +17,8 @@
  * **Placement and proportion, not contents.** The prototype's side panels hold
  * Plan's and the Log's controls, and the spike's panel is a developer's harness
  * showing round-trip status; neither belongs to a writer. What goes in the
- * Editor's furniture is the writer's business — the page count, when it arrives
- * (#48) — so the status bar carries the project's name and nothing invented.
+ * Editor's furniture is the writer's business — the page count (#48) — so the
+ * status bar carries the project's name and a slot the workspace fills.
  */
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
@@ -82,17 +82,19 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   const host = element("div", { className: "workspace" });
   const view = element("main", { className: "shell__view" }, [host]);
+  // The project's name is which work they are in. The pages slot stays empty
+  // until the workspace has something to say (#48) — real text, never a guess.
+  const pages = element("span", { className: "statusbar__pages", textContent: "" });
 
   into.replaceChildren(
     element("div", { className: "shell" }, [
       view,
       element("footer", { className: "statusbar" }, [
-        // The project's name is the one thing the writer needs told back to
-        // them: it is which work they are in. Real text, like everything else.
         element("span", {
           className: "statusbar__project",
           textContent: screen.project.marker.name,
         }),
+        pages,
         menuRow(gestures),
       ]),
     ]),
@@ -103,11 +105,15 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   // which would fail again, which would report again — a loop rather than a
   // message.
   const report = (wrong: string): void => void view.append(troublePanel(wrong));
+  const setStatus = (text: string): void => {
+    pages.textContent = text;
+  };
 
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
     project: screen.project,
     filesystem: screen.filesystem,
     report,
+    setStatus,
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
   });

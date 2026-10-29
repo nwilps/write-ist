@@ -84,9 +84,14 @@
   color: var(--colour-faint);
 }
 
-/* Which work the writer is in. The one thing the foot has to say. */
+/* Which work the writer is in. */
 .statusbar__project {
   color: var(--colour-muted);
+}
+
+/* Page count and current page (#48). The workspace fills this; the shell does not. */
+.statusbar__pages {
+  color: var(--colour-faint);
 }
 
 /* The shell's own gestures sit at the far end, where the prototype puts its. */

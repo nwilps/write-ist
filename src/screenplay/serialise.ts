@@ -53,7 +53,7 @@ export function serialise(document: ScreenplayDocument): string {
  * line. The rule the format actually requires is that no blank line falls
  * anywhere inside a speech, and Dialogue to Dialogue is one case of it.
  */
-function needsBlankLine(previous: Element, next: Element): boolean {
+export function needsBlankLine(previous: Element, next: Element): boolean {
   if (OPENS_SPEECH.has(previous.type) && CONTINUES_SPEECH.has(next.type)) return false;
   if (previous.type === "centered" && next.type === "centered") return false;
   if (previous.type === "lyrics" && next.type === "lyrics") return false;
