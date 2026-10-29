@@ -1,6 +1,6 @@
 /**
  * Pagination: how many pages the manuscript is, and which page an element is
- * on (#48, ADR-0001, ADR-0024).
+ * on (#48, #49, ADR-0001, ADR-0024).
  *
  * The count comes from the model, against Courier Prime's character widths in
  * `geometry.ts`, never from the DOM. The same engine will make the PDF; the
@@ -9,6 +9,10 @@
  * Pagination **decorates**. `(MORE)` and a page-break `CONT'D` exist only as
  * line-budget costs when a speech is split across a page — they are never
  * written into the manuscript (ADR-0024, ADR-0026).
+ *
+ * **#49 — incremental.** An edit re-packs from the affected page onward via
+ * `repaginate`, never walking earlier pages again on each keystroke. A full
+ * `paginate` is the reference; after any edits, incremental must equal it.
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
@@ -50,6 +54,11 @@ export interface Pagination {
 /** Lines used on each numbered page — for investigation and tests, not UI. */
 export interface PaginationDetail extends Pagination {
   readonly fill: readonly number[];
+  /**
+   * 1-based page where the last pack began. `1` means the whole manuscript
+   * was packed. Tests use this to assert an edit did not restart earlier.
+   */
+  readonly resumedFromPage: number;
 }
 
 type Item = {
@@ -61,7 +70,7 @@ type Item = {
 };
 
 /**
- * Paginate a screenplay from the model.
+ * Paginate a screenplay from the model — full recompute.
  *
  * Line wrapping is greedy at spaces against each element's
  * `ELEMENT_GEOMETRY` width (ADR-0024 measured zero page drift vs browser-style
@@ -71,14 +80,154 @@ type Item = {
  * line when a speech splits across a page.
  */
 export function paginate(document: ScreenplayDocument): PaginationDetail {
+  return pack(printableItems(document), document.elements.length, 1, [], []);
+}
+
+/**
+ * Re-paginate after an edit, packing only from the affected page onward (#49).
+ *
+ * `dirtyElementIndex` is the earliest manuscript element the edit may have
+ * changed (typed into, inserted, or deleted at). Earlier pages are kept from
+ * `previous`. When `previous` is missing, this is a full `paginate`.
+ *
+ * After any sequence of edits, the result equals `paginate(document)` for
+ * `totalPages`, `pageOfElement`, and `fill`.
+ */
+export function repaginate(
+  document: ScreenplayDocument,
+  previous: PaginationDetail | undefined,
+  dirtyElementIndex: number | undefined,
+): PaginationDetail {
   const items = printableItems(document);
+  if (previous === undefined || previous.totalPages === 0 || dirtyElementIndex === undefined) {
+    return pack(items, document.elements.length, 1, [], []);
+  }
+
+  const startPage = affectedPage(previous, dirtyElementIndex);
+  if (startPage <= 1) {
+    return pack(items, document.elements.length, 1, [], []);
+  }
+
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: document.elements.length },
     () => undefined,
   );
-  let pages = 0;
+  const stableUntil = Math.min(dirtyElementIndex, previous.pageOfElement.length);
+  for (let i = 0; i < stableUntil; i++) {
+    const page = previous.pageOfElement[i];
+    if (page !== undefined && page < startPage) pageOfElement[i] = page;
+  }
+
+  const fill = previous.fill.slice(0, startPage - 1);
+  const resumeItem = resumeItemIndex(items, previous, startPage, dirtyElementIndex);
+  return pack(items, document.elements.length, startPage, fill, pageOfElement, resumeItem);
+}
+
+/** Total numbered pages. */
+export function pageCount(document: ScreenplayDocument): number {
+  return paginate(document).totalPages;
+}
+
+/**
+ * The 1-based page the caret is on.
+ *
+ * An element with no mapping (front matter, omitted, empty manuscript) reads
+ * as page 1 when there is at least one numbered page, otherwise 0.
+ */
+export function pageAtElement(
+  pagination: Pagination,
+  elementIndex: number | undefined,
+): number {
+  if (pagination.totalPages === 0) return 0;
+  if (elementIndex === undefined) return 1;
+  return pagination.pageOfElement[elementIndex] ?? 1;
+}
+
+/** Status-bar copy a screen reader can read. */
+export function pageStatusText(currentPage: number, totalPages: number): string {
+  if (totalPages <= 0) return "Page 0 of 0";
+  return `Page ${currentPage} of ${totalPages}`;
+}
+
+/**
+ * Earliest 1-based page an edit at `dirty` can disturb. Looks at the dirty
+ * element and its immediate neighbours so a keep-with-next cue just above the
+ * caret still pulls the pack back far enough.
+ */
+function affectedPage(previous: PaginationDetail, dirty: number): number {
+  let start = previous.totalPages;
+  let found = false;
+  for (const index of [dirty, dirty - 1, dirty + 1]) {
+    if (index < 0 || index >= previous.pageOfElement.length) continue;
+    const page = previous.pageOfElement[index];
+    if (page === undefined) continue;
+    start = Math.min(start, page);
+    found = true;
+  }
+  if (!found) {
+    for (let i = Math.min(dirty, previous.pageOfElement.length - 1); i >= 0; i--) {
+      const page = previous.pageOfElement[i];
+      if (page !== undefined) {
+        start = page;
+        found = true;
+        break;
+      }
+    }
+  }
+  if (!found) return 1;
+  // Back up one page so the break *into* the dirty page is recomputed.
+  // Orphan keep-with-next captures `blankWithGroup` while still on the prior
+  // page; resuming on the dirty page alone would suppress that traveling blank
+  // and drift the fill by a line (and, after enough edits, the page map).
+  return Math.max(1, start - 1);
+}
+
+/**
+ * First printable item to feed the packer when resuming at `startPage`.
+ * Prefers the first item whose prior page was `startPage`; falls back to the
+ * first item at or after the dirty element.
+ */
+function resumeItemIndex(
+  items: readonly Item[],
+  previous: PaginationDetail,
+  startPage: number,
+  dirtyElementIndex: number,
+): number {
+  let boundary = dirtyElementIndex;
+  for (let i = 0; i < previous.pageOfElement.length; i++) {
+    if (previous.pageOfElement[i] === startPage) {
+      boundary = Math.min(boundary, i);
+      break;
+    }
+  }
+  const at = items.findIndex((item) => item.elementIndex >= boundary);
+  return at < 0 ? items.length : at;
+}
+
+/**
+ * Pack printable items onto pages.
+ *
+ * When `resumeFromPage` > 1, `fill` and `pageOfElement` already hold the kept
+ * prefix; packing starts at `fromItem` as the start of that page.
+ */
+function pack(
+  items: readonly Item[],
+  elementCount: number,
+  resumeFromPage: number,
+  fillIn: readonly number[],
+  pageOfElementIn: readonly (number | undefined)[],
+  fromItem = 0,
+): PaginationDetail {
+  const pageOfElement: (number | undefined)[] = Array.from(
+    { length: elementCount },
+    (_, i) => pageOfElementIn[i],
+  );
+  const fill: number[] = [...fillIn];
+  // Full pack starts at page 0 and opens page 1 on the first body item.
+  // A resume is already on `resumeFromPage` with an empty line budget — do
+  // not push a phantom fill entry for the page we are about to write.
+  let pages = resumeFromPage > 1 ? resumeFromPage : 0;
   let line = 0;
-  const fill: number[] = [];
   const lpp = PAGE.linesPerPage;
 
   const newPage = (contdLines = 0): void => {
@@ -93,7 +242,7 @@ export function paginate(document: ScreenplayDocument): PaginationDetail {
     }
   };
 
-  for (let i = 0; i < items.length; i++) {
+  for (let i = fromItem; i < items.length; i++) {
     const item = items[i]!;
     if (item.forcedBreak) {
       if (pages === 0 || line > 0) newPage(0);
@@ -125,7 +274,28 @@ export function paginate(document: ScreenplayDocument): PaginationDetail {
     // targets against the measured geometry table without changing widths or
     // `linesPerPage`. Recorded, not tuned. Continuation chunks after a split
     // take no blank — only the group's first placement does.
-    const blankWithGroup = line === 0 ? 0 : item.blankBefore;
+    //
+    // On an incremental resume we open the page with `line === 0` without
+    // having attempted the prior page, so a keep-with-next cue that was
+    // orphan-pushed would lose its traveling blank. Recover it when the kept
+    // fill of the previous page still had leftover room that this group
+    // could not have fit into — the same condition that fired `newPage` in a
+    // full pack.
+    let blankWithGroup = line === 0 ? 0 : item.blankBefore;
+    if (
+      blankWithGroup === 0 &&
+      item.blankBefore > 0 &&
+      line === 0 &&
+      pages === resumeFromPage &&
+      resumeFromPage > 1 &&
+      fill.length === resumeFromPage - 1 &&
+      (item.type === "scene-heading" || item.type === "character")
+    ) {
+      const roomOnPrev = lpp - (fill[fill.length - 1] ?? lpp);
+      if (roomOnPrev > 0 && item.blankBefore + item.lines + nextKeep > roomOnPrev) {
+        blankWithGroup = item.blankBefore;
+      }
+    }
 
     let remaining = item.lines;
     let placed = 0;
@@ -193,33 +363,12 @@ export function paginate(document: ScreenplayDocument): PaginationDetail {
   }
   if (pages > 0) fill.push(line);
 
-  return { totalPages: pages, pageOfElement, fill };
-}
-
-/** Total numbered pages. */
-export function pageCount(document: ScreenplayDocument): number {
-  return paginate(document).totalPages;
-}
-
-/**
- * The 1-based page the caret is on.
- *
- * An element with no mapping (front matter, omitted, empty manuscript) reads
- * as page 1 when there is at least one numbered page, otherwise 0.
- */
-export function pageAtElement(
-  pagination: Pagination,
-  elementIndex: number | undefined,
-): number {
-  if (pagination.totalPages === 0) return 0;
-  if (elementIndex === undefined) return 1;
-  return pagination.pageOfElement[elementIndex] ?? 1;
-}
-
-/** Status-bar copy a screen reader can read. */
-export function pageStatusText(currentPage: number, totalPages: number): string {
-  if (totalPages <= 0) return "Page 0 of 0";
-  return `Page ${currentPage} of ${totalPages}`;
+  return {
+    totalPages: pages,
+    pageOfElement,
+    fill,
+    resumedFromPage: resumeFromPage,
+  };
 }
 
 /**
