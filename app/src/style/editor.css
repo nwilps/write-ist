@@ -367,8 +367,13 @@
  * inset already on `.page`. Keys with no row in TITLE_PAGE_GEOMETRY stay in
  * normal flow at the top of page 1 and are never hidden.
  */
-.manuscript:has(> [data-title-field]) > [data-element]:first-of-type {
-  margin-top: calc(var(--page-height) - var(--page-inset-top));
+/*
+ * Reserve page 1 for the absolute title-page lines. Padding (not margin) so it
+ * cannot collapse through `.manuscript` into `.page` and leave the body sitting
+ * on the title sheet.
+ */
+.manuscript:has(> [data-title-field]) {
+  padding-top: calc(var(--page-height) - var(--page-inset-top));
 }
 
 /*

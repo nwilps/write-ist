@@ -309,7 +309,7 @@ describe("the title page is where Final Draft printed it (#62)", () => {
   it("starts the body one sheet below the title page", () => {
     const rules = readFileSync(EDITOR, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(rules).toContain(
-      "margin-top: calc(var(--page-height) - var(--page-inset-top))",
+      "padding-top: calc(var(--page-height) - var(--page-inset-top))",
     );
   });
 });
