@@ -110,3 +110,10 @@ there is one record, never duplicates.
 - **An open question goes in the tracker**, not here.
 - When editing the catalog programmatically, read the store first and merge — Noah edits
   between sessions.
+
+## A far-future maybe, not a plan
+
+Merging collaborators' drafts, or comparing two versions of a manuscript, is a *maybe someday, if
+users ask for it* — nothing more. It is not on the roadmap or in any slice. Write-ist stays a solo
+writer's app ([ADR-0031](adr/0031-outside-changes-are-handled-quietly.md)). If someone asks, open
+an issue then.
