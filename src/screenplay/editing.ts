@@ -56,6 +56,7 @@ import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { toggleMark } from "prosemirror-commands";
+import { clipboard, pastedComments } from "./clipboard.ts";
 import { elementKeys, endsUndoStep } from "./element-keys.ts";
 import { maintainElements } from "./maintenance.ts";
 import type { Node as EditorNode } from "prosemirror-model";
@@ -107,7 +108,11 @@ export const maintainComments = new Plugin<readonly PlacedComment[]>({
         if (end <= start) continue;
         moved.push({ ...comment, start, end });
       }
-      return moved;
+      // A paste brings its comments already placed in the new document (#47);
+      // they join in the order they open.
+      const pasted = transaction.getMeta(pastedComments) as readonly PlacedComment[] | undefined;
+      if (pasted === undefined) return moved;
+      return [...moved, ...pasted].sort((a, b) => a.start - b.start);
     },
   },
   appendTransaction: (transactions, _old, state) => {
@@ -164,7 +169,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
     doc: toEditorDocument(document),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, elementKeys, maintainElements, endsUndoStep, maintainComments],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, elementKeys, maintainElements, endsUndoStep, maintainComments],
   });
 }
 
