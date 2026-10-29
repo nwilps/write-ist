@@ -14,7 +14,7 @@
 import type { Element, ScreenplayDocument } from "./document.ts";
 
 /** Element types that belong to a speech rather than interrupting one. */
-const SPEECH: ReadonlySet<Element["type"]> = new Set([
+export const SPEECH: ReadonlySet<Element["type"]> = new Set([
   "character",
   "parenthetical",
   "dialogue",
@@ -92,7 +92,7 @@ export function maintainContinuations(document: ScreenplayDocument): Continuatio
  * if the cue is bare": Big Fish contains 21 cues reading `EDWARD (V.O.)
  * (CONT'D)`, so a bare-only rule gets 21 cues wrong in the reference script.
  */
-function appendContinuation(cue: string): string {
+export function appendContinuation(cue: string): string {
   const dual = DUAL_MARKER.exec(cue);
   if (dual !== null) {
     return `${cue.slice(0, dual.index)} (CONT'D)${dual[1]!}`;
