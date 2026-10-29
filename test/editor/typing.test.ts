@@ -270,7 +270,8 @@ describe("Enter at the end of an element starts the one that normally comes next
       const after = enterThenType(state, last, "x");
       expect(types(after)[last + 1]).toBe(next);
       expect(types(after)[last]).toBe(type);
-      expect(texts(after)[last + 1]).toBe("x");
+      // A scene heading is capitals, so what is typed into one is (#44).
+      expect(texts(after)[last + 1]).toBe(next === "scene-heading" ? "X" : "x");
     });
   }
 
@@ -353,10 +354,11 @@ describe("Tab changes the type of the line the caret is on (#43)", () => {
     expect(types(after)).toEqual(["character", "parenthetical"]);
   });
 
-  it("leaves the text and the caret where they were", () => {
+  it("leaves the caret where it was, and capitalises into a cue", () => {
     const state = caretAt(opened("Mary makes toast."), 0, 5);
     const after = press(state, cycleType);
-    expect(texts(after)).toEqual(["Mary makes toast."]);
+    // Into a character cue, so the text already there is capitalised (#44).
+    expect(texts(after)).toEqual(["MARY MAKES TOAST."]);
     expect(after.selection.from).toBe(state.selection.from);
   });
 
@@ -371,7 +373,8 @@ describe("Backspace at the start of an element joins it onto the one above (#43)
   it("keeps the upper element's type", () => {
     const after = press(caretAt(opened(SCENE), 3, 0), joinBackwards);
     expect(types(after)).toEqual(["scene-heading", "action", "character", "transition"]);
-    expect(texts(after)[2]).toBe("MARYMorning.");
+    // The joined text is a cue's, so the dialogue's lowercase is capitalised (#44).
+    expect(texts(after)[2]).toBe("MARYMORNING.");
   });
 
   it("puts the caret at the seam", () => {
@@ -403,7 +406,8 @@ describe("Delete at the end of an element pulls the one below onto it (#43)", ()
   it("keeps the upper element's type", () => {
     const after = press(caretAt(opened(SCENE), 2, 4), joinForwards);
     expect(types(after)).toEqual(["scene-heading", "action", "character", "transition"]);
-    expect(texts(after)[2]).toBe("MARYMorning.");
+    // The joined text is a cue's, so the dialogue's lowercase is capitalised (#44).
+    expect(texts(after)[2]).toBe("MARYMORNING.");
   });
 
   it("is left to the editor anywhere else, and claimed at the end of the manuscript", () => {

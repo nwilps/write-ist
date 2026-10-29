@@ -56,6 +56,7 @@ import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { elementKeys, endsUndoStep } from "./element-keys.ts";
+import { maintainElements } from "./maintenance.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
@@ -144,7 +145,9 @@ export function editorStateFor(document: ScreenplayDocument): State {
   return EditorState.create({
     schema: screenplaySchema,
     doc: toEditorDocument(document),
-    plugins: [undoStack, undoKeys, elementKeys, endsUndoStep, maintainComments],
+    // `maintainElements` comes before `endsUndoStep` so that what it appends to a
+    // structural change joins that change's undo step rather than following it.
+    plugins: [undoStack, undoKeys, elementKeys, maintainElements, endsUndoStep, maintainComments],
   });
 }
 
