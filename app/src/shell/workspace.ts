@@ -44,6 +44,15 @@ export interface WorkspaceContext {
    * fails quietly (`docs/STANDARDS.md`).
    */
   readonly whenSwitchedAway: (act: () => void) => () => void;
+  /**
+   * The writer came back to Write-ist from another application. Answers how to
+   * stop listening.
+   *
+   * ADR-0028 has the manuscript on disk compared then with what Write-ist last
+   * read or wrote — the moment something else is most likely to have changed
+   * it. Given rather than found, for the same reason as `whenSwitchedAway`.
+   */
+  readonly whenSwitchedBack: (act: () => void) => () => void;
 }
 
 /** A workspace that has been put on screen. */

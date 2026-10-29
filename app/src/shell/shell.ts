@@ -46,6 +46,8 @@ export interface ShellScreen {
    * shell does not know what a workspace saves, or whether it saves at all.
    */
   readonly whenSwitchedAway: (act: () => void) => () => void;
+  /** The writer came back to Write-ist. Handed straight on, like the other. */
+  readonly whenSwitchedBack: (act: () => void) => () => void;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -107,6 +109,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     filesystem: screen.filesystem,
     report,
     whenSwitchedAway: screen.whenSwitchedAway,
+    whenSwitchedBack: screen.whenSwitchedBack,
   });
 
   return { gestures, unmount: mounted.unmount, report };
