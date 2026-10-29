@@ -62,6 +62,12 @@ import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
+import {
+  pageAtElement,
+  pageStatusText,
+  paginate,
+  type Pagination,
+} from "../../../../src/screenplay/paginate.ts";
 import { element } from "../../screens/element.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
@@ -70,6 +76,7 @@ import type {
   WorkspaceContext,
   WorkspaceManifest,
 } from "../../shell/workspace.ts";
+import type { Node as EditorNode } from "prosemirror-model";
 
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
@@ -107,6 +114,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       let state = editorStateFor(opened.document);
       let unfinished: unknown;
       let leaving = false;
+      // Held here so a silent reload (#42) can refresh the count too.
+      let pages: Pagination = paginate(opened.document);
+      const showPages = (): void => {
+        const current = pageAtElement(
+          pages,
+          elementIndexAt(state.doc, state.selection.head),
+        );
+        context.setStatus(pageStatusText(current, pages.totalPages));
+      };
       const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
         // Changed elsewhere, and nothing typed here: the other version is the
         // screenplay now. A fresh state, so undo cannot walk back into the
@@ -114,6 +130,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         reload: (imported) => {
           state = editorStateFor(imported.document);
           view?.updateState(state);
+          pages = paginate(imported.document);
+          showPages();
         },
         // The dated copy is already beside the manuscript. Nothing is said:
         // ADR-0031. A copy that could not be written is not here — that stops
@@ -180,16 +198,23 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       };
 
       reading.remove();
+
+      // #48 — page count from the model, never the DOM. Full recompute on open
+      // and on every document change is fine here; live-as-you-type budgets are
+      // #49 and out of scope.
       view = new EditorView(page, {
         state,
         dispatchTransaction: (transaction) => {
           state = state.apply(transaction);
           view?.updateState(state);
-          // A selection move is not a change to the screenplay, so it neither
-          // marks the manuscript unsaved nor restarts the pause.
-          if (!transaction.docChanged) return;
-          session.changed();
-          saving.typed();
+          if (transaction.docChanged) {
+            session.changed();
+            saving.typed();
+            pages = paginate(manuscriptOf(state.doc));
+          }
+          // Selection moves still refresh the current page; the total only
+          // moves when the manuscript does.
+          if (transaction.docChanged || transaction.selectionSet) showPages();
         },
         // The explicit save ADR-0028 pairs with autosave — the same routine,
         // asked for rather than waited for. It is held here rather than in the
@@ -204,6 +229,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },
       });
+      showPages();
     } catch (error) {
       if (gone) return;
       reading.remove();
@@ -234,4 +260,26 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return true;
     },
   };
+}
+
+/**
+ * Which manuscript element the caret sits in, matching `manuscriptOf`'s
+ * indexing (empty editor lines are not elements).
+ */
+function elementIndexAt(doc: EditorNode, pos: number): number | undefined {
+  let titleLines = 0;
+  while (titleLines < doc.childCount && doc.child(titleLines).type.name === "title_line") {
+    titleLines += 1;
+  }
+  const at = doc.resolve(pos);
+  if (at.depth < 1 || at.parent.type.name !== "element") return undefined;
+  const rawIndex = at.index(0) - titleLines;
+  let manuscriptIndex = 0;
+  for (let i = 0; i < rawIndex; i++) {
+    if (doc.child(titleLines + i)!.textContent !== "") manuscriptIndex += 1;
+  }
+  if (doc.child(titleLines + rawIndex)!.textContent === "") {
+    return manuscriptIndex > 0 ? manuscriptIndex - 1 : 0;
+  }
+  return manuscriptIndex;
 }

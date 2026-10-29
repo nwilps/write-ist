@@ -53,6 +53,14 @@ export interface WorkspaceContext {
    * it. Given rather than found, for the same reason as `whenSwitchedAway`.
    */
   readonly whenSwitchedBack: (act: () => void) => () => void;
+  /**
+   * Put a short line in the status bar beside the project name.
+   *
+   * The shell draws the furniture; the workspace decides what the line says.
+   * Slice 1's Editor puts the page count here (#48). The shell still does not
+   * know what a page is — only that a workspace may have something to say.
+   */
+  readonly setStatus: (text: string) => void;
 }
 
 /** A workspace that has been put on screen. */
