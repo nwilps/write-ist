@@ -53,7 +53,9 @@
  */
 import { Plugin, PluginKey, type EditorState as State } from "prosemirror-state";
 import { EditorState } from "prosemirror-state";
-import { elementKeys } from "./element-keys.ts";
+import { history, redo, undo } from "prosemirror-history";
+import { keymap } from "prosemirror-keymap";
+import { elementKeys, endsUndoStep } from "./element-keys.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
@@ -118,6 +120,20 @@ export const maintainComments = new Plugin<readonly PlacedComment[]>({
 });
 
 /**
+ * Undo and redo (#45): a stack over the editor's transactions that lives in the
+ * state, so it dies with the session and is never saved (ADR-0019). Typing
+ * within half a second, in one place, is one step; a structural change
+ * (`./element-keys.ts`) or a longer pause begins another.
+ */
+const undoStack = history({ newGroupDelay: 500 });
+
+const undoKeys = keymap({
+  "Mod-z": undo,
+  "Mod-Shift-z": redo,
+  "Mod-y": redo,
+});
+
+/**
  * The state a writer types into.
  *
  * One place builds it, so the editing tests and the window are running the
@@ -128,7 +144,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
   return EditorState.create({
     schema: screenplaySchema,
     doc: toEditorDocument(document),
-    plugins: [elementKeys, maintainComments],
+    plugins: [undoStack, undoKeys, elementKeys, endsUndoStep, maintainComments],
   });
 }
 
