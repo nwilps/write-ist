@@ -277,6 +277,88 @@ export const ELEMENT_GEOMETRY: Readonly<Record<ElementType, ElementMeasure>> = {
   "boneyard-end": marginalia("A boneyard delimiter"),
 };
 
+/**
+ * One title-page field's place on page 1 (#62).
+ *
+ * Title-page lines are not element types — they are `Key: value` pairs — so they
+ * sit beside `ELEMENT_GEOMETRY` in the same table rather than inside it. Positions
+ * are from the sheet's edges (US Letter 612×792pt), matching the PDF measure.
+ */
+export interface TitlePagePlacement {
+  readonly alignment: Alignment;
+  /**
+   * Inches from the sheet's left edge. For a left-aligned field this is the
+   * line's left edge; for a right-aligned field it is the right edge the text
+   * aligns to; ignored when centred (the sheet's centre is used instead).
+   */
+  readonly xInches: number;
+  /**
+   * Points from the sheet's top edge to the first line's baseline, as the PDF
+   * wrote it. Continuation lines add `PAGE.leadingPoints` per step.
+   */
+  readonly yPoints: number;
+  readonly source: string;
+}
+
+/**
+ * Title-page geometry, keyed by Fountain key (#62).
+ *
+ * Measured from page 1 of Final Draft's PDF of *Big Fish* — the same pass that
+ * produced `ELEMENT_GEOMETRY`. Keys Write-ist has no row for are still drawn;
+ * they simply take no absolute placement and stay in the flow at the top.
+ */
+export const TITLE_PAGE_GEOMETRY: Readonly<Record<string, TitlePagePlacement>> = {
+  Title: {
+    alignment: "centre",
+    xInches: PAGE.widthInches / 2,
+    yPoints: 261,
+    source:
+      "Measured: `Big Fish` centred (text run x = 278pt; centre of the string against the sheet's 306pt centre). Baseline y = 261pt.",
+  },
+  Credit: {
+    alignment: "centre",
+    xInches: PAGE.widthInches / 2,
+    yPoints: 309,
+    source: "Measured: `written by` centred; baseline y = 309pt.",
+  },
+  Author: {
+    alignment: "centre",
+    xInches: PAGE.widthInches / 2,
+    yPoints: 333,
+    source: "Measured: `John August` centred; baseline y = 333pt.",
+  },
+  Source: {
+    alignment: "centre",
+    xInches: PAGE.widthInches / 2,
+    yPoints: 393,
+    source: "Measured: `based on the novel by Daniel Wallace` centred; baseline y = 393pt.",
+  },
+  Notes: {
+    alignment: "right",
+    xInches: 7.5,
+    yPoints: 585,
+    source:
+      "Measured: three Notes lines right-aligned to exactly 540pt (7.5in), the screenplay's own right margin — same edge transitions fix. First baseline y = 585pt; the next two fall on the 12pt grid at 597 and 609.",
+  },
+  Copyright: {
+    alignment: "left",
+    xInches: 1.0,
+    yPoints: 645,
+    source:
+      "Measured: `(c) 2003 Columbia Pictures` at x = 72pt (1.0in) — half an inch outside the 1.5in text margin. Baseline y = 645pt. Not a mistake; the PDF puts it there.",
+  },
+  Contact: {
+    alignment: "left",
+    xInches: 1.0,
+    yPoints: 645,
+    source:
+      "Same place as Copyright: left at 1.0in (#62 acceptance). Big Fish carries no Contact line, so the y is Copyright's; a Contact block stacks on the leading from there.",
+  },
+};
+
+/** How many lines of one title-page field the generated stylesheet places. */
+export const TITLE_PAGE_FIELD_LINES = 12;
+
 /** CSS custom property names, so the stylesheet and its test cannot drift. */
 export const indentProperty = (type: ElementType): string => `--indent-${type}`;
 export const widthProperty = (type: ElementType): string => `--width-${type}`;
@@ -355,6 +437,53 @@ export function stylesheet(): string {
     lines.push(`  ${alignProperty(type)}: ${CSS_ALIGNMENT[alignment]};`);
   }
 
+  lines.push("");
+  lines.push("  /* --- The title page (#62) ----------------------------------------- */");
+  lines.push("");
+  lines.push(`  --page-height: ${inches(PAGE.heightInches)};`);
+  for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
+    const { alignment, xInches, yPoints } = TITLE_PAGE_GEOMETRY[key]!;
+    lines.push(`  --title-${key}-align: ${CSS_ALIGNMENT[alignment]};`);
+    lines.push(`  --title-${key}-x: ${inches(xInches)};`);
+    // Box top from measured baseline: same 0.18in drop the body margin uses.
+    const topInches = yPoints / 72 - 0.18;
+    lines.push(`  --title-${key}-top: ${inches(topInches)};`);
+  }
+
   lines.push("}", "");
+
+  lines.push("/*");
+  lines.push(" * Title-page lines (#62). Absolute on the sheet so Copyright can sit at");
+  lines.push(" * 1.0in — outside the text margin — and Notes can right-align to 7.5in.");
+  lines.push(" * Continuations share the key via data-title-field; each line index gets");
+  lines.push(" * its own top on the leading grid.");
+  lines.push(" */");
+  lines.push("");
+  for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
+    const placement = TITLE_PAGE_GEOMETRY[key]!;
+    for (let line = 0; line < TITLE_PAGE_FIELD_LINES; line++) {
+      const topInches = placement.yPoints / 72 - 0.18 + (line * PAGE.leadingPoints) / 72;
+      lines.push(
+        `.manuscript > [data-title-field="${key}"][data-title-field-line="${line}"] {`,
+      );
+      lines.push(`  position: absolute;`);
+      lines.push(`  top: ${inches(topInches)};`);
+      if (placement.alignment === "centre") {
+        lines.push("  left: 0;");
+        lines.push("  right: 0;");
+        lines.push("  text-align: center;");
+      } else if (placement.alignment === "right") {
+        lines.push("  left: 0;");
+        lines.push(`  width: ${inches(placement.xInches)};`);
+        lines.push("  text-align: right;");
+      } else {
+        lines.push(`  left: ${inches(placement.xInches)};`);
+        lines.push("  text-align: left;");
+      }
+      lines.push("}");
+      lines.push("");
+    }
+  }
+
   return lines.join("\n");
 }

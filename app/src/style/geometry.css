@@ -66,4 +66,684 @@
   --indent-boneyard-end: 0ch;
   --width-boneyard-end: 61ch;
   --align-boneyard-end: left;
+
+  /* --- The title page (#62) ----------------------------------------- */
+
+  --page-height: 1056px;
+  --title-Title-align: center;
+  --title-Title-x: 408px;
+  --title-Title-top: 330.72px;
+  --title-Credit-align: center;
+  --title-Credit-x: 408px;
+  --title-Credit-top: 394.72px;
+  --title-Author-align: center;
+  --title-Author-x: 408px;
+  --title-Author-top: 426.72px;
+  --title-Source-align: center;
+  --title-Source-x: 408px;
+  --title-Source-top: 506.72px;
+  --title-Notes-align: right;
+  --title-Notes-x: 720px;
+  --title-Notes-top: 762.72px;
+  --title-Copyright-align: left;
+  --title-Copyright-x: 96px;
+  --title-Copyright-top: 842.72px;
+  --title-Contact-align: left;
+  --title-Contact-x: 96px;
+  --title-Contact-top: 842.72px;
+}
+
+/*
+ * Title-page lines (#62). Absolute on the sheet so Copyright can sit at
+ * 1.0in — outside the text margin — and Notes can right-align to 7.5in.
+ * Continuations share the key via data-title-field; each line index gets
+ * its own top on the leading grid.
+ */
+
+.manuscript > [data-title-field="Title"][data-title-field-line="0"] {
+  position: absolute;
+  top: 330.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="1"] {
+  position: absolute;
+  top: 346.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="2"] {
+  position: absolute;
+  top: 362.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="3"] {
+  position: absolute;
+  top: 378.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="4"] {
+  position: absolute;
+  top: 394.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="5"] {
+  position: absolute;
+  top: 410.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="6"] {
+  position: absolute;
+  top: 426.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="7"] {
+  position: absolute;
+  top: 442.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="8"] {
+  position: absolute;
+  top: 458.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="9"] {
+  position: absolute;
+  top: 474.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="10"] {
+  position: absolute;
+  top: 490.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Title"][data-title-field-line="11"] {
+  position: absolute;
+  top: 506.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="0"] {
+  position: absolute;
+  top: 394.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="1"] {
+  position: absolute;
+  top: 410.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="2"] {
+  position: absolute;
+  top: 426.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="3"] {
+  position: absolute;
+  top: 442.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="4"] {
+  position: absolute;
+  top: 458.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="5"] {
+  position: absolute;
+  top: 474.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="6"] {
+  position: absolute;
+  top: 490.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="7"] {
+  position: absolute;
+  top: 506.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="8"] {
+  position: absolute;
+  top: 522.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="9"] {
+  position: absolute;
+  top: 538.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="10"] {
+  position: absolute;
+  top: 554.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Credit"][data-title-field-line="11"] {
+  position: absolute;
+  top: 570.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="0"] {
+  position: absolute;
+  top: 426.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="1"] {
+  position: absolute;
+  top: 442.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="2"] {
+  position: absolute;
+  top: 458.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="3"] {
+  position: absolute;
+  top: 474.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="4"] {
+  position: absolute;
+  top: 490.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="5"] {
+  position: absolute;
+  top: 506.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="6"] {
+  position: absolute;
+  top: 522.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="7"] {
+  position: absolute;
+  top: 538.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="8"] {
+  position: absolute;
+  top: 554.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="9"] {
+  position: absolute;
+  top: 570.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="10"] {
+  position: absolute;
+  top: 586.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Author"][data-title-field-line="11"] {
+  position: absolute;
+  top: 602.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="0"] {
+  position: absolute;
+  top: 506.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="1"] {
+  position: absolute;
+  top: 522.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="2"] {
+  position: absolute;
+  top: 538.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="3"] {
+  position: absolute;
+  top: 554.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="4"] {
+  position: absolute;
+  top: 570.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="5"] {
+  position: absolute;
+  top: 586.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="6"] {
+  position: absolute;
+  top: 602.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="7"] {
+  position: absolute;
+  top: 618.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="8"] {
+  position: absolute;
+  top: 634.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="9"] {
+  position: absolute;
+  top: 650.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="10"] {
+  position: absolute;
+  top: 666.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Source"][data-title-field-line="11"] {
+  position: absolute;
+  top: 682.72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="0"] {
+  position: absolute;
+  top: 762.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="1"] {
+  position: absolute;
+  top: 778.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="2"] {
+  position: absolute;
+  top: 794.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="3"] {
+  position: absolute;
+  top: 810.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="4"] {
+  position: absolute;
+  top: 826.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="5"] {
+  position: absolute;
+  top: 842.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="6"] {
+  position: absolute;
+  top: 858.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="7"] {
+  position: absolute;
+  top: 874.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="8"] {
+  position: absolute;
+  top: 890.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="9"] {
+  position: absolute;
+  top: 906.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="10"] {
+  position: absolute;
+  top: 922.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Notes"][data-title-field-line="11"] {
+  position: absolute;
+  top: 938.72px;
+  left: 0;
+  width: 720px;
+  text-align: right;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="0"] {
+  position: absolute;
+  top: 842.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="1"] {
+  position: absolute;
+  top: 858.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="2"] {
+  position: absolute;
+  top: 874.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="3"] {
+  position: absolute;
+  top: 890.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="4"] {
+  position: absolute;
+  top: 906.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="5"] {
+  position: absolute;
+  top: 922.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="6"] {
+  position: absolute;
+  top: 938.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="7"] {
+  position: absolute;
+  top: 954.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="8"] {
+  position: absolute;
+  top: 970.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="9"] {
+  position: absolute;
+  top: 986.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="10"] {
+  position: absolute;
+  top: 1002.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Copyright"][data-title-field-line="11"] {
+  position: absolute;
+  top: 1018.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="0"] {
+  position: absolute;
+  top: 842.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="1"] {
+  position: absolute;
+  top: 858.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="2"] {
+  position: absolute;
+  top: 874.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="3"] {
+  position: absolute;
+  top: 890.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="4"] {
+  position: absolute;
+  top: 906.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="5"] {
+  position: absolute;
+  top: 922.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="6"] {
+  position: absolute;
+  top: 938.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="7"] {
+  position: absolute;
+  top: 954.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="8"] {
+  position: absolute;
+  top: 970.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="9"] {
+  position: absolute;
+  top: 986.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="10"] {
+  position: absolute;
+  top: 1002.72px;
+  left: 96px;
+  text-align: left;
+}
+
+.manuscript > [data-title-field="Contact"][data-title-field-line="11"] {
+  position: absolute;
+  top: 1018.72px;
+  left: 96px;
+  text-align: left;
 }

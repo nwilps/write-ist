@@ -140,6 +140,23 @@ describe("the title page is displayed at the top (ADR-0021)", () => {
     // A continuation line carries no key of its own: the field is the run.
     expect(lines.some((line) => line.dataset["titleLine"] === "")).toBe(true);
   });
+
+  it("gives every title-page line the field it belongs to (#62)", () => {
+    // Continuations carry no key; without `data-title-field` the stylesheet
+    // cannot right-align Notes. The attribute is view-only — fromEditorDocument
+    // never reads it.
+    const lines = [...page().querySelectorAll<HTMLElement>("[data-title-field]")];
+    const notes = lines.filter((line) => line.dataset["titleField"] === "Notes");
+
+    expect(notes.length).toBeGreaterThan(1);
+    expect(notes.every((line) => line.dataset["titleField"] === "Notes")).toBe(true);
+    expect(notes.map((line) => line.dataset["titleFieldLine"])).toEqual(
+      notes.map((_, index) => String(index)),
+    );
+    // The key line still carries its key; continuations do not.
+    expect(notes[0]!.dataset["titleLine"]).toBe("Notes");
+    expect(notes.slice(1).every((line) => line.dataset["titleLine"] === "")).toBe(true);
+  });
 });
 
 describe("cut material is displayed and marked as cut (ADR-0021)", () => {

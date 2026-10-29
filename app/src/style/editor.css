@@ -119,6 +119,8 @@
  * honest; the count is defined against the sheet, not against the furniture.
  */
 .page {
+  /* Positioning context for title-page lines (#62), which are absolute to the sheet. */
+  position: relative;
   width: var(--page-width);
   margin: 0 auto;
   min-height: 100%;
@@ -346,26 +348,27 @@
 }
 
 /*
- * The title page, displayed at the top (ADR-0021).
+ * The title page (#62), laid out as Final Draft prints it.
  *
- * It is stored in the manuscript file and shown here as what it is: the
- * writer's values, as real text. **Editing it through a form comes later.**
- *
- * **Laying it out as Final Draft prints it is #62, not #40**, and the reason is
- * recorded there along with the measurements: Final Draft centres the title,
- * credit, author and source, right-aligns the notes to the screenplay's own
- * 7.5in margin, and puts the copyright at 1.0in — half an inch outside the text
- * margin. Two things stop that being done here. The vertical placement is a
- * position on a *page*, and the Editor draws one continuous sheet until
- * pagination (#48) gives a page a height; and a continuation line carries no
- * key, so the page cannot tell which field it belongs to without a change to
- * the mapping in `src/screenplay/editor.ts`. Reaching for a CSS sibling rule
- * instead would be the trap #40 was told to avoid.
- *
- * So it is set apart from the screenplay, and nothing more.
+ * Placement rules (centre / right-to-7.5in / left-at-1.0in, and each line's
+ * top) live in `geometry.css`, generated from `TITLE_PAGE_GEOMETRY`. What this
+ * file owns is the page box: title-page lines are absolute to `.page`, so the
+ * body has to start one sheet down — `--page-height` is the height #48 gave
+ * the sheet. Keys with no row in the table stay in the flow at the top and are
+ * never hidden.
  */
 .manuscript > [data-title-line] {
-  color: var(--colour-muted);
+  color: var(--colour-ink);
+}
+
+/*
+ * Body of the screenplay begins on the next sheet. Absolute title lines take
+ * no flow space, so the first element is pushed down by one page less the top
+ * inset already on `.page`. Keys with no row in TITLE_PAGE_GEOMETRY stay in
+ * normal flow at the top of page 1 and are never hidden.
+ */
+.manuscript:has(> [data-title-field]) > [data-element]:first-of-type {
+  margin-top: calc(var(--page-height) - var(--page-inset-top));
 }
 
 /*
