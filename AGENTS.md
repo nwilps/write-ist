@@ -4,19 +4,24 @@ A fully local, offline writing application. See [`README.md`](README.md) for the
 project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem. Open questions are
 GitHub Issues, never a doc.
 
-**Status: v2, building slice 1 — the first application.** The document model is built and tested:
-**bytes on disk ↔ a flat sequence of typed elements**, both surfaces, with marks and comments, in
-`src/`. Above it, `src/project/` holds the bundle, the `project.md` marker, import and open. The
-application launches — a Tauri window over the system webview, opening on a home screen, with
-**Open Project** its own screen, listing projects and importing a screenplay into a new one
-(#38, #55). Opening one shows the manuscript in the **Editor**, a ProseMirror workspace the shell
-hosts through a manifest, with the round-trip holding through it (#39). **Nothing is typed into
-it yet** — no keyboard, no saving, no ranges, no counts, no pagination. The manuscript is laid
-out in **industry format** (#40): Courier Prime bundled, and one geometry table, measured from
-Final Draft's PDF, that the page count will read too.
+**Status: v2, Slice 1 complete — the smallest Write-ist a screenplay can be written in (#37).**
+The document model is built and tested: **bytes on disk ↔ a flat sequence of typed elements**,
+both surfaces, with marks and comments, in `src/`. Above it, `src/project/` holds the bundle,
+the `project.md` marker, import, open, autosave, and the ledger. The application launches — a
+Tauri window over the system webview, opening on a home screen, with **Open Project** its own
+screen (#38, #55). Opening a project shows the manuscript in the **Editor**, a ProseMirror
+workspace the shell hosts through a manifest, with the round-trip holding through it (#39). The
+writer types and it saves itself (#41); outside changes are never overwritten (#42); Enter, Tab,
+capitals, (CONT'D), undo, marks, and the clipboard work as expected (#43–#47); the page count
+keeps up as you type (#48, #49); the title page matches Final Draft (#62); and the ledger records
+the writer's days (#50). The manuscript is laid out in **industry format** (#40): Courier Prime
+bundled, and one geometry table, measured from Final Draft's PDF, that both the page and the
+count read.
 
-Before proposing work, read `SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The
-round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
+Still above this layer: drafts and locking, the registry, spellcheck, ranges (scenes/chapters
+from the flat sequence), the workspace bar, and further slices. Before proposing work, read
+`SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The round-trip gate is the
+acceptance test for anything touching `src/`: `npm test`.
 
 
 ## Branch and pull-request rules
@@ -28,9 +33,10 @@ round-trip gate is the acceptance test for anything touching `src/`: `npm test`.
 
 ## Working a ticket
 
-The work is cut into slices. **Issue #37** is the current slice's spec — the smallest Write-ist a
-screenplay can be written in — and **#38–#50** are its tickets, attached to it and ordered by what
-blocks what.
+The work is cut into slices. **Issue #37** was Slice 1 — the smallest Write-ist a screenplay can
+be written in — and its tickets (**#38–#50**, plus **#55** and **#62**) are closed. Further
+slices are charted with `/to-tickets` when their specs exist; open questions stay in GitHub
+Issues (the one still open from the early list is **#15**, leading whitespace, deferred).
 
 ### What to read
 
