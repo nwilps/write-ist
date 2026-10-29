@@ -8,7 +8,7 @@
  */
 import { exists, mkdir, readDir, readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
-import { documentDir, join } from "@tauri-apps/api/path";
+import { appLocalDataDir, documentDir, join } from "@tauri-apps/api/path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
 /**
@@ -58,6 +58,15 @@ export const tauriFilesystem: Filesystem = {
   async createDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
   },
+
+  async exists(path: string): Promise<boolean> {
+    return exists(path);
+  },
+
+  async appendFile(path: string, bytes: Uint8Array): Promise<void> {
+    // True append via the plugin's `append` flag — never a full rewrite.
+    await writeFile(path, bytes, { append: true });
+  },
 };
 
 /** The folder inside `Documents` that holds every project (ADR-0016). */
@@ -72,4 +81,12 @@ export const PROJECTS_FOLDER = "write-ist";
  */
 export async function defaultProjectsDirectory(): Promise<string> {
   return join(await documentDir(), PROJECTS_FOLDER);
+}
+
+/**
+ * `appLocalDataDir()` — where the ledger (and, later, the registry) live
+ * (ADR-0016, ADR-0017). Local, never Roaming.
+ */
+export async function defaultLedgerDirectory(): Promise<string> {
+  return appLocalDataDir();
 }

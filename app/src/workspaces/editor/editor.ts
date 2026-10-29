@@ -59,7 +59,9 @@
  */
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
+import { openLedger } from "../../../../src/project/ledger.ts";
 import { openProject } from "../../../../src/project/open.ts";
+import { defaultLedgerDirectory } from "../../tauri-filesystem.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import {
@@ -192,6 +194,21 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
               `so nothing you have written is lost.`,
           );
           return false;
+        }
+        // The ledger (ADR-0017): Tuesday's words and pages cannot be worked
+        // out later, so they are written now, before the page goes. A failure
+        // here costs a chart, never the manuscript — so the project still leaves.
+        try {
+          const ledger = openLedger(context.filesystem, await defaultLedgerDirectory());
+          await ledger.recordDay(
+            { id: context.project.marker.projectId, name: context.project.marker.name },
+            manuscriptOf(state.doc),
+          );
+        } catch (error) {
+          context.report(
+            `Write-ist could not record today's writing in the ledger. ` +
+              `Your screenplay is saved. ${message(error)}`,
+          );
         }
         stopSwitchingAway();
         stopSwitchingBack();

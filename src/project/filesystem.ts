@@ -10,8 +10,8 @@
  * port exists to let a temporary folder stand in for `~/Documents/write-ist/`
  * rather than to let the disk be mocked away.
  *
- * It is four methods wide on purpose. Every question the project layer asks of
- * the disk is one of these, and the port stays cheap to implement twice.
+ * It stays narrow on purpose. Every question the project layer asks of the
+ * disk is one of these, and the port stays cheap to implement twice.
  */
 
 /** One entry directly inside a directory. */
@@ -57,6 +57,24 @@ export interface Filesystem {
 
   /** Create a directory and any missing parents. Succeeds if it already exists. */
   createDirectory(path: string): Promise<void>;
+
+  /**
+   * Whether a path exists on disk.
+   *
+   * Needed above the bundle (ADR-0016 / ADR-0017): *absent* and *unreadable*
+   * are different answers. Absent means first run; unreadable means refuse to
+   * write. `readFile` rejects for both, so this is how a caller tells them apart.
+   */
+  exists(path: string): Promise<boolean>;
+
+  /**
+   * Append bytes to a file without rewriting what is already there.
+   *
+   * Creates the file when it is absent. The ledger (ADR-0017) is append-only
+   * so a crash can damage at most the last line; a full rewrite would put every
+   * earlier day at risk again.
+   */
+  appendFile(path: string, bytes: Uint8Array): Promise<void>;
 }
 
 /**
