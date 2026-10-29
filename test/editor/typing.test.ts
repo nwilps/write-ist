@@ -14,14 +14,15 @@ import { describe, expect, it } from "vitest";
 import { importScreenplay } from "../../src/screenplay/import.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
-import type { EditorState } from "prosemirror-state";
+import type { Command, EditorState } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import {
-  holdJoinBackwards,
-  holdJoinForwards,
-  holdSplit,
-} from "../../src/screenplay/held-keys.ts";
+  cycleType,
+  joinBackwards,
+  joinForwards,
+  splitElement,
+} from "../../src/screenplay/element-keys.ts";
 import { startOfElement } from "../support/editor-positions.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
@@ -206,43 +207,288 @@ describe("a comment stays on the words it was left on (ADR-0018)", () => {
   });
 });
 
-describe("the keys #43 owns do nothing rather than something nobody chose", () => {
-  /** Put the caret at an offset into an element, the way a click does. */
-  function caretAt(state: EditorState, element: number, offset: number): EditorState {
-    const at = startOfElement(state, element) + offset;
-    return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at)));
+/** Put the caret at an offset into an element, the way a click does. */
+function caretAt(state: EditorState, element: number, offset: number): EditorState {
+  const at = startOfElement(state, element) + offset;
+  return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at)));
+}
+
+/** Run a key's command; a key that declines leaves the state as it was. */
+function press(state: EditorState, command: Command): EditorState {
+  let next = state;
+  command(state, (tr) => {
+    next = state.apply(tr);
+  });
+  return next;
+}
+
+/** The text of every element, in order. */
+function texts(state: EditorState): readonly string[] {
+  return manuscriptOf(state.doc).elements.map((element) => element.text);
+}
+
+/** Press Enter at the end of the element, then type `text` into what it started. */
+function enterThenType(state: EditorState, element: number, text: string): EditorState {
+  const length = state.doc.nodeAt(startOfElement(state, element) - 1)!.content.size;
+  const pressed = press(caretAt(state, element, length), splitElement);
+  const at = startOfElement(pressed, element + 1);
+  return pressed.apply(pressed.tr.insertText(text, at));
+}
+
+/**
+ * A writer at the end of the manuscript: each step is a key (`"Enter"`,
+ * `"Tab"`) or text to type, with the caret at the end of the last line.
+ */
+function writes(state: EditorState, steps: readonly string[]): EditorState {
+  let now = state;
+  for (const step of steps) {
+    const end = now.doc.content.size - 1;
+    now = now.apply(now.tr.setSelection(TextSelection.create(now.doc, end)));
+    if (step === "Enter") now = press(now, splitElement);
+    else if (step === "Tab") now = press(now, cycleType);
+    else now = now.apply(now.tr.insertText(step));
+  }
+  return now;
+}
+
+describe("Enter at the end of an element starts the one that normally comes next (#43)", () => {
+  const cases: readonly (readonly [string, string, ElementType, ElementType])[] = [
+    ["a scene heading", "INT. KITCHEN - DAY", "scene-heading", "action"],
+    ["an action", "Mary makes toast.", "action", "action"],
+    ["a character", "@MARY", "character", "dialogue"],
+    ["a dialogue", "@MARY\nMorning.", "dialogue", "action"],
+    ["a parenthetical", "@MARY\n(quietly)", "parenthetical", "dialogue"],
+    ["a transition", "> CUT TO:", "transition", "scene-heading"],
+    ["a centered line", "> THE END <", "centered", "scene-heading"],
+    ["anything else (a lyric)", "~La la la", "lyrics", "action"],
+  ];
+  for (const [name, fountain, type, next] of cases) {
+    it(`after ${name} comes ${next}`, () => {
+      const state = opened(fountain);
+      const last = types(state).length - 1;
+      expect(types(state)[last]).toBe(type);
+      const after = enterThenType(state, last, "x");
+      expect(types(after)[last + 1]).toBe(next);
+      expect(types(after)[last]).toBe(type);
+      expect(texts(after)[last + 1]).toBe("x");
+    });
   }
 
-  it("holds Enter, which would make an element whose type nothing has decided", () => {
-    expect(holdSplit(caretAt(opened(SCENE), 1, 4))).toBe(true);
+  it("goes from a character straight to dialogue, not to a parenthetical", () => {
+    const after = enterThenType(opened("INT. ROOM - DAY\n\n@MARY"), 1, "Hello.");
+    expect(types(after)).toEqual(["scene-heading", "character", "dialogue"]);
+    expect(saved(after)).toBe("INT. ROOM - DAY\n\n@MARY\nHello.");
   });
 
-  it("holds Backspace at the start of an element, which would join it onto the one above", () => {
-    expect(holdJoinBackwards(caretAt(opened(SCENE), 2, 0))).toBe(true);
+  it("goes from a parenthetical back to dialogue", () => {
+    const state = opened("@MARY\n(quietly)");
+    const after = enterThenType(state, 1, "More.");
+    expect(types(after)).toEqual(["character", "parenthetical", "dialogue"]);
+    expect(texts(after)).toEqual(["MARY", "(quietly)", "More."]);
   });
 
-  it("lets Backspace through anywhere else, so deleting a character still deletes it", () => {
-    expect(holdJoinBackwards(caretAt(opened(SCENE), 2, 1))).toBe(false);
+  it("starts an element whose attributes belong to the new type, not the old", () => {
+    const after = enterThenType(opened("INT. A - DAY #4#"), 0, "He waits.");
+    expect(types(after)).toEqual(["scene-heading", "action"]);
+    expect(saved(after)).toBe("INT. A - DAY #4#\n\nHe waits.");
   });
 
-  it("holds Delete at the end of an element, and lets it through anywhere else", () => {
+  it("replaces a selection first, as typing would", () => {
+    const state = opened("Mary makes toast.");
+    const from = startOfElement(state, 0) + 4;
+    const selected = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, from, from + 6)),
+    );
+    expect(texts(press(selected, splitElement))).toEqual(["Mary", " toast."]);
+  });
+});
+
+describe("Enter in the middle of an element splits it (#43)", () => {
+  it("keeps the type on both halves", () => {
+    const after = press(caretAt(opened("INT. KITCHEN - DAY"), 0, 5), splitElement);
+    expect(types(after)).toEqual(["scene-heading", "scene-heading"]);
+    expect(texts(after)).toEqual(["INT. ", "KITCHEN - DAY"]);
+  });
+
+  it("splits a line of dialogue into two dialogue lines", () => {
+    const after = press(caretAt(opened(SCENE), 3, 4), splitElement);
+    expect(types(after)).toEqual([
+      "scene-heading",
+      "action",
+      "character",
+      "dialogue",
+      "dialogue",
+      "transition",
+    ]);
+    expect(texts(after).slice(3, 5)).toEqual(["Morn", "ing."]);
+  });
+
+  it("at the very start of an element leaves an empty line above, which is not written", () => {
+    const after = press(caretAt(opened("Mary makes toast."), 0, 0), splitElement);
+    expect(types(after)).toEqual(["action"]);
+    expect(saved(after)).toBe("Mary makes toast.");
+  });
+});
+
+describe("Tab changes the type of the line the caret is on (#43)", () => {
+  it("walks the whole cycle and comes back to a scene heading", () => {
+    let state = caretAt(opened("INT. KITCHEN - DAY"), 0, 3);
+    const seen: ElementType[] = [];
+    for (let step = 0; step < 6; step++) {
+      state = press(state, cycleType);
+      seen.push(types(state)[0]!);
+    }
+    expect(seen).toEqual([
+      "action",
+      "character",
+      "dialogue",
+      "parenthetical",
+      "transition",
+      "scene-heading",
+    ]);
+  });
+
+  it("reaches a parenthetical from dialogue", () => {
+    const after = press(caretAt(opened("@MARY\nHello."), 1, 2), cycleType);
+    expect(types(after)).toEqual(["character", "parenthetical"]);
+  });
+
+  it("leaves the text and the caret where they were", () => {
+    const state = caretAt(opened("Mary makes toast."), 0, 5);
+    const after = press(state, cycleType);
+    expect(texts(after)).toEqual(["Mary makes toast."]);
+    expect(after.selection.from).toBe(state.selection.from);
+  });
+
+  it("always claims the key, even for a type outside the cycle", () => {
+    const state = caretAt(opened("~La la la"), 0, 2);
+    expect(cycleType(state, () => {})).toBe(true);
+    expect(types(press(state, cycleType))).toEqual(["lyrics"]);
+  });
+});
+
+describe("Backspace at the start of an element joins it onto the one above (#43)", () => {
+  it("keeps the upper element's type", () => {
+    const after = press(caretAt(opened(SCENE), 3, 0), joinBackwards);
+    expect(types(after)).toEqual(["scene-heading", "action", "character", "transition"]);
+    expect(texts(after)[2]).toBe("MARYMorning.");
+  });
+
+  it("puts the caret at the seam", () => {
+    const after = press(caretAt(opened(SCENE), 3, 0), joinBackwards);
+    expect(after.selection.from).toBe(startOfElement(after, 2) + "MARY".length);
+  });
+
+  it("undoes a split exactly", () => {
+    const before = opened(SCENE);
+    const split = press(caretAt(before, 1, 4), splitElement);
+    const joined = press(caretAt(split, 2, 0), joinBackwards);
+    expect(saved(joined)).toBe(saved(before));
+    expect(types(joined)).toEqual(types(before));
+  });
+
+  it("is left to the editor anywhere else, and claimed at the top of the manuscript", () => {
+    expect(joinBackwards(caretAt(opened(SCENE), 2, 1))).toBe(false);
+    expect(joinBackwards(caretAt(opened(SCENE), 0, 0))).toBe(true);
+  });
+
+  it("moves a comment with the words it covers", () => {
+    const state = opened("Mary [[c:a1 hi]]makes[[/c:a1]]\n\nToast.");
+    const after = press(caretAt(state, 1, 0), joinBackwards);
+    expect(covered(after)).toEqual([["a1", "makes"]]);
+  });
+});
+
+describe("Delete at the end of an element pulls the one below onto it (#43)", () => {
+  it("keeps the upper element's type", () => {
+    const after = press(caretAt(opened(SCENE), 2, 4), joinForwards);
+    expect(types(after)).toEqual(["scene-heading", "action", "character", "transition"]);
+    expect(texts(after)[2]).toBe("MARYMorning.");
+  });
+
+  it("is left to the editor anywhere else, and claimed at the end of the manuscript", () => {
     const state = opened(SCENE);
-    expect(holdJoinForwards(caretAt(state, 1, "Mary makes toast.".length))).toBe(true);
-    expect(holdJoinForwards(caretAt(state, 1, 4))).toBe(false);
+    expect(joinForwards(caretAt(state, 1, 4))).toBe(false);
+    const last = types(state).length - 1;
+    expect(joinForwards(caretAt(state, last, texts(state)[last]!.length))).toBe(true);
   });
+});
 
-  it("does not hold a selection that covers whole elements: they go, and the rest keep their types", () => {
+describe("a selection across several elements is not held", () => {
+  it("removes the elements it covers, and the rest keep their types", () => {
     const state = opened(SCENE);
     const from = startOfElement(state, 2);
     // From the start of the cue through the end of the dialogue below it.
     const to = startOfElement(state, 3) + "Morning.".length;
     const after = state.apply(state.tr.delete(from, to));
 
-    // The two join, as #43 will have Backspace do, and the survivor keeps the
-    // upper one's type with nothing left in it. On screen that is the blank
-    // line the caret is on; in the file it is nothing at all.
+    // The two join and the survivor keeps the upper one's type with nothing
+    // left in it. On screen that is the blank line the caret is on; in the
+    // file it is nothing at all.
     expect(saved(after)).toBe("INT. KITCHEN - DAY\n\nMary makes toast.\n\n> FADE OUT.");
     expect(types(after)).toEqual(["scene-heading", "action", "transition"]);
+  });
+});
+
+describe("a scene built entirely from keystrokes saves as correctly spaced Fountain (ADR-0019)", () => {
+  it("spaces headings, action, a cue with its lines, and a transition", () => {
+    const state = writes(opened("INT. KITCHEN - DAY"), [
+      "Enter", // → action
+      "Mary makes toast.",
+      "Enter", // → action
+      "Tab", // → character
+      "MARY",
+      "Enter", // → dialogue
+      "Tab", // → parenthetical
+      "(beat)",
+      "Enter", // → dialogue
+      "Morning.",
+      "Enter", // → action
+      "Tab",
+      "Tab",
+      "Tab",
+      "Tab", // → character, dialogue, parenthetical, transition
+      "CUT TO:",
+      "Enter", // → scene heading
+      "INT. HALL - DAY",
+    ]);
+    expect(types(state)).toEqual([
+      "scene-heading",
+      "action",
+      "character",
+      "parenthetical",
+      "dialogue",
+      "transition",
+      "scene-heading",
+    ]);
+    expect(saved(state)).toBe(
+      [
+        "INT. KITCHEN - DAY",
+        "",
+        "Mary makes toast.",
+        "",
+        "MARY",
+        "(beat)",
+        "Morning.",
+        "",
+        "CUT TO:",
+        "",
+        "INT. HALL - DAY",
+      ].join("\n"),
+    );
+  });
+
+  it("reads back as the same elements it was written as", () => {
+    const state = writes(opened("INT. KITCHEN - DAY"), [
+      "Enter",
+      "Mary waits.",
+      "Enter",
+      "Tab",
+      "MARY",
+      "Enter",
+      "Hi.",
+    ]);
+    expect(parse(saved(state)).elements.map((e) => e.type)).toEqual(types(state));
   });
 });
 
