@@ -119,8 +119,6 @@ function count(text: string, pattern: RegExp): number {
   return [...text.matchAll(pattern)].length;
 }
 
-const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
-
 /**
  * How many characters change spelling under NFC — the size of the report.
  *
@@ -129,11 +127,16 @@ const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
  * composition happens across code points rather than within one. Walking code
  * points therefore reports zero for the one case the rule exists for, which is
  * what it did until the first fixture that was not already NFC arrived.
+ *
+ * Only clusters that include a combining mark can change under NFC for the
+ * scripts we meet. Walking every grapheme of a 600 KB manuscript through
+ * `Intl.Segmenter` takes minutes on a small machine; matching mark clusters
+ * keeps the same count and finishes in milliseconds.
  */
 function countDecomposed(text: string): number {
   let changed = 0;
-  for (const { segment } of graphemes.segment(text)) {
-    if (segment.normalize("NFC") !== segment) changed++;
+  for (const match of text.matchAll(/\P{M}\p{M}+/gu)) {
+    if (match[0].normalize("NFC") !== match[0]) changed++;
   }
   return changed;
 }
