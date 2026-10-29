@@ -24,8 +24,10 @@
  * Each command is exported on its own so the editing tests can run it with no
  * window (#37, seam 2); `elementKeys` binds them.
  */
+import { closeHistory } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
-import { TextSelection, type Command, type EditorState } from "prosemirror-state";
+import { Plugin, TextSelection, type Command, type EditorState } from "prosemirror-state";
+import type { Transaction } from "prosemirror-state";
 import type { Attrs } from "prosemirror-model";
 import type { ElementType } from "./document.ts";
 
@@ -78,6 +80,27 @@ function attrsForType(from: Attrs, type: ElementType): Attrs {
 }
 
 /**
+ * Mark a transaction as a structural change — a new element, a type change, a
+ * split or a join — so that it is an undo step of its own (#45, ADR-0019).
+ *
+ * `closeHistory` ends the typing run before it; `endsUndoStep` ends the step
+ * after it, so typing that follows does not fold back into it.
+ */
+function structural(tr: Transaction): Transaction {
+  return closeHistory(tr).setMeta(STRUCTURAL, true);
+}
+
+const STRUCTURAL = "write-ist:structural";
+
+/** Closes the undo step after each structural change; see `structural`. */
+export const endsUndoStep = new Plugin({
+  appendTransaction: (transactions, _old, state) =>
+    transactions.some((transaction) => transaction.getMeta(STRUCTURAL) === true)
+      ? closeHistory(state.tr)
+      : null,
+});
+
+/**
  * Enter — and Shift-Enter and Mod-Enter, which a screenplay has no second
  * meaning for.
  *
@@ -106,7 +129,7 @@ export const splitElement: Command = (state, dispatch) => {
     const { sceneNumber: _n, dual: _d, ...kept } = at.parent.attrs;
     tr.split(at.pos, 1, [{ type: at.parent.type, attrs: kept }]);
   }
-  dispatch(tr.scrollIntoView());
+  dispatch(structural(tr.scrollIntoView()));
   return true;
 };
 
@@ -127,7 +150,7 @@ export const cycleType: Command = (state, dispatch) => {
     if (next !== undefined) tr.setNodeMarkup(pos, undefined, attrsForType(node.attrs, next));
     return false;
   });
-  if (tr.docChanged) dispatch(tr);
+  if (tr.docChanged) dispatch(structural(tr));
   return true;
 };
 
@@ -143,7 +166,7 @@ export const joinBackwards: Command = (state, dispatch) => {
   // an element to join onto.
   if (before === undefined || before.type.name !== "element")
     return at.parent.type.name === "element";
-  if (dispatch !== undefined) dispatch(joinAt(state, at.before()));
+  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.before())));
   return true;
 };
 
@@ -157,7 +180,7 @@ export const joinForwards: Command = (state, dispatch) => {
   const after = at.index(0) + 1 < at.doc.childCount ? at.doc.child(at.index(0) + 1) : undefined;
   if (after === undefined || after.type.name !== "element")
     return at.parent.type.name === "element";
-  if (dispatch !== undefined) dispatch(joinAt(state, at.after()));
+  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.after())));
   return true;
 };
 
