@@ -3,11 +3,11 @@
  *
  * This is test support rather than production code: the application reaches
  * the disk through Tauri's filesystem plugin, in `app/src/tauri-filesystem.ts`.
- * Both implement the same four methods, and everything worth testing lives
+ * Both implement the same port, and everything worth testing lives
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import { access, mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
@@ -79,6 +79,28 @@ export const nodeFilesystem: Filesystem = {
 
   async createDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
+  },
+
+  async exists(path: string): Promise<boolean> {
+    try {
+      await access(path);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async appendFile(path: string, bytes: Uint8Array): Promise<void> {
+    // True append: open with "a", write, sync. Never a read-modify-write —
+    // that would put every earlier day at risk of a crash mid-rewrite.
+    await mkdir(dirname(path), { recursive: true });
+    const file = await open(path, "a");
+    try {
+      await file.write(bytes);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
   },
 };
 

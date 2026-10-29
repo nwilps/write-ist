@@ -32,7 +32,12 @@ import { message } from "./screens/trouble.ts";
 import { mountShell, type MountedShell } from "./shell/shell.ts";
 import { WORKSPACES } from "./workspaces/registry.ts";
 import type { Project } from "../../src/project/bundle.ts";
-import { defaultProjectsDirectory, tauriFilesystem } from "./tauri-filesystem.ts";
+import { openLedger } from "../../src/project/ledger.ts";
+import {
+  defaultLedgerDirectory,
+  defaultProjectsDirectory,
+  tauriFilesystem,
+} from "./tauri-filesystem.ts";
 
 const found = document.querySelector<HTMLElement>("#app");
 if (found === null) throw new Error("Write-ist has no window to draw into.");
@@ -59,6 +64,21 @@ let importing = false;
 /** A project on its way closed: its last save is still running. */
 let closing = false;
 let trouble: string | undefined;
+
+/** The writer's days (ADR-0017). Created once; opened at launch, closed on quit. */
+let ledger: ReturnType<typeof openLedger> | undefined;
+void (async () => {
+  try {
+    ledger = openLedger(tauriFilesystem, await defaultLedgerDirectory());
+    await ledger.recordOpened();
+  } catch (error) {
+    // Loud: a silent miss would mean every day from now on is gone, and the
+    // writer would never know why the chart starts late.
+    trouble =
+      `Write-ist could not start the ledger that records your writing days. ` +
+      `${message(error)}`;
+  }
+})();
 
 /** What the screen now showing answers to. Replaced every time one is drawn. */
 let gestures: readonly Gesture[] = [];
@@ -325,9 +345,18 @@ function closeWindow(): void {
   // without it the promise rejects where nobody is looking. That is #64 — every
   // way of closing Write-ist did nothing, because the destroy was Tauri's own
   // and its refusal was nobody's to report.
-  getCurrentWindow()
-    .destroy()
-    .catch((error: unknown) => {
+  void (async () => {
+    try {
+      await ledger?.recordClosed();
+    } catch (error) {
+      // Said on the home screen if destroy fails below; otherwise the window
+      // is going away and the day's open line still stands without a close.
+      trouble =
+        `Write-ist could not finish the ledger entry for this session. ${message(error)}`;
+    }
+    getCurrentWindow()
+      .destroy()
+      .catch((error: unknown) => {
       // The project, if one was open, has already closed, so the screen to
       // say it on is the home screen rather than a project that is gone.
       screen = "home";
@@ -335,6 +364,7 @@ function closeWindow(): void {
       trouble = `Write-ist could not close its window. ${message(error)}`;
       draw();
     });
+  })();
 }
 
 /**

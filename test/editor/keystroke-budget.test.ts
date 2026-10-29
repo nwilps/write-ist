@@ -85,11 +85,14 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   //
   // Nothing reaches the disk — no save is asked for — so the port below the
   // session refuses everything, which is the loudest way of saying so.
+  const refuse = () => Promise.reject(new Error("the budget asks nothing of the disk"));
   const nothing: Filesystem = {
-    readDirectory: () => Promise.reject(new Error("the budget asks nothing of the disk")),
-    readFile: () => Promise.reject(new Error("the budget asks nothing of the disk")),
-    writeFile: () => Promise.reject(new Error("the budget asks nothing of the disk")),
-    createDirectory: () => Promise.reject(new Error("the budget asks nothing of the disk")),
+    readDirectory: refuse,
+    readFile: refuse,
+    writeFile: refuse,
+    createDirectory: refuse,
+    exists: refuse,
+    appendFile: refuse,
   };
   const session = editingSession(
     nothing,
