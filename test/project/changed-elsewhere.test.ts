@@ -72,7 +72,7 @@ function edited(document: ScreenplayDocument, at: number, value: string): Screen
 
 /**
  * The editor's half, as a test holds it: the model the writer has, which a
- * reload replaces, and what the writer was told.
+ * reload replaces, and what the session reported to it (the Editor shows none of it, ADR-0031).
  */
 function aWriter(opened: OpenedProject) {
   const writer = {

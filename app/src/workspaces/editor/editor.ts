@@ -44,11 +44,9 @@
  *
  * Switching back to Write-ist asks for a save, and a save compares the disk
  * with what Write-ist last read or wrote (#42, ADR-0028). The session decides;
- * this does what it is told. **Reloaded:** the view is given the new version
- * and the writer is shown what was adjusted in it, as an import is. **Both
- * kept:** the writer is told where the other version went — and on the way
- * out, the project stays open to say so, because a message in a page being
- * taken down is a message nobody reads.
+ * this does what it is told. **Reloaded:** the view is given the new version,
+ * silently. **Both kept:** the dated copy is written and nothing is said
+ * (ADR-0031). Only failures are reported, through `trouble`.
  *
  * ## It will not come down over a save it could not finish
  *
@@ -62,11 +60,9 @@
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
-import { describeImportReport } from "../../../../src/project/report.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { element } from "../../screens/element.ts";
-import { showReport } from "../../screens/import-report.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
@@ -111,8 +107,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       let state = editorStateFor(opened.document);
       let unfinished: unknown;
       let leaving = false;
-      /** Where the other version was kept, by a save on the way out. */
-      let keptOnLeaving: string | undefined;
       const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
         // Changed elsewhere, and nothing typed here: the other version is the
         // screenplay now. A fresh state, so undo cannot walk back into the
@@ -120,29 +114,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         reload: (imported) => {
           state = editorStateFor(imported.document);
           view?.updateState(state);
-          // On the way out there is no page left to show it on, and nothing
-          // was lost: the file on disk is the version that was loaded.
-          if (leaving) return;
-          showReport(into, {
-            heading: "Changed outside Write-ist",
-            standfirst:
-              "Something other than Write-ist changed this screenplay since you last saw it — " +
-              "another app, or another computer. That version is now on screen. Here is what " +
-              "Write-ist adjusted so it can be edited here; the file itself changes only when " +
-              "you next type.",
-            nothing: "Nothing needed adjusting.",
-            lines: describeImportReport(imported.report),
-            onDismiss: () => view?.focus(),
-          });
         },
-        keptBoth: (path) => {
-          if (leaving) keptOnLeaving = path;
-          context.report(
-            `This screenplay was also changed outside Write-ist while you were writing here. ` +
-              `Your version is on screen and saved as the screenplay. The other version is ` +
-              `kept exactly as it was, beside it: ${path}`,
-          );
-        },
+        // The dated copy is already beside the manuscript. Nothing is said:
+        // ADR-0031. A copy that could not be written is not here — that stops
+        // the save, and arrives through `trouble` below.
+        keptBoth: () => {},
       });
       /** A save that failed, in the writer's words. */
       const failure = (error: unknown): string =>
@@ -186,7 +162,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // Closing the project (ADR-0028), through the same routine as every
         // other save.
         unfinished = undefined;
-        keptOnLeaving = undefined;
         leaving = true;
         await saving.now();
         leaving = false;
@@ -199,10 +174,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           );
           return false;
         }
-        // Both versions kept by this very save. The writer has been told
-        // where, beside the page — so the page stays for them to read it, and
-        // closing again closes.
-        if (keptOnLeaving !== undefined) return false;
         stopSwitchingAway();
         stopSwitchingBack();
         return true;

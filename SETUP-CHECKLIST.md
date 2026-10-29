@@ -278,14 +278,13 @@ it is open, and Write-ist never writes over it (ADR-0028).
   last read or wrote. Switching back to Write-ist is a save too, asked of Tauri as switching away
   is, so the comparison runs at both of ADR-0028's moments through the one routine.
 - **Changed, nothing typed:** the new version is loaded through the importer — ADR-0020's
-  normalisations applied to the model and shown in the same report an import shows — and nothing
+  normalisations applied to the model and applied silently (ADR-0031, which superseded the report) — and nothing
   is written. The normalisations reach the file with the writer's next typed save, so loading
   someone else's file does not change it under them.
 - **Changed, and typed:** the version found is written beside the manuscript, byte for byte, as
   `manuscript changed elsewhere YYYY-MM-DD HH.MM.SS.fountain`, **before** the manuscript is
-  replaced — a copy that could not be written stops the save. Then the writer's version is saved
-  and they are told where the other went. A copy kept by the save on closing holds the project
-  open so the writer reads where it is; closing again closes.
+  replaced — a copy that could not be written stops the save. Then the writer's version is saved.
+  Silently (ADR-0031): the copy is the safety net, and nothing is shown.
 - **A manuscript that cannot be read at save time is not written over**, and a read that never
   answers is given up on at the same `DISK_LIMIT` as a write.
 - Every save now compares at least once, so the comparison is a plain loop: 0.28 ms over the

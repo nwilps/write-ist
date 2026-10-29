@@ -1,5 +1,7 @@
 # Autosave saves after a pause, and never overwrites what it did not write
 
+> **Partly superseded by [ADR-0031](0031-outside-changes-are-handled-quietly.md):** the writer is no longer told when the file changed elsewhere. The reload and the dated copy stand; the report and the message do not.
+
 **Autosave writes a couple of seconds after the writer stops typing, whenever they switch to
 another application, and when they close the project.** Importing a script saves it at once.
 And autosave never writes over a file that something else has changed since Write-ist last
