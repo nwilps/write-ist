@@ -290,19 +290,45 @@ it is open, and Write-ist never writes over it (ADR-0028).
   corpus, against 3.9 ms for `every`. Reading the corpus takes 0.3 ms; a reload's import, 48 ms.
 - 582 tests with the acceptance corpus present.
 
+### Done: Enter, Tab, capitals, undo, marks, and the clipboard (#43–#47)
+
+The keyboard the writer expects is in place: Enter and Tab move between elements (#43);
+character cues capitalise and (CONT'D) appears when a speech continues (#44); undo and redo
+cover typing and structural edits (#45); bold, italic and underline toggle from the keyboard
+(#46); cut, copy and paste move text within Write-ist and to/from the system clipboard (#47).
+
+### Done: the page count, live as you type (#48, #49)
+
+One engine owns the count (ADR-0024). Opening a project shows `Page N of M` in the status bar
+(#48); typing keeps it current (#49). *Big Fish* reads about 120 pages; *Brick & Steel* reads 4.
+The geometry table (#40) is what both the page and the count read — there is only one.
+
+### Done: the title page matches Final Draft (#62)
+
+Title, Credit, Author and Source are centred; Notes right-align to the 7.5in margin; Copyright
+and Contact sit at 1.0in — measured from the same *Big Fish* PDF pass as #40. Continuations
+carry a view-only field attribute so Notes can be selected without a CSS sibling trap. Keys with
+no placement stay visible at the top of page 1.
+
+### Done: the ledger records the writer's days (#50)
+
+From the first run, Write-ist appends to `ledger.txt` under app-local data (ADR-0017): when the
+application opened and closed, and each day left on a project, the absolute word and page counts.
+Nothing reads it yet; it exists so the history exists.
+
 ### Not started, and deliberately above this layer
 
-Counts and pagination (ADR-0024), the rest of the keyboard (#43–#47), drafts and locking (ADR-0002, ADR-0014), the ledger and registry (ADR-0017,
-and the registry half of ADR-0015/0016), and the rest of the application — workspace bar, the
-other workspaces.
+Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), spellcheck (ADR-0029),
+and the rest of the application — workspace bar, the other workspaces.
 
 ### Still to run
 
-- [ ] `/to-tickets` — tracer-bullet slices with blocking edges
+- [ ] `/to-tickets` — tracer-bullet slices with blocking edges (Slice 1 tickets exist; further
+      slices still to chart)
 - [ ] `/implement` — drives `/tdd` at pre-agreed seams, closes with `/code-review`
 
-Open questions live in GitHub Issues and nowhere else. The one left is #15, leading whitespace,
-deferred with a working default: preserve it.
+Open questions live in GitHub Issues and nowhere else. The one left from the early list is #15,
+leading whitespace, deferred with a working default: preserve it. Slice 1's parent is #37.
 
 ---
 

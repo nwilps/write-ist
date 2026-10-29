@@ -13,10 +13,12 @@ No accounts. No sync. No network. Your documents remain readable if this app dis
 The parser and serialiser for both surfaces are built and tested: five manuscripts go in and come
 back out, the largest 645 KB, compared as bytes on disk rather than strings in memory.
 
-Above that sits the application, now begun. It launches on Linux, opens on a home screen, and from
-its **Open Project** screen lists the projects and **imports** a Fountain screenplay into a new
-project saved at once — leaving the file it came from exactly as it was, and naming everything it
-adjusted. Counts, pagination and the editor itself are still to come.
+Above that sits the application. It launches on Linux, opens on a home screen, lists and imports
+Fountain screenplays into projects, and opens them in an **Editor** laid out in industry format
+(Courier Prime, measured from Final Draft's PDF of *Big Fish*). The writer types with undo, marks,
+capitals and (CONT'D), cut/copy/paste; the page count is live; the title page matches Final Draft's
+page 1; and from the first run Write-ist keeps the ledger of days worked (ADR-0017). Spellcheck,
+drafts, the registry, and the rest of the workspaces are still ahead.
 
 v1 shipped and produced a complete feature screenplay. It is being rewritten because its
 screenplay parse/serialise engine isn't good enough — the editor is slow, locked to
