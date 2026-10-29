@@ -62,8 +62,10 @@ import { screenplaySchema } from "./schema.ts";
  */
 export function toEditorDocument(document: ScreenplayDocument): EditorNode {
   const lines = document.titlePage.flatMap((field) => [
-    titleLine(field.key, field.inline),
-    ...field.continuations.map((continuation) => titleLine(null, continuation)),
+    titleLine(field.key, field.inline, field.key, 0),
+    ...field.continuations.map((continuation, index) =>
+      titleLine(null, continuation, field.key, index + 1),
+    ),
   ]);
 
   const elements = document.elements.map((element) =>
@@ -134,8 +136,16 @@ export function fromEditorDocument(document: EditorNode): ScreenplayDocument {
 
 /* ------------------------------------------------------------------- lines */
 
-function titleLine(key: string | null, value: MarkedValue): EditorNode {
-  return screenplaySchema.nodes["title_line"]!.create({ key }, markedContent(value));
+function titleLine(
+  key: string | null,
+  value: MarkedValue,
+  field: string,
+  fieldLine: number,
+): EditorNode {
+  return screenplaySchema.nodes["title_line"]!.create(
+    { key, field, fieldLine },
+    markedContent(value),
+  );
 }
 
 function elementOf(node: EditorNode): Element {

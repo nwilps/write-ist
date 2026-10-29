@@ -127,10 +127,30 @@ const titleLine: NodeSpec = {
   attrs: {
     /** The key as written, without its colon, or null on a continuation. */
     key: { default: null },
+    /**
+     * The Fountain key this line belongs to — the same on a field's first line
+     * and on every continuation (#62). View-only: the serialiser never sees it.
+     */
+    field: { default: null },
+    /**
+     * Zero-based index of this line within its field, so the stylesheet can
+     * place each Notes (or Contact) line on its own baseline (#62). View-only.
+     */
+    fieldLine: { default: 0 },
   },
   toDOM: (node) => {
     const key = node.attrs["key"];
-    return ["div", { "data-title-line": typeof key === "string" ? key : "" }, 0];
+    const field = node.attrs["field"];
+    const fieldLine = node.attrs["fieldLine"];
+    const attrs: Record<string, string> = {
+      "data-title-line": typeof key === "string" ? key : "",
+    };
+    if (typeof field === "string") {
+      attrs["data-title-field"] = field;
+      attrs["data-title-field-line"] =
+        typeof fieldLine === "number" ? String(fieldLine) : "0";
+    }
+    return ["div", attrs, 0];
   },
 };
 

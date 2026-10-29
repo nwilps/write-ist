@@ -27,6 +27,8 @@ import {
   CHARACTER_INCHES,
   ELEMENT_GEOMETRY,
   PAGE,
+  TITLE_PAGE_FIELD_LINES,
+  TITLE_PAGE_GEOMETRY,
   alignProperty,
   bodyHeightInches,
   inchesFor,
@@ -260,6 +262,57 @@ function metrics(file: string): { unitsPerEm: number; advance: number } {
 }
 
 const WEIGHTS = ["Regular", "Bold", "Italic", "BoldItalic"] as const;
+
+describe("the title page is where Final Draft printed it (#62)", () => {
+  it("puts Title, Credit, Author and Source on the centred baselines", () => {
+    for (const [key, y] of [
+      ["Title", 261],
+      ["Credit", 309],
+      ["Author", 333],
+      ["Source", 393],
+    ] as const) {
+      const placement = TITLE_PAGE_GEOMETRY[key]!;
+      expect(placement.alignment, key).toBe("centre");
+      expect(placement.yPoints, key).toBe(y);
+    }
+  });
+
+  it("right-aligns Notes to the screenplay's 7.5in margin", () => {
+    expect(TITLE_PAGE_GEOMETRY["Notes"]!.alignment).toBe("right");
+    expect(TITLE_PAGE_GEOMETRY["Notes"]!.xInches).toBe(7.5);
+    expect(TITLE_PAGE_GEOMETRY["Notes"]!.yPoints).toBe(585);
+  });
+
+  it("puts Copyright and Contact at 1.0in — outside the text margin", () => {
+    for (const key of ["Copyright", "Contact"] as const) {
+      expect(TITLE_PAGE_GEOMETRY[key]!.alignment).toBe("left");
+      expect(TITLE_PAGE_GEOMETRY[key]!.xInches).toBe(1.0);
+    }
+    expect(TITLE_PAGE_GEOMETRY["Copyright"]!.yPoints).toBe(645);
+  });
+
+  it("emits a placed rule for every title-page field line the table covers", () => {
+    const css = readFileSync(GENERATED, "utf8");
+    expect(css).toContain("--page-height:");
+    for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
+      for (let line = 0; line < TITLE_PAGE_FIELD_LINES; line += 1) {
+        expect(
+          css,
+          `${key} line ${line}`,
+        ).toContain(
+          `.manuscript > [data-title-field="${key}"][data-title-field-line="${line}"]`,
+        );
+      }
+    }
+  });
+
+  it("starts the body one sheet below the title page", () => {
+    const rules = readFileSync(EDITOR, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(rules).toContain(
+      "padding-top: calc(var(--page-height) - var(--page-inset-top))",
+    );
+  });
+});
 
 describe("Courier Prime is bundled, not borrowed (ADR-0001, ADR-0030)", () => {
   it("ships all four weights", () => {
