@@ -55,6 +55,7 @@ import { Plugin, PluginKey, type EditorState as State } from "prosemirror-state"
 import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
+import { toggleMark } from "prosemirror-commands";
 import { elementKeys, endsUndoStep } from "./element-keys.ts";
 import { maintainElements } from "./maintenance.ts";
 import type { Node as EditorNode } from "prosemirror-model";
@@ -135,6 +136,22 @@ const undoKeys = keymap({
 });
 
 /**
+ * Bold, italic and underline from the keyboard (#46).
+ *
+ * `toggleMark` takes the mark off when the whole selection already carries it
+ * and puts it on otherwise; at a caret it sets the marks the next typed text
+ * takes. A selection across elements marks the covered slice of each, and
+ * because a mark lives on each element's own text (ADR-0027) the serialiser
+ * writes each its own delimiter pair. Nesting on the way out is the
+ * serialiser's, by `EMISSION_ORDER`, not the order the keys were pressed in.
+ */
+export const markKeys = keymap({
+  "Mod-b": toggleMark(screenplaySchema.marks["bold"]!),
+  "Mod-i": toggleMark(screenplaySchema.marks["italic"]!),
+  "Mod-u": toggleMark(screenplaySchema.marks["underline"]!),
+});
+
+/**
  * The state a writer types into.
  *
  * One place builds it, so the editing tests and the window are running the
@@ -147,7 +164,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
     doc: toEditorDocument(document),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, elementKeys, maintainElements, endsUndoStep, maintainComments],
+    plugins: [undoStack, undoKeys, markKeys, elementKeys, maintainElements, endsUndoStep, maintainComments],
   });
 }
 
