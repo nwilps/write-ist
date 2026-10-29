@@ -73,10 +73,12 @@ void (async () => {
     await ledger.recordOpened();
   } catch (error) {
     // Loud: a silent miss would mean every day from now on is gone, and the
-    // writer would never know why the chart starts late.
+    // writer would never know why the chart starts late. Redraw so the words
+    // land on the home screen that has already painted.
     trouble =
       `Write-ist could not start the ledger that records your writing days. ` +
       `${message(error)}`;
+    if (screen === "home") draw();
   }
 })();
 
