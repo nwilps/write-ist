@@ -8,7 +8,8 @@
  * Sixteen milliseconds is one frame. The budget is on the *work behind a
  * keystroke*, which is everything the editor does between the key going down
  * and the state being ready to draw: the transaction applied, the comments
- * mapped, the manuscript marked unsaved, and the autosave pause restarted.
+ * mapped, the manuscript marked unsaved, the autosave pause restarted, and
+ * the page count re-packed from the affected page (#49).
  *
  * ## Measuring the measurer (`docs/STANDARDS.md`)
  *
@@ -52,6 +53,11 @@ import { editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { FORMAT_VERSION } from "../../src/project/marker.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
+import {
+  paginate,
+  repaginate,
+  type PaginationDetail,
+} from "../../src/screenplay/paginate.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { unwatched } from "../support/unwatched.ts";
@@ -115,10 +121,18 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // whole of it on both sides.
   const caret = Math.floor(state.doc.content.size / 2);
 
+  // #49 — page count keeps up as you type. Open takes a full pack; each
+  // keystroke re-packs from the middle of the manuscript onward.
+  let pages: PaginationDetail = paginate(document);
+  // The caret sits in the middle of the ProseMirror doc; map that roughly
+  // onto a mid-manuscript element so the resume is not always page 1.
+  const dirtyElement = Math.floor(document.elements.length / 2);
+
   const keystroke = (): void => {
     state = state.apply(state.tr.insertText("a", caret));
     session.changed();
     saving.typed();
+    pages = repaginate(manuscriptOf(state.doc), pages, dirtyElement);
   };
 
   for (let index = 0; index < WARMUP; index++) keystroke();
@@ -153,6 +167,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // The bookkeeping inside the measured region really ran; a budget met by
   // measuring nothing is the failure this whole file is written against.
   expect(session.unsaved()).toBe(true);
+  expect(pages.totalPages).toBeGreaterThan(0);
   return measured;
 }
 

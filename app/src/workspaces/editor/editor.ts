@@ -66,7 +66,8 @@ import {
   pageAtElement,
   pageStatusText,
   paginate,
-  type Pagination,
+  repaginate,
+  type PaginationDetail,
 } from "../../../../src/screenplay/paginate.ts";
 import { element } from "../../screens/element.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
@@ -115,7 +116,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       let unfinished: unknown;
       let leaving = false;
       // Held here so a silent reload (#42) can refresh the count too.
-      let pages: Pagination = paginate(opened.document);
+      let pages: PaginationDetail = paginate(opened.document);
       const showPages = (): void => {
         const current = pageAtElement(
           pages,
@@ -199,9 +200,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       reading.remove();
 
-      // #48 — page count from the model, never the DOM. Full recompute on open
-      // and on every document change is fine here; live-as-you-type budgets are
-      // #49 and out of scope.
+      // #48 / #49 — page count from the model, never the DOM. Open and reload
+      // take a full paginate; each edit re-packs from the affected page onward.
       view = new EditorView(page, {
         state,
         dispatchTransaction: (transaction) => {
@@ -210,7 +210,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           if (transaction.docChanged) {
             session.changed();
             saving.typed();
-            pages = paginate(manuscriptOf(state.doc));
+            const dirty = elementIndexAt(state.doc, state.selection.head);
+            pages = repaginate(manuscriptOf(state.doc), pages, dirty);
           }
           // Selection moves still refresh the current page; the total only
           // moves when the manuscript does.
