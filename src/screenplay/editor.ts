@@ -72,7 +72,6 @@ export function toEditorDocument(document: ScreenplayDocument): EditorNode {
     screenplaySchema.nodes["element"]!.create(
       {
         type: element.type,
-        indent: element.indent,
         forced: element.forced,
         depth: element.depth ?? null,
         sceneNumber: element.sceneNumber ?? null,
@@ -157,7 +156,6 @@ function elementOf(node: EditorNode): Element {
     type: node.attrs["type"] as ElementType,
     text: node.textContent,
     ...(marks.length === 0 ? {} : { marks }),
-    indent: String(node.attrs["indent"]),
     forced: node.attrs["forced"] === true,
     ...(typeof depth === "number" ? { depth } : {}),
     ...(typeof sceneNumber === "string" ? { sceneNumber } : {}),

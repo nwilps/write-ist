@@ -78,6 +78,7 @@ The gate now lives in this repo and writes real files. Measured against
 | On disk | **170,682** | 170,681 characters — the `é` |
 | After the four *text* normalisations | **170,642** | 38 trailing spaces + 2 stray blank lines = 40 bytes |
 | **What import actually produces** | **172,451** | plus 201 × 9 bytes of ` (CONT'D)` |
+| **…and since 2026-10-30** | **172,327** | less the 31 parentheticals' 4-space indent, 124 bytes (ADR-0020's tenth entry; computed, not yet measured) |
 
 **172,451 is the number this acceptance test is about**, because import applies all of
 ADR-0020's list, and ADR-0026 put `(CONT'D)` maintenance on it. The corpus authors three

@@ -41,6 +41,7 @@ const DESCRIPTIONS: Readonly<Record<NormalisationKind, string>> = {
   "blank-lines-placed": "blank lines moved to standard screenplay spacing",
   "marks-spanning-elements":
     "lines where bold, italic or underline now opens and closes on the line itself",
+  "leading-whitespace-dropped": "lines had their indentation removed",
   "unmatched-comment-delimiters":
     "comment marks with no closing partner, left exactly as they are",
 };

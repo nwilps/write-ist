@@ -45,13 +45,14 @@ does the placing.
 | Blank lines are placed by the spacing table — added where it wants one, removed where it does not — **screenplay surface only** | Spacing is derived from the pair of element types either side of it ([ADR-0019](0019-the-document-model-is-flat-typed-elements.md)), so whatever blank lines the source had are not consulted. Below |
 | A mark spanning several elements gains its own delimiter pair on each of them — **screenplay surface only** | A mark is read across elements and stored inside one ([ADR-0027](0027-a-mark-runs-from-its-opening-delimiter-to-the-next.md)), so each element writes its own pair — which is also the only spelling a strict Fountain reader renders |
 | A file not in UTF-8 is read in the encoding it is actually in, and saved as UTF-8 | Every character is kept and only the bytes spelling them change, as with line endings. Windows-1252 decodes all 256 byte values to distinct characters, so nothing is lost; UTF-16 is recognised by its marker bytes rather than guessed |
+| Leading whitespace dropped — **screenplay surface only** | Indentation is presentational: Fountain ignores it when deciding what an element is, and Write-ist displays by type. Below |
 
-The eighth and ninth entries were added on purpose, 2026-09-18, in this file. A tenth is the same
+The eighth and ninth entries were added on purpose, 2026-09-18, in this file. The tenth was added 2026-10-30 and is argued below; an eleventh is the same
 kind of decision, made the same way. New entries go at the **end** of the table: the prose here, and
 ADR-0019 and ADR-0027, refer to entries by position, so a row inserted mid-table silently
 re-points every reference below it.
 
-**Three of the nine change what a reader sees**, and all three are screenplay-only. The
+**Three of the ten change what a reader sees**, and all three are screenplay-only. The
 `(CONT'D)` entry is argued above. The seventh costs a writer the tight-run effect — three lines of
 action with no blank between them become three paragraphs — and was admitted on measurement:
 exactly one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019
@@ -112,6 +113,47 @@ in Markdown is syntax rather than spacing, so prose has no spacing table to deri
 *(Corrected 2026-09-18: this sentence read "the only entry scoped to one surface" while the table
 above already scoped the seventh to the screenplay surface too. The table was right.)*
 
+## The tenth entry: leading whitespace is dropped (issue #15)
+
+*Decided 2026-10-30, by the owner, closing issue #15.* Leading whitespace in an imported
+screenplay is dropped, and Write-ist saves in its own normal format. The issue had been deferred
+with a working default of *preserve*; this reverses it.
+
+**The reasons, in the owner's terms.** Writers indent in a plain text editor for one purpose, to
+make Fountain look like a screenplay. Write-ist already shows it as one, so the indentation has
+done its job before the file is opened. The product of the work is a PDF and not the Fountain
+bytes. And import makes a copy into the bundle: the writer's original file is never altered, so nothing is lost that they cannot
+go back to.
+
+That puts it on the format side of the first line of this ADR. Fountain ignores leading
+whitespace when deciding what an element is, so no element changes type, no word moves and no
+count changes. It is the most visible-in-the-bytes of the invisible-in-the-script entries — it
+touches 31 lines of the acceptance corpus (every parenthetical) and 7 of *Brick & Steel* — and
+the import report names it, as it names every other.
+
+- **Screenplay only.** On the prose surface indentation is authored: a verse line block keeps
+  it literally ([ADR-0023](0023-the-prose-surfaces-vocabulary-and-syntax.md)), and the parser there
+  is untouched.
+- **The title page is the exception that proves the rule.** A continuation line *must* be
+  indented for Fountain to tell it from a new `Key:`, so there the indentation is syntax, not
+  presentation. The model keeps the continuation's text without it, and the serialiser writes
+  one tab in front, which is what both fixtures already use. A continuation already indented by
+  exactly one tab is therefore unchanged and not counted.
+- **Counted per line changed**, like every entry: the lines whose indentation was removed, plus
+  any title-page continuation that was not indented by exactly one tab.
+- **The model carries no indent.** The `indent` field on an element is gone, not left empty:
+  an attribute that is always the empty string is a claim the code does not keep.
+- **The round-trip gate is unaffected for files Write-ist wrote.** Nothing it writes has leading
+  whitespace outside the title page, so reopening and saving is byte-identical (point 2 of the
+  contract). Only a file edited outside Write-ist to add indentation after the fact is read
+  differently, and that is an outside change like any other
+  ([ADR-0031](0031-outside-changes-are-handled-quietly.md)).
+- **Measured:** *Brick & Steel* 3,017 → 2,886 bytes imported (was 2,901): seven element lines,
+  15 bytes dropped; the five tab-indented title-page lines are unchanged. *Big Fish*: no change,
+  its three indented lines are title-page tabs. The corpus's 31 four-space parentheticals are
+  124 bytes, so 172,451 becomes 172,327 — computed from the count in issue #15, not measured, as
+  the corpus is not in the repository.
+
 ## Unicode: NFC, and never NFKC
 
 `é` can be stored as one character or as `e` plus a combining accent. The two are *canonically
@@ -155,6 +197,11 @@ back NFC, so the Unicode rule has a test that can fail; `docs/STANDARDS.md` alre
 a rule with no failing test is a preference.
 
 ## Considered options
+
+- **Preserve leading whitespace** (the interim default, built first). Rejected 2026-10-30: it
+  made indentation a property carried on every element only so it could be written back, and left
+  two semantically identical files byte-different forever, to protect a layout aid the application
+  has already made redundant.
 
 - **Change nothing, ever.** The cleanest promise and it fails on the first real file: the
   acceptance corpus contains two stray double-blank lines that a model without blank-line

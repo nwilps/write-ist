@@ -13,11 +13,12 @@
  * Input is expected to have been through `normaliseSource` already: LF line
  * endings, NFC, no trailing whitespace, no run of more than one blank line.
  */
-import type {
-  Element,
-  MarkedValue,
-  ScreenplayDocument,
-  TitlePageField,
+import {
+  TITLE_PAGE_CONTINUATION_INDENT,
+  type Element,
+  type MarkedValue,
+  type ScreenplayDocument,
+  type TitlePageField,
 } from "./document.ts";
 import { liftComments, locateComments, SCREENPLAY_COMMENTS } from "../comments.ts";
 import { parseMarks, parseMarksAcross } from "./marks.ts";
@@ -97,8 +98,17 @@ const UNFORCED_TRANSITIONS: ReadonlySet<string> = new Set([
 
 const LEADING_WHITESPACE = /^[ \t]*/;
 
+/** How much of a source line is indentation, which is read past and not kept. */
+const sourceIndent = (line: string): number => LEADING_WHITESPACE.exec(line)![0].length;
+
 interface Parsed {
   document: ScreenplayDocument;
+  /**
+   * Lines whose leading whitespace was dropped (ADR-0020's tenth entry): an
+   * element's indentation, or a title-page continuation's indentation where it
+   * was not the one Write-ist writes.
+   */
+  leadingWhitespaceLines: number;
   markDelimitedLines: number;
   /** Comment delimiters left in the text as characters (ADR-0018). */
   unmatchedCommentDelimiters: number;
@@ -110,7 +120,7 @@ function parseInternal(text: string): Parsed {
   // `split` leaves an empty string after a final newline; it is not a line.
   if (endsWithNewline) lines.pop();
 
-  const { fields, nextIndex } = parseTitlePage(lines);
+  const { fields, nextIndex, reindented } = parseTitlePage(lines);
 
   // Comment delimiters come out of the body before any of it is classified,
   // so `[[c:a1 weak]]INT. KITCHEN - DAY[[/c:a1]]` is a scene heading rather
@@ -124,7 +134,7 @@ function parseInternal(text: string): Parsed {
     lifted.lines,
     body.elements.map((element, index) => ({
       lines: [
-        { line: body.sourceLines[index]!, prefix: element.indent.length + prefixLength(element) },
+        { line: body.sourceLines[index]!, prefix: sourceIndent(lifted.lines[body.sourceLines[index]!]!) + prefixLength(element) },
       ],
       // The text as classified, before its marks were lifted.
       raw: element.text,
@@ -134,6 +144,7 @@ function parseInternal(text: string): Parsed {
 
   return {
     document: { titlePage: fields, elements: resolved.elements, comments, endsWithNewline },
+    leadingWhitespaceLines: reindented + body.indentedLines,
     markDelimitedLines: resolved.delimitedLines,
     unmatchedCommentDelimiters: lifted.unmatched,
   };
@@ -194,15 +205,18 @@ export function parse(text: string): ScreenplayDocument {
 function parseTitlePage(lines: readonly string[]): {
   fields: TitlePageField[];
   nextIndex: number;
+  /** Continuation lines not indented the way Write-ist writes them. */
+  reindented: number;
 } {
   const first = lines[0];
   if (first === undefined || TITLE_PAGE_KEY.exec(first) === null) {
-    return { fields: [], nextIndex: 0 };
+    return { fields: [], nextIndex: 0, reindented: 0 };
   }
 
   const fields: TitlePageField[] = [];
   let current: { key: string; inline: MarkedValue; continuations: MarkedValue[] } | null = null;
   let index = 0;
+  let reindented = 0;
 
   for (; index < lines.length; index++) {
     const line = lines[index]!;
@@ -215,7 +229,9 @@ function parseTitlePage(lines: readonly string[]): {
       if (current !== null) fields.push(current);
       current = { key: keyed[1]!, inline: parseMarks(keyed[2]!), continuations: [] };
     } else if (current !== null) {
-      current.continuations.push(parseMarks(line));
+      const indent = LEADING_WHITESPACE.exec(line)![0];
+      if (indent !== TITLE_PAGE_CONTINUATION_INDENT) reindented++;
+      current.continuations.push(parseMarks(line.slice(indent.length)));
     } else {
       break;
     }
@@ -223,7 +239,7 @@ function parseTitlePage(lines: readonly string[]): {
   if (current !== null) fields.push(current);
 
   while (index < lines.length && lines[index] === "") index++;
-  return { fields, nextIndex: index };
+  return { fields, nextIndex: index, reindented };
 }
 
 /**
@@ -238,11 +254,12 @@ function parseTitlePage(lines: readonly string[]): {
 function parseBody(
   lines: readonly string[],
   from: number,
-): { elements: Element[]; startsRun: boolean[]; sourceLines: number[] } {
+): { elements: Element[]; startsRun: boolean[]; sourceLines: number[]; indentedLines: number } {
   const elements: Element[] = [];
   const startsRun: boolean[] = [];
   // The line each element was read from, which is where its comments were.
   const sourceLines: number[] = [];
+  let indentedLines = 0;
   let inSpeech = false;
   let omitted = false;
 
@@ -257,6 +274,7 @@ function parseBody(
 
     const indent = LEADING_WHITESPACE.exec(line)![0];
     const content = line.slice(indent.length);
+    if (indent !== "") indentedLines++;
 
     // `/*` and `*/` are delimiters, an element each. What falls between them
     // is parsed as whatever it is and carries `omitted`, so the boneyard is a
@@ -264,7 +282,7 @@ function parseBody(
     const above = index === 0 || lines[index - 1] === "";
 
     if (!omitted && content === BONEYARD_OPEN && closesLater(lines, index)) {
-      elements.push({ type: "boneyard-start", text: content, indent, forced: false, omitted: true });
+      elements.push({ type: "boneyard-start", text: content, forced: false, omitted: true });
       startsRun.push(above);
       sourceLines.push(index);
       omitted = true;
@@ -272,7 +290,7 @@ function parseBody(
       continue;
     }
     if (omitted && content === BONEYARD_CLOSE) {
-      elements.push({ type: "boneyard-end", text: content, indent, forced: false, omitted: true });
+      elements.push({ type: "boneyard-end", text: content, forced: false, omitted: true });
       startsRun.push(above);
       sourceLines.push(index);
       omitted = false;
@@ -280,7 +298,7 @@ function parseBody(
       continue;
     }
 
-    const element = classify(content, indent, inSpeech, {
+    const element = classify(content, inSpeech, {
       // Fountain wants a cue to have a blank line above it and a non-blank one
       // below. Both are read off the source rather than off parser state: a
       // boneyard delimiter and a tight run of action both leave `inSpeech`
@@ -298,7 +316,7 @@ function parseBody(
       (inSpeech && (element.type === "dialogue" || element.type === "parenthetical"));
   }
 
-  return { elements, startsRun, sourceLines };
+  return { elements, startsRun, sourceLines, indentedLines };
 }
 
 /**
@@ -381,43 +399,42 @@ interface Surroundings {
 
 function classify(
   content: string,
-  indent: string,
   inSpeech: boolean,
   surroundings: Surroundings,
 ): Element {
   // Inside a speech, Fountain runs to the next blank line. Only the choice
   // between a parenthetical and a line of dialogue is open.
   if (inSpeech) {
-    if (PARENTHETICAL.test(content)) return make("parenthetical", content, indent, false);
-    return make("dialogue", content, indent, false);
+    if (PARENTHETICAL.test(content)) return make("parenthetical", content, false);
+    return make("dialogue", content, false);
   }
 
   // Forcing markers. Every one already in the file is preserved as written
   // (ADR-0020), which is why `forced` is recorded rather than recomputed.
-  if (content.startsWith("!")) return make("action", content.slice(1), indent, true);
-  if (content.startsWith("@")) return characterCue(content.slice(1), indent, true);
+  if (content.startsWith("!")) return make("action", content.slice(1), true);
+  if (content.startsWith("@")) return characterCue(content.slice(1), true);
   // A single leading dot forces a heading; `..` is an ellipsis, not a marker.
   if (content.startsWith(".") && !content.startsWith("..")) {
-    return sceneHeading(content.slice(1), indent, true);
+    return sceneHeading(content.slice(1), true);
   }
-  if (PAGE_BREAK.test(content)) return make("page-break", content, indent, false);
-  if (content.startsWith("~")) return make("lyrics", content.slice(1), indent, true);
+  if (PAGE_BREAK.test(content)) return make("page-break", content, false);
+  if (content.startsWith("~")) return make("lyrics", content.slice(1), true);
 
   const section = SECTION.exec(content);
   if (section !== null) {
-    return { ...make("section", section[2]!, indent, true), depth: section[1]!.length };
+    return { ...make("section", section[2]!, true), depth: section[1]!.length };
   }
-  if (content.startsWith("=")) return make("synopsis", content.slice(1), indent, true);
+  if (content.startsWith("=")) return make("synopsis", content.slice(1), true);
 
   const centered = CENTERED.exec(content);
-  if (centered !== null) return make("centered", centered[1]!, indent, false);
-  if (content.startsWith(">")) return make("transition", content.slice(1), indent, true);
-  if (NOTE_LINE.test(content)) return make("note", content, indent, false);
+  if (centered !== null) return make("centered", centered[1]!, false);
+  if (content.startsWith(">")) return make("transition", content.slice(1), true);
+  if (NOTE_LINE.test(content)) return make("note", content, false);
 
   // Nothing was forced, so the parser has to guess. Action is the catch-all.
-  if (SCENE_HEADING.test(content)) return sceneHeading(content, indent, false);
+  if (SCENE_HEADING.test(content)) return sceneHeading(content, false);
   if (TRANSITION.test(content) || UNFORCED_TRANSITIONS.has(content)) {
-    return make("transition", content, indent, false);
+    return make("transition", content, false);
   }
   // **Both** blank-line conditions, not just the one below (issue #23).
   //
@@ -431,9 +448,9 @@ function classify(
   // This says nothing about `@CROSSWALK`: a forced cue is handled above, and
   // the writer who typed the `@` has already answered the question.
   if (surroundings.above && looksLikeCharacter(content) && surroundings.below !== "") {
-    return characterCue(content, indent, false);
+    return characterCue(content, false);
   }
-  return make("action", content, indent, false);
+  return make("action", content, false);
 }
 
 /**
@@ -452,20 +469,20 @@ function looksLikeCharacter(content: string): boolean {
 }
 
 /** A scene heading, with its scene number lifted out of the text if it has one. */
-function sceneHeading(text: string, indent: string, forced: boolean): Element {
+function sceneHeading(text: string, forced: boolean): Element {
   const numbered = SCENE_NUMBER.exec(text);
-  if (numbered === null) return make("scene-heading", text, indent, forced);
+  if (numbered === null) return make("scene-heading", text, forced);
   return {
-    ...make("scene-heading", numbered[1]!, indent, forced),
+    ...make("scene-heading", numbered[1]!, forced),
     sceneNumber: numbered[2]!,
   };
 }
 
 /** A character cue, with the dual-dialogue marker lifted out of the text. */
-function characterCue(text: string, indent: string, forced: boolean): Element {
+function characterCue(text: string, forced: boolean): Element {
   const dual = DUAL_CUE.exec(text);
-  if (dual === null) return make("character", text, indent, forced);
-  return { ...make("character", dual[1]!, indent, forced), dual: true };
+  if (dual === null) return make("character", text, forced);
+  return { ...make("character", dual[1]!, forced), dual: true };
 }
 
 /**
@@ -484,11 +501,10 @@ const LITERAL: ReadonlySet<Element["type"]> = new Set([
 function make(
   type: Element["type"],
   text: string,
-  indent: string,
   forced: boolean,
 ): Element {
   // The text as written, delimiters and all. `resolveMarks` lifts them out
   // once every element is classified, because a mark may close in a later
   // element and nothing here can see one (ADR-0027).
-  return { type, text, indent, forced };
+  return { type, text, forced };
 }

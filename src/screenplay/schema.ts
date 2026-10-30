@@ -81,8 +81,6 @@ const element: NodeSpec = {
   attrs: {
     /** One of `ELEMENT_TYPES`. No default: an untyped element is a bug. */
     type: {},
-    /** Leading whitespace exactly as the writer wrote it (issue #15). */
-    indent: { default: "" },
     /** The source carried a forcing marker (`.`, `!`, `@`, `>`). */
     forced: { default: false },
     /** A section's `#` count. */

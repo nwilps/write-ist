@@ -36,7 +36,8 @@ acceptance test for anything touching `src/`: `npm test`.
 The work is cut into slices. **Issue #37** was Slice 1 — the smallest Write-ist a screenplay can
 be written in — and its tickets (**#38–#50**, plus **#55** and **#62**) are closed. Further
 slices are charted with `/to-tickets` when their specs exist; open questions stay in GitHub
-Issues (the one still open from the early list is **#15**, leading whitespace, deferred).
+Issues (the early list is empty: **#15**, leading whitespace, was decided — it is normalised,
+ADR-0020's tenth entry).
 
 ### What to read
 

@@ -63,12 +63,6 @@ export interface Element {
    */
   readonly marks?: readonly MarkRange[];
   /**
-   * Leading whitespace exactly as the writer wrote it. Stripped to work out
-   * the element type, then put back (issue #15) — trimming it is not on
-   * ADR-0020's list of things Write-ist may change.
-   */
-  readonly indent: string;
-  /**
    * The source carried an explicit forcing marker (`.`, `!`, `@`, `>`) for
    * this element. Preserved rather than recomputed: ADR-0020 keeps every
    * marker already in a file and adds one only where the text would otherwise
@@ -107,7 +101,7 @@ export interface TitlePageField {
    * the mark offsets are measured over it like any other character.
    */
   readonly inline: MarkedValue;
-  /** Continuation lines, each keeping its own indentation, marks lifted out. */
+  /** Continuation lines without their indentation, marks lifted out. The serialiser writes the one indent Fountain needs to tell them from a key. */
   readonly continuations: readonly MarkedValue[];
 }
 
@@ -145,3 +139,9 @@ export interface ScreenplayDocument {
    */
   readonly endsWithNewline: boolean;
 }
+
+/**
+ * The one indent Write-ist writes: before a title-page continuation line,
+ * where Fountain needs it to tell a continuation from a new key (ADR-0020).
+ */
+export const TITLE_PAGE_CONTINUATION_INDENT = "\t";

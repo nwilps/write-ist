@@ -38,8 +38,21 @@ const BLANKS_ADDED = 2;
 /** The blank between the two centered title cards is not representable. */
 const BLANKS_LOST = 1;
 
+/**
+ * Leading whitespace on the twelve indented lines is 20 bytes. Five of those
+ * lines are title-page continuations, one tab each, which are written back as
+ * the same one tab; the other seven are elements, 15 bytes, and are dropped
+ * (issue #15, ADR-0020's tenth entry). Counted from the file, not the code.
+ */
+const INDENTED_LINES_DROPPED = 7;
+const INDENT_BYTES_DROPPED = 15;
+
 const IMPORTED_BYTES =
-  NORMALISED_BYTES + CONTINUATIONS_ADDED * EXTENSION.length + BLANKS_ADDED - BLANKS_LOST;
+  NORMALISED_BYTES +
+  CONTINUATIONS_ADDED * EXTENSION.length +
+  BLANKS_ADDED -
+  BLANKS_LOST -
+  INDENT_BYTES_DROPPED;
 
 const imported = (options = {}): Uint8Array =>
   exportScreenplay(importScreenplay(readFixtureBytes(FIXTURE), options).document);
@@ -53,18 +66,19 @@ describe("Brick & Steel, measured as bytes", () => {
     expect(SOURCE_BYTES - NORMALISED_BYTES).toBe(144);
   });
 
-  it("imports to 2,901 bytes, and the arithmetic is the four documented changes", () => {
+  it("imports to 2,886 bytes, and the arithmetic is the five documented changes", () => {
     const bytes = writeBytesAndReadBack("brick-and-steel.roundtrip.fountain", imported());
 
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(2_901);
+    expect(IMPORTED_BYTES).toBe(2_886);
   });
 
-  it("reports the line endings, the extensions and the blank lines, and nothing else", () => {
+  it("reports the line endings, the indentation, the extensions and the blank lines, and nothing else", () => {
     const { report } = importScreenplay(readFixtureBytes(FIXTURE));
 
     expect(report.applied).toEqual([
       { kind: "line-endings-to-lf", count: 144 },
+      { kind: "leading-whitespace-dropped", count: INDENTED_LINES_DROPPED },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
       // The two blanks the tight action run gains and the one the title cards
       // lose — one rule, one count. Absent until issue #27, which is the
@@ -74,11 +88,18 @@ describe("Brick & Steel, measured as bytes", () => {
   });
 });
 
+/** The normalised source minus the indentation the body loses, which has its own test. */
+const withoutBodyIndent = (text: string): string[] => {
+  const lines = text.split("\n");
+  const bodyStart = lines.indexOf("") + 1;
+  return lines.map((line, index) => (index < bodyStart ? line : line.replace(/^[ \t]+/, "")));
+};
+
 describe("every line the round-trip changed is one the ADRs allow", () => {
   // The guard against offsetting errors: a byte total can be right while two
   // mistakes cancel. This names each edit.
   const edits = (): ReturnType<typeof lineEdits> =>
-    lineEdits(normalisedText().split("\n"), new TextDecoder().decode(imported()).split("\n"));
+    lineEdits(withoutBodyIndent(normalisedText()), new TextDecoder().decode(imported()).split("\n"));
 
   it("makes exactly six edits", () => {
     // Three cues rewritten (a removal and an addition each is counted once
@@ -125,7 +146,7 @@ describe("what this fixture exercises that the corpus does not", () => {
   const document = (): ReturnType<typeof importScreenplay>["document"] =>
     importScreenplay(readFixtureBytes(FIXTURE)).document;
 
-  it("reads a title page whose values are tab-indented continuation lines", () => {
+  it("reads a title page whose values are tab-indented continuation lines, and writes them back as one tab", () => {
     const fields = document().titlePage;
 
     expect(fields.map((field) => field.key)).toEqual([
@@ -137,7 +158,7 @@ describe("what this fixture exercises that the corpus does not", () => {
       "Contact",
     ]);
     // The title page carries marks like anything else, and they come out of
-    // it the same way: the tab is text and the offsets are measured over it.
+    // it the same way: the indentation is dropped, so offsets start at the first character.
     // ADR-0019 fixes the emission order as underline outermost, which is what
     // this file is written in and what goes back on the way out.
     expect(fields[0]).toEqual({
@@ -145,25 +166,25 @@ describe("what this fixture exercises that the corpus does not", () => {
       inline: { text: "" },
       continuations: [
         {
-          text: "\tBRICK & STEEL",
+          text: "BRICK & STEEL",
           marks: [
-            { mark: "underline", start: 1, end: 14 },
-            { mark: "bold", start: 1, end: 14 },
+            { mark: "underline", start: 0, end: 13 },
+            { mark: "bold", start: 0, end: 13 },
           ],
         },
         {
-          text: "\tFULL RETIRED",
+          text: "FULL RETIRED",
           marks: [
-            { mark: "underline", start: 1, end: 13 },
-            { mark: "bold", start: 1, end: 13 },
+            { mark: "underline", start: 0, end: 12 },
+            { mark: "bold", start: 0, end: 12 },
           ],
         },
       ],
     });
     expect(fields[5]?.continuations).toEqual([
-      { text: "\tNext Level Productions" },
-      { text: "\t1588 Mission Dr." },
-      { text: "\tSolvang, CA 93463" },
+      { text: "Next Level Productions" },
+      { text: "1588 Mission Dr." },
+      { text: "Solvang, CA 93463" },
     ]);
   });
 
@@ -186,18 +207,34 @@ describe("what this fixture exercises that the corpus does not", () => {
     );
   });
 
-  it("keeps tab indentation on the elements that carry it", () => {
-    const indented = document().elements.filter((element) => element.indent !== "");
+  it("drops the tab indentation from the elements that carried it", () => {
+    const { document: imported, report } = importScreenplay(readFixtureBytes(FIXTURE));
+    const text = normalisedText();
+    const indentedSource = text.split("\n").slice(text.split("\n").indexOf("") + 1);
+    const carried = indentedSource.filter((line) => /^[ \t]/.test(line)).map((l) => l.trim());
 
-    expect(indented.map((element) => [element.type, element.indent, element.text])).toEqual([
-      ["character", "\t\t\t", "JACK"],
-      ["parenthetical", "\t\t", "(in Vietnamese, subtitled)"],
-      ["dialogue", "\t", "Did you know Brick and Steel are retired?"],
-      ["character", "\t\t\t", "DAN"],
-      ["dialogue", "\t", "Then let's retire them."],
-      ["dialogue", "\t", "Permanently."],
-      ["transition", "\t\t\t\t", "CUT TO:"],
+    // The census: the same seven elements, now without the tabs, and the
+    // report counts the seven lines it changed.
+    expect(carried).toEqual([
+      "JACK",
+      "(in Vietnamese, subtitled)",
+      "*Did you know Brick and Steel are retired?*",
+      "DAN",
+      "Then let's retire them.",
+      "_Permanently_.",
+      "CUT TO:",
     ]);
+    const typeOf = (text: string): string[] =>
+      imported.elements.filter((element) => element.text === text).map((element) => element.type);
+    expect(typeOf("JACK")).toEqual(["character"]);
+    expect(typeOf("DAN")).toEqual(["character"]);
+    expect(typeOf("(in Vietnamese, subtitled)")).toEqual(["parenthetical"]);
+    expect(report.applied).toContainEqual({
+      kind: "leading-whitespace-dropped",
+      count: INDENTED_LINES_DROPPED,
+    });
+    const out = new TextDecoder().decode(exportScreenplay(imported)).split("\n");
+    expect(out.slice(out.indexOf("") + 1).filter((line) => /^[ \t]/.test(line))).toEqual([]);
   });
 
   it("keeps the dual-dialogue caret on the cue that carries it", () => {
@@ -264,6 +301,8 @@ describe("idempotence on Brick & Steel", () => {
       actualLabel: "after reopen and save",
     });
     // Only the spacing changes remain: +2 blanks, -1 blank.
-    expect(ours.length).toBe(NORMALISED_BYTES + BLANKS_ADDED - BLANKS_LOST);
+    expect(ours.length).toBe(
+      NORMALISED_BYTES + BLANKS_ADDED - BLANKS_LOST - INDENT_BYTES_DROPPED,
+    );
   });
 });

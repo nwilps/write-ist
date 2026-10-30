@@ -284,7 +284,7 @@ describe("what import leaves for the list to find", () => {
 
     const [only] = await listed();
     const manuscript = await nodeFilesystem.readFile(join(only!.path, MANUSCRIPT_FILE));
-    expect(manuscript.length).toBe(2_901);
+    expect(manuscript.length).toBe(2_886);
   });
 });
 

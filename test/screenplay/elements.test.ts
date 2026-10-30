@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
-import { parse } from "../../src/screenplay/parse.ts";
+import { parse, parseReporting } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { assertBytesEqual, firstByteDifference } from "../support/byte-diff.ts";
 
@@ -261,21 +261,25 @@ describe("derived spacing", () => {
 });
 
 describe("leading whitespace", () => {
-  it("strips indentation to decide the type, then puts it back verbatim", () => {
-    const source = "@EDWARD\n    (quietly)\nI know.";
-    const document = parse(source);
+  it("strips indentation to decide the type, and does not put it back", () => {
+    const document = parse("@EDWARD\n    (quietly)\nI know.");
 
     expect(types(document)).toEqual(["character", "parenthetical", "dialogue"]);
-    expect(document.elements[1]?.indent).toBe("    ");
-    roundTrips(source);
+    expect(serialise(document)).toBe("@EDWARD\n(quietly)\nI know.");
   });
 
-  it("preserves a leading tab as faithfully as leading spaces", () => {
-    const source = "@EDWARD\n\t(quietly)\nI know.";
-    const document = parse(source);
+  it("drops a leading tab as it drops leading spaces, and reports the line", () => {
+    const { document, leadingWhitespaceLines } = parseReporting("@EDWARD\n\t(quietly)\nI know.");
 
-    expect(document.elements[1]?.indent).toBe("\t");
-    roundTrips(source);
+    expect(types(document)).toEqual(["character", "parenthetical", "dialogue"]);
+    expect(serialise(document)).toBe("@EDWARD\n(quietly)\nI know.");
+    expect(leadingWhitespaceLines).toBe(1);
+  });
+
+  it("is stable once dropped: a file Write-ist wrote round-trips byte-identically", () => {
+    const written = serialise(parse("@EDWARD\n    (quietly)\nI know."));
+
+    expect(serialise(parse(written))).toBe(written);
   });
 });
 
@@ -324,17 +328,6 @@ describe("the gate is not vacuous", () => {
     };
 
     expect(firstByteDifference(utf8(source), utf8(serialise(unforced)))).not.toBeNull();
-  });
-
-  it("catches lost indentation", () => {
-    const indented = "@EDWARD\n    (quietly)\nI know.";
-    const document = parse(indented);
-    const flattened = {
-      ...document,
-      elements: document.elements.map((element) => ({ ...element, indent: "" })),
-    };
-
-    expect(firstByteDifference(utf8(indented), utf8(serialise(flattened)))).not.toBeNull();
   });
 
   it("passes when nothing is lost", () => {

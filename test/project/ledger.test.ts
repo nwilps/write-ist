@@ -37,9 +37,9 @@ function rewoundInstant(iso: string): Instant & { rewind(to: string): void } {
 describe("wordCount", () => {
   it("counts words in element text and skips omitted (cut) material", () => {
     const document = documentOf([
-      { type: "action", text: "Hello there world", indent: "", forced: false },
-      { type: "action", text: "cut these four words", indent: "", forced: false, omitted: true },
-      { type: "dialogue", text: "One two", indent: "", forced: false },
+      { type: "action", text: "Hello there world", forced: false },
+      { type: "action", text: "cut these four words", forced: false, omitted: true },
+      { type: "dialogue", text: "One two", forced: false },
     ]);
     expect(wordCount(document)).toBe(5);
   });
@@ -47,7 +47,7 @@ describe("wordCount", () => {
   it("ignores the title page — only elements count", () => {
     const document: ScreenplayDocument = {
       titlePage: [{ key: "Title", inline: { text: "Many Words Here" }, continuations: [] }],
-      elements: [{ type: "action", text: "Alone", indent: "", forced: false }],
+      elements: [{ type: "action", text: "Alone", forced: false }],
       comments: [],
       endsWithNewline: true,
     };
@@ -88,8 +88,8 @@ describe("the ledger", () => {
   it("records a day line with id, words, pages and name", async () => {
     const ledger = openLedger(nodeFilesystem, folder.path, clock);
     const document = documentOf([
-      { type: "scene-heading", text: "INT. ROOM - DAY", indent: "", forced: false },
-      { type: "action", text: "A cat walks in.", indent: "", forced: false },
+      { type: "scene-heading", text: "INT. ROOM - DAY", forced: false },
+      { type: "action", text: "A cat walks in.", forced: false },
     ]);
     await ledger.recordDay(
       { id: "550e8400-e29b-41d4-a716-446655440000", name: "Coastal Signal" },
