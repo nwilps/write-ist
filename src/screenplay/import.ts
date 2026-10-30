@@ -68,8 +68,9 @@ export function importScreenplay(
   // ADR-0020's eighth entry. Applied by the parser rather than by
   // `normaliseSource`, because it is a property of the element sequence and
   // not of the text — so it is reported here, where the two meet.
-  const { document: parsed, markDelimitedLines, unmatchedCommentDelimiters } =
+  const { document: parsed, markDelimitedLines, leadingWhitespaceLines, unmatchedCommentDelimiters } =
     parseReporting(text);
+  report("leading-whitespace-dropped", leadingWhitespaceLines);
   report("marks-spanning-elements", markDelimitedLines);
   report("unmatched-comment-delimiters", unmatchedCommentDelimiters);
 

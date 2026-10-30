@@ -75,7 +75,6 @@ function gluedInFile(previous: ElementType, next: ElementType): boolean {
   const element = (type: ElementType): Element => ({
     type,
     text: "x",
-    indent: "",
     forced: false,
     ...(type === "section" ? { depth: 1 } : {}),
   });

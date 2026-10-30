@@ -178,7 +178,7 @@ not built.
   and back to it (`src/screenplay/schema.ts`, `src/screenplay/editor.ts`). Nothing in `src/`
   touches a DOM: the schema's `toDOM` returns specifications, which are data.
 - **The round-trip holds through the editor.** All four screenplay manuscripts come back byte
-  for byte — 2,901 / 146,097 / 147,139 / 172,451 — *and* as the same model, asserted whole
+  for byte — 2,886 / 146,097 / 147,139 / 172,327 — *and* as the same model, asserted whole
   rather than only as bytes, because ADR-0021 records twice that the byte gate cannot see a
   misread element.
 - Every one of ADR-0021's fourteen element types is displayed, each carrying its type in the
@@ -327,8 +327,8 @@ and the rest of the application — workspace bar, the other workspaces.
       slices still to chart)
 - [ ] `/implement` — drives `/tdd` at pre-agreed seams, closes with `/code-review`
 
-Open questions live in GitHub Issues and nowhere else. The one left from the early list is #15,
-leading whitespace, deferred with a working default: preserve it. Slice 1's parent is #37.
+Open questions live in GitHub Issues and nowhere else. Slice 1's parent is #37. The early list's last
+question, #15 (leading whitespace), was decided 2026-10-30: normalised (ADR-0020's tenth entry).
 
 ---
 
