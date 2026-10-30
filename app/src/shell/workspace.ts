@@ -19,6 +19,7 @@
  */
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
+import type { Ledger } from "../../../src/project/ledger.ts";
 
 /** Everything a workspace is given. Nothing in it names a surface. */
 export interface WorkspaceContext {
@@ -61,6 +62,16 @@ export interface WorkspaceContext {
    * know what a page is — only that a workspace may have something to say.
    */
   readonly setStatus: (text: string) => void;
+  /**
+   * The writer's days (ADR-0017). One ledger for the whole application, opened
+   * at launch. A workspace records a day when a project closes; the shell
+   * passes the ledger through and does not read it.
+   *
+   * A function, not the ledger itself: launch opens it in the background, and
+   * a project may be on screen before that finishes. Asking at close sees
+   * whichever answer launch arrived at.
+   */
+  readonly ledger: () => Ledger | undefined;
 }
 
 /** A workspace that has been put on screen. */

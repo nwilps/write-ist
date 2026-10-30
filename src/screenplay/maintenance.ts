@@ -32,7 +32,7 @@
  */
 import { Plugin, type EditorState, type Transaction } from "prosemirror-state";
 import type { Node as EditorNode } from "prosemirror-model";
-import { appendContinuation, characterName, hasContinuation, SPEECH } from "./continuations.ts";
+import { appendContinuation, characterName, cueResumes, hasContinuation } from "./continuations.ts";
 import type { ElementType } from "./document.ts";
 import { screenplaySchema } from "./schema.ts";
 
@@ -170,10 +170,12 @@ function continueCue(tr: Transaction, doc: EditorNode, index: number): void {
   const text = cue.textContent;
   if (hasContinuation(text) || characterName(text) === "") return;
 
-  // Committed: the writer has moved on to what the character says.
+  // Committed: the writer has moved on to what the character says. The resume
+  // itself is `cueResumes` — the same rule an import asks. This only decides
+  // when: not while the caret is still inside the cue.
   const following = index + 1 < doc.childCount ? typeOf(doc.child(index + 1)) : undefined;
   if (following !== "dialogue" && following !== "parenthetical") return;
-  if (!resumes(doc, index, characterName(text))) return;
+  if (!resumes(doc, index)) return;
 
   // Deleting `(CONT'D)` a letter at a time leaves the space before it behind;
   // using it keeps the cue from gaining a second.
@@ -193,20 +195,18 @@ function continueCue(tr: Transaction, doc: EditorNode, index: number): void {
 }
 
 /**
- * Whether the speaker named is resuming after an interruption: walking up from
- * the cue, the nearest cue in the scene is the same character and something
- * that is not speech lies between. Blank lines are not elements on disk
- * (ADR-0019) and are not looked at.
+ * The elements from this cue back to the title page, asked of `cueResumes`.
+ *
+ * A title-page line is not an element. Meeting one stops the walk, which is
+ * the same answer as there being no earlier cue.
  */
-function resumes(doc: EditorNode, index: number, name: string): boolean {
-  let interrupted = false;
-  for (let i = index - 1; i >= 0; i--) {
-    const node = doc.child(i);
-    const type = typeOf(node);
-    if (type === undefined || type === "scene-heading") return false;
-    if (node.content.size === 0) continue;
-    if (type === "character") return interrupted && characterName(node.textContent) === name;
-    if (!SPEECH.has(type)) interrupted = true;
+function resumes(doc: EditorNode, index: number): boolean {
+  const lines: { type: ElementType; text: string }[] = [];
+  for (let i = index; i >= 0; i--) {
+    const type = typeOf(doc.child(i));
+    if (type === undefined) break;
+    lines.push({ type, text: doc.child(i).textContent });
   }
-  return false;
+  lines.reverse();
+  return cueResumes(lines, lines.length - 1);
 }

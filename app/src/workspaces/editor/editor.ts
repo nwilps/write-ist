@@ -59,11 +59,10 @@
  */
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
-import { openLedger } from "../../../../src/project/ledger.ts";
 import { openProject } from "../../../../src/project/open.ts";
-import { defaultLedgerDirectory } from "../../tauri-filesystem.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
+import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import {
   pageAtElement,
   pageStatusText,
@@ -79,8 +78,6 @@ import type {
   WorkspaceContext,
   WorkspaceManifest,
 } from "../../shell/workspace.ts";
-import type { Node as EditorNode } from "prosemirror-model";
-
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
   name: "Editor",
@@ -122,7 +119,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       const showPages = (): void => {
         const current = pageAtElement(
           pages,
-          elementIndexAt(state.doc, state.selection.head),
+          manuscriptElementAt(state.doc, state.selection.head),
         );
         context.setStatus(pageStatusText(current, pages.totalPages));
       };
@@ -198,17 +195,24 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // The ledger (ADR-0017): Tuesday's words and pages cannot be worked
         // out later, so they are written now, before the page goes. A failure
         // here costs a chart, never the manuscript — so the project still leaves.
-        try {
-          const ledger = openLedger(context.filesystem, await defaultLedgerDirectory());
-          await ledger.recordDay(
-            { id: context.project.marker.projectId, name: context.project.marker.name },
-            manuscriptOf(state.doc),
-          );
-        } catch (error) {
+        const ledger = context.ledger();
+        if (ledger === undefined) {
           context.report(
             `Write-ist could not record today's writing in the ledger. ` +
-              `Your screenplay is saved. ${message(error)}`,
+              `Your screenplay is saved. The record of your writing days did not start.`,
           );
+        } else {
+          try {
+            await ledger.recordDay(
+              { id: context.project.marker.projectId, name: context.project.marker.name },
+              manuscriptOf(state.doc),
+            );
+          } catch (error) {
+            context.report(
+              `Write-ist could not record today's writing in the ledger. ` +
+                `Your screenplay is saved. ${message(error)}`,
+            );
+          }
         }
         stopSwitchingAway();
         stopSwitchingBack();
@@ -227,7 +231,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           if (transaction.docChanged) {
             session.changed();
             saving.typed();
-            const dirty = elementIndexAt(state.doc, state.selection.head);
+            const dirty = manuscriptElementAt(state.doc, state.selection.head);
             pages = repaginate(manuscriptOf(state.doc), pages, dirty);
           }
           // Selection moves still refresh the current page; the total only
@@ -278,26 +282,4 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return true;
     },
   };
-}
-
-/**
- * Which manuscript element the caret sits in, matching `manuscriptOf`'s
- * indexing (empty editor lines are not elements).
- */
-function elementIndexAt(doc: EditorNode, pos: number): number | undefined {
-  let titleLines = 0;
-  while (titleLines < doc.childCount && doc.child(titleLines).type.name === "title_line") {
-    titleLines += 1;
-  }
-  const at = doc.resolve(pos);
-  if (at.depth < 1 || at.parent.type.name !== "element") return undefined;
-  const rawIndex = at.index(0) - titleLines;
-  let manuscriptIndex = 0;
-  for (let i = 0; i < rawIndex; i++) {
-    if (doc.child(titleLines + i)!.textContent !== "") manuscriptIndex += 1;
-  }
-  if (doc.child(titleLines + rawIndex)!.textContent === "") {
-    return manuscriptIndex > 0 ? manuscriptIndex - 1 : 0;
-  }
-  return manuscriptIndex;
 }

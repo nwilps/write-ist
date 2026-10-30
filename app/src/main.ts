@@ -97,6 +97,7 @@ function draw(): void {
       onClose: () => go("open-project"),
       whenSwitchedAway,
       whenSwitchedBack,
+      ledger: () => ledger,
     });
     gestures = shell.gestures;
     return;
