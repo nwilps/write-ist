@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import {
   characterName,
+  cueResumes,
   hasContinuation,
   maintainContinuations,
 } from "../../src/screenplay/continuations.ts";
@@ -39,6 +40,43 @@ describe("hasContinuation", () => {
     expect(hasContinuation("EDWARD (cont'd)")).toBe(true);
     expect(hasContinuation("EDWARD (V.O.)")).toBe(false);
     expect(hasContinuation("EDWARD")).toBe(false);
+  });
+});
+
+describe("cueResumes", () => {
+  it("is the decision a continuation is added from", () => {
+    const source = [
+      "@EDWARD",
+      "First line.",
+      "",
+      "!He crosses the room.",
+      "",
+      "@EDWARD",
+      "Second line.",
+      "",
+      "@EDWARD",
+      "Still him, no break.",
+    ].join("\n");
+    const document = parse(source);
+    const maintained = maintainContinuations(document);
+
+    document.elements.forEach((element, index) => {
+      const resumes = cueResumes(document.elements, index);
+      const changed = maintained.document.elements[index]!.text !== element.text;
+      expect(changed).toBe(resumes && !hasContinuation(element.text));
+    });
+    expect(maintained.added).toBe(1);
+  });
+
+  it("steps over a blank line and still sees the break", () => {
+    const lines = [
+      { type: "character" as const, text: "EDWARD" },
+      { type: "dialogue" as const, text: "First." },
+      { type: "action" as const, text: "" },
+      { type: "action" as const, text: "He crosses." },
+      { type: "character" as const, text: "EDWARD" },
+    ];
+    expect(cueResumes(lines, 4)).toBe(true);
   });
 });
 

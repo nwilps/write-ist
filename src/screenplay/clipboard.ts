@@ -35,7 +35,8 @@ import {
   type EditorState,
   type Transaction,
 } from "prosemirror-state";
-import type { Comment, CommentEnd } from "../comments.ts";
+import type { Comment } from "../comments.ts";
+import { elementAt, positionOfElement } from "./place.ts";
 import { normaliseSource } from "../normalise.ts";
 import { toEditorDocument, fromEditorDocument } from "./editor.ts";
 import { parse } from "./parse.ts";
@@ -128,12 +129,10 @@ function commentsWithin(
 ): readonly PastedComment[] {
   const held = doc.attrs["comments"];
   if (!Array.isArray(held) || held.length === 0) return [];
-  const starts = elementStarts(doc);
-
   const found: PastedComment[] = [];
   for (const comment of held as readonly Comment[]) {
-    const opens = positionOf(doc, starts, comment.start);
-    const closes = positionOf(doc, starts, comment.end);
+    const opens = positionOfElement(doc, comment.start.element, comment.start.offset);
+    const closes = positionOfElement(doc, comment.end.element, comment.end.offset);
     if (opens === undefined || closes === undefined) continue;
     const start = Math.max(opens, from);
     const end = Math.min(closes, to);
@@ -154,13 +153,17 @@ function fountainOf(content: Fragment, comments: readonly PastedComment[]) {
     { comments: [], endsWithNewline: false },
     content,
   );
-  const starts = elementStarts(doc);
   const placed: Comment[] = [];
   for (const comment of comments) {
-    const start = endAt(doc, starts, comment.start);
-    const end = endAt(doc, starts, comment.end);
+    const start = elementAt(doc, comment.start);
+    const end = elementAt(doc, comment.end);
     if (start === undefined || end === undefined) continue;
-    placed.push({ id: comment.id, remark: comment.remark, start, end });
+    placed.push({
+      id: comment.id,
+      remark: comment.remark,
+      start: { element: start.element, offset: start.offset },
+      end: { element: end.element, offset: end.offset },
+    });
   }
   return fromEditorDocument(
     screenplaySchema.nodes["doc"]!.create({ comments: placed, endsWithNewline: false }, content),
@@ -296,18 +299,12 @@ function payloadFromText(text: string): Payload | undefined {
 
   const doc = toEditorDocument({ ...parsed, titlePage: [] });
   const content = doc.content;
-  const starts = elementStarts(doc);
   const comments: PastedComment[] = [];
   for (const comment of parsed.comments) {
-    const start = starts[comment.start.element];
-    const end = starts[comment.end.element];
+    const start = positionOfElement(doc, comment.start.element, comment.start.offset);
+    const end = positionOfElement(doc, comment.end.element, comment.end.offset);
     if (start === undefined || end === undefined) continue;
-    comments.push({
-      id: comment.id,
-      remark: comment.remark,
-      start: start + comment.start.offset,
-      end: end + comment.end.offset,
-    });
+    comments.push({ id: comment.id, remark: comment.remark, start, end });
   }
   return { slice: new Slice(content, 0, 0), block: true, comments };
 }
@@ -319,38 +316,6 @@ function oneLine(text: string): string {
     .normalize("NFC")
     .replace(/^\n+|\n+$/g, "")
     .replace(/\s*\n\s*/g, " ");
-}
-
-/* ------------------------------------------------------------- positions */
-
-/** Where each element's text starts, by element index. */
-function elementStarts(doc: EditorNode): number[] {
-  const starts: number[] = [];
-  let at = 0;
-  doc.forEach((child) => {
-    if (child.type.name === "element") starts.push(at + 1);
-    at += child.nodeSize;
-  });
-  return starts;
-}
-
-function positionOf(doc: EditorNode, starts: readonly number[], end: CommentEnd): number | undefined {
-  const start = starts[end.element];
-  if (start === undefined) return undefined;
-  const element = doc.nodeAt(start - 1);
-  if (element === null || end.offset > element.content.size) return undefined;
-  return start + end.offset;
-}
-
-function endAt(doc: EditorNode, starts: readonly number[], position: number): CommentEnd | undefined {
-  for (let element = starts.length - 1; element >= 0; element--) {
-    const start = starts[element]!;
-    if (position < start) continue;
-    const node = doc.nodeAt(start - 1);
-    if (node === null || position > start + node.content.size) return undefined;
-    return { element, offset: position - start };
-  }
-  return undefined;
 }
 
 /* ---------------------------------------------------------------- escaping */

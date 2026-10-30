@@ -22,6 +22,7 @@
  */
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
+import type { Ledger } from "../../../src/project/ledger.ts";
 import { element } from "../screens/element.ts";
 import { menuRow } from "../screens/menu.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
@@ -48,6 +49,11 @@ export interface ShellScreen {
   readonly whenSwitchedAway: (act: () => void) => () => void;
   /** The writer came back to Write-ist. Handed straight on, like the other. */
   readonly whenSwitchedBack: (act: () => void) => () => void;
+  /**
+   * The writer's days. Handed straight to the workspace, the way the filesystem
+   * is. The shell does not record a day and does not know what is being counted.
+   */
+  readonly ledger: () => Ledger | undefined;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -116,6 +122,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     setStatus,
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
+    ledger: screen.ledger,
   });
 
   return { gestures, unmount: mounted.unmount, report };

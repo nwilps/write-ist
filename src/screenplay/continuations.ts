@@ -49,6 +49,37 @@ export function hasContinuation(cue: string): boolean {
 }
 
 /**
+ * Whether the cue at `index` is the same speaker resuming after a break, in
+ * the same scene.
+ *
+ * A scene heading starts the speaker fresh. Anything that is not part of a
+ * speech — action, most of all — is a break. Dialogue and a parenthetical are
+ * not. A blank line is not an element on disk (ADR-0019) and is not looked at.
+ * Import and typing both ask this; neither keeps a second copy of the walk.
+ */
+export function cueResumes(
+  lines: readonly { readonly type: Element["type"]; readonly text: string }[],
+  index: number,
+): boolean {
+  const cue = lines[index];
+  if (cue === undefined || cue.type !== "character") return false;
+  const name = characterName(cue.text);
+  if (name === "") return false;
+
+  let interrupted = false;
+  for (let i = index - 1; i >= 0; i--) {
+    const line = lines[i]!;
+    // An empty scene heading is still a scene heading: it starts the speaker
+    // fresh. Any other empty line is spacing and is stepped over.
+    if (line.type === "scene-heading") return false;
+    if (line.text === "") continue;
+    if (line.type === "character") return interrupted && characterName(line.text) === name;
+    if (!SPEECH.has(line.type)) interrupted = true;
+  }
+  return false;
+}
+
+/**
  * Add `(CONT'D)` to every cue where the same character resumes after an
  * interruption, within a scene.
  *
@@ -56,30 +87,10 @@ export function hasContinuation(cue: string): boolean {
  * keeps the rule computable from the element sequence alone.
  */
 export function maintainContinuations(document: ScreenplayDocument): ContinuationResult {
-  let lastSpeaker: string | null = null;
-  let interrupted = false;
   let added = 0;
 
-  const elements = document.elements.map((element): Element => {
-    if (element.type === "scene-heading") {
-      lastSpeaker = null;
-      interrupted = false;
-      return element;
-    }
-
-    if (element.type !== "character") {
-      // Anything that is not part of a speech breaks the speaker's run.
-      if (!SPEECH.has(element.type)) interrupted = true;
-      return element;
-    }
-
-    const speaker = characterName(element.text);
-    const resuming = lastSpeaker === speaker && interrupted;
-    lastSpeaker = speaker;
-    interrupted = false;
-
-    if (!resuming || hasContinuation(element.text)) return element;
-
+  const elements = document.elements.map((element, index): Element => {
+    if (!cueResumes(document.elements, index) || hasContinuation(element.text)) return element;
     added++;
     return { ...element, text: appendContinuation(element.text) };
   });

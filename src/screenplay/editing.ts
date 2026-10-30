@@ -63,6 +63,7 @@ import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
+import { elementAt, positionOfElement } from "./place.ts";
 import { screenplaySchema } from "./schema.ts";
 
 /**
@@ -187,26 +188,21 @@ function placeComments(doc: EditorNode): readonly PlacedComment[] {
   if (!Array.isArray(held) || held.length === 0) return [];
   const comments = held as readonly Comment[];
 
-  // Where each element's text starts, by element index. `title_line* element*`
-  // (`src/screenplay/schema.ts`), so the elements are the tail of the
-  // document's children.
-  const starts: number[] = [];
-  let at = 0;
+  let elements = 0;
   doc.forEach((child) => {
-    if (child.type.name === "element") starts.push(at + 1);
-    at += child.nodeSize;
+    if (child.type.name === "element") elements += 1;
   });
 
   const placed: PlacedComment[] = [];
   for (const comment of comments) {
-    const start = positionOf(doc, starts, comment.start);
-    const end = positionOf(doc, starts, comment.end);
+    const start = positionOfElement(doc, comment.start.element, comment.start.offset);
+    const end = positionOfElement(doc, comment.end.element, comment.end.offset);
     // Loud rather than silently dropped (ADR-0008 rule 4). `fromEditorDocument`
     // makes the same check for the same reason; a comment whose end is not a
     // place in the manuscript is a bug upstream, not a comment to discard.
     if (start === undefined || end === undefined) {
       throw new Error(
-        `comment ${comment.id} is anchored outside a manuscript of ${starts.length} elements`,
+        `comment ${comment.id} is anchored outside a manuscript of ${elements} elements`,
       );
     }
     placed.push({ id: comment.id, remark: comment.remark, start, end });
@@ -214,54 +210,31 @@ function placeComments(doc: EditorNode): readonly PlacedComment[] {
   return placed;
 }
 
-function positionOf(
-  doc: EditorNode,
-  starts: readonly number[],
-  end: CommentEnd,
-): number | undefined {
-  const start = starts[end.element];
-  if (start === undefined) return undefined;
-  const element = doc.nodeAt(start - 1);
-  if (element === undefined || element === null || end.offset > element.content.size) {
-    return undefined;
-  }
-  return start + end.offset;
-}
-
-/** The comments as the model holds them, rebuilt from the positions. */
+/**
+ * The comments as the model holds them, rebuilt from the positions.
+ *
+ * The index is the on-page one, blank lines counted. `manuscriptOf` is what
+ * drops the blanks, and it relocates these ends when it does. Using the
+ * manuscript numbering here would move a remark before the file was written.
+ */
 function commentsFrom(doc: EditorNode, placed: readonly PlacedComment[]): readonly Comment[] {
   if (placed.length === 0) return [];
-  const titleLines = titleLineCount(doc);
 
   const comments: Comment[] = [];
   for (const comment of placed) {
-    const start = endAt(doc, comment.start, titleLines);
-    const end = endAt(doc, comment.end, titleLines);
+    const start = elementAt(doc, comment.start);
+    const end = elementAt(doc, comment.end);
     // Both ends were mapped out of every element there is — the manuscript no
     // longer holds the words the remark was about.
     if (start === undefined || end === undefined) continue;
-    comments.push({ id: comment.id, remark: comment.remark, start, end });
+    comments.push({
+      id: comment.id,
+      remark: comment.remark,
+      start: { element: start.element, offset: start.offset },
+      end: { element: end.element, offset: end.offset },
+    });
   }
   return comments;
-}
-
-/**
- * One position as an element and an offset.
- *
- * `resolve` walks the document's depth rather than its length, so this costs
- * the same on a hundred elements and on three thousand.
- */
-function endAt(doc: EditorNode, position: number, titleLines: number): CommentEnd | undefined {
-  const at = doc.resolve(position);
-  if (at.depth !== 1 || at.parent.type.name !== "element") return undefined;
-  return { element: at.index(0) - titleLines, offset: at.parentOffset };
-}
-
-/** How many title-page lines the document opens with. They come first. */
-function titleLineCount(doc: EditorNode): number {
-  let lines = 0;
-  while (lines < doc.childCount && doc.child(lines).type.name === "title_line") lines++;
-  return lines;
 }
 
 function same(held: readonly Comment[], rebuilt: readonly Comment[]): boolean {

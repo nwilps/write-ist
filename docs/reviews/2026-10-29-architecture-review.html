@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for Write-ist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "neutral",
+        securityLevel: "loose",
+        flowchart: { curve: "basis", padding: 12 },
+      });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep {
+        background: linear-gradient(160deg, #0f172a, #1e293b);
+        color: #f8fafc;
+      }
+      .chip {
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased">
+    <main class="max-w-3xl mx-auto px-4 py-8 sm:px-6 sm:py-12 space-y-10">
+      <header class="space-y-5">
+        <p class="text-xs uppercase tracking-widest text-stone-500">Write-ist · 29 October 2026</p>
+        <h1 class="font-serif text-4xl tracking-tight">Architecture review</h1>
+        <p class="text-stone-600 leading-relaxed">
+          Slice 1 is in. Four places where one idea is answered more than once.
+        </p>
+        <p class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+          Done, in this order: where you are, then who is speaking, then a writing day.
+          The name list waits for spellcheck. 656 tests passed.
+        </p>
+
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+          <div class="flex gap-2 items-start">
+            <span class="mt-1 h-4 w-6 shrink-0 rounded border-2 border-slate-800"></span>
+            <span><span class="font-medium">Module</span> — a piece of the program, with a front door.</span>
+          </div>
+          <div class="flex gap-2 items-start">
+            <span class="mt-1 h-4 w-6 shrink-0 rounded border-2 border-dashed border-slate-500"></span>
+            <span><span class="font-medium">Seam</span> — where you can change behaviour without editing the caller.</span>
+          </div>
+          <div class="flex gap-2 items-start">
+            <span class="mt-1 h-4 w-6 shrink-0 rounded deep"></span>
+            <span><span class="font-medium">Deep</span> — a lot of behaviour behind a small front door.</span>
+          </div>
+          <div class="flex gap-2 items-start">
+            <span class="mt-1 h-4 w-6 shrink-0 rounded border-2 border-red-600"></span>
+            <span><span class="font-medium">Leak</span> — a caller has to know something that should stay inside.</span>
+          </div>
+        </dl>
+        <p class="text-sm text-stone-600 leading-relaxed">
+          <span class="font-medium text-slate-800">Interface</span> is everything a caller must know to use a module.
+          <span class="font-medium text-slate-800">Locality</span> means a bug lives in one place.
+          <span class="font-medium text-slate-800">Leverage</span> means one front door serves many callers.
+          <span class="font-medium text-slate-800">Shallow</span> means the front door is almost as complicated as the inside.
+        </p>
+        <nav class="flex flex-wrap gap-2 text-sm">
+          <a class="underline decoration-stone-300 underline-offset-4" href="#where">1 · Where you are</a>
+          <a class="underline decoration-stone-300 underline-offset-4" href="#speaking">2 · Who is speaking</a>
+          <a class="underline decoration-stone-300 underline-offset-4" href="#day">3 · A writing day</a>
+          <a class="underline decoration-stone-300 underline-offset-4" href="#names">4 · Names and headings</a>
+        </nav>
+        <p class="text-sm text-stone-600 leading-relaxed">
+          <span class="font-medium text-slate-800">in-process</span> means the work is calculation in memory, so a test calls it directly.
+          <span class="font-medium text-slate-800">local-substitutable</span> means tests use a stand-in folder instead of the real disk.
+          That stand-in is an <span class="font-medium text-slate-800">adapter</span>: something that fills the same seam.
+        </p>
+      </header>
+
+      <section id="candidates" class="space-y-12">
+        <!-- 1 -->
+        <article id="where" class="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl tracking-tight">One place that knows where you are</h2>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900">Strong</span>
+            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">in-process</span>
+          </div>
+          <p class="font-mono text-xs leading-relaxed text-stone-600">
+            src/screenplay/editing.ts<br />
+            src/screenplay/clipboard.ts<br />
+            app/src/workspaces/editor/editor.ts
+          </p>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+              <p class="chip text-stone-500">Before · three answers</p>
+              <div class="min-h-80 rounded-lg border border-stone-200 bg-stone-50 p-3 flex flex-col justify-between gap-3">
+                <p class="text-xs text-stone-500">The same line, numbered three ways. A blank line is an element on screen and spacing in the file.</p>
+                <div class="space-y-2">
+                  <div class="flex gap-1 text-[11px]">
+                    <span class="flex-1 rounded bg-white border border-stone-300 px-1 py-2 text-center">INT. ROOM</span>
+                    <span class="w-14 rounded border border-red-400 bg-red-50 px-1 py-2 text-center text-red-700">blank</span>
+                    <span class="flex-1 rounded bg-white border border-stone-300 px-1 py-2 text-center">EDWARD</span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-1 text-[11px]">
+                    <div class="rounded border border-red-300 bg-white p-2">
+                      <p class="chip text-red-700">Comments</p>
+                      <p class="mt-1 font-mono">0 · 1 · 2</p>
+                      <p class="text-stone-500">counts the blank</p>
+                    </div>
+                    <div class="rounded border border-red-300 bg-white p-2">
+                      <p class="chip text-red-700">Paste</p>
+                      <p class="mt-1 font-mono">own copy</p>
+                      <p class="text-stone-500">same sum, second time</p>
+                    </div>
+                    <div class="rounded border border-red-300 bg-white p-2">
+                      <p class="chip text-red-700">Page count</p>
+                      <p class="mt-1 font-mono">0 · skip · 1</p>
+                      <p class="text-stone-500">untested, in the window</p>
+                    </div>
+                  </div>
+                </div>
+                <p class="text-xs text-red-700">A caller must know which numbering it was given.</p>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <p class="chip text-stone-500">After · one answer</p>
+              <div class="min-h-80 rounded-lg border border-slate-800 p-3 flex flex-col deep">
+                <div class="flex flex-wrap gap-1">
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-300">Comments</span>
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-300">Paste</span>
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-300">Page count</span>
+                  <span class="rounded border border-dashed border-emerald-400/70 px-2 py-0.5 text-[10px] uppercase tracking-wider text-emerald-200">Spellcheck, next</span>
+                </div>
+                <div class="mt-3 flex-1 rounded border border-slate-600 p-3">
+                  <p class="chip text-slate-400">Module · where in the manuscript</p>
+                  <ul class="mt-3 space-y-1 text-sm text-slate-300">
+                    <li>Title page is not an element.</li>
+                    <li>A blank line is spacing, not an element.</li>
+                    <li>This spot is element 1, a character cue.</li>
+                  </ul>
+                </div>
+                <p class="mt-2 text-xs text-emerald-200">One seam. Tests call it. The window stops doing sums.</p>
+              </div>
+            </div>
+          </div>
+
+          <p><span class="font-medium">Problem.</span> Comments, paste, and the page count each decide which element a spot belongs to, and a blank line makes those answers diverge.</p>
+          <p><span class="font-medium">Solution.</span> One module answers “where is this in the manuscript?”; the three callers ask it, and spellcheck can ask it next.</p>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm text-stone-700">
+            <li>Locality: one position module</li>
+            <li>Leverage: three callers, one seam</li>
+            <li>Interface: one question</li>
+            <li>Tests hit that seam</li>
+            <li>Page index leaves the window</li>
+            <li>Blank lines stop leaking</li>
+          </ul>
+        </article>
+
+        <!-- 2 -->
+        <article id="speaking" class="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+          <h2 class="font-serif text-2xl tracking-tight">One rule for who is speaking</h2>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900">Strong</span>
+            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">in-process</span>
+          </div>
+          <p class="font-mono text-xs leading-relaxed text-stone-600">
+            src/screenplay/continuations.ts<br />
+            src/screenplay/maintenance.ts
+          </p>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="rounded-lg border border-stone-200 bg-white p-3 overflow-x-auto">
+              <p class="chip text-stone-500 mb-2">Before · two walks</p>
+              <pre class="mermaid">
+flowchart TB
+  importNode["Import"] --> forward["Walk the manuscript forward"]
+  typeNode["Typing"] --> back["Walk the page backward"]
+  forward --> resumeA["Same speaker after a break?"]
+  back --> resumeB["Same speaker after a break?"]
+  name["Strip the cue down to a name"] --> forward
+  name --> back
+  classDef leak stroke:#dc2626,stroke-width:2px
+  class resumeA,resumeB leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-800 p-3 deep min-h-72 flex flex-col">
+              <p class="chip text-slate-400 mb-2">After · one rule</p>
+              <div class="flex gap-2 text-[10px] uppercase tracking-wider text-slate-300">
+                <span class="rounded border border-dashed border-slate-500 px-2 py-1">Import</span>
+                <span class="rounded border border-dashed border-slate-500 px-2 py-1">Typing</span>
+                <span class="rounded border border-dashed border-emerald-400/70 px-2 py-1 text-emerald-200">Name list, next</span>
+              </div>
+              <div class="mt-3 flex-1 rounded border border-slate-600 p-3 text-sm">
+                <p class="chip text-slate-400">Module · who is speaking</p>
+                <p class="mt-3 text-slate-200">EDWARD (V.O.) (CONT'D) is Edward.</p>
+                <p class="mt-2 text-slate-300">A scene heading starts him fresh. Action between two cues is a break. Add (CONT'D) only — never touch (V.O.) or (O.S.).</p>
+                <p class="mt-3 text-xs text-slate-400">Typing still decides <em>when</em>: not while the caret is inside the cue.</p>
+              </div>
+            </div>
+          </div>
+
+          <p><span class="font-medium">Problem.</span> Import walks the elements forward to add (CONT'D); typing walks the page backward and decides the same resumption a second time.</p>
+          <p><span class="font-medium">Solution.</span> One rule over the element sequence says whether a cue resumes; import and typing both call it, and a name list can call it too.</p>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm text-stone-700">
+            <li>Locality: the resume rule once</li>
+            <li>Leverage: import and typing</li>
+            <li>Name stripping stays shared</li>
+            <li>Tests share one table</li>
+            <li>Blank lines stay inside</li>
+            <li>Follows ADR-0026 and ADR-0029</li>
+          </ul>
+        </article>
+
+        <!-- 3 -->
+        <article id="day" class="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+          <h2 class="font-serif text-2xl tracking-tight">One place that writes a writing day</h2>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-950">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">local-substitutable</span>
+          </div>
+          <p class="font-mono text-xs leading-relaxed text-stone-600">
+            src/project/ledger.ts<br />
+            app/src/main.ts<br />
+            app/src/workspaces/editor/editor.ts
+          </p>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+              <p class="chip text-stone-500">Before · two opens</p>
+              <div class="min-h-72 rounded-lg border border-stone-200 bg-stone-50 p-4 flex flex-col justify-between gap-3">
+                <div class="space-y-2">
+                  <div class="rounded border border-slate-300 bg-white px-3 py-2">
+                    <p class="chip text-stone-500">Home screen</p>
+                    <p class="text-sm">opens the ledger · writes opened and closed</p>
+                  </div>
+                  <div class="rounded border border-red-400 bg-white px-3 py-2">
+                    <p class="chip text-red-700">Editor, on leaving</p>
+                    <p class="text-sm">opens the ledger again · writes the day’s words and pages</p>
+                    <p class="text-xs text-red-700 mt-1">Only after a save that worked. A failure here must not keep the project open. That rule lives in the window.</p>
+                  </div>
+                </div>
+                <div class="rounded border border-stone-400 bg-white px-3 py-2 text-center text-sm">ledger.txt</div>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <p class="chip text-stone-500">After · one module</p>
+              <div class="min-h-72 rounded-lg border border-slate-800 p-4 deep flex flex-col">
+                <div class="flex flex-wrap gap-1">
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider">Launched</span>
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider">Quit</span>
+                  <span class="rounded border border-dashed border-slate-400 px-2 py-0.5 text-[10px] uppercase tracking-wider">Project closed</span>
+                </div>
+                <div class="mt-3 flex-1 rounded border border-slate-600 p-3">
+                  <p class="chip text-slate-400">Module · a writing day</p>
+                  <p class="mt-2 text-sm text-slate-200">One open of the file. The day line is written only after the manuscript is safe. A ledger failure never blocks leaving.</p>
+                </div>
+                <p class="mt-2 text-xs text-slate-400">Tests use the stand-in folder. The real disk stays an adapter behind the seam.</p>
+              </div>
+            </div>
+          </div>
+
+          <p><span class="font-medium">Problem.</span> Launch writes “opened” and “closed”; leaving a project opens the ledger a second time to write that day’s words and pages, and the tests never take that path.</p>
+          <p><span class="font-medium">Solution.</span> One module hears launched, quit, and project closed, and it is the only thing that appends a line.</p>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm text-stone-700">
+            <li>Locality: when a day is written</li>
+            <li>Leverage: three moments, one file</li>
+            <li>One open of the ledger</li>
+            <li>Close path becomes testable</li>
+            <li>Failure still never blocks</li>
+            <li>Follows ADR-0017</li>
+          </ul>
+        </article>
+
+        <!-- 4 -->
+        <article id="names" class="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6">
+          <h2 class="font-serif text-2xl tracking-tight">Names and headings, derived once</h2>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">Speculative</span>
+            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">in-process</span>
+          </div>
+          <p class="font-mono text-xs leading-relaxed text-stone-600">
+            src/screenplay/continuations.ts<br />
+            no list module yet · ADR-0029
+          </p>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="min-h-64 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4 flex flex-col justify-between gap-3">
+              <p class="chip text-stone-500">Before · the next slice arrives</p>
+              <div class="space-y-2 text-sm">
+                <div class="rounded border border-stone-300 bg-white px-3 py-2">(CONT'D) already strips a cue</div>
+                <div class="rounded border border-red-300 bg-white px-3 py-2 text-red-800">Name suggestions will scan the script somewhere new</div>
+                <div class="rounded border border-red-300 bg-white px-3 py-2 text-red-800">A third walk, easy to disagree with the first two</div>
+              </div>
+              <p class="text-xs text-stone-500">Nothing stores a word bank. That part is already decided.</p>
+            </div>
+            <div class="min-h-64 rounded-lg border border-slate-800 p-4 deep flex flex-col">
+              <p class="chip text-slate-400">After · one derived list</p>
+              <div class="mt-3 flex-1 rounded border border-slate-600 p-3">
+                <p class="chip text-slate-400">Module · names and headings</p>
+                <p class="mt-2 text-sm text-slate-200">Read off the elements. Edward once, however many times the cue says EDWARD (V.O.).</p>
+                <p class="mt-2 text-xs text-slate-400">Not built until you ask. The point is where it would live.</p>
+              </div>
+            </div>
+          </div>
+
+          <p><span class="font-medium">Problem.</span> Name suggestions do not exist yet, and the obvious place to build them is a fresh scan beside the two walks that already know a cue.</p>
+          <p><span class="font-medium">Solution.</span> When that slice starts, derive the list in one module from the element sequence — the same name a (CONT'D) cue already yields — and do not store it.</p>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm text-stone-700">
+            <li>Locality: one derived list</li>
+            <li>Leverage: suggestions and (CONT'D)</li>
+            <li>No sidecar, no word bank</li>
+            <li>Waits for the slice 2 ticket</li>
+          </ul>
+          <p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Not a contradiction of ADR-0029. It is that decision, given a module to live in. Building it before the ticket would be early.
+          </p>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl border border-slate-800 deep p-5 sm:p-7 space-y-3">
+        <p class="chip text-emerald-200">Top recommendation</p>
+        <h2 class="font-serif text-3xl tracking-tight">
+          <a class="underline decoration-emerald-700 underline-offset-4" href="#where">One place that knows where you are</a>
+        </h2>
+        <p class="text-slate-200 leading-relaxed">
+          The page count you just shipped depends on a private sum in the window, and nothing tests it.
+          Comments and paste each keep their own copy. Spellcheck next needs the element under the caret — character cues and scene headings are skipped — and a fourth copy would be the expensive way to learn they disagree.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
