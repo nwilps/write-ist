@@ -239,6 +239,12 @@ the screen happens to have drawn. For screenplay it is semantic — roughly one 
 screen time — so a page count is a claim about the work, not a display detail.
 _Avoid_: sheet, leaf, screen
 
+**Paper**:
+The visual sheet in the editor on which the writer types the screenplay — its shape, size,
+color and margins, and where text sits on it. It is how the manuscript looks, not a measure of
+it: a **Page** is the counted fact, the Paper is the surface the writer sees.
+_Avoid_: canvas, sheet, page (that is the counted unit)
+
 **Target**:
 A page number the writer authors on a plan card, stating where they intend something to
 land. A target is an intention; a page is a fact. Comparing the two is the point of the Plan
