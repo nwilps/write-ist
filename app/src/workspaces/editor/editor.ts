@@ -68,6 +68,7 @@ import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
 import { pageAtElement, pageStatusText } from "../../../../src/screenplay/paginate.ts";
 import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
+import { sidePanels } from "./panels.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
@@ -95,7 +96,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     textContent: "Reading your screenplay…",
   });
   page.append(reading);
-  into.replaceChildren(page);
+  // The paper with a column of panels either side (the desk design, §2.2).
+  let startSearch = (): void => {};
+  const panels = sidePanels(() => startSearch());
+  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   let view: EditorView | undefined;
   /** How to finish and let go. Undefined until the manuscript has been read. */
@@ -138,6 +142,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           laid = layout(imported.document);
           seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
+          panels.update(state);
           showPages();
         },
         // The dated copy is already beside the manuscript. Nothing is said:
@@ -247,6 +252,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           }
           view?.updateState(state);
+          panels.update(state);
           // Selection moves still refresh the current page; the total only
           // moves when the manuscript does.
           if (transaction.docChanged || transaction.selectionSet) showPages();
@@ -265,14 +271,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },
       });
+      panels.attach(view);
+      panels.update(state);
       showPages();
 
       // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
       // Capture, so the editor's own Enter handling never sees it.
-      const asksForSearch = (event: KeyboardEvent): void => {
-        if (!asksToSearch(event) || searching !== undefined || view === undefined) return;
-        event.preventDefault();
-        event.stopPropagation();
+      startSearch = (): void => {
+        if (searching !== undefined || view === undefined) return;
         searching = openSearch(into, {
           doc: () => state.doc,
           pageOf: (index) => laid.pagination.pageOfElement[index],
@@ -287,6 +293,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             view?.focus();
           },
         });
+      };
+      const asksForSearch = (event: KeyboardEvent): void => {
+        if (!asksToSearch(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        startSearch();
       };
       window.addEventListener("keydown", asksForSearch, true);
       stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);

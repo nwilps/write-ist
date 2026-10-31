@@ -155,6 +155,41 @@ export const cycleType: Command = (state, dispatch) => {
 };
 
 /**
+ * The element types a writer can ask for by number, in the order the desk's
+ * element panel lists them: Ctrl+1 is a scene heading, Ctrl+7 centred text.
+ */
+export const NUMBERED_TYPES: readonly ElementType[] = [
+  "scene-heading",
+  "action",
+  "character",
+  "dialogue",
+  "parenthetical",
+  "transition",
+  "centered",
+];
+
+/**
+ * Make every element the selection touches this type.
+ *
+ * The same move as Tab, to a type named rather than the next in the cycle, and
+ * one undo step like it. The title page is not an element and is left alone.
+ */
+export function setElementType(type: ElementType): Command {
+  return (state, dispatch) => {
+    if (dispatch === undefined) return true;
+    const { from, to } = state.selection;
+    const tr = state.tr;
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (node.type.name !== "element") return node.type.name === "doc";
+      if (node.attrs["type"] !== type) tr.setNodeMarkup(pos, undefined, attrsForType(node.attrs, type));
+      return false;
+    });
+    if (tr.docChanged) dispatch(structural(tr));
+    return true;
+  };
+}
+
+/**
  * Backspace at the very start of an element: join it onto the one above,
  * which keeps its type. Anywhere else the key is left to delete a character.
  */
@@ -208,4 +243,5 @@ export const elementKeys = keymap({
   "Mod-Backspace": joinBackwards,
   Delete: joinForwards,
   "Mod-Delete": joinForwards,
+  ...Object.fromEntries(NUMBERED_TYPES.map((type, at) => [`Mod-${at + 1}`, setElementType(type)])),
 });
