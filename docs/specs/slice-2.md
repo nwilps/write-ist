@@ -152,6 +152,10 @@ the code rather than assuming):
   The engine already has opinions (keep a cue with its dialogue, no lone line). Whether a *parenthetical*
   may end a page, and whether action may split mid-paragraph, differ across tools. Default: copy what
   Final Draft's *Big Fish* PDF does, since the geometry is already measured from it.
+  **Decided (Noah):** match Final Draft and the industry standard as closely as possible — dialogue
+  splits with `(MORE)` / `CONT'D`, action splits at sentence boundaries, minimum lines kept either
+  side, no cue, heading or parenthetical alone. The rules, with the source of each, are in
+  [ADR-0033](../adr/0033-a-page-breaks-the-way-final-draft-breaks-it.md).
 - **Q-B. Sheet size.** The brief says "standard screenplay pages", which is US Letter. A4 is out of
   scope here; say so if you want it in.
 

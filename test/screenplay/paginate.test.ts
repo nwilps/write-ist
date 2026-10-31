@@ -17,6 +17,7 @@ import {
   pageStatusText,
   paginate,
   wrapCount,
+  wrapStarts,
 } from "../../src/screenplay/paginate.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
@@ -43,15 +44,17 @@ function documentOf(elements: Element[], titlePage: ScreenplayDocument["titlePag
 describe("paginate against Final Draft's published counts", () => {
   it("counts Brick & Steel as 4 pages", () => {
     // Final Draft's PDF of the fountain.io fixture is 4 pages. Our engine
-    // lands on 4 with the measured geometry table and the keep-with-next
-    // orphan rule recorded in `paginate.ts`.
+    // lands on 4 with the measured geometry table and the page-break rules
+    // of ADR-0033. Q-A changed where pages break (speeches now split, with
+    // (MORE)/CONT'D) but not this count: 4 before and after.
     expect(pageCount(loadFixture("Brick-&-Steel.fountain"))).toBe(4);
   });
 
   it("counts Big Fish within one page of 120", () => {
     // Final Draft's PDF of Big Fish is 120 numbered body pages (title page
     // and the unnumbered epigraph page excluded). Geometry widths come from
-    // that same PDF (`geometry.ts`); the engine lands on 120.
+    // that same PDF (`geometry.ts`); the engine lands on 120. Q-A (ADR-0033)
+    // added 9 splits to the layout and left the count at 120.
     const pages = pageCount(loadFixture("Big-Fish.fountain"));
     expect(Math.abs(pages - 120)).toBeLessThanOrEqual(1);
     expect(pages).toBe(120);
@@ -161,21 +164,68 @@ describe("status text and caret page", () => {
 });
 
 describe("line wrapping against the geometry table", () => {
+  /** The lines of `text`, as printed: each from its start to the next, less the spaces a wrap drops. */
+  const linesOf = (text: string, width: number): string[] => {
+    const starts = wrapStarts(text, width);
+    return starts.map((at, i) => text.slice(at, starts[i + 1]).trimEnd());
+  };
+
   it("wraps at each element's measured width, greedily at spaces", () => {
     // Recorded wrap comparison (#48): Final Draft's Big Fish PDF was the
     // source of ELEMENT_GEOMETRY. Action measure is 61 characters; a line of
-    // 61 fits once, 62 (breaking after a hyphen in the PDF) is recorded in
-    // geometry.ts as the three known 62-character action lines. Space-only
-    // greedy wrap at 61 is what ADR-0024 measured against browser-style
-    // breaks — zero page drift on the corpus (`docs/research/wrap-divergence.md`).
+    // 61 fits once, and 62 does not unless it ends on a hyphen (below).
     expect(PAGE.linesPerPage).toBe(55);
     expect(ELEMENT_GEOMETRY.action.width).toBe(61);
     expect(ELEMENT_GEOMETRY.dialogue.width).toBe(39);
     expect(wrapCount("a".repeat(61), 61)).toBe(1);
     expect(wrapCount("a".repeat(62), 61)).toBe(2);
-    expect(wrapCount("one two three four five six seven eight nine ten eleven", 20)).toBe(
-      wrapCount("one two three four five six seven eight nine ten eleven", 20),
-    );
+  });
+
+  // The next four are lines of Final Draft's Big Fish PDF (ADR-0024, amended).
+  it("breaks after a hyphen, as Final Draft does", () => {
+    expect(
+      linesOf(
+        "By the time I was born, he was already a legend.  He'd taken more hundred-dollar lures than any fish in Alabama.",
+        ELEMENT_GEOMETRY.dialogue.width,
+      ).slice(0, 3),
+    ).toEqual([
+      "By the time I was born, he was already",
+      "a legend.  He'd taken more hundred-",
+      "dollar lures than any fish in Alabama.",
+    ]);
+    // A hyphen is not a break before a digit or a space.
+    expect(linesOf("a -5 b-5 c", 3)).toEqual(["a", "-5", "b-5", "c"]);
+  });
+
+  it("lets a hyphen hang one past the measure, and nothing else", () => {
+    const width = ELEMENT_GEOMETRY.action.width;
+    expect(
+      linesOf("That hug finished, Sandra pushes past her son to her daughter-in-law.  Seeing it.", width),
+    ).toEqual(["That hug finished, Sandra pushes past her son to her daughter-", "in-law.  Seeing it."]);
+    expect(
+      linesOf("As he leaves, Will mutters in perfect unison with his father--", width),
+    ).toEqual(["As he leaves, Will mutters in perfect unison with his father--"]);
+    expect(
+      linesOf("He didn't mean for that to sound so pointed.  Taking the half-empty Ensure.", width)[0],
+    ).toBe("He didn't mean for that to sound so pointed.  Taking the half-");
+    expect(wrapCount("a".repeat(61) + "-", 61)).toBe(2);
+  });
+
+  it("measures two spaces after a full stop as two", () => {
+    // Final Draft draws the two spaces and wraps them as two. Counted as one,
+    // "or" would fit after "faster" (39) and the PDF's line would not be the
+    // PDF's line: Big Fish's opening speech, as the PDF sets it.
+    expect(
+      linesOf(
+        "There are some fish that cannot be caught.  It's not that they're faster or stronger than other fish.  They're just touched by something extra.",
+        ELEMENT_GEOMETRY.dialogue.width,
+      ),
+    ).toEqual([
+      "There are some fish that cannot be",
+      "caught.  It's not that they're faster",
+      "or stronger than other fish.  They're",
+      "just touched by something extra.",
+    ]);
   });
 });
 

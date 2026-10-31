@@ -30,6 +30,7 @@ import {
 import { normaliseSource } from "../../src/normalise.ts";
 import { assertBytesEqual, firstByteDifference } from "../support/byte-diff.ts";
 import { writeAndReadBack, writeBytesAndReadBack } from "../support/files.ts";
+import { withoutIndentation } from "../support/indentation.ts";
 import { describeCorpus, readCorpusBytes, readCorpusText } from "../support/corpus.ts";
 
 /** The corpus as it sits on disk, untouched. */
@@ -99,16 +100,17 @@ describeCorpus("fidelity: a file Write-ist has never seen", () => {
     expect(report.applied).toEqual([
       { kind: "trailing-whitespace-trimmed", count: 38 },
       { kind: "blank-line-runs-collapsed", count: 2 },
+      { kind: "leading-whitespace-dropped", count: withoutIndentation(normalisedText()).lines },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
     ]);
   });
 
-  it("changes nothing but the 201 cues, line for line", () => {
+  it("changes nothing but the indentation and the 201 cues, line for line", () => {
     // The guard against a tautology. Asserting a byte count only says the file
     // is the right size; this says every line is either untouched or a
     // character cue with an extension appended, and counts them. It is built
     // from the normalised source by hand, not from the parser.
-    const before = normalisedText().split("\n");
+    const before = withoutIndentation(normalisedText()).text.split("\n");
     const after = new TextDecoder().decode(importedBytes()).split("\n");
 
     expect(after).toHaveLength(before.length);
@@ -157,10 +159,11 @@ describeCorpus("fidelity with (CONT'D) maintenance switched off", () => {
   // convention. With it off, the corpus is returned exactly as written.
   const options = { maintainContinuations: false } as const;
 
-  it("returns the normalised source byte for byte", () => {
+  it("returns the normalised source, less its indentation, byte for byte", () => {
     const { document, report } = importScreenplay(readCorpusBytes(), options);
 
-    const expected = writeAndReadBack("script.normalised.fountain", normalisedText());
+    const dedented = withoutIndentation(normalisedText());
+    const expected = writeAndReadBack("script.normalised.fountain", dedented.text);
     const actual = writeBytesAndReadBack("script.no-contd.fountain", exportScreenplay(document));
 
     assertBytesEqual(expected, actual, {
@@ -168,10 +171,11 @@ describeCorpus("fidelity with (CONT'D) maintenance switched off", () => {
       actualLabel: "round-tripped",
       message: "the round-trip changed the file beyond the declared normalisations",
     });
-    expect(actual.length).toBe(NORMALISED_BYTES);
+    expect(actual.length).toBe(NORMALISED_BYTES - INDENT_BYTES_DROPPED);
     expect(report.applied).toEqual([
       { kind: "trailing-whitespace-trimmed", count: 38 },
       { kind: "blank-line-runs-collapsed", count: 2 },
+      { kind: "leading-whitespace-dropped", count: dedented.lines },
     ]);
   });
 
