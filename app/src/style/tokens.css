@@ -190,7 +190,6 @@
    * From the prototype (`nwilps/write-ist-ng`, `spike/plan.html`) — placement
    * and proportion, not contents.
    */
-  --statusbar-height: 26px;
   /**
    * The room the floating workspace bar needs above the workspace.
    *
@@ -208,6 +207,13 @@
   --size-pill: 32px;
   --size-icon: 14px;
   --space-desk-edge: 12px;
+  /** Between neighbouring pills along the foot (§2.3). */
+  --space-pill-gap: 8px;
+  /** The save pill's icon (§4), a step up from the 14px of the panels. */
+  --size-icon-large: 16px;
+  /** The saving icon breathes between full strength and this, gently. */
+  --opacity-pulse: 0.35;
+  --duration-pulse: 700ms;
   --space-tab-gap: 32px;
   --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 

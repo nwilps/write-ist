@@ -22,6 +22,9 @@ import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 
+/** Where a workspace's work stands against the disk. */
+export type SaveState = "saved" | "unsaved" | "saving";
+
 /** Everything a workspace is given. Nothing in it names a surface. */
 export interface WorkspaceContext {
   /** Which project is open — a path and what its marker says (ADR-0015). */
@@ -56,13 +59,20 @@ export interface WorkspaceContext {
    */
   readonly whenSwitchedBack: (act: () => void) => () => void;
   /**
-   * Put a short line in the status bar beside the project name.
+   * Put a short line in the counts pill, bottom right (the desk design, §2.3).
    *
    * The shell draws the furniture; the workspace decides what the line says.
-   * Slice 1's Editor puts the page count here (#48). The shell still does not
+   * The Editor puts its pages and words here (#48). The shell still does not
    * know what a page is — only that a workspace may have something to say.
    */
   readonly setStatus: (text: string) => void;
+  /**
+   * Say whether the workspace's work is on disk, in the save pill beside the
+   * counts. `saving` is a save that has started and not yet landed; `unsaved`
+   * is work waiting on the next one. A workspace with nothing to save never
+   * calls this, and the pill stays on `saved`.
+   */
+  readonly setSaved: (state: SaveState) => void;
   /**
    * The writer's days (ADR-0017). One ledger for the whole application, opened
    * at launch. A workspace records a day when a project closes; the shell
