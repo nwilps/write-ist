@@ -103,14 +103,8 @@ export function layout(
 
   const splits: Split[] = [];
   for (const chunk of pagination.chunks) {
-    if (!chunk.continues) continue;
-    const el = document.elements[chunk.elementIndex]!;
-    const starts = wrapStarts(el.text, ELEMENT_GEOMETRY[el.type].width);
-    splits.push({
-      elementIndex: chunk.elementIndex,
-      offset: starts[chunk.firstLine + chunk.lines]!,
-      page: chunk.page + 1,
-    });
+    if (chunk.start === 0) continue;
+    splits.push({ elementIndex: chunk.elementIndex, offset: chunk.start, page: chunk.page });
   }
 
   return { totalPages: pagination.totalPages, pages, splits, pagination };
@@ -138,7 +132,8 @@ function pageLines(document: ScreenplayDocument, chunks: readonly Chunk[]): Layo
         const memberChunk: Chunk = {
           page: chunk.page,
           elementIndex: member.elementIndex,
-          firstLine: 0,
+          start: 0,
+          end: elements[member.elementIndex]!.text.length,
           lines: member.lines,
           row,
           continues: false,
@@ -199,13 +194,16 @@ function textLines(
   chunk: Chunk,
   column: LayoutLine["column"],
 ): void {
-  const starts = wrapStarts(el.text, ELEMENT_GEOMETRY[el.type].width);
-  for (let j = chunk.firstLine; j < chunk.firstLine + chunk.lines; j++) {
-    const start = starts[j]!;
-    const text = el.text.slice(start, starts[j + 1] ?? el.text.length).trimEnd();
+  // The chunk is wrapped as a paragraph of its own: a part that begins
+  // mid-line re-wraps from its first word (ADR-0033).
+  const part = el.text.slice(chunk.start, chunk.end);
+  const starts = wrapStarts(part, ELEMENT_GEOMETRY[el.type].width);
+  for (let j = 0; j < starts.length; j++) {
+    const start = chunk.start + starts[j]!;
+    const text = part.slice(starts[j]!, starts[j + 1] ?? part.length).trimEnd();
     const marks = marksOver(el.marks, start, start + text.length);
     into.push({
-      row: chunk.row + (j - chunk.firstLine),
+      row: chunk.row + j,
       column,
       kind: "text",
       elementIndex: chunk.elementIndex,

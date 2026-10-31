@@ -12,7 +12,7 @@ import type { Element, ScreenplayDocument } from "../../src/screenplay/document.
 import { ELEMENT_GEOMETRY, PAGE } from "../../src/screenplay/geometry.ts";
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
 import { layout, type Layout, type LayoutLine } from "../../src/screenplay/layout.ts";
-import { wrapCount } from "../../src/screenplay/paginate.ts";
+import { wrapCount, wrapStarts } from "../../src/screenplay/paginate.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { readFixtureBytes } from "../support/files.ts";
 
@@ -97,8 +97,48 @@ describe("a split falls at the end of a sentence", () => {
     expect(seen).toBeGreaterThan(0);
   });
 
-  it("with no sentence end to use, splits at a line break, still two and two", () => {
-    const wall = Array.from({ length: 120 }, () => "word").join(" ");
+  it("a sentence end in the middle of a line counts; the rest is re-wrapped as a fresh paragraph", () => {
+    // Sentences of 3 lines and a bit: the ends fall mid-line.
+    const width = ELEMENT_GEOMETRY.action.width;
+    const bit = (tag: string) => `${tag} ${"word ".repeat(Math.floor((width * 3.4) / 5))}end.`;
+    const action = [bit("A"), bit("B"), bit("C"), bit("D")].join(" ");
+    let midLine = 0;
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [el("action", action)]);
+      const l = layout(d);
+      const index = d.elements.length - 1;
+      for (const split of l.splits) {
+        const text = d.elements[index]!.text;
+        expect(text.slice(0, split.offset).trimEnd().endsWith("."), `filler ${filler}`).toBe(true);
+        const next = l.pages[split.page - 1]!.lines.find((x) => x.elementIndex === index)!;
+        expect(next.start).toBe(split.offset);
+        expect(next.row).toBe(0);
+        if (wrapStarts(text, width).every((o) => o !== split.offset)) {
+          midLine++;
+        }
+        // The rest wraps afresh: its lines equal the wrap of the rest alone.
+        const rest = text.slice(split.offset);
+        const shown = l.pages[split.page - 1]!.lines.filter((x) => x.elementIndex === index);
+        expect(shown.length).toBeLessThanOrEqual(wrapCount(rest, width));
+        expect(shown[0]!.text).toBe(rest.slice(0, shown[0]!.text.length));
+      }
+    }
+    expect(midLine).toBeGreaterThan(0);
+  });
+
+  it("with no usable sentence end, moves a short element whole to the next page (rule 3)", () => {
+    // 6 lines, one sentence: no 2/2 sentence split, but it fits a page.
+    const wall = sentence("action", 6, "W");
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [el("action", wall)]);
+      const l = layout(d);
+      expect(l.splits, `filler ${filler}`).toEqual([]);
+    }
+  });
+
+  it("a piece too tall for a page splits at a line break, still two and two (rule 4)", () => {
+    const wall = Array.from({ length: 700 }, () => "word").join(" ");
+    expect(wrapCount(wall, ELEMENT_GEOMETRY.action.width)).toBeGreaterThan(PAGE.linesPerPage);
     let seen = 0;
     for (let filler = 0; filler < 60; filler++) {
       const d = slid(filler, [el("action", wall)]);
@@ -113,7 +153,20 @@ describe("a split falls at the end of a sentence", () => {
     expect(seen).toBeGreaterThan(0);
   });
 
-  it("with no sentence end in the room, splits at the last line break that leaves two and two (ADR-0033 rule 7)", () => {
+  it("starts every page at row 0 (rule 5)", () => {
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [
+        el("action", sentence("action", 5, "A")),
+        el("scene-heading", "EXT. YARD - DAY"),
+        el("action", sentence("action", 5, "B")),
+      ]);
+      for (const page of layout(d).pages) {
+        expect(page.lines[0]!.row, `filler ${filler} p${page.number}`).toBe(0);
+      }
+    }
+  });
+
+  it("with no sentence end in the room, a one-sentence piece too tall for a page splits at the last line break that leaves two and two (rule 4)", () => {
     // One 100-line sentence: its only end is the last line, never in the room.
     const wall = sentence("action", 100, "W");
     let seen = 0;
@@ -128,10 +181,10 @@ describe("a split falls at the end of a sentence", () => {
       expect(parts.length, `filler ${filler}`).toBeGreaterThan(1);
       const first = l.pages.find((p) => p.lines.some((x) => x.elementIndex === index))!;
       const head = first.lines.filter((x) => x.elementIndex === index);
-      // The head runs to the foot of the page (the last line break), or is the
-      // two-line minimum when less than two lines of room are left.
+      // The head runs to the foot of the text area (the sheet's last row is
+      // (MORE)'s), or is the two-line minimum when less than two lines remain.
       const lastRow = head[head.length - 1]!.row;
-      expect(lastRow === PAGE.linesPerPage - 1 || head.length === 2, `filler ${filler}`).toBe(true);
+      expect(lastRow === PAGE.linesPerPage - 2 || head.length === 2, `filler ${filler}`).toBe(true);
       seen++;
     }
     expect(seen).toBe(60);
@@ -243,9 +296,9 @@ describe("what a break may not do", () => {
 
 describe("the rules on the committed fixtures", () => {
   const BREAKS = [
-    ["Big-Fish.fountain", { splits: 9, more: 7 }],
+    ["Big-Fish.fountain", { splits: 10, more: 7 }],
     ["Brick-&-Steel.fountain", { splits: 0, more: 0 }],
-    ["Big-Fish-augmented.fountain", { splits: 10, more: 9 }],
+    ["Big-Fish-augmented.fountain", { splits: 9, more: 10 }],
   ] as const;
 
   for (const [name, expected] of BREAKS) {

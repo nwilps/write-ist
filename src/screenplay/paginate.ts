@@ -72,9 +72,11 @@ export interface Chunk {
   /** 1-based page. */
   readonly page: number;
   readonly elementIndex: number;
-  /** Index of this chunk's first wrapped line within the element. 0 unless the element began on an earlier page. */
-  readonly firstLine: number;
-  /** Wrapped lines of the element on this page. */
+  /** Offset into the element's text where this chunk begins; 0 unless it began on an earlier page. */
+  readonly start: number;
+  /** Offset where the chunk's text ends, trailing spaces excluded. */
+  readonly end: number;
+  /** Wrapped lines of this chunk's text, wrapped afresh as a paragraph of its own. */
   readonly lines: number;
   /** 0-based row on the sheet of the chunk's first line (any blank line before it is already counted). */
   readonly row: number;
@@ -117,10 +119,11 @@ type Item = {
  *
  * Line wrapping is greedy at spaces against each element's
  * `ELEMENT_GEOMETRY` width (ADR-0024 measured zero page drift vs browser-style
- * breaks on the corpus). Vertical packing uses `PAGE.linesPerPage` (55), the
- * serialiser's blank-line table, dual-dialogue column stacking, keep-with-next
- * keep-with-next for headings, cues and parentheticals, sentence-end splits of
- * dialogue and action, and a `(MORE)` / `CONT'D` line where a speech crosses a
+ * breaks on the corpus). Vertical packing uses `PAGE.linesPerPage` (55; 54 of
+ * text, the last row being `(MORE)`'s), the serialiser's blank-line table,
+ * dual-dialogue column stacking, keep-with-next for headings, cues and
+ * parentheticals, sentence-end splits of dialogue and action, and a `(MORE)` /
+ * `CONT'D` line where a speech crosses a page. Text starts at row 0 of every
  * page (ADR-0033).
  */
 export function paginate(document: ScreenplayDocument): PaginationDetail {
@@ -169,17 +172,7 @@ export function repaginate(
 
   const fill = previous.fill.slice(0, startPage - 1);
   const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
-  const carryBlank = previous.chunks.find((chunk) => chunk.page === startPage)?.row ?? 0;
-  return pack(
-    items,
-    document.elements.length,
-    startPage,
-    fill,
-    pageOfElement,
-    chunks,
-    0,
-    carryBlank,
-  );
+  return pack(items, document.elements.length, startPage, fill, pageOfElement, chunks);
 }
 
 /**
@@ -192,7 +185,7 @@ function cleanPageStart(previous: PaginationDetail, page: number): number {
   let start = page;
   while (start > 1) {
     const first = previous.chunks.find((chunk) => chunk.page === start);
-    if (first === undefined || (first.firstLine === 0 && !first.contd)) break;
+    if (first === undefined || (first.start === 0 && !first.contd)) break;
     start -= 1;
   }
   return start;
@@ -288,8 +281,6 @@ function pack(
   fillIn: readonly number[],
   pageOfElementIn: readonly (number | undefined)[],
   chunksIn: readonly Chunk[],
-  fromItem = 0,
-  carryBlank = 0,
 ): PaginationDetail {
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: elementCount },
@@ -302,7 +293,7 @@ function pack(
   // not push a phantom fill entry for the page we are about to write.
   let pages = resumeFromPage > 1 ? resumeFromPage : 0;
   let line = 0;
-  const lpp = PAGE.linesPerPage;
+  const lpp = BODY_LINES;
 
   // A page that opens on a speech's continuation starts with the CONT'D cue
   // line; the next chunk placed takes it as its own (`contd`).
@@ -317,7 +308,6 @@ function pack(
     if (speechContinues) {
       const last = chunks.length - 1;
       chunks[last] = { ...chunks[last]!, more: true };
-      line += 1;
     }
     if (pages > 0) fill.push(line);
     pages += 1;
@@ -333,7 +323,8 @@ function pack(
 
   const place = (
     item: Item,
-    firstLine: number,
+    start: number,
+    end: number,
     count: number,
     row: number,
     continues: boolean,
@@ -342,7 +333,8 @@ function pack(
     chunks.push({
       page: pages,
       elementIndex: item.elementIndex,
-      firstLine,
+      start,
+      end,
       lines: count,
       row,
       continues,
@@ -353,7 +345,7 @@ function pack(
     pendingContd = false;
   };
 
-  for (let i = fromItem; i < items.length; i++) {
+  for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
     if (item.forcedBreak) {
       if (pages === 0 || line > 0) newPage();
@@ -362,50 +354,37 @@ function pack(
     }
     if (pages === 0) newPage();
 
-    // The blank that precedes this element is part of its keep-with group.
-    // Captured once when the group is first offered to a page: if a keep rule
-    // pushes the group onto the next page, the blank travels with it (rather
-    // than being suppressed at the top of the new page). Suppressing that
-    // leading blank undershoots Final Draft's published counts on both
-    // fixtures. Recorded, not tuned. Continuation chunks after a split take no
-    // blank — only the group's first placement does.
-    //
-    // On an incremental resume the page opens with `line === 0` without the
-    // prior page having been attempted, so the blank an orphan push carried
-    // over is read back from where the kept layout put the page's first line
-    // (`carryBlank`) rather than guessed again (#87).
-    let blankWithGroup = line === 0 ? 0 : item.blankBefore;
-    if (i === fromItem && resumeFromPage > 1 && line === 0) blankWithGroup = carryBlank;
+    // The blank that precedes this element is part of its keep-with group, and
+    // is spent only where the element follows another on the same page: text
+    // starts at row 0 of every page, as in Final Draft's PDF (ADR-0033 rule 5).
+    let blank = line === 0 ? 0 : item.blankBefore;
 
     const resumesSpeech = continuesSpeech(items, i);
+    let offset = 0;
     let remaining = item.lines;
-    let placed = 0;
 
     while (remaining > 0) {
-      const blank = placed === 0 ? blankWithGroup : 0;
       const room = lpp - line;
 
       // Whole, with whatever must keep company with it (see `fitsStart`).
       const whole = blank + remaining;
-      const keepsRoom =
-        line === 0 ||
-        placed > 0 ||
-        fitsAfter(items, i, room - whole, endsPage(items, i, whole, room));
+      const keepsRoom = line === 0 || offset > 0 || fitsAfter(items, i, room - whole);
       if (whole <= room && keepsRoom) {
-        place(item, placed, remaining, line + blank, false);
+        place(item, offset, item.text.length, remaining, line + blank, false);
         line += whole;
         remaining = 0;
         break;
       }
 
-      // Split at a sentence end, leaving at least two lines on each side.
+      // Split between sentences, leaving at least two lines on each side.
       if (splittable(item)) {
-        const head = splitHead(item, placed, remaining, room - blank - (hasMore(item) ? 1 : 0));
-        if (head > 0) {
-          place(item, placed, head, line + blank, true);
-          line += blank + head;
-          remaining -= head;
-          placed += head;
+        const cut = splitPoint(item, offset, remaining, room - blank);
+        if (cut !== undefined) {
+          place(item, offset, cut.end, cut.head, line + blank, true);
+          line += blank + cut.head;
+          offset = cut.next;
+          remaining = cut.tail;
+          blank = 0;
           newPage(hasMore(item));
           continue;
         }
@@ -413,11 +392,11 @@ function pack(
 
       // Neither fits here: carry the element (and its group) to the next page.
       if (line > 0) {
-        newPage(resumesSpeech && placed === 0);
-        if (resumesSpeech && placed === 0) blankWithGroup = 0;
+        newPage(resumesSpeech && offset === 0);
+        blank = 0;
         continue;
       }
-      place(item, placed, remaining, line + blank, false);
+      place(item, offset, item.text.length, remaining, line + blank, false);
       line += whole;
       remaining = 0;
     }
@@ -437,11 +416,18 @@ function pack(
  * The rules at a break, after Final Draft's defaults (docs/adr/0033).
  *
  * - A scene heading, a character cue and a parenthetical keep with what follows.
- * - Dialogue and action split between sentences, never leaving fewer than two
- *   lines on either side. A split speech is closed by `(MORE)` and reopened by
- *   `CHARACTER (CONT'D)`; a split action is not.
+ * - Dialogue and action split between sentences (mid-line ends count; the rest
+ *   is wrapped afresh), never leaving fewer than two lines on either side. A split speech is closed
+ *   by `(MORE)` and reopened by `CHARACTER (CONT'D)`; a split action is not.
  */
 const MIN_BEFORE = 2;
+
+/**
+ * Lines of text a page holds: the sheet's last row is `(MORE)`'s alone. In
+ * Final Draft's *Big Fish* no line of text reaches row 54 (0-based) except a
+ * `(MORE)`, so the engine charges `(MORE)` nothing and text one line less.
+ */
+const BODY_LINES = PAGE.linesPerPage - 1;
 const MIN_AFTER = 2;
 
 const KEEPS_WITH_NEXT: ReadonlySet<Item["type"]> = new Set([
@@ -468,22 +454,10 @@ function continuesSpeech(items: readonly Item[], i: number): boolean {
   return isSpeechPart(items[i]) && isSpeechPart(items[i - 1]);
 }
 
-/** A speech element with more of the speech after it: ending the page, it must leave a line for `(MORE)`. */
-function hasSpeechSuccessor(items: readonly Item[], i: number): boolean {
-  return isSpeechPart(items[i]) && isSpeechPart(items[i + 1]);
-}
-
-function endsPage(items: readonly Item[], i: number, whole: number, room: number): boolean {
-  return whole === room && hasSpeechSuccessor(items, i);
-}
-
 /**
  * Does what must keep company with item `i` fit in `room` lines after it?
- * `blocked` is a speech element that would end the page with no line left for
- * `(MORE)`.
  */
-function fitsAfter(items: readonly Item[], i: number, room: number, blocked: boolean): boolean {
-  if (blocked) return false;
+function fitsAfter(items: readonly Item[], i: number, room: number): boolean {
   if (!KEEPS_WITH_NEXT.has(items[i]!.type) || items[i]!.band !== undefined) return true;
   return fitsStart(items, i + 1, room);
 }
@@ -493,42 +467,80 @@ function fitsStart(items: readonly Item[], i: number, room: number): boolean {
   const item = items[i];
   if (item === undefined || item.forcedBreak) return true;
   const whole = item.blankBefore + item.lines;
-  if (whole <= room && fitsAfter(items, i, room - whole, endsPage(items, i, whole, room))) {
+  if (whole <= room && fitsAfter(items, i, room - whole)) {
     return true;
   }
   return (
     splittable(item) &&
-    splitHead(item, 0, item.lines, room - item.blankBefore - (hasMore(item) ? 1 : 0)) > 0
+    splitPoint(item, 0, item.lines, room - item.blankBefore) !== undefined
   );
 }
 
-const SENTENCE_END = /[.!?]["'”’)\]]*$/;
 const ABBREVIATION = /\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|Prof|Mt|Lt|Col|Gen|Sgt|Capt|vs)\.["'”’)]*$/;
 
-/** For each wrapped line of the item: does a sentence end with it? */
-function sentenceEnds(item: Item): boolean[] {
-  const starts = wrapStarts(item.text, item.width);
-  return starts.map((from, k) => {
-    const text = item.text.slice(from, starts[k + 1] ?? item.text.length).trimEnd();
-    return SENTENCE_END.test(text) && !ABBREVIATION.test(text);
-  });
+/** A sentence end: `.`, `?` or `!` with closing quotes or brackets, then spaces, then more text. */
+const SENTENCE_BREAK = /[.!?]["'”’)\]]*( +)(?=\S)/g;
+
+/**
+ * Where the text from `from` on can be cut between sentences, mid-line or at a
+ * line end alike: `end` is where the first part stops, `next` where the rest
+ * begins (ADR-0033 rule 1).
+ */
+function sentenceCuts(text: string, from: number): { end: number; next: number }[] {
+  const cuts: { end: number; next: number }[] = [];
+  const rest = text.slice(from);
+  for (const match of rest.matchAll(SENTENCE_BREAK)) {
+    const next = from + match.index + match[0].length;
+    const end = next - match[1]!.length;
+    if (ABBREVIATION.test(text.slice(from, end))) continue;
+    cuts.push({ end, next });
+  }
+  return cuts;
+}
+
+interface Cut {
+  /** Lines of the first part, wrapped as a paragraph. */
+  readonly head: number;
+  /** Lines of the rest, wrapped afresh as a paragraph of its own. */
+  readonly tail: number;
+  /** Where the first part's text ends. */
+  readonly end: number;
+  /** Where the rest begins. */
+  readonly next: number;
 }
 
 /**
- * How many of the item's `remaining` lines (the rest of it, from wrapped line
- * `from`) to leave on this page, in at most `avail` lines — or 0 when no split
- * keeps two lines on each side. The last sentence end that fits is preferred;
- * with none, the last line break that does.
+ * Where to break the unplaced rest of an item (from text offset `offset`,
+ * `remaining` lines) so the first part fits in `avail` lines, or undefined when
+ * it should move to the next page instead (ADR-0033):
+ *
+ * 1. The last sentence end that leaves at least two lines on each side, with
+ *    the rest re-wrapped as a fresh paragraph.
+ * 2. With none, a piece that fits a page moves whole.
+ * 3. A piece too tall for any page splits at the last line break leaving two
+ *    and two.
+ *
+ * Centered text has no sentences: it splits at a line, two and two.
  */
-function splitHead(item: Item, from: number, remaining: number, avail: number): number {
-  const most = Math.min(avail, remaining - MIN_AFTER);
-  if (most < MIN_BEFORE) return 0;
-  if (item.type === "centered") return most;
-  const ends = sentenceEnds(item);
-  for (let head = most; head >= MIN_BEFORE; head--) {
-    if (ends[from + head - 1]) return head;
+function splitPoint(item: Item, offset: number, remaining: number, avail: number): Cut | undefined {
+  if (avail < MIN_BEFORE) return undefined;
+  if (item.type !== "centered") {
+    const cuts = sentenceCuts(item.text, offset);
+    for (let k = cuts.length - 1; k >= 0; k--) {
+      const { end, next } = cuts[k]!;
+      const head = wrapCount(item.text.slice(offset, end), item.width);
+      if (head < MIN_BEFORE || head > avail) continue;
+      const tail = wrapCount(item.text.slice(next), item.width);
+      if (tail >= MIN_AFTER) return { head, tail, end, next };
+    }
+    if (remaining <= BODY_LINES) return undefined;
   }
-  return most;
+  const head = Math.min(avail, remaining - MIN_AFTER);
+  if (head < MIN_BEFORE) return undefined;
+  const starts = wrapStarts(item.text.slice(offset), item.width);
+  const next = offset + starts[head]!;
+  const end = offset + item.text.slice(offset, next).trimEnd().length;
+  return { head, tail: remaining - head, end, next };
 }
 
 /**
