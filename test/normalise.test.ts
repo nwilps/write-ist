@@ -71,9 +71,10 @@ describe("trailing whitespace", () => {
     expect(normalised("a  ")).toBe("a");
   });
 
-  it("leaves leading whitespace alone", () => {
-    // Indentation is not on ADR-0020's list, and on the screenplay surface it
-    // is the writer's (issue #15).
+  it("leaves leading whitespace to the parsers", () => {
+    // Dropped on the screenplay surface (issue #15, ADR-0020's tenth entry) by
+    // the screenplay parser; verse on the prose surface keeps it. Neither is a
+    // property of the text alone, so this function does not touch it.
     expect(normalised("    (quietly)\n\tindented")).toBe("    (quietly)\n\tindented");
   });
 });

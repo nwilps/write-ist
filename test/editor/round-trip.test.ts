@@ -112,7 +112,7 @@ function through(manuscript: Uint8Array): {
  * The editor may not move one of them by a byte.
  */
 const MANUSCRIPTS: readonly (readonly [string, number])[] = [
-  ["Brick-&-Steel.fountain", 2_901],
+  ["Brick-&-Steel.fountain", 2_886],
   ["Big-Fish.fountain", 146_097],
   ["Big-Fish-augmented.fountain", 147_139],
 ];
@@ -191,9 +191,9 @@ describe("the censuses, pinned", () => {
       key: "Notes",
       inline: { text: "" },
       continuations: [
-        { text: "\tFINAL PRODUCTION DRAFT" },
-        { text: "\tincludes post-production dialogue" },
-        { text: "\tand omitted scenes" },
+        { text: "FINAL PRODUCTION DRAFT" },
+        { text: "includes post-production dialogue" },
+        { text: "and omitted scenes" },
       ],
     });
   });
@@ -247,9 +247,9 @@ describe("the censuses, pinned", () => {
 describeCorpus("the acceptance corpus, through the editor", () => {
   const manuscript = (): Uint8Array => manuscriptOf(readCorpusBytes());
 
-  it("comes back as the same 172,451 bytes", () => {
+  it("comes back as the same 172,327 bytes", () => {
     const source = manuscript();
-    expect(source.length).toBe(172_451);
+    expect(source.length).toBe(172_327);
 
     const written = writeBytesAndReadBack("script.editor.fountain", through(source).bytes);
 

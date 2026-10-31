@@ -31,7 +31,13 @@ const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 function editsOf(bytes: Uint8Array, options: { maintainContinuations?: boolean } = {}): LineEdit[] {
   const source = normaliseSource(decode(bytes)).text;
   const written = decode(exportScreenplay(importScreenplay(bytes, options).document));
-  return lineEdits(source.split("\n"), written.split("\n"));
+  // Indentation has its own entry and its own test below; here it would read
+  // as every indented line being re-spelled. Title-page continuations keep
+  // theirs, so only the body is stripped.
+  const lines = source.split("\n");
+  const body = lines.indexOf("") + 1;
+  const bare = lines.map((line, index) => (index < body ? line : line.replace(/^[ \t]+/, "")));
+  return lineEdits(bare, written.split("\n"));
 }
 
 /**
@@ -145,6 +151,27 @@ describe("marks spanning elements: lines changed, not marks found", () => {
 
     expect(markLinesInFile(bytes)).toBe(0);
     expectReported(importScreenplay(bytes).report.applied, "marks-spanning-elements", 0);
+  });
+});
+
+describe("leading whitespace dropped: lines changed", () => {
+  it("Brick & Steel: seven body lines; the five tabbed title-page lines are already canonical", () => {
+    const text = normaliseSource(decode(readFixtureBytes("Brick-&-Steel.fountain"))).text;
+    const lines = text.split("\n");
+    const body = lines.slice(lines.indexOf("") + 1);
+
+    const indented = body.filter((line) => /^[ \t]/.test(line)).length;
+    expect(indented).toBe(7);
+    expectReported(
+      importScreenplay(readFixtureBytes("Brick-&-Steel.fountain")).report.applied,
+      "leading-whitespace-dropped",
+      indented,
+    );
+  });
+
+  it("Big Fish: only title-page tabs, which are what Write-ist writes, so no entry", () => {
+    const bytes = readFixtureBytes("Big-Fish.fountain");
+    expectReported(importScreenplay(bytes).report.applied, "leading-whitespace-dropped", 0);
   });
 });
 

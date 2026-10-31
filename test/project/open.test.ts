@@ -56,7 +56,7 @@ describe("opening a project reads its manuscript", () => {
       "Draft date",
       "Contact",
     ]);
-    expect(opened.manuscript.length).toBe(2_901);
+    expect(opened.manuscript.length).toBe(2_886);
   });
 
   it("gives back the document the import wrote, element for element", async () => {

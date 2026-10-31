@@ -33,7 +33,7 @@ function element(
   text: string,
   extra: Partial<Element> = {},
 ): Element {
-  return { type, text, indent: "", forced: false, ...extra };
+  return { type, text, forced: false, ...extra };
 }
 
 function documentOf(elements: Element[], titlePage: ScreenplayDocument["titlePage"] = []): ScreenplayDocument {

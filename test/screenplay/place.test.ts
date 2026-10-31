@@ -13,9 +13,9 @@ import { elementAt, manuscriptElementAt, positionOfElement } from "../../src/scr
 const screenplay: ScreenplayDocument = {
   titlePage: [{ key: "Title", inline: { text: "Hi" }, continuations: [] }],
   elements: [
-    { type: "action", text: "Go", indent: "", forced: false },
-    { type: "action", text: "", indent: "", forced: false },
-    { type: "character", text: "EDWARD", indent: "", forced: false },
+    { type: "action", text: "Go", forced: false },
+    { type: "action", text: "", forced: false },
+    { type: "character", text: "EDWARD", forced: false },
   ],
   comments: [],
   endsWithNewline: false,
@@ -77,8 +77,8 @@ describe("where a spot is", () => {
       ...screenplay,
       titlePage: [],
       elements: [
-        { type: "action", text: "", indent: "", forced: false },
-        { type: "character", text: "EDWARD", indent: "", forced: false },
+        { type: "action", text: "", forced: false },
+        { type: "character", text: "EDWARD", forced: false },
       ],
     });
     expect(manuscriptElementAt(leadingBlank, 1)).toBe(0);

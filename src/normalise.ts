@@ -2,13 +2,13 @@
  * The normalisations Write-ist is permitted to apply on first opening a file
  * it has never seen (ADR-0020), and nothing else, ever.
  *
- * Four of ADR-0020's nine live here, because they are properties of the text
- * rather than of the element sequence. The other five belong elsewhere in
+ * Four of ADR-0020's ten live here, because they are properties of the text
+ * rather than of the element sequence. The other six belong elsewhere in
  * the pipeline: reading a file not in UTF-8 to `decodeFile`, before any of
  * this; mark ordering to the serialiser; missing `(CONT'D)` to a separate
  * maintenance pass over the parsed elements (ADR-0026); blank-line placement
- * to the serialiser's spacing table; and a mark spanning several elements to
- * the parser (ADR-0027).
+ * to the serialiser's spacing table; a mark spanning several elements to
+ * the parser (ADR-0027); and leading whitespace to the screenplay parser (issue #15).
  *
  * Each returns a count, because ADR-0020 requires an import report that names
  * every normalisation applied. **Every count is occurrences changed, never
@@ -51,6 +51,12 @@ export type NormalisationKind =
    * reached — not per mark: Big Fish is 15, not 3.
    */
   | "marks-spanning-elements"
+  /**
+   * Applied by the screenplay parser, not here: indentation is dropped from
+   * every line it leads (ADR-0020's tenth entry, issue #15). Counted per line
+   * changed. Screenplay only — a prose verse line's indentation is authored.
+   */
+  | "leading-whitespace-dropped"
   /**
    * Not a normalisation — nothing changes — but a finding the report must
    * carry (ADR-0018, ADR-0008 rule 4): a comment delimiter with no partner,

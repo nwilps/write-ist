@@ -139,7 +139,7 @@ describe("the manuscript an import writes", () => {
   // import and export already produce for these files, now measured from the
   // file on disk rather than from an in-memory result.
   const counts: readonly (readonly [string, number])[] = [
-    ["Brick-&-Steel.fountain", 2_901],
+    ["Brick-&-Steel.fountain", 2_886],
     ["Big-Fish.fountain", 146_097],
     ["Big-Fish-augmented.fountain", 147_139],
   ];
@@ -163,11 +163,11 @@ describe("the manuscript an import writes", () => {
 });
 
 describeCorpus("the manuscript an import writes, for the acceptance corpus", () => {
-  it("is 172,451 bytes", async () => {
+  it("is 172,327 bytes", async () => {
     const imported = await importFrom(sourceFile("script.fountain", readCorpusBytes()));
 
     const manuscript = readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE));
-    expect(manuscript.length).toBe(172_451);
+    expect(manuscript.length).toBe(172_327);
   });
 
   it("leaves the corpus itself byte-identical", async () => {

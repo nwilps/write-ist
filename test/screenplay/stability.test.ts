@@ -15,7 +15,7 @@
 import { expect, it } from "vitest";
 import type { ElementType } from "../../src/screenplay/document.ts";
 import { normaliseSource } from "../../src/normalise.ts";
-import { parse } from "../../src/screenplay/parse.ts";
+import { parse, parseReporting } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { assertBytesEqual } from "../support/byte-diff.ts";
 import { writeAndReadBack } from "../support/files.ts";
@@ -97,14 +97,13 @@ describeCorpus("the corpus is fully accounted for", () => {
     ]);
   });
 
-  it("keeps the four leading spaces on every parenthetical", () => {
-    const document = parse(normalisedCorpus());
-    const parentheticals = document.elements.filter((e) => e.type === "parenthetical");
+  it("drops the four leading spaces from every parenthetical, and counts them", () => {
+    const parsed = parseReporting(normalisedCorpus());
+    const parentheticals = parsed.document.elements.filter((e) => e.type === "parenthetical");
 
     expect(parentheticals).toHaveLength(31);
-    for (const element of parentheticals) {
-      expect(element.indent).toBe("    ");
-    }
+    expect(parsed.leadingWhitespaceLines).toBe(31);
+    expect(serialise(parsed.document)).not.toMatch(/^ +\(/m);
   });
 
   it("records that the file does not end with a newline", () => {

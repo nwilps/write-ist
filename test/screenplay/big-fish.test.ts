@@ -56,7 +56,7 @@ const normalisedText = (): string => normaliseSource(readFixtureText(FIXTURE)).t
 /** Every element whose rendered line is exactly this text. */
 const withText = (text: string) =>
   document({ maintainContinuations: false }).elements.filter(
-    (element) => element.indent + element.text === text,
+    (element) => element.text === text,
   );
 
 /** The single element with this text, asserted to be unique. */
@@ -301,9 +301,9 @@ describe("the guess: what every line was read as", () => {
       key: "Notes",
       inline: { text: "" },
       continuations: [
-        { text: "\tFINAL PRODUCTION DRAFT" },
-        { text: "\tincludes post-production dialogue" },
-        { text: "\tand omitted scenes" },
+        { text: "FINAL PRODUCTION DRAFT" },
+        { text: "includes post-production dialogue" },
+        { text: "and omitted scenes" },
       ],
     });
   });

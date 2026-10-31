@@ -7,7 +7,11 @@
  * derived from adjacent element types — actually true.
  */
 import { commentInserts, SCREENPLAY_COMMENTS } from "../comments.ts";
-import type { Element, ScreenplayDocument } from "./document.ts";
+import {
+  TITLE_PAGE_CONTINUATION_INDENT,
+  type Element,
+  type ScreenplayDocument,
+} from "./document.ts";
 import { renderMarks } from "./marks.ts";
 
 /** Types that open or continue a speech: a cue and what may follow it. */
@@ -25,7 +29,9 @@ export function serialise(document: ScreenplayDocument): string {
 
   for (const field of document.titlePage) {
     lines.push(`${field.key}:${renderMarks(field.inline)}`);
-    lines.push(...field.continuations.map((line) => renderMarks(line)));
+    lines.push(
+      ...field.continuations.map((line) => TITLE_PAGE_CONTINUATION_INDENT + renderMarks(line)),
+    );
   }
   if (document.titlePage.length > 0 && document.elements.length > 0) lines.push("");
 
@@ -36,7 +42,7 @@ export function serialise(document: ScreenplayDocument): string {
   let previous: Element | undefined;
   document.elements.forEach((element, index) => {
     if (previous !== undefined && needsBlankLine(previous, element)) lines.push("");
-    lines.push(element.indent + renderContent(element, inserts.get(index)));
+    lines.push(renderContent(element, inserts.get(index)));
     previous = element;
   });
 

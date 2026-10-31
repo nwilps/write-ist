@@ -47,8 +47,18 @@ const CONTINUATIONS_ADDED = 201;
 /** ` (CONT'D)` — nine bytes, appended after any extension already present. */
 const EXTENSION = " (CONT'D)";
 
-/** What import actually produces: the normalised corpus plus the extensions. */
-const IMPORTED_BYTES = NORMALISED_BYTES + CONTINUATIONS_ADDED * EXTENSION.length;
+/**
+ * The 31 parentheticals, each indented four spaces (issue #15). Import drops
+ * them: ADR-0020's tenth entry.
+ */
+const INDENT_BYTES_DROPPED = 31 * 4;
+
+/**
+ * What import actually produces: the normalised corpus, less the indentation,
+ * plus the extensions.
+ */
+const IMPORTED_BYTES =
+  NORMALISED_BYTES - INDENT_BYTES_DROPPED + CONTINUATIONS_ADDED * EXTENSION.length;
 
 const importedBytes = (): Uint8Array =>
   exportScreenplay(importScreenplay(readCorpusBytes()).document);
@@ -83,7 +93,7 @@ describeCorpus("fidelity: a file Write-ist has never seen", () => {
     const actual = writeBytesAndReadBack("script.roundtrip.fountain", importedBytes());
 
     expect(actual.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(172_451);
+    expect(IMPORTED_BYTES).toBe(172_327);
 
     // Nothing was applied that ADR-0020 does not enumerate.
     expect(report.applied).toEqual([

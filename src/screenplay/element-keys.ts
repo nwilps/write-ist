@@ -69,14 +69,14 @@ export function typeAfterTab(type: ElementType): ElementType | undefined {
 
 /**
  * The attributes of an element of a different type, started or changed from
- * `from`'s. Only what is true of any line carries over: the leading whitespace
- * and whether the line lies inside a boneyard. A forcing marker, a scene
+ * `from`'s. Only what is true of any line carries over: whether the line lies
+ * inside a boneyard. A forcing marker, a scene
  * number, a section depth and a dual-dialogue caret are all facts about the
  * *old* type, and carrying one to a new type would write syntax the writer
  * never typed.
  */
 function attrsForType(from: Attrs, type: ElementType): Attrs {
-  return { type, indent: from["indent"], omitted: from["omitted"] };
+  return { type, omitted: from["omitted"] };
 }
 
 /**
