@@ -42,5 +42,5 @@ cheap, backups small, and ADR-0008's integrity rules about text alone.
   spellcheck is the system's, so its dictionaries are the platform's and nothing ships for it. The
   font still ships, and the rule stands — neither lives inside a project.
 
-  *Revised (proposed) by [ADR-0032](0032-spellcheck-is-ours-on-demand-and-offline.md):* spellcheck is
+  *Revised 2026-10-31 by [ADR-0032](0032-spellcheck-is-ours-on-demand-and-offline.md):* spellcheck is
   ours again, so its dictionaries ship with the application, as this ADR first said.

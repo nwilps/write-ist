@@ -5,7 +5,9 @@ manuscript itself**, delimited in band and carrying an id, on both surfaces. It 
 rendered as syntax: the writer sees a floating card in the margin beside the text it points at,
 creates one by selection and a keybinding or a right-click *(amended 2026-09-19 by
 [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md): a keybinding and a
-menu item, since right-click stays the system's for spelling)*, and never types or reads a
+menu item, since right-click stays the system's for spelling; that reason fell with ADR-0032, and
+[ADR-0034](0034-write-ist-draws-its-own-context-menus.md) records that right-click will return, as
+Write-ist's own menu — not built yet)*, and never types or reads a
 delimiter.
 
 **The forcing reason is that this is the feature ADR-0008 was written from the corpse of.**

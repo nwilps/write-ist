@@ -5,8 +5,9 @@ application. It runs only when the writer asks for a pass, checks the ordinary w
 headings, and treats the script's confirmed names and locations as known words.** The webview's
 spellcheck is switched off.
 
-**Status: proposed, 2026-10-31, with [the Slice 2 spec](../specs/slice-2.md). Becomes decided when Noah
-approves it. Supersedes [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md).**
+**Status: decided, 2026-10-31 — Noah approved it. Proposed the same day with
+[the Slice 2 spec](../specs/slice-2.md). Supersedes
+[ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md).**
 
 ## The forcing reason
 
@@ -38,7 +39,8 @@ package the writer may not have.
 
 The lists are derived, not a word bank. Autocomplete offers entries from those lists. Right-click is not
 used for comments (ADR-0018 as amended) — though the spelling menu is now ours rather than the system's
-(Slice 2 Question S).
+(Slice 2 Question S), and [ADR-0034](0034-write-ist-draws-its-own-context-menus.md) takes that further:
+every context menu will be ours.
 
 ## Considered options
 
