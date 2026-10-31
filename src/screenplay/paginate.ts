@@ -59,6 +59,45 @@ export interface PaginationDetail extends Pagination {
    * was packed. Tests use this to assert an edit did not restart earlier.
    */
   readonly resumedFromPage: number;
+  /**
+   * Where each stretch of each element sits: the one record both outputs read
+   * (#87). `paginate` counts from it and `layout` draws from it, so the count
+   * and the lines cannot disagree. Ordered by page.
+   */
+  readonly chunks: readonly Chunk[];
+}
+
+/**
+ * One element's stretch of lines on one page. An element that splits across a
+ * break has a chunk on each page it touches.
+ */
+export interface Chunk {
+  /** 1-based page. */
+  readonly page: number;
+  readonly elementIndex: number;
+  /** Index of this chunk's first wrapped line within the element. 0 unless the element began on an earlier page. */
+  readonly firstLine: number;
+  /** Wrapped lines of the element on this page. */
+  readonly lines: number;
+  /** 0-based row on the sheet of the chunk's first line (any blank line before it is already counted). */
+  readonly row: number;
+  /** The element carries on onto the next page. */
+  readonly continues: boolean;
+  /** For a dual-dialogue band, whose first element this chunk is: every member, in both columns. */
+  readonly band?: Band;
+}
+
+/** A dual-dialogue band: the left and right columns' members and their spacing. */
+export interface Band {
+  readonly members: readonly BandMember[];
+}
+
+export interface BandMember {
+  readonly elementIndex: number;
+  readonly column: "left" | "right";
+  readonly lines: number;
+  /** Blank lines before this member within its column (0 for a column's first). */
+  readonly blank: number;
 }
 
 type Item = {
@@ -67,6 +106,7 @@ type Item = {
   readonly lines: number;
   readonly blankBefore: number;
   readonly forcedBreak: boolean;
+  readonly band?: Band;
 };
 
 /**
@@ -80,7 +120,7 @@ type Item = {
  * line when a speech splits across a page.
  */
 export function paginate(document: ScreenplayDocument): PaginationDetail {
-  return pack(printableItems(document), document.elements.length, 1, [], []);
+  return pack(printableItems(document), document.elements.length, 1, [], [], []);
 }
 
 /**
@@ -100,12 +140,12 @@ export function repaginate(
 ): PaginationDetail {
   const items = printableItems(document);
   if (previous === undefined || previous.totalPages === 0 || dirtyElementIndex === undefined) {
-    return pack(items, document.elements.length, 1, [], []);
+    return pack(items, document.elements.length, 1, [], [], []);
   }
 
-  const startPage = affectedPage(previous, dirtyElementIndex);
+  const startPage = cleanPageStart(previous, affectedPage(previous, dirtyElementIndex));
   if (startPage <= 1) {
-    return pack(items, document.elements.length, 1, [], []);
+    return pack(items, document.elements.length, 1, [], [], []);
   }
 
   const pageOfElement: (number | undefined)[] = Array.from(
@@ -120,7 +160,34 @@ export function repaginate(
 
   const fill = previous.fill.slice(0, startPage - 1);
   const resumeItem = resumeItemIndex(items, previous, startPage, dirtyElementIndex);
-  return pack(items, document.elements.length, startPage, fill, pageOfElement, resumeItem);
+  const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
+  const carryBlank = previous.chunks.find((chunk) => chunk.page === startPage)?.row ?? 0;
+  return pack(
+    items,
+    document.elements.length,
+    startPage,
+    fill,
+    pageOfElement,
+    chunks,
+    resumeItem,
+    carryBlank,
+  );
+}
+
+/**
+ * Back `page` up until it opens on the start of an element. A page that opens
+ * on the tail of a split speech has state — the lines already placed — that a
+ * resume cannot recover, so the pack restarts a page earlier, where the speech
+ * begins (#87).
+ */
+function cleanPageStart(previous: PaginationDetail, page: number): number {
+  let start = page;
+  while (start > 1) {
+    const first = previous.chunks.find((chunk) => chunk.page === start);
+    if (first === undefined || first.firstLine === 0) break;
+    start -= 1;
+  }
+  return start;
 }
 
 /** Total numbered pages. */
@@ -216,13 +283,16 @@ function pack(
   resumeFromPage: number,
   fillIn: readonly number[],
   pageOfElementIn: readonly (number | undefined)[],
+  chunksIn: readonly Chunk[],
   fromItem = 0,
+  carryBlank = 0,
 ): PaginationDetail {
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: elementCount },
     (_, i) => pageOfElementIn[i],
   );
   const fill: number[] = [...fillIn];
+  const chunks: Chunk[] = [...chunksIn];
   // Full pack starts at page 0 and opens page 1 on the first body item.
   // A resume is already on `resumeFromPage` with an empty line budget — do
   // not push a phantom fill entry for the page we are about to write.
@@ -240,6 +310,25 @@ function pack(
     if (pageOfElement[elementIndex] === undefined) {
       pageOfElement[elementIndex] = pages;
     }
+  };
+
+  const place = (
+    item: Item,
+    firstLine: number,
+    count: number,
+    row: number,
+    continues: boolean,
+  ): void => {
+    mark(item.elementIndex);
+    chunks.push({
+      page: pages,
+      elementIndex: item.elementIndex,
+      firstLine,
+      lines: count,
+      row,
+      continues,
+      ...(item.band === undefined ? {} : { band: item.band }),
+    });
   };
 
   for (let i = fromItem; i < items.length; i++) {
@@ -275,27 +364,12 @@ function pack(
     // `linesPerPage`. Recorded, not tuned. Continuation chunks after a split
     // take no blank — only the group's first placement does.
     //
-    // On an incremental resume we open the page with `line === 0` without
-    // having attempted the prior page, so a keep-with-next cue that was
-    // orphan-pushed would lose its traveling blank. Recover it when the kept
-    // fill of the previous page still had leftover room that this group
-    // could not have fit into — the same condition that fired `newPage` in a
-    // full pack.
+    // On an incremental resume the page opens with `line === 0` without the
+    // prior page having been attempted, so the blank an orphan push carried
+    // over is read back from where the kept layout put the page's first line
+    // (`carryBlank`) rather than guessed again (#87).
     let blankWithGroup = line === 0 ? 0 : item.blankBefore;
-    if (
-      blankWithGroup === 0 &&
-      item.blankBefore > 0 &&
-      line === 0 &&
-      pages === resumeFromPage &&
-      resumeFromPage > 1 &&
-      fill.length === resumeFromPage - 1 &&
-      (item.type === "scene-heading" || item.type === "character")
-    ) {
-      const roomOnPrev = lpp - (fill[fill.length - 1] ?? lpp);
-      if (roomOnPrev > 0 && item.blankBefore + item.lines + nextKeep > roomOnPrev) {
-        blankWithGroup = item.blankBefore;
-      }
-    }
+    if (i === fromItem && resumeFromPage > 1 && line === 0) blankWithGroup = carryBlank;
 
     let remaining = item.lines;
     let placed = 0;
@@ -316,8 +390,8 @@ function pack(
       }
 
       if (blank + remaining <= room) {
+        place(item, placed, remaining, line + blank, false);
         line += blank + remaining;
-        mark(item.elementIndex);
         remaining = 0;
         break;
       }
@@ -329,8 +403,8 @@ function pack(
           newPage(0);
           continue;
         }
+        place(item, placed, remaining, line + blank, false);
         line += blank + remaining;
-        mark(item.elementIndex);
         remaining = 0;
         break;
       }
@@ -341,6 +415,11 @@ function pack(
           ? 1
           : 0;
       let take = room - blank - moreReserve;
+      // Orphan at the head: do not carry a single line over to the next page.
+      // Nothing on the corpus splits (every element that fits a page moves
+      // whole), so this changes no count; it is the other half of the rule
+      // below, which the layout would otherwise draw (#87).
+      if (remaining - take === 1 && take > 1) take -= 1;
       if (take <= 0) {
         newPage(item.type === "dialogue" && placed > 0 ? 1 : 0);
         continue;
@@ -351,8 +430,8 @@ function pack(
         continue;
       }
 
+      place(item, placed, take, line + blank, true);
       line += blank + take + moreReserve;
-      mark(item.elementIndex);
       remaining -= take;
       placed += take;
       if (remaining > 0) {
@@ -368,6 +447,7 @@ function pack(
     pageOfElement,
     fill,
     resumedFromPage: resumeFromPage,
+    chunks,
   };
 }
 
@@ -391,6 +471,7 @@ function printableItems(document: ScreenplayDocument): Item[] {
     el: Element;
     lines: number;
     blank: number;
+    band?: Band;
   };
   const raw: Raw[] = [];
   let previous: Element | undefined;
@@ -433,6 +514,7 @@ function printableItems(document: ScreenplayDocument): Item[] {
             lines: entry.lines,
             blankBefore: entry.blank,
             forcedBreak: false,
+            ...(entry.band === undefined ? {} : { band: entry.band }),
           },
     );
 }
@@ -480,12 +562,57 @@ export function wrapCount(text: string, width: number): number {
 }
 
 /**
+ * The same greedy wrap as `wrapCount`, with where each line begins.
+ *
+ * Returns the offset into `text` at which each line starts, so a line is
+ * `text.slice(starts[i], starts[i + 1])` less its trailing spaces. The count
+ * is `wrapCount`'s, which a test holds it to (#87): one rule, two shapes.
+ */
+export function wrapStarts(text: string, width: number): number[] {
+  const measure = Math.max(1, Math.floor(width));
+  const starts = [0];
+  if (text.length === 0) return starts;
+  let column = 0;
+  let offset = 0;
+  for (const part of text.split(/( +)/)) {
+    if (!part) continue;
+    const at = offset;
+    offset += part.length;
+    const spaces = /^ +$/.test(part);
+    if (column === 0 && spaces) continue;
+    if (column === 0) {
+      let used = 0;
+      while (part.length - used > measure) {
+        used += measure;
+        starts.push(at + used);
+      }
+      column = part.length - used;
+    } else if (column + part.length <= measure) {
+      column += part.length;
+    } else if (spaces) {
+      // The line ends here; the next begins after the spaces that did not fit.
+      starts.push(offset);
+      column = 0;
+    } else {
+      starts.push(at);
+      let used = 0;
+      while (part.length - used > measure) {
+        used += measure;
+        starts.push(at + used);
+      }
+      column = part.length - used;
+    }
+  }
+  return starts;
+}
+
+/**
  * Dual dialogue (`character` with `dual: true`) shares a vertical band with
  * the preceding speech. Height is `max(left, right)`; the right-hand elements
  * contribute no extra lines of their own.
  */
 function collapseDualDialogue(
-  raw: { el: Element; lines: number; blank: number; elementIndex: number }[],
+  raw: { el: Element; lines: number; blank: number; elementIndex: number; band?: Band }[],
 ): void {
   for (let i = 0; i < raw.length; i++) {
     if (!(raw[i]!.el.type === "character" && raw[i]!.el.dual === true)) continue;
@@ -512,9 +639,26 @@ function collapseDualDialogue(
     }
     const combined = Math.max(left, right);
     const blank = raw[leftCue]!.blank;
+    const members: BandMember[] = [];
+    for (let k = leftCue; k < i; k++) {
+      members.push({
+        elementIndex: raw[k]!.elementIndex,
+        column: "left",
+        lines: raw[k]!.lines,
+        blank: k === leftCue ? 0 : raw[k]!.blank,
+      });
+    }
+    for (let k = i; k <= rightEnd; k++) {
+      members.push({
+        elementIndex: raw[k]!.elementIndex,
+        column: "right",
+        lines: raw[k]!.lines,
+        blank: k === i ? 0 : raw[k]!.blank,
+      });
+    }
     for (let k = leftCue; k <= rightEnd; k++) {
       raw[k] = { ...raw[k]!, lines: 0, blank: 0 };
     }
-    raw[leftCue] = { ...raw[leftCue]!, lines: combined, blank };
+    raw[leftCue] = { ...raw[leftCue]!, lines: combined, blank, band: { members } };
   }
 }
