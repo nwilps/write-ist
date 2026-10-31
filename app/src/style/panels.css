@@ -16,7 +16,8 @@
   display: grid;
   grid-template-columns: 0 var(--page-width) 0;
   justify-content: center;
-  min-height: 100%;
+  /* Fills the workspace, so the paper runs to the foot of the window. */
+  flex: 1 0 auto;
 }
 
 .desk__column {

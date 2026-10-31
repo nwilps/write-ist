@@ -115,6 +115,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /*
@@ -126,7 +128,11 @@
  * short manuscript does not leave the window half-painted.
  */
 .workspace {
-  min-height: 100%;
+  /* Fills the view when the manuscript is shorter than the window, and grows
+     past it when it is not. A percentage min-height would not resolve here. */
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
   padding: 0 var(--space-roomy);
 }
 
@@ -224,7 +230,6 @@
   position: relative;
   width: var(--page-width);
   margin: 0 auto;
-  min-height: 100%;
   background: var(--colour-page);
   /*
    * No outline, no border, no shadow: the paper is the same family of grey as
