@@ -1,0 +1,166 @@
+/*
+ * The side panels (the desk design, §2.2). **Every value here is a token**
+ * (ADR-0030).
+ *
+ * Two columns, 240px wide, tied to the paper rather than to the window: each
+ * sits in a zero-width track beside the sheet and hangs out of it, so the paper
+ * stays exactly where it was and the columns move with it. They stay put as the
+ * paper scrolls, 72px down.
+ *
+ * On a window narrower than both columns and the paper the left column goes
+ * off the edge and the right one is reached by scrolling sideways. How a small
+ * window should behave is an open question for the writer, not decided here.
+ */
+
+.desk {
+  display: grid;
+  grid-template-columns: 0 var(--page-width) 0;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.desk__column {
+  position: sticky;
+  align-self: start;
+  width: var(--size-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-panel-stack);
+  /* The scenes list scrolls rather than running under the foot of the desk. */
+  max-height: calc(var(--size-desk-height) - var(--space-panel-top) - var(--space-desk-foot));
+  /* `top` also pushes the column down to 72px at rest, then holds it there. */
+  top: var(--space-panel-top);
+}
+
+.desk__column--left {
+  justify-self: end;
+  margin-right: var(--space-panel-gap);
+  grid-column: 1;
+}
+
+.desk__column--right {
+  justify-self: start;
+  margin-left: var(--space-panel-gap);
+  grid-column: 3;
+}
+
+.desk > .page {
+  grid-column: 2;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-row-gap);
+  min-height: 0;
+  padding: var(--space-panel-y) var(--space-panel-x);
+  background: var(--colour-raised);
+  border-radius: var(--radius-float);
+  font-size: var(--size-label);
+  line-height: var(--leading-label);
+  color: var(--colour-muted);
+}
+
+/* Every row that can be hovered, focused or open is one 24px box. */
+.panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-row);
+  flex: none;
+  padding: 0 var(--space-row-label);
+  border: 0;
+  border-radius: var(--radius-slight);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.panel__row:hover,
+.panel__row[aria-current="true"] {
+  background: var(--colour-overlay);
+}
+
+.panel__row[aria-current="true"] {
+  color: var(--colour-accent);
+}
+
+.panel__hint {
+  margin-left: auto;
+  color: var(--colour-faint);
+}
+
+.panel__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+/* The four format icons, spread across the panel's width. */
+.panel__formats {
+  display: flex;
+  justify-content: space-around;
+  height: var(--size-row);
+  flex: none;
+}
+
+.panel__format {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-row);
+  height: var(--size-row);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-slight);
+  background: none;
+  color: inherit;
+  cursor: default;
+}
+
+.panel__format:hover {
+  background: var(--colour-overlay);
+}
+
+/* Drawn, and waiting for the feature (the comment slot). */
+.panel__format[aria-disabled="true"] {
+  color: var(--colour-faint);
+}
+
+.panel__format[aria-disabled="true"]:hover {
+  background: none;
+}
+
+.panel--scenes {
+  gap: 0;
+  overflow: hidden;
+}
+
+.panel__heading {
+  margin: 0 0 var(--space-row-label);
+  padding: 0 var(--space-row-label);
+  font-size: var(--size-label);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-label);
+  color: var(--colour-muted);
+}
+
+.panel__scenes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.panel__scene {
+  height: var(--size-row-scene);
+  line-height: var(--size-row-scene);
+  padding: 0 var(--space-row-label);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--colour-faint);
+}
