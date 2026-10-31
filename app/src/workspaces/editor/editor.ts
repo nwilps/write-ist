@@ -63,13 +63,10 @@ import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
-import {
-  pageAtElement,
-  pageStatusText,
-  paginate,
-  repaginate,
-  type PaginationDetail,
-} from "../../../../src/screenplay/paginate.ts";
+import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
+import { pageAtElement, pageStatusText } from "../../../../src/screenplay/paginate.ts";
+import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
+import { drawSheetBreak } from "./sheet-break.ts";
 import { element } from "../../screens/element.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
@@ -115,13 +112,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       let unfinished: unknown;
       let leaving = false;
       // Held here so a silent reload (#42) can refresh the count too.
-      let pages: PaginationDetail = paginate(opened.document);
+      let laid: Layout = layout(opened.document);
+      // The seams between sheets, drawn from the layout (ADR-0033). Decorations,
+      // so they are never part of the document and never reach the file.
+      let seams = sheetDecorations(state.doc, laid, drawSheetBreak);
       const showPages = (): void => {
         const current = pageAtElement(
-          pages,
+          laid.pagination,
           manuscriptElementAt(state.doc, state.selection.head),
         );
-        context.setStatus(pageStatusText(current, pages.totalPages));
+        context.setStatus(pageStatusText(current, laid.totalPages));
       };
       const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
         // Changed elsewhere, and nothing typed here: the other version is the
@@ -129,8 +129,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // version that was replaced.
         reload: (imported) => {
           state = editorStateFor(imported.document);
+          laid = layout(imported.document);
+          seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
-          pages = paginate(imported.document);
           showPages();
         },
         // The dated copy is already beside the manuscript. Nothing is said:
@@ -204,7 +205,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         } else {
           try {
             await ledger.recordDay(
-              { id: context.project.marker.projectId, name: context.project.marker.name },
+              {
+                id: context.project.marker.projectId,
+                name: context.project.marker.name,
+              },
               manuscriptOf(state.doc),
             );
           } catch (error) {
@@ -227,13 +231,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         state,
         dispatchTransaction: (transaction) => {
           state = state.apply(transaction);
-          view?.updateState(state);
           if (transaction.docChanged) {
             session.changed();
             saving.typed();
             const dirty = manuscriptElementAt(state.doc, state.selection.head);
-            pages = repaginate(manuscriptOf(state.doc), pages, dirty);
+            laid = layout(manuscriptOf(state.doc), laid, dirty);
+            // Before the view is told, so it draws the seams for this state
+            // and not the last one.
+            seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           }
+          view?.updateState(state);
           // Selection moves still refresh the current page; the total only
           // moves when the manuscript does.
           if (transaction.docChanged || transaction.selectionSet) showPages();
@@ -247,6 +254,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           void saving.now();
           return true;
         },
+        decorations: () => seams,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },

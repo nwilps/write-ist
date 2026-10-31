@@ -16,7 +16,8 @@ back out, the largest 645 KB, compared as bytes on disk rather than strings in m
 Above that sits the application. It launches on Linux, opens on a home screen, lists and imports
 Fountain screenplays into projects, and opens them in an **Editor** laid out in industry format
 (Courier Prime, measured from Final Draft's PDF of *Big Fish*). The writer types with undo, marks,
-capitals and (CONT'D), cut/copy/paste; the page count is live; the title page matches Final Draft's
+capitals and (CONT'D), cut/copy/paste; the page count is live and the paper is drawn as separate
+sheets with page numbers and (MORE) / (CONT'D) at a speech's break; the title page matches Final Draft's
 page 1; and from the first run Write-ist keeps the ledger of days worked (ADR-0017). Spellcheck,
 drafts, the registry, and the rest of the workspaces are still ahead.
 
