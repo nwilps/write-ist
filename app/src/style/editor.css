@@ -64,12 +64,14 @@
 /*
  * Where a workspace is drawn.
  *
- * The room at the top is the floating workspace bar's, and the ground goes all
- * the way down so a short manuscript does not leave the window half-painted.
+ * The paper runs the full height of the window, top to bottom (the desk
+ * design, §2.1); the floating workspace bar will sit over its top margin
+ * rather than in room reserved above it. The ground goes all the way down so a
+ * short manuscript does not leave the window half-painted.
  */
 .workspace {
   min-height: 100%;
-  padding: var(--space-workspace-bar) var(--space-roomy) var(--space-vast);
+  padding: 0 var(--space-roomy);
 }
 
 .statusbar {
@@ -110,7 +112,7 @@
 /* --- The page ----------------------------------------------------------- */
 
 /*
- * One sheet, centred, at exactly its width.
+ * The paper: one sheet, centred, at exactly its width.
  *
  * **It does not narrow, and #40 is the ticket that decided that.** A page that
  * shrank to fit the window would wrap its text somewhere the page count does
@@ -124,15 +126,13 @@
   width: var(--page-width);
   margin: 0 auto;
   min-height: 100%;
-  background: var(--colour-raised);
+  background: var(--colour-page);
   /*
-   * An `outline` and not a `border`, because the application draws with
-   * `box-sizing: border-box` and a border would be taken out of the paper: the
-   * left margin would start a pixel in from the sheet's edge and the content
-   * box would come out 1.6px narrower than the 61 characters that have to fit
-   * across it. The hairline is where the paper ends, not part of it.
+   * No outline, no border, no shadow: the paper is the same family of grey as
+   * the panels that will sit beside it, and its edge is where the desk's darker
+   * ground begins (the desk design, §2.1). A hairline here would also have
+   * been taken out of the paper's width under `box-sizing: border-box`.
    */
-  outline: var(--rule-thin) solid var(--colour-border);
   padding: var(--page-inset-top) var(--page-inset-right) var(--page-inset-bottom)
     var(--page-inset-left);
 }
@@ -167,6 +167,8 @@
    */
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  /* A scene heading is yellow; the caret in it should not be. */
+  caret-color: var(--colour-text);
   /* The page already shows where the caret is; a ring round the whole sheet
      would only say which window has focus. */
   outline: none;
@@ -285,7 +287,8 @@
  * The look, which is the spike's and not Final Draft's (#40).
  *
  * The comparison with the PDF is about geometry — margins, indents, widths,
- * leading — and not about colour: the reference page is dark, not white paper.
+ * leading — and not about colour: the paper is dark, not white (the desk
+ * design, §2.1).
  *
  * **Final Draft does not bold its scene headings** and the spike does, and this
  * follows the spike, because weight here is feel rather than geometry: Courier
@@ -298,8 +301,21 @@
   color: var(--colour-accent);
 }
 
+/*
+ * The paper's colours are the desk design's (§2.6): a scene heading is yellow,
+ * a character's name is the info blue, a transition is the alarm red, and
+ * everything else — action, dialogue, parenthetical — is plain text.
+ */
+.manuscript > [data-element="character"] {
+  color: var(--colour-info);
+}
+
+.manuscript > [data-element="transition"] {
+  color: var(--colour-alarm);
+}
+
 .manuscript > [data-element="parenthetical"] {
-  color: var(--colour-muted);
+  color: var(--colour-text);
 }
 
 /*
@@ -358,7 +374,7 @@
  * never hidden.
  */
 .manuscript > [data-title-line] {
-  color: var(--colour-ink);
+  color: var(--colour-text);
 }
 
 /*

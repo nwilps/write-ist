@@ -12,6 +12,9 @@ with a line between them:
 
 Decided 2026-09-19.
 
+*Amended 2026-10-31 by [ADR-0035](0035-icons-are-lucide.md):* the interface's icons are Lucide's, not
+the Nerd Font build's glyphs. The rest of this ADR stands as written.
+
 ## The forcing reason
 
 **Themes are coming, and the writer expects to change most of this.** Neither is speculation: themes
