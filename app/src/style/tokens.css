@@ -211,6 +211,29 @@
   --space-tab-gap: 32px;
   --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 
+  /*
+   * The side panels (the desk design, §2.2): columns 240px wide, 14px off the
+   * paper, starting 72px down, 16px between the panels stacked in one. A row is
+   * a 24px highlight on a 32px rhythm (8px between), its label 14px in from
+   * the highlight. The design's "16px top and bottom" padding and its 144, 240
+   * and 48px panel heights only agree at 12px, so that is the padding.
+   */
+  --size-panel: 240px;
+  --space-panel-gap: 14px;
+  --space-panel-top: 72px;
+  --space-panel-stack: 16px;
+  --space-panel-x: 12px;
+  --space-panel-y: 12px;
+  --space-row-gap: 8px;
+  --space-row-label: 14px;
+  --size-row: 24px;
+  --size-row-scene: 28px;
+  --leading-label: 16px;
+  /** What a column may be as tall as: the window. */
+  --size-desk-height: 100vh;
+  /** The room left under a column for the pills along the foot of the desk. */
+  --space-desk-foot: 52px;
+
   /* --- Spacing --------------------------------------------------------- */
 
   --space-hair: 2px;

@@ -67,6 +67,7 @@ import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
 import { pageAtElement, pageStatusText } from "../../../../src/screenplay/paginate.ts";
 import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
+import { sidePanels } from "./panels.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { element } from "../../screens/element.ts";
 import { asksToSave } from "../../screens/shortcuts.ts";
@@ -93,7 +94,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     textContent: "Reading your screenplay…",
   });
   page.append(reading);
-  into.replaceChildren(page);
+  // The paper with a column of panels either side (the desk design, §2.2).
+  const panels = sidePanels();
+  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   let view: EditorView | undefined;
   /** How to finish and let go. Undefined until the manuscript has been read. */
@@ -134,6 +137,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           laid = layout(imported.document);
           seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
+          panels.update(state);
           showPages();
         },
         // The dated copy is already beside the manuscript. Nothing is said:
@@ -243,6 +247,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             seams = sheetDecorations(state.doc, laid, drawSheetBreak);
           }
           view?.updateState(state);
+          panels.update(state);
           // Selection moves still refresh the current page; the total only
           // moves when the manuscript does.
           if (transaction.docChanged || transaction.selectionSet) showPages();
@@ -261,6 +266,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },
       });
+      panels.attach(view);
+      panels.update(state);
       showPages();
     } catch (error) {
       if (gone) return;
