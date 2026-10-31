@@ -127,7 +127,11 @@ describe("layout on the committed fixtures", () => {
       }),
     ]);
     const lines = allLines(layout(d)).filter((line) => line.kind === "text");
-    expect(lines.map((line) => line.text)).toEqual(["INT. ROOM - DAY", "x".repeat(60), "bold tail"]);
+    expect(lines.map((line) => line.text)).toEqual([
+      "INT. ROOM - DAY",
+      "x".repeat(60),
+      "bold tail",
+    ]);
     expect(lines[1]!.marks).toBeUndefined();
     expect(lines[2]!.marks).toEqual([{ mark: "bold", start: 0, end: 4 }]);
     expect(lines[2]!.start).toBe(61);
@@ -155,7 +159,11 @@ describe("a speech that crosses a break", () => {
       text: MORE_TEXT,
       row: PAGE.linesPerPage - 1,
     });
-    expect(l.pages[1]!.lines[0]).toMatchObject({ kind: "contd", text: "EDWARD (CONT'D)", row: 0 });
+    expect(l.pages[1]!.lines[0]).toMatchObject({
+      kind: "contd",
+      text: "EDWARD (CONT'D)",
+      row: 0,
+    });
     expect(l.pages[1]!.lines[1]).toMatchObject({ kind: "text", row: 1 });
   });
 
@@ -185,7 +193,9 @@ describe("a speech that crosses a break", () => {
     expect(only).toMatchObject({ elementIndex: 2, page: 2 });
     const secondPart = l.pages[1]!.lines.find((line) => line.kind === "text")!;
     expect(only!.offset).toBe(secondPart.start);
-    expect(wrapStarts(d.elements[2]!.text, ELEMENT_GEOMETRY.dialogue.width)).toContain(only!.offset);
+    expect(wrapStarts(d.elements[2]!.text, ELEMENT_GEOMETRY.dialogue.width)).toContain(
+      only!.offset,
+    );
   });
 
   it("never leaves a single line alone at the foot or the head", () => {
@@ -200,7 +210,8 @@ describe("a speech that crosses a break", () => {
       const parts = l.pages
         .map(
           (page) =>
-            page.lines.filter((line) => line.kind === "text" && line.elementIndex === speech).length,
+            page.lines.filter((line) => line.kind === "text" && line.elementIndex === speech)
+              .length,
         )
         .filter((n) => n > 0);
       if (parts.length > 1) {
@@ -244,10 +255,18 @@ describe("the layout is the count", () => {
         const at = next(elements.length);
         const roll = next(10);
         if (roll < 3) {
-          elements.splice(at + 1, 0, el("action", `Beat ${step} ${"word ".repeat(next(30))}`.trim()));
+          elements.splice(
+            at + 1,
+            0,
+            el("action", `Beat ${step}. ${"word. word word ".repeat(next(12))}`.trim()),
+          );
         } else if (roll < 5) {
           const cue = el("character", ["EDWARD", "SANDRA (V.O.)", "WILL (CONT'D)"][next(3)]!);
-          elements.splice(at + 1, 0, cue, el("dialogue", speechOf(1 + next(80))));
+          const aside =
+            next(2) === 0
+              ? []
+              : [el("parenthetical", "(beat)"), el("dialogue", speechOf(1 + next(6)))];
+          elements.splice(at + 1, 0, cue, el("dialogue", speechOf(1 + next(80))), ...aside);
         } else if (roll < 6) {
           elements.splice(at + 1, 0, el("page-break", ""));
         } else if (roll < 7 && elements.length > 2) {
@@ -255,7 +274,10 @@ describe("the layout is the count", () => {
         } else {
           const target = elements[at]!;
           if (target.type === "action" || target.type === "dialogue") {
-            elements[at] = { ...target, text: `${target.text} ${"more ".repeat(next(40))}`.trim() };
+            elements[at] = {
+              ...target,
+              text: `${target.text} ${"more. more ".repeat(next(20))}`.trim(),
+            };
           }
         }
         d = { ...d, elements };
@@ -264,6 +286,7 @@ describe("the layout is the count", () => {
         const where = `trial ${trial} step ${step}`;
         expect(l.totalPages, where).toBe(full.totalPages);
         expect(l.pages, where).toEqual(full.pages);
+        expect(l.pagination.chunks, where).toEqual(full.pagination.chunks);
         expect(l.splits, where).toEqual(full.splits);
         expect(l.pagination.fill, where).toEqual(full.pagination.fill);
         expect(l.pagination.pageOfElement, where).toEqual(full.pagination.pageOfElement);
@@ -307,10 +330,7 @@ describe("the layout is the count", () => {
 describe("the engine stays out of the DOM (ADR-0024)", () => {
   it("names no browser measurement", () => {
     for (const file of ["layout.ts", "paginate.ts"]) {
-      const source = readFileSync(
-        new URL(`../../src/screenplay/${file}`, import.meta.url),
-        "utf8",
-      )
+      const source = readFileSync(new URL(`../../src/screenplay/${file}`, import.meta.url), "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/\/\/.*$/gm, "");
       expect(source).not.toMatch(

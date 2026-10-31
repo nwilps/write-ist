@@ -43,15 +43,17 @@ function documentOf(elements: Element[], titlePage: ScreenplayDocument["titlePag
 describe("paginate against Final Draft's published counts", () => {
   it("counts Brick & Steel as 4 pages", () => {
     // Final Draft's PDF of the fountain.io fixture is 4 pages. Our engine
-    // lands on 4 with the measured geometry table and the keep-with-next
-    // orphan rule recorded in `paginate.ts`.
+    // lands on 4 with the measured geometry table and the page-break rules
+    // of ADR-0033. Q-A changed where pages break (speeches now split, with
+    // (MORE)/CONT'D) but not this count: 4 before and after.
     expect(pageCount(loadFixture("Brick-&-Steel.fountain"))).toBe(4);
   });
 
   it("counts Big Fish within one page of 120", () => {
     // Final Draft's PDF of Big Fish is 120 numbered body pages (title page
     // and the unnumbered epigraph page excluded). Geometry widths come from
-    // that same PDF (`geometry.ts`); the engine lands on 120.
+    // that same PDF (`geometry.ts`); the engine lands on 120. Q-A (ADR-0033)
+    // added 9 splits to the layout and left the count at 120.
     const pages = pageCount(loadFixture("Big-Fish.fountain"));
     expect(Math.abs(pages - 120)).toBeLessThanOrEqual(1);
     expect(pages).toBe(120);

@@ -7,8 +7,9 @@
  * webview only draws.
  *
  * Pagination **decorates**. `(MORE)` and a page-break `CONT'D` exist only as
- * line-budget costs when a speech is split across a page — they are never
- * written into the manuscript (ADR-0024, ADR-0026).
+ * lines of the layout where a speech crosses a page — they are never written
+ * into the manuscript (ADR-0024, ADR-0026). Where a page may break is
+ * ADR-0033's rules, below.
  *
  * **#49 — incremental.** An edit re-packs from the affected page onward via
  * `repaginate`, never walking earlier pages again on each keystroke. A full
@@ -28,11 +29,7 @@ const MARGINALIA: ReadonlySet<Element["type"]> = new Set([
   "lyrics",
 ]);
 
-const SPEECH: ReadonlySet<Element["type"]> = new Set([
-  "character",
-  "parenthetical",
-  "dialogue",
-]);
+const SPEECH: ReadonlySet<Element["type"]> = new Set(["character", "parenthetical", "dialogue"]);
 
 /**
  * How the manuscript sits on pages.
@@ -83,6 +80,10 @@ export interface Chunk {
   readonly row: number;
   /** The element carries on onto the next page. */
   readonly continues: boolean;
+  /** The page opens with `CHARACTER (CONT'D)` on the row above this chunk: a speech resumes here. */
+  readonly contd: boolean;
+  /** `(MORE)` closes the page on the row after this chunk: the speech goes on over the break. */
+  readonly more: boolean;
   /** For a dual-dialogue band, whose first element this chunk is: every member, in both columns. */
   readonly band?: Band;
 }
@@ -106,6 +107,8 @@ type Item = {
   readonly lines: number;
   readonly blankBefore: number;
   readonly forcedBreak: boolean;
+  readonly text: string;
+  readonly width: number;
   readonly band?: Band;
 };
 
@@ -116,8 +119,9 @@ type Item = {
  * `ELEMENT_GEOMETRY` width (ADR-0024 measured zero page drift vs browser-style
  * breaks on the corpus). Vertical packing uses `PAGE.linesPerPage` (55), the
  * serialiser's blank-line table, dual-dialogue column stacking, keep-with-next
- * orphans for scene headings and character cues, and a `(MORE)` / `CONT'D`
- * line when a speech splits across a page.
+ * keep-with-next for headings, cues and parentheticals, sentence-end splits of
+ * dialogue and action, and a `(MORE)` / `CONT'D` line where a speech crosses a
+ * page (ADR-0033).
  */
 export function paginate(document: ScreenplayDocument): PaginationDetail {
   return pack(printableItems(document), document.elements.length, 1, [], [], []);
@@ -176,15 +180,15 @@ export function repaginate(
 
 /**
  * Back `page` up until it opens on the start of an element. A page that opens
- * on the tail of a split speech has state — the lines already placed — that a
- * resume cannot recover, so the pack restarts a page earlier, where the speech
+ * on the tail of a split speech has state — the lines already placed, or the
+ * speech it reopens — that a resume cannot recover, so the pack restarts a page earlier, where the speech
  * begins (#87).
  */
 function cleanPageStart(previous: PaginationDetail, page: number): number {
   let start = page;
   while (start > 1) {
     const first = previous.chunks.find((chunk) => chunk.page === start);
-    if (first === undefined || first.firstLine === 0) break;
+    if (first === undefined || (first.firstLine === 0 && !first.contd)) break;
     start -= 1;
   }
   return start;
@@ -201,10 +205,7 @@ export function pageCount(document: ScreenplayDocument): number {
  * An element with no mapping (front matter, omitted, empty manuscript) reads
  * as page 1 when there is at least one numbered page, otherwise 0.
  */
-export function pageAtElement(
-  pagination: Pagination,
-  elementIndex: number | undefined,
-): number {
+export function pageAtElement(pagination: Pagination, elementIndex: number | undefined): number {
   if (pagination.totalPages === 0) return 0;
   if (elementIndex === undefined) return 1;
   return pagination.pageOfElement[elementIndex] ?? 1;
@@ -300,10 +301,25 @@ function pack(
   let line = 0;
   const lpp = PAGE.linesPerPage;
 
-  const newPage = (contdLines = 0): void => {
+  // A page that opens on a speech's continuation starts with the CONT'D cue
+  // line; the next chunk placed takes it as its own (`contd`).
+  let pendingContd = false;
+
+  /**
+   * Close the page and open the next. When the speech goes on over the break,
+   * `(MORE)` takes the last line of the page just closed and the next page
+   * opens with the `CHARACTER (CONT'D)` line.
+   */
+  const newPage = (speechContinues = false): void => {
+    if (speechContinues) {
+      const last = chunks.length - 1;
+      chunks[last] = { ...chunks[last]!, more: true };
+      line += 1;
+    }
     if (pages > 0) fill.push(line);
     pages += 1;
-    line = contdLines;
+    line = speechContinues ? 1 : 0;
+    pendingContd = speechContinues;
   };
 
   const mark = (elementIndex: number): void => {
@@ -327,42 +343,29 @@ function pack(
       lines: count,
       row,
       continues,
+      contd: pendingContd,
+      more: false,
       ...(item.band === undefined ? {} : { band: item.band }),
     });
+    pendingContd = false;
   };
 
   for (let i = fromItem; i < items.length; i++) {
     const item = items[i]!;
     if (item.forcedBreak) {
-      if (pages === 0 || line > 0) newPage(0);
+      if (pages === 0 || line > 0) newPage();
       mark(item.elementIndex);
       continue;
     }
-    if (pages === 0) newPage(0);
-
-    // Keep-with-next: a scene heading or character cue must bring the blank
-    // and at least two lines of what follows (or whatever remains). That is
-    // the orphan rule that lands Brick & Steel at Final Draft's 4 pages and
-    // Big Fish within one of 120 — see the recorded note in
-    // `test/screenplay/paginate.test.ts`.
-    let nextKeep = 0;
-    if (item.type === "scene-heading" || item.type === "character") {
-      for (let k = i + 1; k < items.length; k++) {
-        if (items[k]!.forcedBreak) break;
-        nextKeep = items[k]!.blankBefore + Math.min(2, items[k]!.lines);
-        break;
-      }
-    }
+    if (pages === 0) newPage();
 
     // The blank that precedes this element is part of its keep-with group.
-    // Captured once when the group is first offered to a page: if an orphan
-    // rule pushes the group onto the next page, the blank travels with it
-    // (rather than being suppressed at the top of the new page). Suppressing
-    // that leading blank undershoots Final Draft's published counts by about
-    // two pages on Big Fish and one on Brick & Steel; keeping it matches both
-    // targets against the measured geometry table without changing widths or
-    // `linesPerPage`. Recorded, not tuned. Continuation chunks after a split
-    // take no blank — only the group's first placement does.
+    // Captured once when the group is first offered to a page: if a keep rule
+    // pushes the group onto the next page, the blank travels with it (rather
+    // than being suppressed at the top of the new page). Suppressing that
+    // leading blank undershoots Final Draft's published counts on both
+    // fixtures. Recorded, not tuned. Continuation chunks after a split take no
+    // blank — only the group's first placement does.
     //
     // On an incremental resume the page opens with `line === 0` without the
     // prior page having been attempted, so the blank an orphan push carried
@@ -371,6 +374,7 @@ function pack(
     let blankWithGroup = line === 0 ? 0 : item.blankBefore;
     if (i === fromItem && resumeFromPage > 1 && line === 0) blankWithGroup = carryBlank;
 
+    const resumesSpeech = continuesSpeech(items, i);
     let remaining = item.lines;
     let placed = 0;
 
@@ -378,66 +382,41 @@ function pack(
       const blank = placed === 0 ? blankWithGroup : 0;
       const room = lpp - line;
 
-      if (placed === 0 && line > 0) {
-        const need =
-          blank +
-          remaining +
-          (item.type === "scene-heading" || item.type === "character" ? nextKeep : 0);
-        if (need > room && blank + remaining <= lpp) {
-          newPage(0);
-          continue;
-        }
-      }
-
-      if (blank + remaining <= room) {
+      // Whole, with whatever must keep company with it (see `fitsStart`).
+      const whole = blank + remaining;
+      const keepsRoom =
+        line === 0 ||
+        placed > 0 ||
+        fitsAfter(items, i, room - whole, endsPage(items, i, whole, room));
+      if (whole <= room && keepsRoom) {
         place(item, placed, remaining, line + blank, false);
-        line += blank + remaining;
+        line += whole;
         remaining = 0;
         break;
       }
 
-      const canSplit =
-        item.type === "action" || item.type === "dialogue" || item.type === "centered";
-      if (!canSplit) {
-        if (line > 0) {
-          newPage(0);
+      // Split at a sentence end, leaving at least two lines on each side.
+      if (splittable(item)) {
+        const head = splitHead(item, placed, remaining, room - blank - (hasMore(item) ? 1 : 0));
+        if (head > 0) {
+          place(item, placed, head, line + blank, true);
+          line += blank + head;
+          remaining -= head;
+          placed += head;
+          newPage(hasMore(item));
           continue;
         }
-        place(item, placed, remaining, line + blank, false);
-        line += blank + remaining;
-        remaining = 0;
-        break;
       }
 
-      // Reserve one line for (MORE) when this chunk continues on the next page.
-      const moreReserve =
-        (item.type === "dialogue" || item.type === "action") && remaining > room - blank
-          ? 1
-          : 0;
-      let take = room - blank - moreReserve;
-      // Orphan at the head: do not carry a single line over to the next page.
-      // Nothing on the corpus splits (every element that fits a page moves
-      // whole), so this changes no count; it is the other half of the rule
-      // below, which the layout would otherwise draw (#87).
-      if (remaining - take === 1 && take > 1) take -= 1;
-      if (take <= 0) {
-        newPage(item.type === "dialogue" && placed > 0 ? 1 : 0);
+      // Neither fits here: carry the element (and its group) to the next page.
+      if (line > 0) {
+        newPage(resumesSpeech && placed === 0);
+        if (resumesSpeech && placed === 0) blankWithGroup = 0;
         continue;
       }
-      // Widow: do not leave a single line of a multi-line element at the foot.
-      if (take === 1 && remaining > 1 && line > 0) {
-        newPage(item.type === "dialogue" && placed > 0 ? 1 : 0);
-        continue;
-      }
-
-      place(item, placed, take, line + blank, true);
-      line += blank + take + moreReserve;
-      remaining -= take;
-      placed += take;
-      if (remaining > 0) {
-        // Next page opens with CHARACTER (CONT'D) when a speech continues.
-        newPage(item.type === "dialogue" ? 1 : 0);
-      }
+      place(item, placed, remaining, line + blank, false);
+      line += whole;
+      remaining = 0;
     }
   }
   if (pages > 0) fill.push(line);
@@ -449,6 +428,104 @@ function pack(
     resumedFromPage: resumeFromPage,
     chunks,
   };
+}
+
+/**
+ * The rules at a break, after Final Draft's defaults (docs/adr/0033).
+ *
+ * - A scene heading, a character cue and a parenthetical keep with what follows.
+ * - Dialogue and action split between sentences, never leaving fewer than two
+ *   lines on either side. A split speech is closed by `(MORE)` and reopened by
+ *   `CHARACTER (CONT'D)`; a split action is not.
+ */
+const MIN_BEFORE = 2;
+const MIN_AFTER = 2;
+
+const KEEPS_WITH_NEXT: ReadonlySet<Item["type"]> = new Set([
+  "scene-heading",
+  "character",
+  "parenthetical",
+]);
+
+const splittable = (item: Item): boolean =>
+  item.band === undefined &&
+  (item.type === "action" || item.type === "dialogue" || item.type === "centered");
+
+/** Only a speech is closed with `(MORE)`; the engine charges the line only then. */
+const hasMore = (item: Item): boolean => item.band === undefined && item.type === "dialogue";
+
+const isSpeechPart = (item: Item | undefined): boolean =>
+  item !== undefined &&
+  !item.forcedBreak &&
+  item.band === undefined &&
+  (item.type === "parenthetical" || item.type === "dialogue");
+
+/** The item opens a page the speech before it left: it takes `(MORE)` above and `CONT'D` below. */
+function continuesSpeech(items: readonly Item[], i: number): boolean {
+  return isSpeechPart(items[i]) && isSpeechPart(items[i - 1]);
+}
+
+/** A speech element with more of the speech after it: ending the page, it must leave a line for `(MORE)`. */
+function hasSpeechSuccessor(items: readonly Item[], i: number): boolean {
+  return isSpeechPart(items[i]) && isSpeechPart(items[i + 1]);
+}
+
+function endsPage(items: readonly Item[], i: number, whole: number, room: number): boolean {
+  return whole === room && hasSpeechSuccessor(items, i);
+}
+
+/**
+ * Does what must keep company with item `i` fit in `room` lines after it?
+ * `blocked` is a speech element that would end the page with no line left for
+ * `(MORE)`.
+ */
+function fitsAfter(items: readonly Item[], i: number, room: number, blocked: boolean): boolean {
+  if (blocked) return false;
+  if (!KEEPS_WITH_NEXT.has(items[i]!.type) || items[i]!.band !== undefined) return true;
+  return fitsStart(items, i + 1, room);
+}
+
+/** Can item `i` begin in `room` lines, whole or split, with its own keepers? */
+function fitsStart(items: readonly Item[], i: number, room: number): boolean {
+  const item = items[i];
+  if (item === undefined || item.forcedBreak) return true;
+  const whole = item.blankBefore + item.lines;
+  if (whole <= room && fitsAfter(items, i, room - whole, endsPage(items, i, whole, room))) {
+    return true;
+  }
+  return (
+    splittable(item) &&
+    splitHead(item, 0, item.lines, room - item.blankBefore - (hasMore(item) ? 1 : 0)) > 0
+  );
+}
+
+const SENTENCE_END = /[.!?]["'”’)\]]*$/;
+const ABBREVIATION = /\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|Prof|Mt|Lt|Col|Gen|Sgt|Capt|vs)\.["'”’)]*$/;
+
+/** For each wrapped line of the item: does a sentence end with it? */
+function sentenceEnds(item: Item): boolean[] {
+  const starts = wrapStarts(item.text, item.width);
+  return starts.map((from, k) => {
+    const text = item.text.slice(from, starts[k + 1] ?? item.text.length).trimEnd();
+    return SENTENCE_END.test(text) && !ABBREVIATION.test(text);
+  });
+}
+
+/**
+ * How many of the item's `remaining` lines (the rest of it, from wrapped line
+ * `from`) to leave on this page, in at most `avail` lines — or 0 when no split
+ * keeps two lines on each side. The last sentence end that fits is preferred;
+ * with none, the last line break that does.
+ */
+function splitHead(item: Item, from: number, remaining: number, avail: number): number {
+  const most = Math.min(avail, remaining - MIN_AFTER);
+  if (most < MIN_BEFORE) return 0;
+  if (item.type === "centered") return most;
+  const ends = sentenceEnds(item);
+  for (let head = most; head >= MIN_BEFORE; head--) {
+    if (ends[from + head - 1]) return head;
+  }
+  return most;
 }
 
 /**
@@ -507,6 +584,8 @@ function printableItems(document: ScreenplayDocument): Item[] {
             lines: 0,
             blankBefore: 0,
             forcedBreak: true,
+            text: "",
+            width: 0,
           }
         : {
             elementIndex: entry.elementIndex,
@@ -514,6 +593,8 @@ function printableItems(document: ScreenplayDocument): Item[] {
             lines: entry.lines,
             blankBefore: entry.blank,
             forcedBreak: false,
+            text: entry.el.text,
+            width: ELEMENT_GEOMETRY[entry.el.type].width,
             ...(entry.band === undefined ? {} : { band: entry.band }),
           },
     );
@@ -612,7 +693,13 @@ export function wrapStarts(text: string, width: number): number[] {
  * contribute no extra lines of their own.
  */
 function collapseDualDialogue(
-  raw: { el: Element; lines: number; blank: number; elementIndex: number; band?: Band }[],
+  raw: {
+    el: Element;
+    lines: number;
+    blank: number;
+    elementIndex: number;
+    band?: Band;
+  }[],
 ): void {
   for (let i = 0; i < raw.length; i++) {
     if (!(raw[i]!.el.type === "character" && raw[i]!.el.dual === true)) continue;
@@ -659,6 +746,11 @@ function collapseDualDialogue(
     for (let k = leftCue; k <= rightEnd; k++) {
       raw[k] = { ...raw[k]!, lines: 0, blank: 0 };
     }
-    raw[leftCue] = { ...raw[leftCue]!, lines: combined, blank, band: { members } };
+    raw[leftCue] = {
+      ...raw[leftCue]!,
+      lines: combined,
+      blank,
+      band: { members },
+    };
   }
 }

@@ -19,13 +19,7 @@ import type { MarkRange } from "../marks.ts";
 import { appendContinuation, hasContinuation } from "./continuations.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { ELEMENT_GEOMETRY } from "./geometry.ts";
-import {
-  paginate,
-  repaginate,
-  wrapStarts,
-  type Chunk,
-  type PaginationDetail,
-} from "./paginate.ts";
+import { paginate, repaginate, wrapStarts, type Chunk, type PaginationDetail } from "./paginate.ts";
 
 /** The text of the line that closes a speech at a break. */
 export const MORE_TEXT = "(MORE)";
@@ -148,6 +142,8 @@ function pageLines(document: ScreenplayDocument, chunks: readonly Chunk[]): Layo
           lines: member.lines,
           row,
           continues: false,
+          contd: false,
+          more: false,
         };
         textLines(lines, elements[member.elementIndex]!, memberChunk, member.column);
         offsets[member.column] += member.lines;
@@ -155,7 +151,7 @@ function pageLines(document: ScreenplayDocument, chunks: readonly Chunk[]): Layo
       continue;
     }
 
-    if (speechResumes(chunk, el)) {
+    if (chunk.contd) {
       lines.push({
         row: chunk.row - 1,
         column: "full",
@@ -165,7 +161,7 @@ function pageLines(document: ScreenplayDocument, chunks: readonly Chunk[]): Layo
       });
     }
     textLines(lines, el, chunk, "full");
-    if (chunk.continues && el.type === "dialogue") {
+    if (chunk.more) {
       lines.push({
         row: chunk.row + chunk.lines,
         column: "full",
@@ -182,15 +178,7 @@ function pageLines(document: ScreenplayDocument, chunks: readonly Chunk[]): Layo
 const columnOrder = (column: LayoutLine["column"]): number => (column === "right" ? 1 : 0);
 
 /**
- * The page opens with the cue again. The engine charges that line for dialogue
- * only: an action paragraph that splits resumes without one.
- */
-function speechResumes(chunk: Chunk, el: Element): boolean {
-  return chunk.firstLine > 0 && el.type === "dialogue";
-}
-
-/**
- * `CHARACTER (CONT'D)` for a dialogue element: the cue that opened the speech,
+ * `CHARACTER (CONT'D)` for a speech element: the cue that opened the speech,
  * with the extension added unless the writer's cue already carries one
  * (ADR-0026: not doubled). `(V.O.)` stays: `EDWARD (V.O.) (CONT'D)`.
  */
