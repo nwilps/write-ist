@@ -137,6 +137,39 @@
 }
 
 /*
+ * The paper fading off at the window's top and bottom edges. Fixed to the
+ * column, as wide as the paper and centred on it, so the panels and the desk
+ * either side are untouched. Above the paper, below the pills (z-index 0 under
+ * their 1), and `pointer-events: none` so clicks and selection go through.
+ */
+.paper-fade {
+  position: absolute;
+  left: 50%;
+  width: min(var(--page-width), 100%);
+  transform: translateX(-50%);
+  height: var(--size-paper-fade);
+  z-index: 0;
+  pointer-events: none;
+  --fade-to: to bottom;
+  background: linear-gradient(
+    var(--fade-to),
+    color-mix(in srgb, var(--colour-base) calc(var(--opacity-paper-fade) * 100%), transparent),
+    transparent
+  );
+  backdrop-filter: blur(var(--blur-paper-fade));
+  mask-image: linear-gradient(var(--fade-to), black, transparent);
+}
+
+.paper-fade--top {
+  top: 0;
+}
+
+.paper-fade--bottom {
+  --fade-to: to top;
+  bottom: 0;
+}
+
+/*
  * The pills along the foot of the desk (the desk design, §2.3): the project's
  * name at the left, the counts and the save state at the right, each 12px from
  * the window's edge and 8px from its neighbour. They float over the desk and

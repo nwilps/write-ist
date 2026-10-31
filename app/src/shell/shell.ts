@@ -96,6 +96,10 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     element("div", { className: "shell" }, [
       workspaceBar(screen.workspaces),
       view,
+      // The paper fades off under the window's top and bottom edges. Purely a
+      // picture over the paper: it takes no clicks and is never in the document.
+      element("div", { className: "paper-fade paper-fade--top", ariaHidden: "true" }),
+      element("div", { className: "paper-fade paper-fade--bottom", ariaHidden: "true" }),
       element("div", { className: "pills pills--left" }, [
         // The project's name is which work they are in.
         element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),

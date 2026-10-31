@@ -215,6 +215,15 @@
   --opacity-pulse: 0.35;
   --duration-pulse: 700ms;
   --space-tab-gap: 32px;
+  /**
+   * The paper fading off under the window's top and bottom edges: bands as
+   * wide as the paper, tinted to the desk and softened by a slight blur that
+   * is itself masked out toward the inside. Not in the design (Penpot cannot
+   * render it). Set the blur to 0px to drop the backdrop filter altogether.
+   */
+  --size-paper-fade: 72px;
+  --opacity-paper-fade: 0.9;
+  --blur-paper-fade: 2px;
   --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 
   /*
