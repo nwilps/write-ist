@@ -79,11 +79,32 @@ fn commit(landed: &Landed, temporary: &Path, path: &Path, sequence: u64) -> std:
     Ok(())
 }
 
+/// Linux draws no title bar (ADR-0036). `tauri.linux.conf.json` says so, but a
+/// stale build or a toolkit that draws its own client-side bar on Wayland can
+/// leave one anyway, so the window is told again once it exists. Other
+/// platforms keep the operating system's bar.
+#[cfg(target_os = "linux")]
+fn drop_title_bar(app: &mut tauri::App) {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(error) = window.set_decorations(false) {
+            eprintln!("Write-ist could not remove the title bar: {error}");
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn drop_title_bar(_app: &mut tauri::App) {}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Landed::default())
+        .setup(|app| {
+            drop_title_bar(app);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![commit_write])
         .run(tauri::generate_context!())
         .expect("Write-ist could not open a window");
