@@ -30,6 +30,7 @@ import {
 import { normaliseSource } from "../../src/normalise.ts";
 import { assertBytesEqual, firstByteDifference } from "../support/byte-diff.ts";
 import { writeAndReadBack, writeBytesAndReadBack } from "../support/files.ts";
+import { withoutIndentation } from "../support/indentation.ts";
 import { describeCorpus, readCorpusBytes, readCorpusText } from "../support/corpus.ts";
 
 /** The corpus as it sits on disk, untouched. */
@@ -65,22 +66,6 @@ const importedBytes = (): Uint8Array =>
 
 const normalisedText = (): string =>
   normaliseSource(readCorpusText()).text;
-
-/**
- * The normalised source with every line's indentation taken off (ADR-0020's
- * tenth entry), and how many lines that touched. Worked out from the text by
- * hand, not from the parser, so the report's count is checked against the file
- * rather than against itself.
- */
-function withoutIndentation(text: string): { text: string; lines: number } {
-  let lines = 0;
-  const dedented = text.split("\n").map((line) => {
-    const stripped = line.replace(/^[ \t]+(?=\S)/, "");
-    if (stripped !== line) lines += 1;
-    return stripped;
-  });
-  return { text: dedented.join("\n"), lines };
-}
 
 describeCorpus("the corpus, measured as bytes", () => {
   it("is the file ADR-0004 pins, and its character count is not its byte count", () => {
