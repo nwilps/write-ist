@@ -37,18 +37,18 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
 }
 
 describe("the workspace bar", () => {
-  it("has a tab named 'Editor', with a Lucide icon, and it is the active one", () => {
+  it("has Editor, Notes and Plan tabs, each with a Lucide icon, and Editor is the active one", () => {
     const tabs = [...shellOf(WORKSPACES).querySelectorAll('[role="tab"]')];
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Editor"]);
-    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
-    expect(tabs[0]?.querySelector("svg.workspace-bar__icon")).not.toBeNull();
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Editor", "Notes", "Plan"]);
+    expect(tabs.map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true", "false", "false"]);
+    for (const tab of tabs) expect(tab.querySelector("svg.workspace-bar__icon")).not.toBeNull();
   });
 
   it("takes a tab from every manifest, never from the shell", () => {
     const second: WorkspaceManifest = { ...WORKSPACES[0]!, id: "other", name: "Elsewhere" };
     const tabs = [...shellOf([...WORKSPACES, second]).querySelectorAll('[role="tab"]')];
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Editor", "Elsewhere"]);
-    expect(tabs.map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true", "false"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Editor", "Notes", "Plan", "Elsewhere"]);
+    expect(tabs.map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
   });
 
   it("is a raised pill with a strong border and a shadow, active tab in the accent", () => {

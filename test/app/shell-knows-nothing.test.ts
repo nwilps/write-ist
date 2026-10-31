@@ -110,10 +110,10 @@ describe("the shell knows nothing about what it hosts (ADR-0005)", () => {
 });
 
 describe("a workspace is a manifest, not surgery in the shell (ADR-0005)", () => {
-  it("declares the Editor, and nothing else in slice 1", () => {
-    // The workspace bar is out of scope (#37) and Notes, Plan and Log are later
-    // slices. Each arrives as a line in the registry plus a manifest of its own.
-    expect(WORKSPACES.map((workspace) => workspace.id)).toEqual(["editor"]);
+  it("declares the Editor, then the temporary Notes and Plan placeholders", () => {
+    // Notes and Plan are visual placeholders (workspaces/placeholders.ts); the
+    // real ones, and Log, are later slices, each a manifest of its own.
+    expect(WORKSPACES.map((workspace) => workspace.id)).toEqual(["editor", "notes", "plan"]);
     expect(WORKSPACES[0]?.name).toBe("Editor");
   });
 
