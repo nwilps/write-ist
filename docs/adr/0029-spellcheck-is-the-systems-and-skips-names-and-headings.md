@@ -4,7 +4,10 @@
 already knows — and switches it off on character cues and scene headings.** "Add to dictionary"
 is the system's too, and works across every project. There is no per-script dictionary in v2.
 
-> **Superseded (proposed) by [ADR-0032](0032-spellcheck-is-ours-on-demand-and-offline.md)**, with the Slice 2 spec. Stands as written until that is approved.
+> **Superseded 2026-10-31 by [ADR-0032](0032-spellcheck-is-ours-on-demand-and-offline.md)**, which Noah
+> approved with the Slice 2 spec. Kept as written, for the reasoning. The "Right-click stays the
+> system's" and "To verify" sections no longer apply, and
+> [ADR-0033](0033-write-ist-draws-its-own-context-menus.md) reverses the first.
 
 Decided 2026-09-19, closing [#12](https://github.com/nwilps/write-ist/issues/12).
 

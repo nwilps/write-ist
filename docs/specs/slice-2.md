@@ -86,7 +86,7 @@ silently overridden, as `docs/agents/domain.md` asks.
 
 | Existing decision | What Slice 2 does |
 |---|---|
-| **ADR-0029** — spellcheck is the system's, skips names and headings, no per-script dictionary | **Superseded.** Noah's step 10 is a spellchecker of our own, on demand, that *does* check headings and names (ordinary words inside them) and knows the script's confirmed names. The ADR's own "considered options" rejected writing one as "the thing that killed v1's attempt"; the answer here is that it is off the typing path and off by default. **[ADR-0032](../adr/0032-spellcheck-is-ours-on-demand-and-offline.md) is proposed with this spec**, and 0029 is marked superseded. |
+| **ADR-0029** — spellcheck is the system's, skips names and headings, no per-script dictionary | **Superseded.** Noah's step 10 is a spellchecker of our own, on demand, that *does* check headings and names (ordinary words inside them) and knows the script's confirmed names. The ADR's own "considered options" rejected writing one as "the thing that killed v1's attempt"; the answer here is that it is off the typing path and off by default. **[ADR-0032](../adr/0032-spellcheck-is-ours-on-demand-and-offline.md) was proposed with this spec and is decided (Noah, 2026-10-31)**, and 0029 is marked superseded. |
 | **ADR-0009 (amended by 0029)** — "nothing ships for spellcheck" | Reversed with 0029: dictionaries ship with the application again, as ADR-0009 originally said. Noted in ADR-0032; ADR-0009's amendment line is updated. |
 | **ADR-0022 / ADR-0029** — the name and location lists are derived, "no word bank to store, no sidecar file" | Mostly kept: the lists are derived. **But "explicitly confirmed" is stored state**, which nothing derives. **Resolved (Q1):** it is saved in a plain text file inside the project bundle; Noah accepts it may be revisited. ADR-0022's "no sidecar file" and ADR-0025's file list are amended with step 8. |
 | **ADR-0024 / ADR-0026** — `(MORE)` and the page-break `CONT'D` are never written to the manuscript | **Kept, not contradicted.** Step 1 and 2 draw them; step 5 prints them; the manuscript and the exported `.fountain` never contain them. ADR-0024 already warns that the PDF holds text the `.fountain` does not. |
@@ -600,7 +600,10 @@ never in the PDF. It is a view decoration, like a drawn page break.
   next time you type? The brief says "off while writing, hotkey toggles a pass" and "recheck after a
   short pause". Default: **stays on until you toggle it off**, underlines for a scene updating after the
   pause; closing and reopening the project starts off.
-- **Q-S. Right-click.** A spelling menu we draw ourselves replaces the system's menu on every webview
+- **Q-S. Right-click.** *Direction decided 2026-10-31 ([ADR-0033](../adr/0033-write-ist-draws-its-own-context-menus.md)):
+  Write-ist will draw all its context menus, not only the spelling one. That general menu is **not part
+  of this slice** (later work, [#105](https://github.com/nwilps/write-ist/issues/105)); build the spelling menu so it can grow into
+  it, and do not build clipboard, comment or text-field menus now.* A spelling menu we draw ourselves replaces the system's menu on every webview
   (WebKitGTK, WebView2, WKWebView). ADR-0029 avoided replacing it for that reason ("inferred [I], not
   tested"). Slice 2 is Linux first (as Slice 1). Default: **draw our own, Linux first, and treat the
   other two webviews as a follow-up check**. Comments still use a keybinding and a menu item (ADR-0018 as
@@ -732,8 +735,8 @@ nothing.
 11. **Q-G, Q-F — title page dialog.** I could not see v1's dialog; tell me what differs from the field
     list. Marks shown as typed?
 12. **Q-A, Q-B, Q-H, Q-I, Q-J, Q-L, Q-M, Q-N, Q-O, Q-T, Q-U** — smaller; the defaults above stand.
-13. **ADR-0032.** Do you accept superseding ADR-0029? It is the one decision in this slice that
-    reverses a written one.
+13. ~~**ADR-0032.** Do you accept superseding ADR-0029?~~ **Resolved: accepted, 2026-10-31.**
+    It was the one decision in this slice that reverses a written one.
 
 Not checked by me, and so to be verified before any ticket relies on it: the licence and
 capabilities of `spellbook`, `zspell`, `hunspell-sys`, `nspell`; the licences of the SCOWL-derived
