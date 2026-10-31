@@ -62,7 +62,7 @@ function row(label: string, hint: string, extra: Partial<HTMLButtonElement> = {}
   ]);
 }
 
-export function sidePanels(): Panels {
+export function sidePanels(openSearch: () => void = () => {}): Panels {
   let view: EditorView | undefined;
   // A click must not take focus from the page: the selection is what the
   // button acts on.
@@ -119,6 +119,9 @@ export function sidePanels(): Panels {
   const search = row("Search", "[Alt + Enter]");
   search.prepend(icon(Search));
   search.classList.add("panel__row--search");
+  // The dialog takes focus itself, so unlike `acts` this hands it back nothing.
+  search.addEventListener("mousedown", (event) => event.preventDefault());
+  search.addEventListener("click", openSearch);
   const searchPanel = element("section", { className: "panel", ariaLabel: "Search" }, [search]);
 
   let listed = "";

@@ -73,6 +73,11 @@ export function asksToSave(press: KeyPress): boolean {
   return press.key.toLowerCase() === "s";
 }
 
+/** Whether a key press is the writer asking to search: Alt+Enter, as the desk shows it. */
+export function asksToSearch(press: KeyPress): boolean {
+  return press.altKey && !press.ctrlKey && !press.metaKey && press.key === "Enter";
+}
+
 /** The gesture a key press chooses, if it chooses one. */
 export function chosenBy(gestures: readonly Gesture[], press: KeyPress): Gesture | undefined {
   const shortcut = shortcutOf(press);

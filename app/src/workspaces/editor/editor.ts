@@ -58,6 +58,7 @@
  * again.
  */
 import { PenLine } from "lucide";
+import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
@@ -69,8 +70,9 @@ import { pageAtElement, pageStatusText } from "../../../../src/screenplay/pagina
 import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
 import { sidePanels } from "./panels.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
+import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
-import { asksToSave } from "../../screens/shortcuts.ts";
+import { asksToSave, asksToSearch } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
@@ -95,13 +97,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   });
   page.append(reading);
   // The paper with a column of panels either side (the desk design, §2.2).
-  const panels = sidePanels();
+  let startSearch = (): void => {};
+  const panels = sidePanels(() => startSearch());
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   let view: EditorView | undefined;
   /** How to finish and let go. Undefined until the manuscript has been read. */
   let leave: (() => Promise<boolean>) | undefined;
   let gone = false;
+  let searching: SearchDialog | undefined;
+  let stopListeningForSearch: (() => void) | undefined;
 
   void (async () => {
     try {
@@ -269,6 +274,34 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       panels.attach(view);
       panels.update(state);
       showPages();
+
+      // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
+      // Capture, so the editor's own Enter handling never sees it.
+      startSearch = (): void => {
+        if (searching !== undefined || view === undefined) return;
+        searching = openSearch(into, {
+          doc: () => state.doc,
+          pageOf: (index) => laid.pagination.pageOfElement[index],
+          jump: ({ from, to }) => {
+            if (view === undefined) return;
+            view.dispatch(
+              view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView(),
+            );
+          },
+          closed: () => {
+            searching = undefined;
+            view?.focus();
+          },
+        });
+      };
+      const asksForSearch = (event: KeyboardEvent): void => {
+        if (!asksToSearch(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        startSearch();
+      };
+      window.addEventListener("keydown", asksForSearch, true);
+      stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);
     } catch (error) {
       if (gone) return;
       reading.remove();
@@ -294,6 +327,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       gone = true;
       leave = undefined;
+      stopListeningForSearch?.();
+      searching?.close();
       view?.destroy();
       view = undefined;
       return true;

@@ -1,0 +1,138 @@
+/*
+ * The search dialog (the desk design, §2.5): a veil over the window, and over
+ * the paper a raised panel that is only its field until there is something to
+ * list, and then grows downward.
+ */
+
+.search {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: var(--space-search-top);
+  background: var(--veil);
+  font-family: var(--face-interface);
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+}
+
+.search__panel {
+  width: min(var(--measure-search), 100%);
+  padding: var(--space-panel);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+}
+
+.search__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-field);
+  padding: 0 var(--space-tight);
+  background: var(--colour-base);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+}
+
+.search__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+  color: var(--colour-faint);
+}
+
+.search__query {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-query);
+  color: var(--colour-text);
+  caret-color: var(--colour-text);
+}
+
+.search__query::placeholder {
+  color: var(--colour-faint);
+}
+
+.search__hint {
+  font-size: var(--size-hint);
+  color: var(--colour-faint);
+}
+
+.search__field .search__hint {
+  font-size: var(--size-label);
+}
+
+.search__count {
+  margin: var(--space-snug) var(--space-tight) var(--space-tight);
+  font-size: var(--size-label);
+  color: var(--colour-faint);
+}
+
+.search__results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: var(--size-results-max);
+  overflow-y: auto;
+}
+
+.search__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-roomy);
+  height: var(--size-result-row);
+  padding: 0 var(--space-tight);
+  color: var(--colour-text);
+  cursor: default;
+}
+
+.search__result[aria-selected="true"] {
+  background: var(--colour-overlay);
+}
+
+.search__line {
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+
+/* The word found: the accent as a block, the desk's colour for its letters. */
+.search__match {
+  background: var(--colour-accent);
+  color: var(--colour-on-accent);
+}
+
+.search__page {
+  flex: none;
+  color: var(--colour-faint);
+}
+
+.search__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-roomy);
+  margin-top: var(--space-snug);
+  font-size: var(--size-hint);
+  color: var(--colour-faint);
+}
+
+.search__footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-tight);
+}
+
+.search__footer .search__icon {
+  width: var(--size-hint);
+  height: var(--size-hint);
+}

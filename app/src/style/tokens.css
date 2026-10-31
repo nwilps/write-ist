@@ -266,3 +266,20 @@
 
   --duration-quick: 90ms;
 }
+
+/* --- The search dialog (the desk design, §2.5) --------------------------- */
+
+:root {
+  /** The paper's width less 24px each side: the dialog sits over the paper. */
+  --measure-search: 768px;
+  /** 12px under the workspace bar's pill, which is itself 12px from the top. */
+  --space-search-top: 56px;
+  --size-field: 36px;
+  --size-result-row: 28px;
+  /** Twelve rows; past that the list scrolls rather than the panel growing. */
+  --size-results-max: 336px;
+  --size-query: 14px;
+  --space-panel: 12px;
+  /** The desk's own colour at 70%, over everything. No blur. */
+  --veil: color-mix(in srgb, var(--colour-base) 70%, transparent);
+}
