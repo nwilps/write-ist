@@ -4,6 +4,8 @@
 already knows — and switches it off on character cues and scene headings.** "Add to dictionary"
 is the system's too, and works across every project. There is no per-script dictionary in v2.
 
+> **Superseded (proposed) by [ADR-0032](0032-spellcheck-is-ours-on-demand-and-offline.md)**, with the Slice 2 spec. Stands as written until that is approved.
+
 Decided 2026-09-19, closing [#12](https://github.com/nwilps/write-ist/issues/12).
 
 ## The forcing reason
