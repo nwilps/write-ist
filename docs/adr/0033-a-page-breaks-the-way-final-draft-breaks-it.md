@@ -7,7 +7,7 @@ break strands a cue, a heading or a parenthetical.** Screen, status bar and PDF 
 
 **Status: decided by Noah as Q-A of [the Slice 2 spec](../specs/slice-2.md) — "match Final Draft and the
 industry standard as closely as possible" — 2026-10-31. The rules below are the implementation of that
-decision; their provenance is stated rule by rule, and some of it needs Noah's check.**
+decision; their provenance is stated rule by rule, and some of it needs Noah's check. Rule 7 was decided by Noah on 2026-10-31.**
 
 ## The forcing reason
 
@@ -38,7 +38,7 @@ repository is that the page *counts* stay at Final Draft's published 120 and 4 u
 | 4 | **Action splits, and is not marked.** No `(MORE)`, no `CONT'D`. | Screenplay convention; memory **[check]**. Replaces #87's reserved-but-undrawn `(MORE)` line for action (finding 2). |
 | 5 | A split leaves **at least two lines before and two lines after** the break, so no widow or orphan line. A speech or action that cannot be split that way moves whole. | The "no lone line" rule #87 already carried, made two-and-two. Two lines is Final Draft's default widow/orphan control as I remember it **[check]**. |
 | 6 | **Dialogue and action split at the end of a sentence** when one falls on a line end within the room: the largest such split that fits. A sentence end is `.`, `?` or `!` (with closing quotes and brackets) at the end of a wrapped line, other than a title abbreviation (`Mr.`, `Dr.`, `St.` …). | Noah's decision ("split action at sentence boundaries"). Applying it to dialogue as well, and the abbreviation list, are mine **[check]**. |
-| 7 | **No sentence end fits** (a long sentence, or none within the room left): the split falls at the last line break that keeps two and two. The alternative — move the whole element to the next page — leaves up to 50 blank lines at the foot. | Mine, not Final Draft's as far as I know **[check]**. The choice that most changes a count after rule 6. |
+| 7 | **No sentence end fits** (a long sentence, or none within the room left): the split falls at the last line break that keeps two and two. The whole element never moves to the next page when such a split exists; it moves whole only when no two-and-two split does (rule 5: under four lines, or under two lines of room). | **Decided by Noah, 2026-10-31.** Not verified against Final Draft. |
 | 8 | `(MORE)` needs a line: a speech element that has more speech after it and would end exactly on the last line of the page does not; it gives up a line (splitting, or moving on). | Follows from rule 2. |
 | 9 | A **dual-dialogue band** is never split and keeps no one with what follows it. A band taller than a page overflows. | #87's finding 4, unchanged; the keep-with-next that used to reach past a band is removed. |
 | 10 | A cue that already ends in `(CONT'D)` is not doubled; `(V.O.)` is kept: `EDWARD (V.O.) (CONT'D)`. | ADR-0026. |

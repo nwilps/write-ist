@@ -113,6 +113,30 @@ describe("a split falls at the end of a sentence", () => {
     expect(seen).toBeGreaterThan(0);
   });
 
+  it("with no sentence end in the room, splits at the last line break that leaves two and two (ADR-0033 rule 7)", () => {
+    // One 100-line sentence: its only end is the last line, never in the room.
+    const wall = sentence("action", 100, "W");
+    let seen = 0;
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [el("action", wall)]);
+      const l = layout(d);
+      const index = d.elements.length - 1;
+      const parts = l.pages
+        .map((p) => p.lines.filter((x) => x.kind === "text" && x.elementIndex === index).length)
+        .filter((n) => n > 0);
+      // Never moved whole: the first page already holds the start of it.
+      expect(parts.length, `filler ${filler}`).toBeGreaterThan(1);
+      const first = l.pages.find((p) => p.lines.some((x) => x.elementIndex === index))!;
+      const head = first.lines.filter((x) => x.elementIndex === index);
+      // The head runs to the foot of the page (the last line break), or is the
+      // two-line minimum when less than two lines of room are left.
+      const lastRow = head[head.length - 1]!.row;
+      expect(lastRow === PAGE.linesPerPage - 1 || head.length === 2, `filler ${filler}`).toBe(true);
+      seen++;
+    }
+    expect(seen).toBe(60);
+  });
+
   it("does not take an abbreviation for a sentence end", () => {
     // Every wrapped line ends "Mr." — none is a sentence end, so the split is the fallback's.
     const width = ELEMENT_GEOMETRY.action.width;
