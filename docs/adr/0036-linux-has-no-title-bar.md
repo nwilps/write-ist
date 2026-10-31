@@ -15,7 +15,8 @@ Hyprland, where the bar is wasted space and is not how they move, size or close 
 
 ## What this decides
 
-- **Per platform, in configuration, not code.** `src-tauri/tauri.linux.conf.json` is merged over
+- **Per platform, in configuration — and once more in code.** `drop_title_bar` in `src-tauri/src/lib.rs` calls `set_decorations(false)` on Linux at startup, as a backstop for a build that missed the config.
+- **The configuration:** `src-tauri/tauri.linux.conf.json` is merged over
   `tauri.conf.json` on Linux only and sets `decorations: false` for the main window. Because it is read
   before the window exists, there is no frame of title bar at startup. macOS and Windows read only
   `tauri.conf.json` and are unchanged.
