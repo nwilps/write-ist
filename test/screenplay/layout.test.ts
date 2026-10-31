@@ -80,22 +80,30 @@ describe("layout on the committed fixtures", () => {
       expect(l.totalPages).toBe(pages);
       expect(l.pages.map((p) => p.number)).toEqual(Array.from({ length: pages }, (_, i) => i + 1));
 
-      // Census: each paginated element's lines, rejoined, are its own text.
-      const text = new Map<number, string[]>();
+      // Census: each paginated element's lines, laid back at their own offsets, are its
+      // own text — whatever lies between two lines is only the spaces a wrap drops, and
+      // nothing at all after a hyphen.
+      const lines = new Map<number, LayoutLine[]>();
       for (const line of allLines(l)) {
         if (line.kind !== "text") continue;
-        const parts = text.get(line.elementIndex) ?? [];
-        parts.push(line.text);
-        text.set(line.elementIndex, parts);
+        const parts = lines.get(line.elementIndex) ?? [];
+        parts.push(line);
+        lines.set(line.elementIndex, parts);
       }
       let checked = 0;
       for (const [index, page] of paginate(d).pageOfElement.entries()) {
         if (page === undefined) continue;
         const element = d.elements[index]!;
         if (element.type === "page-break") continue;
-        const squash = (value: string | undefined): string | undefined =>
-          value?.trim().replace(/ +/g, " ");
-        expect(squash(text.get(index)?.join(" ")), `element ${index}`).toBe(squash(element.text));
+        let at = 0;
+        for (const line of lines.get(index) ?? []) {
+          expect(element.text.slice(at, line.start), `element ${index} between lines`).toMatch(
+            /^\s*$/,
+          );
+          expect(element.text.startsWith(line.text, line.start), `element ${index}`).toBe(true);
+          at = line.start! + line.text.length;
+        }
+        expect(element.text.slice(at), `element ${index} after its last line`).toMatch(/^\s*$/);
         checked++;
       }
       expect(checked).toBeGreaterThan(0);
@@ -162,9 +170,10 @@ describe("a speech that crosses a break", () => {
     expect(l.pages[1]!.lines[0]).toMatchObject({
       kind: "contd",
       text: "EDWARD (CONT'D)",
-      row: 0,
+      row: -1,
     });
-    expect(l.pages[1]!.lines[1]).toMatchObject({ kind: "text", row: 1 });
+    // The cue sits in the top margin, as in Final Draft's PDF: the speech's text starts at row 0.
+    expect(l.pages[1]!.lines[1]).toMatchObject({ kind: "text", row: 0 });
   });
 
   it("keeps (V.O.) and adds (CONT'D) after it", () => {

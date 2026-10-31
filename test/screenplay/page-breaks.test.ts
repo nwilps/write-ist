@@ -260,15 +260,54 @@ describe("what a break may not do", () => {
       expect(after.lines[0]).toMatchObject({
         kind: "contd",
         text: "EDWARD (CONT'D)",
-        row: 0,
+        row: -1,
       });
       expect(after.lines[1]).toMatchObject({
         kind: "text",
         elementIndex: third,
-        row: 1,
+        row: 0,
       });
     }
     expect(seen).toBeGreaterThan(0);
+  });
+
+  it("may end a page on a parenthetical that follows dialogue, with (MORE) after it", () => {
+    // Big Fish page 30: "leave with you." / "(closer)" / (MORE). A parenthetical
+    // straight after the cue still keeps with its dialogue (the test above).
+    let seen = 0;
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [
+        el("character", "EDWARD"),
+        el("dialogue", sentence("dialogue", 3, "A")),
+        el("parenthetical", "(closer)"),
+        el("dialogue", sentence("dialogue", 4, "B")),
+      ]);
+      const paren = d.elements.length - 2;
+      const l = layout(d);
+      const page = l.pages.find((p) => p.lines.some((x) => x.elementIndex === paren))!;
+      const last = page.lines.at(-1)!;
+      if (page.number === l.totalPages || last.kind !== "more") continue;
+      if (page.lines.at(-2)!.elementIndex !== paren) continue;
+      seen++;
+      expect(l.pages[page.number]!.lines[0]).toMatchObject({ kind: "contd", row: -1 });
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it("moves the action before a transition with it, so a transition does not open a page", () => {
+    // Big Fish page 113 to 114: "TIRES SMOKE as the car peals out." goes over with "BACK TO:".
+    for (let filler = 0; filler < 60; filler++) {
+      const d = slid(filler, [
+        el("action", "The car pulls away."),
+        el("transition", "BACK TO:"),
+        el("scene-heading", "INT. HOSPITAL - DAY"),
+      ]);
+      const car = d.elements.length - 3;
+      const l = layout(d);
+      expect(l.pagination.pageOfElement[car], `filler ${filler}`).toBe(
+        l.pagination.pageOfElement[car + 1],
+      );
+    }
   });
 
   it("moves a speech too short to split whole, with its cue", () => {
@@ -296,9 +335,9 @@ describe("what a break may not do", () => {
 
 describe("the rules on the committed fixtures", () => {
   const BREAKS = [
-    ["Big-Fish.fountain", { splits: 10, more: 7 }],
+    ["Big-Fish.fountain", { splits: 10, more: 8 }],
     ["Brick-&-Steel.fountain", { splits: 0, more: 0 }],
-    ["Big-Fish-augmented.fountain", { splits: 9, more: 10 }],
+    ["Big-Fish-augmented.fountain", { splits: 11, more: 11 }],
   ] as const;
 
   for (const [name, expected] of BREAKS) {
@@ -315,9 +354,13 @@ describe("the rules on the committed fixtures", () => {
         const body = page.lines.filter((x) => x.kind === "text");
         const last = body.at(-1);
         if (last !== undefined) {
-          expect(["scene-heading", "character", "parenthetical"]).not.toContain(
-            d.elements[last.elementIndex]!.type,
-          );
+          const type = d.elements[last.elementIndex]!.type;
+          expect(["scene-heading", "character"]).not.toContain(type);
+          // A parenthetical may close a page only after dialogue, ahead of (MORE).
+          if (type === "parenthetical") {
+            expect(d.elements[last.elementIndex - 1]!.type).toBe("dialogue");
+            expect(page.lines.at(-1)!.kind).toBe("more");
+          }
         }
         // (MORE) is the last line of its page; CONT'D the first of the next.
         page.lines.forEach((line, k) => {
@@ -343,4 +386,15 @@ describe("the rules on the committed fixtures", () => {
       }
     });
   }
+});
+
+describe("Big Fish against Final Draft's own PDF", () => {
+  it("puts (MORE) on the eight pages the PDF does", () => {
+    // Pages 24, 30, 49, 52, 80, 97, 98 and 107 of fountain.io's Big-Fish.pdf.
+    const l = layout(loadFixture("Big-Fish.fountain"));
+    const pages = l.pages
+      .filter((page) => page.lines.some((x) => x.kind === "more"))
+      .map((page) => page.number);
+    expect(pages).toEqual([24, 30, 49, 52, 80, 97, 98, 107]);
+  });
 });

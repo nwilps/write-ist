@@ -8,6 +8,40 @@ and text rendering behave the way they do in every editor a writer already uses.
 The editing engine is **ProseMirror**; the parser, serialiser and pagination engine are
 **TypeScript**.
 
+## Amended 2026-10-31: the engine wraps the way Final Draft wraps
+
+The first version of this decision had the engine wrap greedily at spaces only, because the
+measurement below showed hyphen breaks changing nothing on the acceptance corpus. Comparing the
+layout with Final Draft's own PDF of *Big Fish* (fountain.io's `Big-Fish.pdf`, 120 numbered pages;
+not committed) showed that the measurement does not carry to other scripts, and Noah's standing rule
+is to match Final Draft wherever its behaviour is known. Two changes to the wrap were proposed; the PDF
+supports the first and contradicts the second:
+
+1. **A line may end after a hyphen** (`hundred-` / `dollar`, `half-` / `empty`): a hyphen that follows
+   a letter or digit and precedes a letter is a break. **A piece that ends in a hyphen may hang one
+   column past the measure** — the PDF has three 62-character action lines, each ending in `-`
+   (`daughter-`, `half-`, `father--`), and no 62-character line that ends in anything else.
+2. **Two spaces after a full stop still count as two, not one.** One was the proposal, and it is not
+   what the PDF shows. The amendment was first written to count a double space as one, because ADR-0033
+   recorded that Final Draft wrapped "as if the two spaces were one". The PDF says otherwise. Final
+   Draft draws the two spaces: of 1,114 sentence ends where the fountain has two spaces, 1,108 are drawn
+   two character widths apart (the other six are probably the search matching the wrong instance of a
+   repeated phrase; none is a pattern). And where the count decides a break it wraps them as two:
+   Big Fish's opening speech breaks `caught.  It's not that they're faster` / `or stronger`, which
+   is 37 columns, plus ` or` makes 40 against a measure of 39. Counted as one, `or` would fit and
+   the line would not be Final Draft's. Over the whole script the PDF's lines are reproduced 4,518
+   of 4,531 times with the two spaces counted as two and 4,039 times counted as one, so the engine
+   keeps measuring them in full and a test holds it to the PDF's own lines.
+
+Lines of the PDF reproduced exactly, over the whole script: **4,424 of 4,531 before; 4,476 with the
+hyphen changes; 4,518 with the page rules ADR-0033 adds in the same pass.**
+
+**The residual risk grows by one case.** The webview breaks after a hyphen as the engine now does, but
+it will not let a hyphen hang past the measure, so a line the engine puts on the PDF's 62nd column the
+webview wraps one word early. Three lines in *Big Fish*. The engine owns the count, so the page
+number and the PDF are right; the screen can differ by a line there, as the *Consequences* below
+already allow.
+
 ## What this narrows in ADR-0001
 
 ADR-0001's requirement is that *one* engine owns the count, shared by screen and export,

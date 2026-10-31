@@ -82,7 +82,7 @@ export interface Chunk {
   readonly row: number;
   /** The element carries on onto the next page. */
   readonly continues: boolean;
-  /** The page opens with `CHARACTER (CONT'D)` on the row above this chunk: a speech resumes here. */
+  /** The page opens with `CHARACTER (CONT'D)` in the top margin, the row above this chunk: a speech resumes here. */
   readonly contd: boolean;
   /** `(MORE)` closes the page on the row after this chunk: the speech goes on over the break. */
   readonly more: boolean;
@@ -117,9 +117,8 @@ type Item = {
 /**
  * Paginate a screenplay from the model — full recompute.
  *
- * Line wrapping is greedy at spaces against each element's
- * `ELEMENT_GEOMETRY` width (ADR-0024 measured zero page drift vs browser-style
- * breaks on the corpus). Vertical packing uses `PAGE.linesPerPage` (55; 54 of
+ * Line wrapping is greedy at spaces and after hyphens against each element's
+ * `ELEMENT_GEOMETRY` width (ADR-0024, amended: Final Draft's own wrapping). Vertical packing uses `PAGE.linesPerPage` (55; 54 of
  * text, the last row being `(MORE)`'s), the serialiser's blank-line table,
  * dual-dialogue column stacking, keep-with-next for headings, cues and
  * parentheticals, sentence-end splits of dialogue and action, and a `(MORE)` /
@@ -295,14 +294,15 @@ function pack(
   let line = 0;
   const lpp = BODY_LINES;
 
-  // A page that opens on a speech's continuation starts with the CONT'D cue
-  // line; the next chunk placed takes it as its own (`contd`).
+  // A page that opens on a speech's continuation carries the CONT'D cue in the
+  // top margin, one row above row 0, where it costs the page no line; the next
+  // chunk placed takes it as its own (`contd`).
   let pendingContd = false;
 
   /**
    * Close the page and open the next. When the speech goes on over the break,
-   * `(MORE)` takes the last line of the page just closed and the next page
-   * opens with the `CHARACTER (CONT'D)` line.
+   * `(MORE)` takes the last row of the page just closed and the next page opens
+   * with the `CHARACTER (CONT'D)` cue in its top margin.
    */
   const newPage = (speechContinues = false): void => {
     if (speechContinues) {
@@ -311,7 +311,7 @@ function pack(
     }
     if (pages > 0) fill.push(line);
     pages += 1;
-    line = speechContinues ? 1 : 0;
+    line = 0;
     pendingContd = speechContinues;
   };
 
@@ -415,7 +415,8 @@ function pack(
 /**
  * The rules at a break, after Final Draft's defaults (docs/adr/0033).
  *
- * - A scene heading, a character cue and a parenthetical keep with what follows.
+ * - A scene heading, a character cue and a parenthetical keep with what follows;
+ *   a parenthetical after dialogue does not, and action keeps with a transition after it.
  * - Dialogue and action split between sentences (mid-line ends count; the rest
  *   is wrapped afresh), never leaving fewer than two lines on either side. A split speech is closed
  *   by `(MORE)` and reopened by `CHARACTER (CONT'D)`; a split action is not.
@@ -458,7 +459,15 @@ function continuesSpeech(items: readonly Item[], i: number): boolean {
  * Does what must keep company with item `i` fit in `room` lines after it?
  */
 function fitsAfter(items: readonly Item[], i: number, room: number): boolean {
-  if (!KEEPS_WITH_NEXT.has(items[i]!.type) || items[i]!.band !== undefined) return true;
+  const type = items[i]!.type;
+  if (items[i]!.band !== undefined) return true;
+  const keeps =
+    KEEPS_WITH_NEXT.has(type) &&
+    // A parenthetical that follows dialogue may close a page (`(MORE)` after it).
+    !(type === "parenthetical" && items[i - 1]?.type === "dialogue");
+  // The action before a transition goes with it: a transition does not open a page.
+  const leadsToTransition = type === "action" && items[i + 1]?.type === "transition";
+  if (!keeps && !leadsToTransition) return true;
   return fitsStart(items, i + 1, room);
 }
 
@@ -656,17 +665,36 @@ function wrappedLines(el: Element): number {
 }
 
 /**
- * Greedy wrap at spaces; an overlong token hard-breaks. ADR-0024: space-only
- * vs browser-style breaks differ by zero pages on the acceptance corpus.
+ * Where a line may end, as a split of the text into pieces: after each run of
+ * spaces, and after a hyphen between a letter or digit and a letter
+ * (`hundred-` / `dollar`), which is where Final Draft wraps a hyphenated word
+ * (ADR-0024, amended). The spaces are captured so they stay in the list; the
+ * hyphen break is empty, and `split` leaves empty strings for the loops to skip.
+ */
+const PIECES = /( +|(?<=[A-Za-z0-9]-)(?=[A-Za-z]))/;
+
+/**
+ * The column a piece may reach. A piece ending in a hyphen may hang one past the
+ * measure: Final Draft ends 62-character action lines and 40-character dialogue
+ * lines on a hyphen and never on anything else (ADR-0024, amended).
+ */
+const room = (part: string, measure: number): number =>
+  part.charCodeAt(part.length - 1) === 45 ? measure + 1 : measure;
+
+/**
+ * Greedy wrap at spaces and after hyphens; an overlong token hard-breaks. Two
+ * spaces after a full stop measure as two, as Final Draft draws and wraps them
+ * (ADR-0024, amended).
  */
 export function wrapCount(text: string, width: number): number {
   const measure = Math.max(1, Math.floor(width));
   if (text.length === 0) return 1;
   let lines = 1;
   let column = 0;
-  for (const part of text.split(/( +)/)) {
+  for (const part of text.split(PIECES)) {
     if (!part) continue;
-    if (column === 0 && /^ +$/.test(part)) continue;
+    const spaces = part.charCodeAt(0) === 32;
+    if (column === 0 && spaces) continue;
     if (column === 0) {
       let rest = part;
       while (rest.length > measure) {
@@ -674,11 +702,11 @@ export function wrapCount(text: string, width: number): number {
         rest = rest.slice(measure);
       }
       column = rest.length;
-    } else if (column + part.length <= measure) {
+    } else if (column + part.length <= room(part, measure)) {
       column += part.length;
     } else {
       lines += 1;
-      if (/^ +$/.test(part)) {
+      if (spaces) {
         column = 0;
         continue;
       }
@@ -706,11 +734,11 @@ export function wrapStarts(text: string, width: number): number[] {
   if (text.length === 0) return starts;
   let column = 0;
   let offset = 0;
-  for (const part of text.split(/( +)/)) {
+  for (const part of text.split(PIECES)) {
     if (!part) continue;
     const at = offset;
     offset += part.length;
-    const spaces = /^ +$/.test(part);
+    const spaces = part.charCodeAt(0) === 32;
     if (column === 0 && spaces) continue;
     if (column === 0) {
       let used = 0;
@@ -719,7 +747,7 @@ export function wrapStarts(text: string, width: number): number[] {
         starts.push(at + used);
       }
       column = part.length - used;
-    } else if (column + part.length <= measure) {
+    } else if (column + part.length <= room(part, measure)) {
       column += part.length;
     } else if (spaces) {
       // The line ends here; the next begins after the spaces that did not fit.
