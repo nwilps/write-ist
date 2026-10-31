@@ -600,7 +600,7 @@ never in the PDF. It is a view decoration, like a drawn page break.
   next time you type? The brief says "off while writing, hotkey toggles a pass" and "recheck after a
   short pause". Default: **stays on until you toggle it off**, underlines for a scene updating after the
   pause; closing and reopening the project starts off.
-- **Q-S. Right-click.** *Direction decided 2026-10-31 ([ADR-0033](../adr/0033-write-ist-draws-its-own-context-menus.md)):
+- **Q-S. Right-click.** *Direction decided 2026-10-31 ([ADR-0034](../adr/0034-write-ist-draws-its-own-context-menus.md)):
   Write-ist will draw all its context menus, not only the spelling one. That general menu is **not part
   of this slice** (later work, [#105](https://github.com/nwilps/write-ist/issues/105)); build the spelling menu so it can grow into
   it, and do not build clipboard, comment or text-field menus now.* A spelling menu we draw ourselves replaces the system's menu on every webview

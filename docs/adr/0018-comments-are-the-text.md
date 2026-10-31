@@ -6,7 +6,7 @@ rendered as syntax: the writer sees a floating card in the margin beside the tex
 creates one by selection and a keybinding or a right-click *(amended 2026-09-19 by
 [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md): a keybinding and a
 menu item, since right-click stays the system's for spelling; that reason fell with ADR-0032, and
-[ADR-0033](0033-write-ist-draws-its-own-context-menus.md) records that right-click will return, as
+[ADR-0034](0034-write-ist-draws-its-own-context-menus.md) records that right-click will return, as
 Write-ist's own menu — not built yet)*, and never types or reads a
 delimiter.
 

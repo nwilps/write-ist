@@ -39,7 +39,7 @@ package the writer may not have.
 
 The lists are derived, not a word bank. Autocomplete offers entries from those lists. Right-click is not
 used for comments (ADR-0018 as amended) — though the spelling menu is now ours rather than the system's
-(Slice 2 Question S), and [ADR-0033](0033-write-ist-draws-its-own-context-menus.md) takes that further:
+(Slice 2 Question S), and [ADR-0034](0034-write-ist-draws-its-own-context-menus.md) takes that further:
 every context menu will be ours.
 
 ## Considered options
