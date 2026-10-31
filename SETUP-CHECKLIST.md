@@ -191,6 +191,21 @@ not built.
   the browser's own CSS parser, because CSS fails silently.
 - Typing was off (`editable: () => false`) until #41 gave a keystroke somewhere to go; it is on.
 
+### Done: the paper is drawn as separate sheets (Slice 2 step 2, PR B)
+
+The layout (`layout()`, which `paginate`'s count is the source of) says where each page breaks; the
+view draws each break across the paper as a decoration (`src/screenplay/sheets.ts`) and never as a
+change to the document, so copy, cut, Select All and the saved file cannot contain it.
+
+- A seam is the rest of the sheet's 55 rows, its bottom margin, **28px of desk**, the next sheet's
+  top margin with its **page number** (`2.` at 7.5in, 48px down; none on page 1), and — where a
+  speech crosses — `(MORE)` at the foot and `CHARACTER (CONT'D)` (not doubled) in the next sheet's
+  top margin, as ADR-0033 and Final Draft's PDF have it.
+- Every size is a token or the manuscript's own leading (ADR-0030).
+- The keystroke now includes rebuilding the seams, and stays far inside the budget.
+- **Not yet checked in the window:** caret, Backspace and Delete across a seam inside a split
+  element, on WebKitGTK. The geometry was checked in headless Chrome.
+
 ### Done: the screenplay is laid out in industry format (#40)
 
 **Courier Prime is bundled**, four weights, 304 KB, OFL with no reserved font name — so the page

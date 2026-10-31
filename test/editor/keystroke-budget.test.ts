@@ -53,11 +53,9 @@ import { editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { FORMAT_VERSION } from "../../src/project/marker.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
-import {
-  paginate,
-  repaginate,
-  type PaginationDetail,
-} from "../../src/screenplay/paginate.ts";
+import { layout, type Layout } from "../../src/screenplay/layout.ts";
+import { paginate, repaginate } from "../../src/screenplay/paginate.ts";
+import { sheetDecorations } from "../../src/screenplay/sheets.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { unwatched } from "../support/unwatched.ts";
@@ -126,7 +124,11 @@ function budget(document: ScreenplayDocument, bytes: number): number {
 
   // #49 — page count keeps up as you type. Open takes a full pack; each
   // keystroke re-packs from the middle of the manuscript onward.
-  let pages: PaginationDetail = paginate(document);
+  let laid: Layout = layout(document);
+  // The seams between sheets (ADR-0033) are rebuilt on every edit, and are part
+  // of what a keystroke costs. The DOM is drawn by the view, outside the budget
+  // (ADR-0024), so the seam's drawing is stubbed here.
+  let seams = sheetDecorations(state.doc, laid, () => ({}) as HTMLElement);
   // The caret sits in the middle of the ProseMirror doc; map that roughly
   // onto a mid-manuscript element so the resume is not always page 1.
   const dirtyElement = Math.floor(document.elements.length / 2);
@@ -135,7 +137,8 @@ function budget(document: ScreenplayDocument, bytes: number): number {
     state = state.apply(state.tr.insertText("a", caret));
     session.changed();
     saving.typed();
-    pages = repaginate(manuscriptOf(state.doc), pages, dirtyElement);
+    laid = layout(manuscriptOf(state.doc), laid, dirtyElement);
+    seams = sheetDecorations(state.doc, laid, () => ({}) as HTMLElement);
   };
 
   for (let index = 0; index < WARMUP; index++) keystroke();
@@ -170,7 +173,9 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // The bookkeeping inside the measured region really ran; a budget met by
   // measuring nothing is the failure this whole file is written against.
   expect(session.unsaved()).toBe(true);
-  expect(pages.totalPages).toBeGreaterThan(0);
+  expect(laid.totalPages).toBeGreaterThan(0);
+  // Every sheet after the first has its seam, so the seams were really built.
+  expect(seams.find().length).toBe(laid.totalPages - 1);
   return measured;
 }
 

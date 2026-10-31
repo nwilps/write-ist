@@ -16,7 +16,10 @@ capitals, (CONT'D), undo, marks, and the clipboard work as expected (#43–#47);
 keeps up as you type (#48, #49); the title page matches Final Draft (#62); and the ledger records
 the writer's days (#50). The manuscript is laid out in **industry format** (#40): Courier Prime
 bundled, and one geometry table, measured from Final Draft's PDF, that both the page and the
-count read.
+count read. The paper is drawn as **separate sheets** (Slice 2 step 2): the layout (`layout()`)
+says where each page breaks, and the view draws the seam — a strip of desk, the page number,
+`(MORE)` and `CHARACTER (CONT'D)` — as a decoration that is never in the document or the file
+(`src/screenplay/sheets.ts`, ADR-0024, ADR-0033).
 
 Still above this layer: drafts and locking, the registry, spellcheck, ranges (scenes/chapters
 from the flat sequence), the workspace bar, and further slices. Before proposing work, read

@@ -26,7 +26,7 @@ Slice 2 builds on Slice 1 and must not re-specify it. Read from the code on `ori
   `CONT'D` cue when a speech splits across a page.
 - **But the engine returns counts, not a layout.** It reports `totalPages` and the page of each
   element (`pageOfElement`). It does not return *where inside an element* a break falls, nor the
-  wrapped lines. The paper draws no breaks; the PDF cannot be made from a count. **Step 1 is therefore
+  wrapped lines. *(Since built: `layout()` returns them, and the paper draws its breaks from it — step 2.)* The PDF cannot be made from a count. **Step 1 is therefore
   mostly "make the existing rule produce a layout", not "write a rule".**
 - **A live `Page N of M`** in the status bar, driven by that engine (#48, #49).
 - **A title page rendered at the top of the Editor** and matched to Final Draft's page 1 (#62), and
@@ -160,6 +160,12 @@ the code rather than assuming):
   scope here; say so if you want it in.
 
 ## Step 2 — The paper
+
+**Status (2026-10-31): drawn.** The design arrived (Q-C) and the breaks are drawn as sheets: `src/screenplay/sheets.ts`
+places one widget decoration per break, `app/src/workspaces/editor/sheet-break.ts` and `app/src/style/sheets.css`
+draw it. One technique serves a break between elements and one inside an element (a block widget at the split
+offset). The caret behaviour on WebKitGTK is still for the writer to check in the window; the geometry has been
+checked against the layout in headless Chrome. The title page still sits on the paper until step 4.
 
 **Behavior.** The Editor shows a real screenplay sheet: the right proportions (8.5 × 11), size,
 colour and margins, with the **breaks between pages drawn**. The writer types on the paper; the breaks

@@ -1,0 +1,93 @@
+/*
+ * The seams between sheets of paper (the desk design, §2.7; ADR-0033).
+ *
+ * The paper is one continuous column (`editor.css`); at each page break the
+ * view draws a widget across it (`sheet-break.ts`) that fills what is left of
+ * the sheet, shows a strip of desk, and opens the next sheet with its page
+ * number. Nothing here is in the manuscript: copy, cut and Select All do not
+ * take it and the file never holds it (ADR-0024).
+ *
+ * Every size is a token or the manuscript's own leading, so the rows left at a
+ * sheet's foot are exactly the rows the page count says are left (ADR-0030).
+ */
+
+/*
+ * A seam is as wide as the sheet and starts at its left edge, wherever in the
+ * paper it falls. Between two elements it is a child of the manuscript and the
+ * sheet's left edge is the page's inset away; inside an element it is that
+ * element's own indent further.
+ */
+.sheet-break {
+  box-sizing: border-box;
+  width: var(--page-width);
+  margin-left: calc(-1 * var(--page-inset-left));
+  text-align: left;
+  text-indent: 0;
+  user-select: none;
+}
+
+.manuscript > .sheet-break {
+  margin-top: 0;
+}
+
+/* The first line of a sheet has no blank row above it (ADR-0033). */
+.manuscript > .sheet-break + [data-element] {
+  margin-top: 0;
+}
+
+.manuscript > [data-element="action"] > .sheet-break {
+  margin-left: calc(-1 * (var(--page-inset-left) + var(--indent-action)));
+}
+
+.manuscript > [data-element="dialogue"] > .sheet-break {
+  margin-left: calc(-1 * (var(--page-inset-left) + var(--indent-dialogue)));
+}
+
+.manuscript > [data-element="centered"] > .sheet-break {
+  margin-left: calc(-1 * (var(--page-inset-left) + var(--indent-centered)));
+}
+
+/* `(MORE)` sits at the character indent, under the speech it closes. */
+.sheet-break__more,
+.sheet-break__contd {
+  padding-left: calc(var(--page-inset-left) + var(--indent-character));
+  color: var(--colour-faint);
+}
+
+/* The name reopening a speech is a cue's colour; only the extension is faint. */
+.sheet-break__cue {
+  color: var(--colour-info);
+}
+
+/*
+ * The rest of the sheet: one row per newline, then the bottom margin. A block
+ * that keeps its line breaks, so a row is the manuscript's leading.
+ */
+.sheet-break__foot {
+  white-space: pre;
+  padding-bottom: var(--page-inset-bottom);
+}
+
+/* The desk showing between two sheets. */
+.sheet-break__desk {
+  height: var(--sheet-gap);
+  background: var(--colour-base);
+}
+
+/* The next sheet's top margin, with its page number in it, ending at 7.5in. */
+.sheet-break__head {
+  height: var(--page-inset-top);
+  padding-top: var(--page-number-top);
+  padding-right: var(--page-number-right);
+  text-align: right;
+  color: var(--colour-text);
+}
+
+/*
+ * A speech reopened with `CHARACTER (CONT'D)` puts the cue in this same top
+ * margin, a row above the speech's first line (ADR-0033, Final Draft's PDF),
+ * so the sheet still holds a full 55 rows below it.
+ */
+.sheet-break__head--cued {
+  height: calc(var(--page-inset-top) - var(--manuscript-blank));
+}
