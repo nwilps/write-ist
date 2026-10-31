@@ -194,11 +194,22 @@
   /**
    * The room the floating workspace bar needs above the workspace.
    *
-   * The bar is not built yet. The paper no longer leaves this room above it —
-   * the bar floats over the paper's top margin instead — so nothing reads this
-   * until the bar does.
+   * The paper no longer leaves this room above it — the bar floats over the
+   * paper's top margin instead — so nothing reads this.
    */
   --space-workspace-bar: 52px;
+
+  /*
+   * The floating workspace bar (the desk design, §2.3): a pill 32px tall,
+   * 12px from the top edge, its tabs 32px apart, over the paper — so it takes
+   * the soft shadow that lifts it off a surface of its own colour. Icons are
+   * drawn at 14px, which gives Lucide's stroke its ~1.17px (ADR-0035).
+   */
+  --size-pill: 32px;
+  --size-icon: 14px;
+  --space-desk-edge: 12px;
+  --space-tab-gap: 32px;
+  --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 
   /* --- Spacing --------------------------------------------------------- */
 

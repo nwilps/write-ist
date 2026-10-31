@@ -34,7 +34,7 @@ from Lucide.
 - **Whether to ship plain JetBrains Mono** instead of the Nerd Font build, which would save about 9 MB
   (ADR-0030's measurement). It is now the obvious lever, but it is a separate choice and is not made here.
 - **The dependency lands with the first change that draws an icon.** The paper (the desk design's first
-  step) has none, so nothing is added to `package.json` yet.
+  step) has none, so nothing was added to `package.json` then. The `lucide` package landed with the workspace bar's tab pill, the first icon drawn.
 
 ## Considered options
 
