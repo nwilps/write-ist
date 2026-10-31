@@ -17,6 +17,7 @@
  * So the rule has a form a test can fail on, and
  * `test/app/shell-knows-nothing.test.ts` is it.
  */
+import type { IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
@@ -105,6 +106,8 @@ export interface WorkspaceManifest {
    * workspace *is*, and adding it later would mean touching every manifest.
    */
   readonly key: string;
+  /** The Lucide icon drawn before its name in the workspace bar (ADR-0035). */
+  readonly icon: IconNode;
   /**
    * **The third thing ADR-0005 names is deliberately absent**: *"which formats
    * show it by default"*.

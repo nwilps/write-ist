@@ -44,6 +44,62 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* The workspace bar is positioned against the column, not the scrolling paper. */
+  position: relative;
+}
+
+/*
+ * The workspace bar: a pill at top centre, floating over the paper's top
+ * margin (the desk design, §2.3). It does not scroll with the paper, and the
+ * strip it is centred in lets clicks through to the paper around the pill.
+ */
+.workspace-bar {
+  position: absolute;
+  top: var(--space-desk-edge);
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.workspace-bar__pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-tab-gap);
+  height: var(--size-pill);
+  padding: 0 var(--space-roomy);
+  box-sizing: border-box;
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+.workspace-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+  cursor: default;
+}
+
+.workspace-bar__tab[aria-selected="true"] {
+  color: var(--colour-accent);
+}
+
+/* Lucide's own 24px drawing, scaled to the label; stroke shrinks with it. */
+.workspace-bar__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
 }
 
 /*

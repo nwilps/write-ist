@@ -12,5 +12,11 @@
  */
 import type { WorkspaceManifest } from "../shell/workspace.ts";
 import { editorWorkspace } from "./editor/editor.ts";
+import { notesPlaceholder, planPlaceholder } from "./placeholders.ts";
 
-export const WORKSPACES: readonly WorkspaceManifest[] = [editorWorkspace];
+export const WORKSPACES: readonly WorkspaceManifest[] = [
+  editorWorkspace,
+  // TEMPORARY: visual placeholders, no behaviour (see placeholders.ts).
+  notesPlaceholder,
+  planPlaceholder,
+];

@@ -57,6 +57,7 @@
  * the page, which it still has because it is still up, and the writer can try
  * again.
  */
+import { PenLine } from "lucide";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
 import { openProject } from "../../../../src/project/open.ts";
@@ -81,6 +82,7 @@ export const editorWorkspace: WorkspaceManifest = {
   // The workspace bar is not built (#37), and when it is, the Editor is its
   // first tab — as it is in the prototype.
   key: "1",
+  icon: PenLine,
   mount,
 };
 

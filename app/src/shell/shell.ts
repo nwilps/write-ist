@@ -20,6 +20,7 @@
  * Editor's furniture is the writer's business — the page count (#48) — so the
  * status bar carries the project's name and a slot the workspace fills.
  */
+import { createElement, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
@@ -94,6 +95,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   into.replaceChildren(
     element("div", { className: "shell" }, [
+      workspaceBar(screen.workspaces),
       view,
       element("footer", { className: "statusbar" }, [
         element("span", {
@@ -139,4 +141,27 @@ function first(workspaces: readonly WorkspaceManifest[]): WorkspaceManifest {
   const found = workspaces[0];
   if (found === undefined) throw new Error("the shell was given no workspace to host.");
   return found;
+}
+
+/**
+ * The workspace bar: a pill floating over the top of the paper (the desk
+ * design, §2.3), one tab for each workspace the project shows, named by its
+ * manifest — never by the shell.
+ *
+ * Only the first is on screen, so it is the active tab and the others are not
+ * yet reachable: switching is a no-op until a second workspace exists.
+ */
+function workspaceBar(workspaces: readonly WorkspaceManifest[]): HTMLElement {
+  const tabs = workspaces.map((workspace, index) => {
+    const icon = createElement(workspace.icon as IconNode, { class: "workspace-bar__icon" });
+    icon.setAttribute("aria-hidden", "true");
+    return element(
+      "button",
+      { type: "button", className: "workspace-bar__tab", role: "tab", ariaSelected: String(index === 0) },
+      [icon, element("span", { textContent: workspace.name })],
+    );
+  });
+  return element("div", { className: "workspace-bar" }, [
+    element("div", { className: "workspace-bar__pill", role: "tablist" }, tabs),
+  ]);
 }
