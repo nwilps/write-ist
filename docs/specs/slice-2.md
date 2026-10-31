@@ -1,6 +1,7 @@
 # Slice 2 — finish the core: write a whole screenplay and send out a PDF
 
-**Status: draft for Noah's review.** No issues or tickets exist yet. `/to-tickets` charts them after
+**Status: draft for Noah's review; first decisions recorded 2026-10-31** (Q1, Q-K, the title page and the
+Penpot sequencing — marked *Resolved* where they appear). No issues or tickets exist yet. `/to-tickets` charts them after
 this spec is approved, and the questions in each step and in the list at the end are for Noah to
 answer first. Slice 1 was [#37](https://github.com/nwilps/write-ist/issues/37).
 
@@ -87,7 +88,7 @@ silently overridden, as `docs/agents/domain.md` asks.
 |---|---|
 | **ADR-0029** — spellcheck is the system's, skips names and headings, no per-script dictionary | **Superseded.** Noah's step 10 is a spellchecker of our own, on demand, that *does* check headings and names (ordinary words inside them) and knows the script's confirmed names. The ADR's own "considered options" rejected writing one as "the thing that killed v1's attempt"; the answer here is that it is off the typing path and off by default. **[ADR-0032](../adr/0032-spellcheck-is-ours-on-demand-and-offline.md) is proposed with this spec**, and 0029 is marked superseded. |
 | **ADR-0009 (amended by 0029)** — "nothing ships for spellcheck" | Reversed with 0029: dictionaries ship with the application again, as ADR-0009 originally said. Noted in ADR-0032; ADR-0009's amendment line is updated. |
-| **ADR-0022 / ADR-0029** — the name and location lists are derived, "no word bank to store, no sidecar file" | Mostly kept: the lists are derived. **But "explicitly confirmed" is stored state**, which nothing derives. Where it lives is Question 1 below. |
+| **ADR-0022 / ADR-0029** — the name and location lists are derived, "no word bank to store, no sidecar file" | Mostly kept: the lists are derived. **But "explicitly confirmed" is stored state**, which nothing derives. **Resolved (Q1):** it is saved in a plain text file inside the project bundle; Noah accepts it may be revisited. ADR-0022's "no sidecar file" and ADR-0025's file list are amended with step 8. |
 | **ADR-0024 / ADR-0026** — `(MORE)` and the page-break `CONT'D` are never written to the manuscript | **Kept, not contradicted.** Step 1 and 2 draw them; step 5 prints them; the manuscript and the exported `.fountain` never contain them. ADR-0024 already warns that the PDF holds text the `.fountain` does not. |
 
 Also touched, by decision of the brief and consistent with the record: **ADR-0021** said the title
@@ -193,15 +194,18 @@ How it is drawn is the one genuinely uncertain part of Slice 2:
 - Typing does not slow: re-measured keystroke time with breaks drawn, reported in the PR.
 - The title page is **not** on the paper (step 4).
 
-**Dependencies.** Step 1 (the layout). A design for the paper must exist first.
+**Dependencies.** Step 1 (the layout) for the rule. **Drawing the paper and its page breaks waits for
+Noah's Penpot design** (see Q-C, resolved). Nothing in step 1 waits.
 
 **Questions for Noah.**
 
-- **Q-C. The Penpot design.** The brief says a design "should ideally exist before this ticket starts".
-  I cannot make one. Decision needed from you: *is it a hard blocker for the ticket or may it start
-  from the spike's page (the reference for the page itself, per the glossary) and be adjusted?*
-  Default proposed: **blocker for the visual values only** (colour, break treatment); the
-  prototype of the in-element break can start without it.
+- **Q-C. The Penpot design. Resolved (Noah, 2026-10-31): the design is a hard blocker for drawing.**
+  Step 1 (the page rule — the layout of lines and split points) can start now, and so can the
+  title page fields (step 4), Fountain export (step 7) and the name lists (step 8). **Step 2 — drawing
+  the paper and its page breaks — waits for Noah's Penpot design**, which will include **one close-up of
+  a page break**: the gap or line between sheets, its edges or shadow, where the page number sits, and
+  how `(MORE)` and `CONT'D` look. The in-element-break prototype is a drawing question and so waits
+  too; the paper's colour and break tokens (ADR-0030) are taken from the design, not chosen here.
 - **Q-D. Paper colour.** A white sheet on the dark ground, or the dark theme's own colour? "Real
   screenplay sheet" and "right colour" suggest white or off-white paper. Default: off-white paper on
   the existing dark ground, as the spike did.
@@ -237,6 +241,7 @@ and may be one ticket.
 Author(s), Source, Contact, Copyright, Draft date, Notes — saved as Fountain title-page `Key: value`
 lines. It follows write-ist-v1's edit-title-page dialog. **The title page never appears on the paper:
 the paper starts at page 1, and the title page does not count toward the page count.**
+*(Resolved, Noah 2026-10-31: the title page moves off the paper — confirmed.)*
 
 - Opened from a menu item and a keybinding (Escape cancels; one button saves). Saving writes through
   the existing model and the existing save routine; autosave sees it as any other edit.
@@ -266,7 +271,8 @@ the paper starts at page 1, and the title page does not count toward the page co
 - Draft date accepts free text (a date picker would invent a format Fountain does not have).
 - Undo after Save restores the previous title page in one step.
 
-**Dependencies.** None on 1–3; independent. Reads ADR-0020, 0021 and `TitlePageField` in `document.ts`.
+**Dependencies.** None on 1–3; independent, and **can start now** — it needs no Penpot design (the dialog
+is not the paper). Reads ADR-0020, 0021 and `TitlePageField` in `document.ts`.
 
 **Questions for Noah.**
 
@@ -363,15 +369,23 @@ own ticket so neither blocks the other.
 ## Step 7 — Fountain export
 
 **Behavior.** **Save a Copy as Fountain…** writes the script as a `.fountain` file anywhere the writer
-chooses. It is, in the brief's words, "essentially the save format" — the existing serialiser, a save
-dialog, and the same temp-flush-rename write. The file is **outside the bundle**; the project is not
-re-pointed to it and the copy is not tracked.
+chooses. It is the existing serialiser, a save dialog, and the same temp-flush-rename write — **but
+a finished-product export, not a save: comments and the boneyard are stripped, the same as the PDF
+(step 5).** This deliberately differs from how Write-ist saves, which keeps both (ADR-0020: the
+writer's words are theirs). The file is **outside the bundle**; the project is not re-pointed to it and
+the copy is not tracked.
 
 **Acceptance criteria.**
 
-- For every corpus manuscript the exported bytes equal what autosave would write for the same model,
-  and — for a file Write-ist wrote — equal the manuscript on disk (the round-trip gate, again, at the
-  export boundary).
+- For every corpus manuscript the exported bytes equal what autosave would write for the same model
+  **with every comment and every boneyard block removed** — and nothing else removed or changed (a diff
+  test against the manuscript, whose only differences are those spans; the round-trip gate at the
+  export boundary). Where nothing is stripped, the bytes equal the manuscript.
+- **No comment text and no boneyard text appears in the export**, on a fixture with a comment inside
+  dialogue, a comment on a mark boundary, and a boneyard spanning several elements. Stripping leaves no
+  stray blank line, doubled space or orphaned markup, and a speech whose lines were all boneyard leaves
+  no bare cue. (The census asserts what the export *means*, not only that it parses.)
+- Export does not change the model, the manuscript on disk, or the undo history.
 - The title page is included; `(MORE)`/page-break `CONT'D` are not (ADR-0024).
 - Export on an unsaved, edited project exports the **current state**, not the last saved one, without
   triggering a save as a side effect.
@@ -379,16 +393,15 @@ re-pointed to it and the copy is not tracked.
   the save-dialog result only, not a blanket scope. A failure is reported; success is silent
   (ADR-0031).
 
-**Dependencies.** None. Cheapest step; a good first ticket for a quick, visible win.
+**Dependencies.** None, and **can start now** — it needs no Penpot design. Cheapest step; a good first
+ticket for a quick, visible win.
 
 **Questions for Noah.**
 
-- **Q-K. Do comments and the boneyard travel in the copy?** "A copy of the script … essentially the save
-  format" says yes (a faithful copy, comments as `[[ ]]` notes). The glossary says comments are
-  "stripped before … export". Those cannot both hold for Fountain export. Default proposed: **faithful
-  copy** — the file you'd get if you copied `manuscript.fountain` — with an optional "without
-  comments" choice only if you ask for it. Comments are in-band Fountain notes, so any other tool reads
-  them as notes, not as dialogue.
+- **Q-K. Do comments and the boneyard travel in the copy? Resolved (Noah, 2026-10-31): no.** The
+  Fountain export strips comments **and** the boneyard, exactly as the PDF does. It is a finished-product
+  export and deliberately differs from the save format. This agrees with the glossary ("stripped before
+  … export"). A faithful copy is simply `manuscript.fountain` in the bundle.
 
 ## Step 8 — Character and scene-location lists, derived
 
@@ -433,23 +446,24 @@ recomputed incrementally, never by rescanning the whole manuscript on a keystrok
   the change on a small fixture.
 - Derivation is incremental; one keystroke's cost is reported, including the measurement, against the
   16 ms budget.
-- Nothing is written to the manuscript. Explicit confirmations are written where Q1 says.
+- Nothing is written to the manuscript. Explicit confirmations are written to the names file inside
+  the bundle (Q1, resolved).
 
-**Dependencies.** The single "where is this" module (architecture review, section 1) and **ranges**
+**Dependencies.** Can start now (no Penpot design needed). The single "where is this" module (architecture review, section 1) and **ranges**
 (scene boundaries, needed by step 10's per-scene checking too — so ranges are built here, once). Reads
 ADR-0019, 0020, 0021, 0022.
 
 **Questions for Noah.**
 
-- **Q1 (the important one). Where does "explicitly confirmed" live?** It is the only stored state in
-  this slice and it contradicts "no sidecar file" in ADR-0022/0029. Options:
-  1. **A sidecar file in the bundle** — plain text, project-level, never frozen at lock (like the
-     other sidecar files, ADR-0025), so a project that moves or is backed up takes its confirmations
-     along. Needs ADR-0025's file list amended. *My recommendation.*
-  2. **App data outside every bundle, keyed by the project id** (ADR-0015 exists for this). No bundle
-     change; confirmations are lost if the project is copied to a new machine.
-  3. **Inline in the manuscript** (e.g. a Fountain note). Ruled out by ADR-0022's own
-     argument ("machine noise … for no reader").
+- **Q1. Where does "explicitly confirmed" live? Resolved (Noah, 2026-10-31): a simple text file inside
+  the project bundle.** Confirmed character and location names are saved there — plain text, project-level,
+  never frozen at lock (like the other sidecar files, ADR-0025), so a project that moves or is backed up
+  takes its confirmations along. **Noah accepts that this may be revisited later**; the file's format is
+  therefore kept trivial (one name per line under a kind) so it can change cheaply. It contradicts "no
+  sidecar file" in ADR-0022/0029, so the ticket amends ADR-0022 and ADR-0025's file list, and the
+  file is read and written with the existing temp-flush-rename routine. Options rejected: app data
+  outside the bundle keyed by project id (confirmations lost when the project is copied), and inline in
+  the manuscript (ADR-0022's "machine noise … for no reader").
 - **Q-L. Does a name in the boneyard count?** Default: no — cut material is absent from everything
   computed off the manuscript (glossary, *Boneyard*).
 - **Q-M. Co-speakers and oddities.** `MARY & JOHN`, `BOY #2`, `EDWARD'S VOICE`. Default: each cue's name is
@@ -636,8 +650,16 @@ Fountain**, as one pass a person and a script can both run.
 
 ## Order and tickets
 
+Penpot sequencing (Noah, 2026-10-31). **Can start now:** step 1 (the page rule — layout of lines and
+split points), step 4 (title page fields), step 7 (Fountain export) and step 8 (the name lists, with the
+position module and ranges). **Waits for Noah's Penpot design** (with its close-up of a page break):
+**step 2 — drawing the paper and its page breaks** — and with it the drawn part of step 3 (page numbers
+on the paper), the in-element-break prototype, and the paper tokens. Step 5 (PDF) needs the layout and
+title-page layout, not the drawn paper, but takes its break and page-number look from the same design.
+`⏸` marks what waits.
+
 ```
-1 page rule ──┬─▶ 2 paper ──┬─▶ 3 page numbers ──┐
+1 page rule ──┬─▶ ⏸ 2 paper ──┬─▶ ⏸ 3 page numbers ──┐
               │             └────────────────────┤
               └─────────────────────────────────▶ 5 PDF ◀── title-page layout ◀── 4 title fields
                                                     │                │
@@ -652,11 +674,13 @@ position module ─▶ ranges ─▶ 8 lists ─▶ 9 autocomplete
 
 Suggested slices for `/to-tickets` (thin, end to end, each demoable):
 
-1. Layout output from the engine (step 1) — demo: `layout` on *Big Fish*, numbers in the PR.
+1. Layout output from the engine (step 1) — can start now. Demo: `layout` on *Big Fish*, numbers in the PR.
 2. Fountain export (step 7) — independent, demoable straight away.
 3. Edit Title Page and removing the title page from the paper (step 4).
 4. Title-page layout shared module + View Title Page (step 6).
-5. Paper, breaks and page numbers (steps 2 and 3), preceded by the prototype ticket for in-element breaks.
+5. ⏸ **Waits for the Penpot design.** Paper, breaks and page numbers (steps 2 and 3), preceded by the
+   prototype ticket for in-element breaks. Page numbers' *status-bar* half (step 3) needs only step 1
+   and may be cut out and start now.
 6. PDF export (step 5).
 7. Position module, ranges, lists with the census and Confirm (step 8).
 8. Autocomplete (step 9).
@@ -688,14 +712,18 @@ These govern how the tickets are checked (`AGENTS.md`: "the spec's *Testing Deci
 Plain-English, in the order the work needs them. Defaults are what the tickets will do if you say
 nothing.
 
-1. **Q1 — where "explicitly confirmed" is stored.** In the bundle (a small text file; recommended),
-   outside it keyed by project id, or not at all? It is the only new stored state in the slice.
+1. ~~**Q1 — where "explicitly confirmed" is stored.**~~ **Resolved:** a simple text file inside the
+   project bundle; may be revisited later.
 2. **Q-S — right-click.** We draw our own menu. OK on Linux first and check the other two webviews
    later?
-3. **Q-C — Penpot design.** Is it a hard blocker for the paper ticket, or only for its colours?
+3. ~~**Q-C — Penpot design.**~~ **Resolved:** step 1, title page fields, Fountain export and the name
+   lists start now; drawing the paper and its page breaks (step 2) waits for Noah's Penpot design,
+   including one close-up of a page break.
 4. **Q-D — paper colour.** Off-white paper on the dark ground?
 5. **Q-E — page number.** Top right as `2.`, none on page 1, like Final Draft?
-6. **Q-K — comments and cut material in the `.fountain` copy.** Faithful copy (yes) or strip them?
+6. ~~**Q-K — comments and cut material in the `.fountain` copy.**~~ **Resolved:** stripped, as in the
+   PDF; a finished-product export that deliberately differs from how Write-ist saves.
+   Also resolved: **the title page moves off the paper** (step 4).
 7. **Q-R — does the spellcheck pass stay on** until you toggle it off?
 8. **Q-V — a new character used once or twice** is underlined until used a third time or confirmed.
    Intended?
