@@ -142,15 +142,20 @@ export function repaginate(
   previous: PaginationDetail | undefined,
   dirtyElementIndex: number | undefined,
 ): PaginationDetail {
-  const items = printableItems(document);
   if (previous === undefined || previous.totalPages === 0 || dirtyElementIndex === undefined) {
-    return pack(items, document.elements.length, 1, [], [], []);
+    return pack(printableItems(document), document.elements.length, 1, [], [], []);
   }
 
   const startPage = cleanPageStart(previous, affectedPage(previous, dirtyElementIndex));
   if (startPage <= 1) {
-    return pack(items, document.elements.length, 1, [], [], []);
+    return pack(printableItems(document), document.elements.length, 1, [], [], []);
   }
+
+  // Only the items from the resume point on are wrapped: the pages before it
+  // are kept, so wrapping them again would make every keystroke cost the
+  // length of the manuscript rather than the length of what follows the edit.
+  const boundary = resumeBoundary(previous, startPage, dirtyElementIndex);
+  const items = printableItems(document, boundary);
 
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: document.elements.length },
@@ -163,7 +168,6 @@ export function repaginate(
   }
 
   const fill = previous.fill.slice(0, startPage - 1);
-  const resumeItem = resumeItemIndex(items, previous, startPage, dirtyElementIndex);
   const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
   const carryBlank = previous.chunks.find((chunk) => chunk.page === startPage)?.row ?? 0;
   return pack(
@@ -173,7 +177,7 @@ export function repaginate(
     fill,
     pageOfElement,
     chunks,
-    resumeItem,
+    0,
     carryBlank,
   );
 }
@@ -251,12 +255,12 @@ function affectedPage(previous: PaginationDetail, dirty: number): number {
 }
 
 /**
- * First printable item to feed the packer when resuming at `startPage`.
- * Prefers the first item whose prior page was `startPage`; falls back to the
- * first item at or after the dirty element.
+ * The element the packer resumes at when `startPage` is re-packed: the first
+ * one the kept layout put on `startPage`, or the dirty element if that comes
+ * first. It is always the start of an item, so nothing before it is needed
+ * but the element that precedes it (for the blank line).
  */
-function resumeItemIndex(
-  items: readonly Item[],
+function resumeBoundary(
   previous: PaginationDetail,
   startPage: number,
   dirtyElementIndex: number,
@@ -268,8 +272,7 @@ function resumeItemIndex(
       break;
     }
   }
-  const at = items.findIndex((item) => item.elementIndex >= boundary);
-  return at < 0 ? items.length : at;
+  return boundary;
 }
 
 /**
@@ -532,7 +535,7 @@ function splitHead(item: Item, from: number, remaining: number, avail: number): 
  * Build the printable stream: skip title/front-matter, drop marginalia and
  * omitted elements, collapse dual dialogue to max(left, right).
  */
-function printableItems(document: ScreenplayDocument): Item[] {
+function printableItems(document: ScreenplayDocument, from = 0): Item[] {
   const { elements } = document;
   let start = 0;
   const firstBreak = elements.findIndex((element) => element.type === "page-break");
@@ -552,6 +555,18 @@ function printableItems(document: ScreenplayDocument): Item[] {
   };
   const raw: Raw[] = [];
   let previous: Element | undefined;
+
+  // Resuming part-way: the blank line before the first element read depends on
+  // the printable element that precedes it, so find that one and begin after.
+  if (from > start) {
+    for (let i = Math.min(from, elements.length) - 1; i >= start; i--) {
+      const el = elements[i]!;
+      if (el.omitted === true || MARGINALIA.has(el.type)) continue;
+      if (el.type !== "page-break" && wrappedLines(el) !== 0) previous = el;
+      break;
+    }
+    start = from;
+  }
 
   for (let i = start; i < elements.length; i++) {
     const el = elements[i]!;
@@ -600,8 +615,32 @@ function printableItems(document: ScreenplayDocument): Item[] {
     );
 }
 
+/**
+ * Wrapped line counts by width, then text. A keystroke changes one element and
+ * the rest of the manuscript wraps exactly as it did the keystroke before, so
+ * the count is remembered rather than re-walked (#49). Bounded: when it grows
+ * past `WRAP_CACHE_LIMIT` entries it starts afresh.
+ */
+const wrapCache = new Map<number, Map<string, number>>();
+const WRAP_CACHE_LIMIT = 20_000;
+let wrapCached = 0;
+
 function wrappedLines(el: Element): number {
-  return wrapCount(el.text, ELEMENT_GEOMETRY[el.type].width);
+  const width = ELEMENT_GEOMETRY[el.type].width;
+  let byText = wrapCache.get(width);
+  if (byText === undefined) wrapCache.set(width, (byText = new Map()));
+  let lines = byText.get(el.text);
+  if (lines === undefined) {
+    if (wrapCached >= WRAP_CACHE_LIMIT) {
+      wrapCache.clear();
+      wrapCached = 0;
+      wrapCache.set(width, (byText = new Map()));
+    }
+    lines = wrapCount(el.text, width);
+    byText.set(el.text, lines);
+    wrapCached += 1;
+  }
+  return lines;
 }
 
 /**

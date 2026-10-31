@@ -197,3 +197,66 @@ describe("the keystroke budget, on a manuscript with comments", () => {
     expect(budget(document, bytes.length)).toBeLessThan(BUDGET);
   });
 });
+
+/**
+ * **A synthetic script the size of the corpus**, so the budget is checked on a
+ * machine that does not have the corpus. About 170 KB and 120 pages: scene
+ * headings, action that wraps, and speeches with cues, parentheticals and
+ * dialogue long enough to split over a page break (#87). The keystroke lands in
+ * the middle, so the re-pack must resume there and not from page 1 — the layout
+ * once re-wrapped every element before the edit on each keystroke, and a
+ * 20 ms keystroke on the corpus is how that was found.
+ */
+function syntheticScript(): string {
+  const sentence = "She crosses the room slowly, and the light follows her to the far wall. ";
+  const speech = "I told you before and I will tell you again, nothing here is what it seems. ";
+  const scenes: string[] = [];
+  let bytes = 0;
+  for (let scene = 0; bytes < 170_000; scene++) {
+    const text = [
+      `INT. ROOM ${scene} - DAY`,
+      "",
+      sentence.repeat(1 + (scene % 4)).trim(),
+      "",
+      `SPEAKER ${scene % 7}`,
+      "(quietly)",
+      speech.repeat(2 + (scene % 5)).trim(),
+      "",
+      `LISTENER ${scene % 5}`,
+      speech.repeat(1 + (scene % 3)).trim(),
+      "",
+      sentence.repeat(2).trim(),
+      "",
+    ].join("\n");
+    scenes.push(text);
+    bytes += text.length + 1;
+  }
+  return scenes.join("\n") + "\n";
+}
+
+describe("the keystroke budget, on a synthetic script the size of the corpus", () => {
+  const bytes = new TextEncoder().encode(syntheticScript());
+  const document = importScreenplay(bytes).document;
+
+  it("is the size the corpus is", () => {
+    const pages = paginate(document).totalPages;
+    expect(bytes.length).toBeGreaterThan(165_000);
+    expect(pages).toBeGreaterThan(100);
+    expect(pages).toBeLessThan(160);
+  });
+
+  it("re-packs from the edited page, and agrees with a full pack", () => {
+    const full = paginate(document);
+    const dirty = Math.floor(document.elements.length / 2);
+    const resumed = repaginate(document, full, dirty);
+    expect(resumed.resumedFromPage).toBeGreaterThan(1);
+    expect(resumed.totalPages).toBe(full.totalPages);
+    expect(resumed.pageOfElement).toEqual(full.pageOfElement);
+    expect(resumed.fill).toEqual(full.fill);
+    expect(resumed.chunks).toEqual(full.chunks);
+  });
+
+  it(`stays under ${BUDGET} ms a keystroke`, () => {
+    expect(budget(document, bytes.length)).toBeLessThan(BUDGET);
+  });
+});
