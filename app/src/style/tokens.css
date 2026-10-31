@@ -95,7 +95,17 @@
   /** Text at the edge of attention: a hint, a count, a path. */
   --colour-faint: #928374;
 
+  /**
+   * The paper the screenplay is typed on. Its own value rather than a use of
+   * `--colour-raised`: today they are the same grey, and a theme may part them.
+   */
+  --colour-page: #282828;
+  /** A row that is hovered, focused or open. */
+  --colour-overlay: #32302f;
+
   --colour-border: #3c3836;
+  /** The edge of something that floats over the paper, which is its own colour. */
+  --colour-border-strong: #504945;
 
   /** Write-ist's own mark, and the thing the eye should go to. */
   --colour-accent: #fabd2f;
@@ -103,6 +113,9 @@
   --colour-affirm: #b8bb26;
   /** Something the writer must see. */
   --colour-alarm: #fb4934;
+
+  /** A character's name on the paper. */
+  --colour-info: #83a598;
 
   /** Text drawn on top of the accent. */
   --colour-on-accent: #1d2021;
@@ -171,8 +184,9 @@
   /**
    * The room the floating workspace bar needs above the workspace.
    *
-   * The bar is not built in slice 1 (#37). The space it sits in is, so that the
-   * furniture it later joins is the furniture that is already here.
+   * The bar is not built yet. The paper no longer leaves this room above it —
+   * the bar floats over the paper's top margin instead — so nothing reads this
+   * until the bar does.
    */
   --space-workspace-bar: 52px;
 
@@ -197,6 +211,8 @@
 
   --radius-slight: 4px;
   --radius-round: 8px;
+  /** The corner of anything that floats on the desk. */
+  --radius-float: 6px;
 
   /** How far a focus ring sits from what it is ringing. */
   --focus-width: 2px;
