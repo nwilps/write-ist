@@ -52,7 +52,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-row-gap);
-  min-height: 0;
+  /* A panel is as tall as its rows. Only the scenes panel may give way. */
+  flex: none;
   padding: var(--space-panel-y) var(--space-panel-x);
   background: var(--colour-raised);
   border-radius: var(--radius-float);
@@ -136,6 +137,11 @@
 .panel--scenes {
   gap: 0;
   overflow: hidden;
+  /* The design's 272px, and shorter only when the window is. The list inside
+     scrolls; the panel never grows over the one above it. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: var(--size-panel-scenes);
 }
 
 .panel__heading {

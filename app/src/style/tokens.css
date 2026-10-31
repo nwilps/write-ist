@@ -219,6 +219,8 @@
    * and 48px panel heights only agree at 12px, so that is the padding.
    */
   --size-panel: 240px;
+  /** The tallest the Scenes panel gets (the design: 240 × 272). */
+  --size-panel-scenes: 272px;
   --space-panel-gap: 14px;
   --space-panel-top: 72px;
   --space-panel-stack: 16px;

@@ -131,3 +131,11 @@ describe("the panels' look", () => {
     expect(css).toContain("color: var(--colour-accent)");
   });
 });
+
+describe("the left column's stacking", () => {
+  it("never shrinks a panel but the Scenes one, which is capped at the design's height", () => {
+    expect(css).toMatch(/\.panel \{[^}]*flex: none;/);
+    expect(css).not.toMatch(/\.panel \{[^}]*min-height: 0/);
+    expect(css).toMatch(/\.panel--scenes \{[^}]*flex: 0 1 auto;[^}]*max-height: var\(--size-panel-scenes\)/);
+  });
+});
