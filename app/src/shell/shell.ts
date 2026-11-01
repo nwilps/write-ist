@@ -84,7 +84,7 @@ export interface MountedShell {
  */
 export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell {
   const gestures: readonly Gesture[] = [
-    { label: "Close project", key: LEAVE, act: screen.onClose },
+    { label: "Home", key: LEAVE, act: screen.onHome },
   ];
 
   const host = element("div", { className: "workspace" });

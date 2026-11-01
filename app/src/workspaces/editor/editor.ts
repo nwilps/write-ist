@@ -108,9 +108,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const panels = sidePanels(() => startSearch(), {
     File: [
       { label: "Save Project", hint: "[Ctrl + S]", icon: Save, act: () => saveNow() },
-      { label: "Open Project", hint: "[Esc]", icon: FolderOpen, act: context.leave.toProjects },
+      { label: "Open Project", icon: FolderOpen, act: context.leave.toProjects },
       { divider: true },
-      { label: "Home", icon: House, act: context.leave.toHome },
+      { label: "Home", hint: "[Esc]", icon: House, act: context.leave.toHome },
     ],
   });
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));

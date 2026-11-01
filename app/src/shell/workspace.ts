@@ -79,9 +79,9 @@ export interface WorkspaceContext {
    * without knowing how, and without a second path to closing.
    */
   readonly leave: {
-    /** To the list of projects, which is also where Esc goes. */
+    /** To the list of projects. */
     readonly toProjects: () => void;
-    /** To the home screen. */
+    /** To the home screen, which is also where Esc goes. */
     readonly toHome: () => void;
   };
   /**

@@ -23,7 +23,7 @@ Hyprland, where the bar is wasted space and is not how they move, size or close 
 - **Closing** still works. The compositor's close (Hyprland's `killactive`, a window manager's
   Alt+F4) raises the same close request as the old button, and `main.ts` answers it exactly as it
   answers Quit (ADR-0028): the project closes and saves first. **Esc** closes the project from the
-  desk, and Quit closes the window.
+  desk and goes Home, and Quit closes the window.
 - **Moving and resizing** are the window manager's: Super + drag, Super + right-drag, tiling, on
   Hyprland. An undecorated Tauri window on Linux still gets resize borders from the toolkit on floating
   desktops. Write-ist draws **no drag strip of its own**; a desktop with neither a keyboard move nor
