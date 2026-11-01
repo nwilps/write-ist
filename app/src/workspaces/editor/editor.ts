@@ -66,8 +66,9 @@ import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
 import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
-import { pageAtElement, pageStatusText } from "../../../../src/screenplay/paginate.ts";
+import { pageAtElement } from "../../../../src/screenplay/paginate.ts";
 import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
+import { countsText, wordsIn } from "./counts.ts";
 import { sidePanels } from "./panels.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
@@ -131,7 +132,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           laid.pagination,
           manuscriptElementAt(state.doc, state.selection.head),
         );
-        context.setStatus(pageStatusText(current, laid.totalPages));
+        context.setStatus(countsText(current, laid.totalPages, wordsIn(state.doc)));
       };
       const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
         // Changed elsewhere, and nothing typed here: the other version is the
@@ -155,8 +156,20 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         `Write-ist could not save your screenplay, so your last few words are ` +
         `only on screen. ${message(error)}`;
 
+      // Whether the work is on disk, for the save pill. A save that lands with
+      // more typed since (the flag is cleared before the write, so a keystroke
+      // during it stays unsaved) leaves the pill unsaved rather than green.
+      const saveAndShow = async (): ReturnType<typeof session.save> => {
+        context.setSaved("saving");
+        try {
+          return await session.save();
+        } finally {
+          context.setSaved(session.unsaved() ? "unsaved" : "saved");
+        }
+      };
+
       const saving = autosave({
-        save: session.save,
+        save: saveAndShow,
         // Autosave is the thing the writer is not watching, so a failure it
         // swallowed would be a failure nobody ever learned about (ADR-0008
         // rule 4). Their words are still on screen and still unsaved, and the
@@ -245,6 +258,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           if (transaction.docChanged) {
             session.changed();
             saving.typed();
+            context.setSaved("unsaved");
             const dirty = manuscriptElementAt(state.doc, state.selection.head);
             laid = layout(manuscriptOf(state.doc), laid, dirty);
             // Before the view is told, so it draws the seams for this state

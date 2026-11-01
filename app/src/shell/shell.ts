@@ -8,27 +8,25 @@
  * exists. The registry in `app/src/workspaces/` is where that is known.
  *
  * **The furniture is the prototype's** (`nwilps/write-ist-ng`, `spike/plan.html`):
- * a full-height column, the workspace filling it and scrolling, and a status bar
- * along the foot carrying the project's name. Its floating workspace bar sits
- * over the top of that column, which is why the workspace is given room above
- * it — slice 1 does not build the bar, and the furniture it will join is here
- * already rather than waiting to be retrofitted.
+ * a full-height column with the workspace filling it and scrolling. **The desk
+ * design has no full-width status bar** (§1, §2.3): the workspace bar floats
+ * over the top, and along the foot three small pills float over the desk — the
+ * project's name at the left, the workspace's counts and the save state at the
+ * right.
  *
- * **Placement and proportion, not contents.** The prototype's side panels hold
- * Plan's and the Log's controls, and the spike's panel is a developer's harness
- * showing round-trip status; neither belongs to a writer. What goes in the
- * Editor's furniture is the writer's business — the page count (#48) — so the
- * status bar carries the project's name and a slot the workspace fills.
+ * **Placement and proportion, not contents.** What goes in the counts pill is
+ * the workspace's business — the Editor's pages and words (#48) — so the shell
+ * carries the project's name and a slot the workspace fills, and a save state it
+ * is told rather than works out.
  */
-import { createElement, type IconNode } from "lucide";
+import { createElement, Save, SaveCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import { element } from "../screens/element.ts";
-import { menuRow } from "../screens/menu.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
-import type { MountedWorkspace, WorkspaceManifest } from "./workspace.ts";
+import type { MountedWorkspace, SaveState, WorkspaceManifest } from "./workspace.ts";
 
 export interface ShellScreen {
   /** Which project is open — a path and what its marker says (ADR-0015). */
@@ -89,22 +87,24 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   const host = element("div", { className: "workspace" });
   const view = element("main", { className: "shell__view" }, [host]);
-  // The project's name is which work they are in. The pages slot stays empty
-  // until the workspace has something to say (#48) — real text, never a guess.
-  const pages = element("span", { className: "statusbar__pages", textContent: "" });
+  // The counts slot stays empty until the workspace has something to say
+  // (#48) — real text, never a guess — and its pill is hidden until then.
+  const counts = element("span", { className: "pill pill--counts", hidden: true });
+  const saved = savePill();
 
   into.replaceChildren(
     element("div", { className: "shell" }, [
       workspaceBar(screen.workspaces),
       view,
-      element("footer", { className: "statusbar" }, [
-        element("span", {
-          className: "statusbar__project",
-          textContent: screen.project.marker.name,
-        }),
-        pages,
-        menuRow(gestures),
+      // The paper fades off under the window's top and bottom edges. Purely a
+      // picture over the paper: it takes no clicks and is never in the document.
+      element("div", { className: "paper-fade paper-fade--top", ariaHidden: "true" }),
+      element("div", { className: "paper-fade paper-fade--bottom", ariaHidden: "true" }),
+      element("div", { className: "pills pills--left" }, [
+        // The project's name is which work they are in.
+        element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),
       ]),
+      element("div", { className: "pills pills--right" }, [counts, saved.pill]),
     ]),
   );
 
@@ -114,7 +114,8 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   // message.
   const report = (wrong: string): void => void view.append(troublePanel(wrong));
   const setStatus = (text: string): void => {
-    pages.textContent = text;
+    counts.textContent = text;
+    counts.hidden = text === "";
   };
 
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
@@ -122,12 +123,45 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     filesystem: screen.filesystem,
     report,
     setStatus,
+    setSaved: saved.set,
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
     ledger: screen.ledger,
   });
 
   return { gestures, unmount: mounted.unmount, report };
+}
+
+/** What the save pill says, in words, for a screen reader. */
+const SAVE_LABELS: Readonly<Record<SaveState, string>> = {
+  saved: "Saved",
+  unsaved: "Not yet saved",
+  saving: "Saving",
+};
+
+/**
+ * The save pill (the desk design, §2.3, §4): a 32px square holding one icon —
+ * `save-check` in the affirm colour when the work is on disk, `save` in the
+ * text colour when it is not, and pulsing while a save is under way. The state
+ * is told to it; it never decides.
+ */
+function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveState) => void } {
+  const drawings = {
+    saved: createElement(SaveCheck as IconNode, { class: "pill__icon" }),
+    unsaved: createElement(Save as IconNode, { class: "pill__icon" }),
+    saving: createElement(Save as IconNode, { class: "pill__icon" }),
+  };
+  const pill = element("span", { className: "pill pill--save", role: "status" });
+  const set = (state: SaveState): void => {
+    pill.dataset["state"] = state;
+    pill.setAttribute("aria-label", SAVE_LABELS[state]);
+    pill.title = SAVE_LABELS[state];
+    const icon = drawings[state].cloneNode(true) as SVGElement;
+    icon.setAttribute("aria-hidden", "true");
+    pill.replaceChildren(icon);
+  };
+  set("saved");
+  return { pill, set };
 }
 
 /**

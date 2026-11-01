@@ -180,7 +180,7 @@
    * follows: 48px below its top, its right edge at 7.5in — 96px in from the
    * sheet's own right.
    */
-  --sheet-gap: 28px;
+  --sheet-gap: var(--space-panel);
   --page-number-top: 48px;
   --page-number-right: 96px;
 
@@ -190,7 +190,6 @@
    * From the prototype (`nwilps/write-ist-ng`, `spike/plan.html`) — placement
    * and proportion, not contents.
    */
-  --statusbar-height: 26px;
   /**
    * The room the floating workspace bar needs above the workspace.
    *
@@ -207,13 +206,28 @@
    */
   --size-pill: 32px;
   --size-icon: 14px;
-  --space-desk-edge: 12px;
+  --space-desk-edge: var(--space-panel);
+  /** Between neighbouring pills along the foot (§2.3). */
+  --space-pill-gap: var(--space-panel);
+  /** The save pill's icon (§4), a step up from the 14px of the panels. */
+  --size-icon-large: 16px;
+  /** The saving icon breathes between full strength and this, gently. */
+  --opacity-pulse: 0.35;
+  --duration-pulse: 700ms;
   --space-tab-gap: 32px;
+  /**
+   * The paper fading off under the window's top and bottom edges: bands as
+   * wide as the paper, dissolving into the desk's colour — fully desk at the
+   * window's edge. A colour fade only: no blur. Not in the design (Penpot
+   * cannot render it).
+   */
+  --size-paper-fade: 72px;
+  --opacity-paper-fade: 1;
   --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 
   /*
-   * The side panels (the desk design, §2.2): columns 240px wide, 14px off the
-   * paper, starting 72px down, 16px between the panels stacked in one. A row is
+   * The side panels (the desk design, §2.2): columns 240px wide, 12px off the
+   * paper, starting 72px down, 12px between the panels stacked in one. A row is
    * a 24px highlight on a 32px rhythm (8px between), its label 14px in from
    * the highlight. The design's "16px top and bottom" padding and its 144, 240
    * and 48px panel heights only agree at 12px, so that is the padding.
@@ -221,11 +235,11 @@
   --size-panel: 240px;
   /** The tallest the Scenes panel gets (the design: 240 × 272). */
   --size-panel-scenes: 272px;
-  --space-panel-gap: 14px;
+  --space-panel-gap: var(--space-panel);
   --space-panel-top: 72px;
-  --space-panel-stack: 16px;
-  --space-panel-x: 12px;
-  --space-panel-y: 12px;
+  --space-panel-stack: var(--space-panel);
+  --space-panel-x: var(--space-panel);
+  --space-panel-y: var(--space-panel);
   --space-row-gap: 8px;
   --space-row-label: 14px;
   --size-row: 24px;
@@ -259,6 +273,13 @@
   --radius-round: 8px;
   /** The corner of anything that floats on the desk. */
   --radius-float: 6px;
+  /**
+   * The corner of each sheet of paper. Today it is the panels' corner; a
+   * setting can later point it at 0 for square sheets.
+   */
+  --radius-paper: var(--radius-float);
+  /** The soft edge of a drawn corner, so it is not stair-stepped. */
+  --size-corner-feather: 0.5px;
 
   /** How far a focus ring sits from what it is ringing. */
   --focus-width: 2px;
@@ -281,6 +302,7 @@
   /** Twelve rows; past that the list scrolls rather than the panel growing. */
   --size-results-max: 336px;
   --size-query: 14px;
+  /** The one 12px every gap around the panels, paper and pills reads. */
   --space-panel: 12px;
   /** The desk's own colour at 70%, over everything. No blur. */
   --veil: color-mix(in srgb, var(--colour-base) 70%, transparent);

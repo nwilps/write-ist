@@ -24,10 +24,11 @@ function rule(selector: string): string {
 const element = (type: string): string => rule(`.manuscript > [data-element="${type}"]`);
 
 describe("the paper", () => {
-  it("is the paper's own colour, with no frame", () => {
+  it("is the paper's own colour, with no frame, rounded only at the corner", () => {
     const paper = rule(".page");
     expect(paper).toContain("background: var(--colour-page)");
-    expect(paper).not.toMatch(/outline|border|box-shadow/);
+    expect(paper).toContain("border-radius: var(--radius-paper)");
+    expect(paper).not.toMatch(/outline|border(?!-radius)|box-shadow/);
   });
 
   it("runs the full height of the window, with nothing reserved above it", () => {

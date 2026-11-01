@@ -10,15 +10,15 @@
  *     **spike**'s (`nwilps/write-ist-ng`, `spike/src/style.css`): one sheet,
  *     centred on the dark ground, at the width and margins it sets.
  *   - **Everything outside the page** is the **prototype**'s (`spike/plan.html`):
- *     the full-height column, the workspace filling it and scrolling, the status
- *     bar along the foot, and the room at the top where the floating workspace
- *     bar will sit.
+ *     the full-height column and the workspace filling it and scrolling, with
+ *     the desk design's floating pills along the foot and its workspace bar
+ *     over the top.
  *
  * Placement and proportion, not contents. The spike's panel is a developer's
  * harness showing round-trip status and a reload key; the prototype's side
  * panels hold Plan's and the Log's controls. Neither is the writer's business,
- * so neither is here — the status bar carries the project's name, and the page
- * count joins it when it arrives (#48).
+ * so neither is here — the project's name is a pill, and the page and word
+ * count another (#48).
  *
  * **The industry layout is #40's, and it is here.** Courier Prime at 12pt, the
  * sheet's margins, and each element at its indent and measure — every one of
@@ -103,7 +103,7 @@
 }
 
 /*
- * The workspace fills the column and scrolls; the status bar does not move.
+ * The workspace fills the column and scrolls; the pills do not move.
  *
  * It scrolls both ways, because the page below keeps its width rather than
  * narrowing (#40). On a window too narrow for an 8.5in sheet the writer scrolls
@@ -115,6 +115,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /*
@@ -126,43 +128,125 @@
  * short manuscript does not leave the window half-painted.
  */
 .workspace {
-  min-height: 100%;
+  /* Fills the view when the manuscript is shorter than the window, and grows
+     past it when it is not. A percentage min-height would not resolve here. */
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
   padding: 0 var(--space-roomy);
 }
 
-.statusbar {
-  flex: none;
-  height: var(--statusbar-height);
+/*
+ * The paper fading off at the window's top and bottom edges. Fixed to the
+ * column, as wide as the paper and centred on it, so the panels and the desk
+ * either side are untouched. Above the paper, below the pills (z-index 0 under
+ * their 1), and `pointer-events: none` so clicks and selection go through.
+ * It is exactly the paper's width, so its straight sides sit on the rounded
+ * paper's edge, and it is the desk's colour at the window's edge, so the
+ * paper's corners there vanish into it rather than showing a square seam.
+ */
+.paper-fade {
+  position: absolute;
+  left: 50%;
+  width: min(var(--page-width), 100%);
+  transform: translateX(-50%);
+  height: var(--size-paper-fade);
+  z-index: 0;
+  pointer-events: none;
+  --fade-to: to bottom;
+  background: linear-gradient(
+    var(--fade-to),
+    color-mix(in srgb, var(--colour-base) calc(var(--opacity-paper-fade) * 100%), transparent),
+    color-mix(in srgb, var(--colour-base) 55%, transparent) 40%,
+    transparent
+  );
+}
+
+.paper-fade--top {
+  top: 0;
+}
+
+.paper-fade--bottom {
+  --fade-to: to top;
+  bottom: 0;
+}
+
+/*
+ * The pills along the foot of the desk (the desk design, §2.3): the project's
+ * name at the left, the counts and the save state at the right, each 12px from
+ * the window's edge and 12px from its neighbour. They float over the desk and
+ * the paper, so a strip lets clicks through to what is beneath it.
+ */
+.pills {
+  position: absolute;
+  bottom: var(--space-desk-edge);
+  z-index: 1;
+  display: flex;
+  gap: var(--space-pill-gap);
+  pointer-events: none;
+}
+
+.pills--left {
+  left: var(--space-desk-edge);
+}
+
+.pills--right {
+  right: var(--space-desk-edge);
+}
+
+.pill {
+  pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: var(--space-roomy);
-  padding: 0 var(--space-snug) 0 var(--space-roomy);
-  border-top: var(--rule-thin) solid var(--colour-border);
-  font-size: var(--size-hint);
-  color: var(--colour-faint);
-}
-
-/* Which work the writer is in. */
-.statusbar__project {
+  justify-content: center;
+  height: var(--size-pill);
+  padding: 0 var(--space-roomy);
+  box-sizing: border-box;
+  background: var(--colour-raised);
+  border-radius: var(--radius-float);
+  font-size: var(--size-label);
   color: var(--colour-muted);
+  white-space: nowrap;
 }
 
-/* Page count and current page (#48). The workspace fills this; the shell does not. */
-.statusbar__pages {
-  color: var(--colour-faint);
+.pill[hidden] {
+  display: none;
 }
 
-/* The shell's own gestures sit at the far end, where the prototype puts its. */
-.statusbar .menu--row {
-  margin-left: auto;
-  padding-top: 0;
-  border-top: 0;
-  gap: var(--space-tight);
+/* The save pill is a square holding one icon, drawn at 16px (§4). */
+.pill--save {
+  width: var(--size-pill);
+  padding: 0;
+  color: var(--colour-text);
 }
 
-.statusbar .gesture {
-  padding: 0 var(--space-tight);
-  font-size: var(--size-hint);
+.pill--save[data-state="saved"] {
+  color: var(--colour-affirm);
+}
+
+.pill--save[data-state="saving"] {
+  animation: pill-pulse var(--duration-pulse) ease-in-out infinite alternate;
+}
+
+.pill__icon {
+  width: var(--size-icon-large);
+  height: var(--size-icon-large);
+  flex: none;
+}
+
+@keyframes pill-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: var(--opacity-pulse);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill--save[data-state="saving"] {
+    animation: none;
+  }
 }
 
 /* --- The page ----------------------------------------------------------- */
@@ -181,8 +265,10 @@
   position: relative;
   width: var(--page-width);
   margin: 0 auto;
-  min-height: 100%;
   background: var(--colour-page);
+  /* The first sheet's top and the last sheet's foot; the seams round their own
+     (`sheets.css`). */
+  border-radius: var(--radius-paper);
   /*
    * No outline, no border, no shadow: the paper is the same family of grey as
    * the panels that will sit beside it, and its edge is where the desk's darker

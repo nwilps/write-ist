@@ -68,10 +68,45 @@
   padding-bottom: var(--page-inset-bottom);
 }
 
-/* The desk showing between two sheets. */
+/*
+ * The desk showing between two sheets. The paper is one column, so the sheets'
+ * rounded corners are cut here: two corner-sized pieces of desk colour, one
+ * over the foot of the sheet above and one over the head of the sheet below,
+ * each a quarter-circle hole in a square. They are out of flow, so no row of
+ * the count moves (ADR-0030).
+ */
 .sheet-break__desk {
+  position: relative;
   height: var(--sheet-gap);
   background: var(--colour-base);
+}
+
+.sheet-break__desk::before,
+.sheet-break__desk::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--radius-paper);
+  background-repeat: no-repeat;
+  background-size: var(--radius-paper) 100%;
+  pointer-events: none;
+}
+
+.sheet-break__desk::before {
+  bottom: 100%;
+  background-image:
+    radial-gradient(circle at 100% 0, transparent calc(var(--radius-paper) - var(--size-corner-feather)), var(--colour-base) var(--radius-paper)),
+    radial-gradient(circle at 0 0, transparent calc(var(--radius-paper) - var(--size-corner-feather)), var(--colour-base) var(--radius-paper));
+  background-position: left top, right top;
+}
+
+.sheet-break__desk::after {
+  top: 100%;
+  background-image:
+    radial-gradient(circle at 100% 100%, transparent calc(var(--radius-paper) - var(--size-corner-feather)), var(--colour-base) var(--radius-paper)),
+    radial-gradient(circle at 0 100%, transparent calc(var(--radius-paper) - var(--size-corner-feather)), var(--colour-base) var(--radius-paper));
+  background-position: left top, right top;
 }
 
 /* The next sheet's top margin, with its page number in it, ending at 7.5in. */
