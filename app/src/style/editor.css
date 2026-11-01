@@ -141,6 +141,9 @@
  * column, as wide as the paper and centred on it, so the panels and the desk
  * either side are untouched. Above the paper, below the pills (z-index 0 under
  * their 1), and `pointer-events: none` so clicks and selection go through.
+ * It is exactly the paper's width, so its straight sides sit on the rounded
+ * paper's edge, and it is the desk's colour at the window's edge, so the
+ * paper's corners there vanish into it rather than showing a square seam.
  */
 .paper-fade {
   position: absolute;
@@ -263,6 +266,9 @@
   width: var(--page-width);
   margin: 0 auto;
   background: var(--colour-page);
+  /* The first sheet's top and the last sheet's foot; the seams round their own
+     (`sheets.css`). */
+  border-radius: var(--radius-paper);
   /*
    * No outline, no border, no shadow: the paper is the same family of grey as
    * the panels that will sit beside it, and its edge is where the desk's darker

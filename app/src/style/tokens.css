@@ -273,6 +273,13 @@
   --radius-round: 8px;
   /** The corner of anything that floats on the desk. */
   --radius-float: 6px;
+  /**
+   * The corner of each sheet of paper. Today it is the panels' corner; a
+   * setting can later point it at 0 for square sheets.
+   */
+  --radius-paper: var(--radius-float);
+  /** The soft edge of a drawn corner, so it is not stair-stepped. */
+  --size-corner-feather: 0.5px;
 
   /** How far a focus ring sits from what it is ringing. */
   --focus-width: 2px;
