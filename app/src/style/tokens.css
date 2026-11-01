@@ -180,7 +180,7 @@
    * follows: 48px below its top, its right edge at 7.5in — 96px in from the
    * sheet's own right.
    */
-  --sheet-gap: 28px;
+  --sheet-gap: var(--space-panel);
   --page-number-top: 48px;
   --page-number-right: 96px;
 
@@ -217,13 +217,14 @@
   --space-tab-gap: 32px;
   /**
    * The paper fading off under the window's top and bottom edges: bands as
-   * wide as the paper, tinted to the desk and softened by a slight blur that
-   * is itself masked out toward the inside. Not in the design (Penpot cannot
+   * wide as the paper, dissolving into the desk's colour — fully desk at the
+   * window's edge — under a blur that grows toward the edge (it is masked out
+   * toward the inside). Not in the design (Penpot cannot
    * render it). Set the blur to 0px to drop the backdrop filter altogether.
    */
   --size-paper-fade: 72px;
-  --opacity-paper-fade: 0.9;
-  --blur-paper-fade: 2px;
+  --opacity-paper-fade: 1;
+  --blur-paper-fade: 6px;
   --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
 
   /*

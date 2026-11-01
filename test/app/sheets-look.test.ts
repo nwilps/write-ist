@@ -52,8 +52,9 @@ describe("a sheet and the seam below it", () => {
     expect(foot).toContain("padding-bottom: var(--page-inset-bottom)");
   });
 
-  it("shows 28px of desk between sheets, in the desk's own colour", () => {
-    expect(px(tokens, "--sheet-gap")).toBe(28);
+  it("shows 12px of desk between sheets (the panel gap), in the desk's own colour", () => {
+    expect(tokens).toContain("--sheet-gap: var(--space-panel);");
+    expect(px(tokens, "--space-panel")).toBe(12);
     const desk = rule(".sheet-break__desk");
     expect(desk).toContain("height: var(--sheet-gap)");
     expect(desk).toContain("background: var(--colour-base)");

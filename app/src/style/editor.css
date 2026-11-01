@@ -154,10 +154,11 @@
   background: linear-gradient(
     var(--fade-to),
     color-mix(in srgb, var(--colour-base) calc(var(--opacity-paper-fade) * 100%), transparent),
+    color-mix(in srgb, var(--colour-base) 55%, transparent) 40%,
     transparent
   );
   backdrop-filter: blur(var(--blur-paper-fade));
-  mask-image: linear-gradient(var(--fade-to), black, transparent);
+  mask-image: linear-gradient(var(--fade-to), black 30%, transparent);
 }
 
 .paper-fade--top {
