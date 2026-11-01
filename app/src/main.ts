@@ -20,6 +20,7 @@ import "./style/editor.css";
 import "./style/sheets.css";
 import "./style/search.css";
 import "./style/panels.css";
+import "./style/menus.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
 import { open as chooseFile } from "@tauri-apps/plugin-dialog";
@@ -98,6 +99,7 @@ function draw(): void {
       filesystem: tauriFilesystem,
       workspaces: WORKSPACES,
       onClose: () => go("open-project"),
+      onHome: () => go("home"),
       whenSwitchedAway,
       whenSwitchedBack,
       ledger: () => ledger,

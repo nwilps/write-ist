@@ -74,6 +74,17 @@ export interface WorkspaceContext {
    */
   readonly setSaved: (state: SaveState) => void;
   /**
+   * Where the writer can go from here. Both close this project first — saving
+   * it, and staying open if that fails (ADR-0028) — so a workspace offers them
+   * without knowing how, and without a second path to closing.
+   */
+  readonly leave: {
+    /** To the list of projects. */
+    readonly toProjects: () => void;
+    /** To the home screen, which is also where Esc goes. */
+    readonly toHome: () => void;
+  };
+  /**
    * The writer's days (ADR-0017). One ledger for the whole application, opened
    * at launch. A workspace records a day when a project closes; the shell
    * passes the ledger through and does not read it.

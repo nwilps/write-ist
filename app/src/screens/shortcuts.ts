@@ -78,6 +78,15 @@ export function asksToSearch(press: KeyPress): boolean {
   return press.altKey && !press.ctrlKey && !press.metaKey && press.key === "Enter";
 }
 
+/**
+ * Whether a key press opens a menu: Alt and the menu's letter, as the desk
+ * shows it (`[Alt + F]`). Ctrl and Meta are somebody else's.
+ */
+export function asksForMenu(press: KeyPress, letter: string): boolean {
+  if (!press.altKey || press.ctrlKey || press.metaKey) return false;
+  return press.key.toLowerCase() === letter;
+}
+
 /** The gesture a key press chooses, if it chooses one. */
 export function chosenBy(gestures: readonly Gesture[], press: KeyPress): Gesture | undefined {
   const shortcut = shortcutOf(press);

@@ -290,6 +290,17 @@
   --duration-quick: 90ms;
 }
 
+/* --- Drop-down menus (the desk design, §2.4) ------------------------------ */
+
+:root {
+  /** The list a File, Edit or View row opens: 280px, beside the left column. */
+  --size-menu: 280px;
+  /** Its outline is the desk's colour, to part it from the paper it overlaps. */
+  --rule-menu: 2px;
+  /** Above the paper and the panels' neighbours, below the search dialog. */
+  --layer-menu: 5;
+}
+
 /* --- The search dialog (the desk design, §2.5) --------------------------- */
 
 :root {

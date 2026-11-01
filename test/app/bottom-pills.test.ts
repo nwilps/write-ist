@@ -44,6 +44,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
       },
     ],
     onClose: () => {},
+    onHome: () => {},
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
     ledger: () => undefined,
