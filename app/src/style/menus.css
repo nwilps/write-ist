@@ -1,0 +1,94 @@
+/*
+ * Drop-down menus (the desk design, §2.4) — the one look File, Edit and View
+ * share. **Every value here is a token** (ADR-0030).
+ *
+ * The list hangs off its row: beside the column it is in, 12px from it, with its
+ * first item level with the row that opened it. Positioned by the row's own
+ * wrapper, so it needs no measuring and cannot drift from the column.
+ */
+
+.drop-menu-anchor {
+  position: relative;
+  flex: none;
+}
+
+/* The row fills its wrapper, as it filled the panel before it was wrapped. */
+.drop-menu-anchor > .panel__row {
+  width: 100%;
+}
+
+/* The row that opened a menu stays lit, as a hovered one is. */
+.panel__row[aria-expanded="true"] {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
+
+.drop-menu {
+  position: absolute;
+  z-index: var(--layer-menu);
+  /* Out of the panel's padding, across the gap to the paper, and up by the
+     menu's own padding so the first item sits level with the row. */
+  left: calc(100% + var(--space-panel-x) + var(--space-panel-gap));
+  top: calc(-1 * (var(--space-panel) + var(--rule-menu)));
+  box-sizing: border-box;
+  width: var(--size-menu);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-row-gap);
+  padding: var(--space-panel);
+  background: var(--colour-raised);
+  border: var(--rule-menu) solid var(--colour-base);
+  border-radius: var(--radius-float);
+  font-size: var(--size-label);
+  line-height: var(--leading-label);
+  color: var(--colour-muted);
+}
+
+.drop-menu[hidden] {
+  display: none;
+}
+
+.drop-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-row);
+  flex: none;
+  padding: 0 var(--space-row-label);
+  border: 0;
+  border-radius: var(--radius-slight);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+/* The focused row, which is also the one under the pointer. */
+.drop-menu__item:hover:not(:disabled),
+.drop-menu__item:focus {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+  outline: none;
+}
+
+.drop-menu__item:disabled {
+  color: var(--colour-faint);
+}
+
+.drop-menu__hint {
+  margin-left: auto;
+  color: var(--colour-faint);
+}
+
+.drop-menu__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+.drop-menu__divider {
+  height: var(--rule-thin);
+  margin: calc(var(--space-row-gap) / 2) var(--space-row-label);
+  background: var(--colour-border);
+}

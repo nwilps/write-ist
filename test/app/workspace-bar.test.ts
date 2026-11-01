@@ -29,6 +29,7 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
     filesystem: {} as never,
     workspaces: workspaces.map((w) => ({ ...w, mount: () => ({ unmount: async () => true }) })),
     onClose: () => {},
+    onHome: () => {},
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
     ledger: () => undefined,

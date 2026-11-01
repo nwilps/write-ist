@@ -40,6 +40,8 @@ export interface ShellScreen {
   readonly workspaces: readonly WorkspaceManifest[];
   /** Close the project and go back to where it was chosen. */
   readonly onClose: () => void;
+  /** Close the project and go to the home screen. */
+  readonly onHome: () => void;
   /**
    * The writer switched to another application. Handed straight to the
    * workspace, which is the only thing that has anything to do about it — the
@@ -126,6 +128,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     setSaved: saved.set,
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
+    leave: { toProjects: screen.onClose, toHome: screen.onHome },
     ledger: screen.ledger,
   });
 

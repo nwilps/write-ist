@@ -57,7 +57,7 @@
  * the page, which it still has because it is still up, and the writer can try
  * again.
  */
-import { PenLine } from "lucide";
+import { FolderOpen, House, PenLine, Save } from "lucide";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
@@ -99,7 +99,20 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   page.append(reading);
   // The paper with a column of panels either side (the desk design, §2.2).
   let startSearch = (): void => {};
-  const panels = sidePanels(() => startSearch());
+  // Until the manuscript has been read there is nothing to save, and a save
+  // asked for then is rightly nothing.
+  let saveNow = (): void => {};
+  // **Only what exists.** Rename, Export and a new project are not here
+  // because they are not built; a menu item that pretended would be worse than
+  // one that is absent. The hints are shortcuts that really work.
+  const panels = sidePanels(() => startSearch(), {
+    File: [
+      { label: "Save Project", hint: "[Ctrl + S]", icon: Save, act: () => saveNow() },
+      { label: "Open Project", hint: "[Esc]", icon: FolderOpen, act: context.leave.toProjects },
+      { divider: true },
+      { label: "Home", icon: House, act: context.leave.toHome },
+    ],
+  });
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   let view: EditorView | undefined;
@@ -288,6 +301,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       panels.attach(view);
       panels.update(state);
       showPages();
+      saveNow = () => {
+        void saving.now();
+        view?.focus();
+      };
 
       // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
       // Capture, so the editor's own Enter handling never sees it.
@@ -333,6 +350,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // text to take down. The read's own continuation sees this and stops.
       if (leave === undefined) {
         gone = true;
+        panels.dispose();
         return true;
       }
       // The final save first, and it decides: the page comes down only once
@@ -342,6 +360,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       gone = true;
       leave = undefined;
       stopListeningForSearch?.();
+      panels.dispose();
       searching?.close();
       view?.destroy();
       view = undefined;

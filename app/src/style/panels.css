@@ -34,6 +34,8 @@
 }
 
 .desk__column--left {
+  /* Over the paper, so a menu opened from it is not painted under the sheet. */
+  z-index: var(--layer-menu);
   justify-self: end;
   margin-right: var(--space-panel-gap);
   grid-column: 1;
