@@ -94,6 +94,13 @@ export interface WorkspaceContext {
    * whichever answer launch arrived at.
    */
   readonly ledger: () => Ledger | undefined;
+  /**
+   * Ask the writer where a copy of their work should go (a save dialog), given
+   * the name to offer. Answers the chosen path, or `undefined` if they
+   * cancelled. Given rather than found, like the window events: the dialog is
+   * the application's, and the choice is the only permission it carries.
+   */
+  readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
 }
 
 /** A workspace that has been put on screen. */

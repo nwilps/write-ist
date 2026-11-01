@@ -23,7 +23,7 @@ import "./style/panels.css";
 import "./style/menus.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
-import { open as chooseFile } from "@tauri-apps/plugin-dialog";
+import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
@@ -103,6 +103,14 @@ function draw(): void {
       whenSwitchedAway,
       whenSwitchedBack,
       ledger: () => ledger,
+      // The dialog's answer is the only place a copy may be written outside the
+      // home folder: the plugin widens the file scope to that one path.
+      chooseCopyLocation: async (suggestedName) =>
+        (await chooseSavePath({
+          title: "Save a copy as Fountain",
+          defaultPath: suggestedName,
+          filters: [{ name: "Fountain screenplay", extensions: ["fountain"] }],
+        })) ?? undefined,
     });
     gestures = shell.gestures;
     return;

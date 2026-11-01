@@ -55,6 +55,8 @@ export interface ShellScreen {
    * is. The shell does not record a day and does not know what is being counted.
    */
   readonly ledger: () => Ledger | undefined;
+  /** Where a copy should go, asked of the writer. Handed straight to the workspace. */
+  readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -130,6 +132,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     whenSwitchedBack: screen.whenSwitchedBack,
     leave: { toProjects: screen.onClose, toHome: screen.onHome },
     ledger: screen.ledger,
+    chooseCopyLocation: screen.chooseCopyLocation,
   });
 
   return { gestures, unmount: mounted.unmount, report };

@@ -47,6 +47,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
     onHome: () => {},
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
+    chooseCopyLocation: async () => undefined,
     ledger: () => undefined,
   });
   return { into, context: () => given! };
