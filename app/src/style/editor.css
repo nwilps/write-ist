@@ -157,8 +157,6 @@
     color-mix(in srgb, var(--colour-base) 55%, transparent) 40%,
     transparent
   );
-  backdrop-filter: blur(var(--blur-paper-fade));
-  mask-image: linear-gradient(var(--fade-to), black 30%, transparent);
 }
 
 .paper-fade--top {
@@ -173,7 +171,7 @@
 /*
  * The pills along the foot of the desk (the desk design, §2.3): the project's
  * name at the left, the counts and the save state at the right, each 12px from
- * the window's edge and 8px from its neighbour. They float over the desk and
+ * the window's edge and 12px from its neighbour. They float over the desk and
  * the paper, so a strip lets clicks through to what is beneath it.
  */
 .pills {

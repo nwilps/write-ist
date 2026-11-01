@@ -90,7 +90,7 @@ describe("the bottom pills", () => {
     expect(drawn()).toBe(savedDrawing);
   });
 
-  it("are the design's: 32px raised pills, 12px from the edge, 8px apart, a green check and a pulse", () => {
+  it("are the design's: 32px raised pills, 12px from the edge, 12px apart, a green check and a pulse", () => {
     expect(rule(".pill")).toContain("height: var(--size-pill)");
     expect(rule(".pill")).toContain("background: var(--colour-raised)");
     expect(rule(".pill")).toContain("border-radius: var(--radius-float)");
