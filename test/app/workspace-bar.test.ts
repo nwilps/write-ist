@@ -33,6 +33,7 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
+    choosePdfLocation: async () => undefined,
     ledger: () => undefined,
   });
   return into;

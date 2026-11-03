@@ -62,6 +62,8 @@ import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
 import { saveFountainCopy, suggestedCopyName } from "../../../../src/project/copy.ts";
+import { exportPdf, suggestedPdfName } from "../../../../src/project/export-pdf.ts";
+import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
 import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
@@ -109,6 +111,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let saveNow = (): void => {};
   // Likewise a copy: nothing to copy until the manuscript has been read.
   let saveCopy = (): void => {};
+  let exportAsPdf = (): void => {};
   // Likewise the title page: nothing to edit or show until it has been read.
   let editTitlePage = (): void => {};
   let viewTitlePage = (): void => {};
@@ -117,6 +120,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editorMenus({
       save: () => saveNow(),
       saveCopy: () => saveCopy(),
+      exportPdf: () => exportAsPdf(),
       toProjects: context.leave.toProjects,
       toHome: context.leave.toHome,
       editTitlePage: () => editTitlePage(),
@@ -343,6 +347,31 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         })();
       };
 
+      // Step 5: the PDF, built from the layout of the model as it is *now* and
+      // written outside the bundle. Like the copy it never goes near the save
+      // routine. The fonts are the bundled files, read from the application.
+      exportAsPdf = () => {
+        void (async () => {
+          try {
+            const destination = await context.choosePdfLocation(suggestedPdfName(context.project));
+            if (destination === undefined) return;
+            await exportPdf(
+              context.filesystem,
+              context.project,
+              manuscriptOf(state.doc),
+              await courierPrimeFaces(),
+              destination,
+            );
+          } catch (error) {
+            context.report(
+              `Write-ist could not export the PDF. Your screenplay is unchanged. ${message(error)}`,
+            );
+          } finally {
+            view?.focus();
+          }
+        })();
+      };
+
       // Step 4 and 6: the title page is edited in a form and viewed as it
       // prints; it is never on the paper. Save is one transaction, so autosave
       // sees it as any edit and Undo takes it back in one step.
@@ -420,4 +449,17 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return true;
     },
   };
+}
+
+/** The four bundled Courier Prime faces, as the PDF embeds them. */
+async function courierPrimeFaces(): Promise<CourierPrimeFaces> {
+  const read = async (name: string): Promise<Uint8Array> => {
+    const response = await fetch(`/fonts/CourierPrime-${name}.ttf`);
+    if (!response.ok) throw new Error(`The bundled font ${name} could not be read.`);
+    return new Uint8Array(await response.arrayBuffer());
+  };
+  const [regular, bold, italic, boldItalic] = await Promise.all(
+    ["Regular", "Bold", "Italic", "BoldItalic"].map(read),
+  );
+  return { regular: regular!, bold: bold!, italic: italic!, boldItalic: boldItalic! };
 }

@@ -166,7 +166,7 @@ describe("View Title Page", () => {
 
 describe("the Edit and View menus", () => {
   const act = {
-    save: vi.fn(), saveCopy: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
+    save: vi.fn(), saveCopy: vi.fn(), exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(),
   };
   function panel() {

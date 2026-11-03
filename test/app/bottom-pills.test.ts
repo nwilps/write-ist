@@ -48,6 +48,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
+    choosePdfLocation: async () => undefined,
     ledger: () => undefined,
   });
   return { into, context: () => given! };

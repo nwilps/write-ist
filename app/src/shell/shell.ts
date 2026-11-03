@@ -57,6 +57,8 @@ export interface ShellScreen {
   readonly ledger: () => Ledger | undefined;
   /** Where a copy should go, asked of the writer. Handed straight to the workspace. */
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
+  /** Where the PDF should go, asked the same way. */
+  readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -133,6 +135,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     leave: { toProjects: screen.onClose, toHome: screen.onHome },
     ledger: screen.ledger,
     chooseCopyLocation: screen.chooseCopyLocation,
+    choosePdfLocation: screen.choosePdfLocation,
   });
 
   return { gestures, unmount: mounted.unmount, report };
