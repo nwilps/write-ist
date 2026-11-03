@@ -289,6 +289,8 @@
   font-family: var(--face-manuscript);
   font-size: var(--manuscript-size);
   line-height: var(--manuscript-leading);
+  /* Courier Prime at 12pt, advancing the PDFs' 7pt a character (`geometry.ts`). */
+  letter-spacing: var(--manuscript-tracking);
   /*
    * Whitespace *inside* an element's text is the writer's and is drawn: the
    * corpus sets two spaces after a full stop throughout, and collapsing them
@@ -324,10 +326,11 @@
  * reads every one of these selectors back and checks it against the table, and
  * a rule that cannot be read back cannot be checked.
  *
- * `ch` is Courier Prime's own advance width, so a measure of 61 characters is
- * 61 advances exactly on all three platforms — which is ADR-0024's mitigation
- * for the one risk its wrap measurement did not cover, at the cost of the one
- * CSS rule it said it would cost.
+ * `--ch` is one character's advance — Courier Prime's, tracked down to the
+ * PDFs' 7pt by the `letter-spacing` above — so a measure of 61 characters is
+ * 61 advances on all three platforms, which is ADR-0024's mitigation for the
+ * one risk its wrap measurement did not cover. (Plain `ch` would be the glyph's
+ * advance without the tracking, 2.7% too wide.)
  *
  * **Nothing here is a `text-transform`.** A scene heading and a cue are in
  * capitals because the writer's text is in capitals; faking them in CSS would
@@ -524,4 +527,90 @@
 .manuscript [data-omitted] {
   color: var(--colour-faint);
   text-decoration: line-through;
+}
+
+/* --- Dual dialogue ------------------------------------------------------- */
+
+/*
+ * Two speeches side by side, drawn from marks the view puts on their blocks
+ * (`src/screenplay/dual-columns.ts`); the `^` is never on the paper. The blocks
+ * are still one after another in the document, so the right-hand speech is
+ * drawn by pulling its cue back up to the left cue's row — `--dual-left-rows`
+ * is how many rows the left speech took, counted by the same wrap the page
+ * count used — and both columns are indented and measured from the generated
+ * `geometry.css`. `--dual-extra` is what the right column falls short of the
+ * left, so that whatever follows clears both.
+ */
+.manuscript > [data-dual-column="left"][data-element="character"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-character));
+  width: var(--dual-column-width);
+  text-align: center;
+}
+
+.manuscript > [data-dual-column="left"][data-element="parenthetical"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-parenthetical));
+  width: var(--dual-width-parenthetical);
+}
+
+.manuscript > [data-dual-column="left"][data-element="dialogue"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-dialogue));
+  width: var(--dual-width-dialogue);
+}
+
+.manuscript > [data-dual-column="right"][data-element="character"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-character));
+  width: var(--dual-column-width);
+  text-align: center;
+}
+
+.manuscript > [data-dual-column="right"][data-element="parenthetical"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-parenthetical));
+  width: var(--dual-width-parenthetical);
+}
+
+.manuscript > [data-dual-column="right"][data-element="dialogue"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-dialogue));
+  width: var(--dual-width-dialogue);
+}
+
+.manuscript > [data-dual-column="right"].dual-right-first {
+  margin-top: calc(var(--dual-left-rows) * var(--manuscript-blank) * -1);
+}
+
+.manuscript > .dual-last {
+  padding-bottom: calc(var(--dual-extra) * var(--manuscript-blank));
+}
+
+/*
+ * The link between the two: a thin rule along the cue row, from just after the
+ * left name to just before the right one, so the pair reads as one thing and a
+ * cue beside a cue is not mistaken for two scenes. Each name is centred on its
+ * column, so where it ends depends on its length: the view hands the left
+ * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`calc(5 * var(--ch))`)
+ * (`dual-columns.ts`), and the rule is placed from them — it begins where the
+ * left name ends (half the column plus half the name) and runs to where the
+ * right one begins, less the spacing token at each end. It is on the desk
+ * only: it takes no room, and the PDF draws from the layout, not from this.
+ */
+.manuscript > .dual-first {
+  position: relative;
+}
+
+.manuscript > .dual-first::after {
+  content: "";
+  position: absolute;
+  left: calc((var(--dual-column-width) + var(--dual-name-left)) / 2 + var(--space-tight));
+  width: calc(
+    var(--dual-start-right) - var(--dual-start-left) - (var(--dual-name-left) + var(--dual-name-right)) / 2 -
+      var(--space-tight) * 2
+  );
+  height: calc(var(--manuscript-blank) / 2);
+  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  pointer-events: none;
+}
+
+@media print {
+  .manuscript > .dual-first::after {
+    display: none;
+  }
 }
