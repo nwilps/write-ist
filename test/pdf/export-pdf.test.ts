@@ -6,7 +6,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
 import { decodeFile } from "../../src/decode.ts";
 import { renderPdf, type CourierPrimeFaces } from "../../src/pdf/render.ts";
 import { exportPdf, suggestedPdfName } from "../../src/project/export-pdf.ts";
@@ -191,9 +192,19 @@ describe("the file", () => {
 describe("the menu and the window", () => {
   const read = (...p: string[]) => readFileSync(join(root, ...p), "utf8");
   it("offers Export as PDF… beside the Fountain copy, and exports the live model, not a save", () => {
-    expect(read("app", "src", "workspaces", "editor", "menus.ts")).toMatch(
-      /Save a Copy as Fountain…[^}]*\},\s*\{ label: "Export as PDF…"[^}]*act: act\.exportPdf/,
-    );
+    const exportPdf = vi.fn();
+    const saveCopy = vi.fn();
+    const file = editorMenus({
+      save: vi.fn(), saveCopy, exportPdf, toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
+      viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(), confirmHere: vi.fn(),
+      toggleSpellcheck: vi.fn(), spellcheckOn: () => false, search: vi.fn(), view: () => undefined,
+    })["File"]!;
+    const labels = file.map((entry) => ("label" in entry ? entry.label : "—"));
+    expect(labels.indexOf("Export as PDF…")).toBe(labels.indexOf("Save a Copy as Fountain…") + 1);
+    const item = file[labels.indexOf("Export as PDF…")]!;
+    if ("act" in item) item.act();
+    expect(exportPdf).toHaveBeenCalledOnce();
+    expect(saveCopy).not.toHaveBeenCalled();
     const editor = read("app", "src", "workspaces", "editor", "editor.ts");
     const body = editor.slice(editor.indexOf("const exportAsPdf = (): void =>"), editor.indexOf("Step 4 and 6"));
     expect(body).toContain("writing.manuscript()");

@@ -23,17 +23,8 @@ import type { ElementType } from "../../../../src/screenplay/document.ts";
 import { screenplaySchema } from "../../../../src/screenplay/schema.ts";
 import { dropMenu, type DropMenu, type MenuEntry } from "../../menus/drop-menu.ts";
 import { element } from "../../screens/element.ts";
-
-/** What the panel calls each type it can set. */
-const ELEMENT_LABELS: Readonly<Record<string, string>> = {
-  "scene-heading": "Scene Heading",
-  action: "Action",
-  character: "Character",
-  dialogue: "Dialogue",
-  parenthetical: "Parenthetical",
-  transition: "Transition",
-  centered: "Centered Text",
-};
+import { chordHint } from "../../screens/shortcuts.ts";
+import { commandById, hintOf, type Command } from "./commands.ts";
 
 /** The three menu rows, and the letter each answers to with Alt held. */
 const MENUS: readonly (readonly [string, string])[] = [
@@ -51,6 +42,12 @@ export interface Panels {
   readonly update: (state: EditorState) => void;
   /** Stop listening for the menus' access keys, and close any menu open. */
   readonly dispose: () => void;
+}
+
+function tableEntry(id: string): Command {
+  const found = commandById(id);
+  if (found === undefined) throw new Error(`The command table has no "${id}".`);
+  return found;
 }
 
 function icon(node: IconNode): SVGElement {
@@ -107,7 +104,7 @@ export function sidePanels(
       format("Add comment", MessageSquareText),
     ]),
     ...MENUS.map(([label, access]) => {
-      const trigger = row(label, `[Alt + ${access.toUpperCase()}]`);
+      const trigger = row(label, chordHint({ key: access, alt: true }));
       const items = menus[label];
       if (items === undefined) return trigger;
       const opened = dropMenu(trigger, { label, access, items });
@@ -126,8 +123,11 @@ export function sidePanels(
   const types = element(
     "section",
     { className: "panel", ariaLabel: "Element types" },
-    NUMBERED_TYPES.map((type, at) => {
-      const button = row(ELEMENT_LABELS[type]!, `[Ctrl + ${at + 1}]`);
+    NUMBERED_TYPES.map((type) => {
+      // The label and the key are the table's; Ctrl+1…7 themselves are the
+      // surface's keymap, built from the same `NUMBERED_TYPES`.
+      const entry = tableEntry(`element-${type}`);
+      const button = row(entry.label, hintOf(entry)!);
       const command = setElementType(type);
       acts(button, (editor) => void command(editor.state, editor.dispatch));
       typeRows.set(type, button);
@@ -135,7 +135,8 @@ export function sidePanels(
     }),
   );
 
-  const search = row("Search", "[Alt + Enter]");
+  const searchEntry = tableEntry("search");
+  const search = row(searchEntry.label, hintOf(searchEntry)!);
   search.prepend(icon(Search));
   search.classList.add("panel__row--search");
   // The dialog takes focus itself, so unlike `acts` this hands it back nothing.

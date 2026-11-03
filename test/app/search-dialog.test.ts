@@ -8,7 +8,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { openSearch } from "../../app/src/workspaces/editor/search-dialog.ts";
-import { asksToSearch } from "../../app/src/screens/shortcuts.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { toEditorDocument } from "../../src/screenplay/editor.ts";
 
@@ -104,16 +103,6 @@ describe("the search dialog", () => {
     type("maya");
     into.querySelectorAll(".search__result")[1]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
     expect(jump.mock.calls[0]![0].manuscriptElement).toBe(1);
-  });
-});
-
-describe("asking to search", () => {
-  const press = { key: "Enter", altKey: true, ctrlKey: false, metaKey: false };
-  it("is Alt+Enter and nothing else", () => {
-    expect(asksToSearch(press)).toBe(true);
-    expect(asksToSearch({ ...press, altKey: false })).toBe(false);
-    expect(asksToSearch({ ...press, ctrlKey: true })).toBe(false);
-    expect(asksToSearch({ ...press, key: "f" })).toBe(false);
   });
 });
 

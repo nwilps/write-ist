@@ -51,6 +51,7 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
+import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
@@ -59,7 +60,6 @@ import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
-import { asksToConfirm, asksToSave, asksToSearch, asksToToggleSpelling } from "../../screens/shortcuts.ts";
 import { tauriSpellEngine } from "../../spell-tauri.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
@@ -204,23 +204,30 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     showTitlePagePreview(into, titlePageOf(session.state.doc), () => view?.focus());
   };
 
+  // What the command table (`commands.ts`) runs against: the menus, the keys
+  // and the panels all go through it.
+  const host: CommandHost = {
+    save: saveNow,
+    saveCopy,
+    exportPdf: exportAsPdf,
+    toProjects: context.leave.toProjects,
+    toHome: context.leave.toHome,
+    editTitlePage,
+    viewTitlePage,
+    confirmName: () => confirmHere("character"),
+    confirmLocation: () => confirmHere("location"),
+    // Ctrl+K: whichever the caret is in.
+    confirmHere: () => {
+      if (session !== undefined) confirmHere(session.confirmableKind());
+    },
+    toggleSpellcheck: toggleSpelling,
+    spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
+    search: startSearch,
+    view: () => view,
+  };
+
   // The paper with a column of panels either side (the desk design, §2.2).
-  const panels = sidePanels(
-    startSearch,
-    editorMenus({
-      save: saveNow,
-      saveCopy,
-      exportPdf: exportAsPdf,
-      toProjects: context.leave.toProjects,
-      toHome: context.leave.toHome,
-      editTitlePage,
-      viewTitlePage,
-      confirmName: () => confirmHere("character"),
-      confirmLocation: () => confirmHere("location"),
-      toggleSpellcheck: toggleSpelling,
-      spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
-    }),
-  );
+  const panels = sidePanels(startSearch, editorMenus(host));
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   void (async () => {
@@ -263,21 +270,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           view?.updateState(writing.state);
           panels.update(writing.state);
         },
-        // The explicit save ADR-0028 pairs with autosave — the same routine,
-        // asked for rather than waited for. It is held here rather than in the
-        // surface's keymap because *when to save* belongs to the workspace
-        // that owns the project, not to the screenplay surface.
+        // The explicit save ADR-0028 pairs with autosave, and the other keys
+        // the Editor answers while the paper has focus — all from the command
+        // table. They are held here rather than in the surface's keymap because
+        // *when to save* belongs to the workspace that owns the project, not to
+        // the screenplay surface.
         handleKeyDown: (_editor, event) => {
-          if (asksToToggleSpelling(event)) {
-            toggleSpelling();
-            return true;
-          }
-          if (asksToConfirm(event)) {
-            confirmHere(writing.confirmableKind());
-            return true;
-          }
-          if (!asksToSave(event)) return false;
-          void writing.save();
+          const asked = commandForKey(event, "editor");
+          if (asked === undefined) return false;
+          runCommand(asked, host);
           return true;
         },
         decorations: () => writing.seams,
@@ -295,10 +296,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       // Capture, so the editor's own Enter handling never sees it.
       const asksForSearch = (event: KeyboardEvent): void => {
-        if (!asksToSearch(event)) return;
+        const asked = commandForKey(event, "window");
+        if (asked === undefined) return;
         event.preventDefault();
         event.stopPropagation();
-        startSearch();
+        runCommand(asked, host);
       };
       window.addEventListener("keydown", asksForSearch, true);
       stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);

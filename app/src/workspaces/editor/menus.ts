@@ -1,56 +1,40 @@
 /**
- * What the Editor's three menus hold (the desk design, §2.4).
+ * What the Editor's three menus hold (the desk design, §2.4), read from the
+ * command table (`commands.ts`).
  *
- * **Only what exists.** Rename are not here because
- * they are not built; a menu item that pretended would be worse than one that
- * is absent. The hints are shortcuts that really work, which is why the title
- * page items have none.
+ * **Only what exists.** A command with no `menu` is not here, and a menu item
+ * that pretended would be worse than one that is absent. The hint on each item
+ * is computed from the key the table answers, so it is only ever a shortcut
+ * that really works — which is why the title page items have none.
  */
-import { Eye, FileDown, FileOutput, FileText, FolderOpen, House, MapPin, Save, SpellCheck, UserCheck } from "lucide";
 import type { MenuEntry } from "../../menus/drop-menu.ts";
+import { COMMANDS, hintOf, runCommand, type CommandHost, type MenuName } from "./commands.ts";
 
-export interface EditorActions {
-  readonly save: () => void;
-  readonly saveCopy: () => void;
-  readonly exportPdf: () => void;
-  readonly toProjects: () => void;
-  readonly toHome: () => void;
-  readonly editTitlePage: () => void;
-  readonly viewTitlePage: () => void;
-  readonly confirmName: () => void;
-  readonly confirmLocation: () => void;
-  readonly toggleSpellcheck: () => void;
-  /** Whether the spelling pass is on, for the tick beside the item. */
-  readonly spellcheckOn: () => boolean;
-}
+export type { EditorActions } from "./commands.ts";
 
-export function editorMenus(act: EditorActions): Readonly<Record<string, readonly MenuEntry[]>> {
-  return {
-    File: [
-      { label: "Save Project", hint: "[Ctrl + S]", icon: Save, act: act.save },
-      { label: "Save a Copy as Fountain…", icon: FileDown, act: act.saveCopy },
-      { label: "Export as PDF…", icon: FileOutput, act: act.exportPdf },
-      { divider: true },
-      { label: "Open Project", icon: FolderOpen, act: act.toProjects },
-      { divider: true },
-      { label: "Home", hint: "[Esc]", icon: House, act: act.toHome },
-    ],
-    Edit: [
-      { label: "Edit Title Page…", icon: FileText, act: act.editTitlePage },
-      { divider: true },
-      { label: "Confirm This Name", hint: "[Ctrl + K]", icon: UserCheck, act: act.confirmName },
-      { label: "Confirm This Location", hint: "[Ctrl + K]", icon: MapPin, act: act.confirmLocation },
-    ],
-    View: [
-      { label: "View Title Page", icon: Eye, act: act.viewTitlePage },
-      { divider: true },
-      {
-        label: "Spellcheck",
-        hint: "[Ctrl + ;]",
-        icon: SpellCheck,
-        act: act.toggleSpellcheck,
-        checked: act.spellcheckOn,
-      },
-    ],
-  };
+/** The menus in the order the desk draws them. */
+const MENU_NAMES: readonly MenuName[] = ["File", "Edit", "View"];
+
+export function editorMenus(host: CommandHost): Readonly<Record<string, readonly MenuEntry[]>> {
+  const menus: Record<string, MenuEntry[]> = {};
+  for (const name of MENU_NAMES) {
+    const entries: MenuEntry[] = [];
+    let group: string | undefined;
+    for (const command of COMMANDS) {
+      if (command.menu?.name !== name) continue;
+      // A rule falls between two groups, never at an edge.
+      if (group !== undefined && group !== command.menu.group) entries.push({ divider: true });
+      group = command.menu.group;
+      const { checked } = command;
+      entries.push({
+        label: command.label,
+        ...(hintOf(command) === undefined ? {} : { hint: hintOf(command)! }),
+        ...(command.icon === undefined ? {} : { icon: command.icon }),
+        act: () => runCommand(command, host),
+        ...(checked === undefined ? {} : { checked: () => checked(host) }),
+      });
+    }
+    menus[name] = entries;
+  }
+  return menus;
 }

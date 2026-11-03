@@ -5,15 +5,24 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (...path: string[]): string => readFileSync(join(root, ...path), "utf8");
 
 describe("Save a Copy as Fountain…", () => {
   it("is in the File menu, beside the other things done with the project", () => {
-    const menus = read("app", "src", "workspaces", "editor", "menus.ts");
-    expect(menus).toMatch(/label: "Save a Copy as Fountain…"[^}]*act: act\.saveCopy/);
+    const saveCopy = vi.fn();
+    const file = editorMenus({
+      save: vi.fn(), saveCopy, exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
+      viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(), confirmHere: vi.fn(),
+      toggleSpellcheck: vi.fn(), spellcheckOn: () => false, search: vi.fn(), view: () => undefined,
+    })["File"]!;
+    const item = file.find((entry) => "label" in entry && entry.label === "Save a Copy as Fountain…");
+    expect(item).toBeDefined();
+    if (item !== undefined && "act" in item) item.act();
+    expect(saveCopy).toHaveBeenCalledOnce();
   });
 
   it("asks the writer where, and writes nothing when they cancel", () => {
