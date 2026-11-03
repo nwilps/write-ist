@@ -16,9 +16,9 @@
  * exactly as `TitlePageRun`.
  */
 import type { MarkRange } from "../marks.ts";
-import type { ScreenplayDocument } from "./document.ts";
+import type { ElementType, ScreenplayDocument } from "./document.ts";
 import { withoutCommentsAndBoneyard } from "./fountain-copy.ts";
-import { CHARACTER_INCHES, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
+import { CHARACTER_INCHES, DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
 import { layout, type LayoutLine } from "./layout.ts";
 import { titlePageRuns, type TitlePageRun } from "./title-page-layout.ts";
 
@@ -69,19 +69,31 @@ function lineRuns(document: ScreenplayDocument, line: LayoutLine): TitlePageRun[
   if (line.text === "") return [];
   // (MORE) and CHARACTER (CONT'D) sit at the cue's indent, like the paper's.
   const type = line.kind === "text" ? document.elements[line.elementIndex]!.type : "character";
-  const measure = ELEMENT_GEOMETRY[type];
-  const length = line.text.length;
-  const slack = measure.width - length;
-  // Right-aligned text ends at the page's right margin, 540pt, as Final Draft's
-  // transitions do (the measurement the table's width is solved from).
-  const left =
-    measure.alignment === "right"
-      ? NUMBER_RIGHT - length * ADVANCE
-      : LEFT + Math.max(measure.alignment === "centre" ? slack / 2 : measure.indent, 0) * ADVANCE;
+  const left = LEFT + startCharacters(type, line) * ADVANCE;
   const baseline = TOP_BASELINE + line.row * PAGE.leadingPoints;
   return split(line.text, line.marks ?? []).map((part) =>
     run(part.text, left + part.offset * ADVANCE, baseline, part.bold, part.italic, part.underline),
   );
+}
+
+/**
+ * Characters from the left margin to where the line's first character is set:
+ * the paper's own rule (`editor.css`), read from the same tables. A right-aligned
+ * line (a transition) ends at its box's edge, 7.1in; a cue in a dual column is
+ * centred across the column, whose start is `DUAL_GEOMETRY`'s.
+ */
+function startCharacters(type: ElementType, line: LayoutLine): number {
+  const length = line.text.length;
+  if (line.column !== "full") {
+    const start = DUAL_GEOMETRY.columnStart[line.column];
+    if (type === "character") return start + Math.max((DUAL_GEOMETRY.columnWidth - length) / 2, 0);
+    return start + DUAL_GEOMETRY.speech[type as keyof typeof DUAL_GEOMETRY.speech].indent;
+  }
+  const measure = ELEMENT_GEOMETRY[type];
+  const slack = measure.width - length;
+  if (measure.alignment === "right") return measure.indent + slack;
+  if (measure.alignment === "centre") return measure.indent + Math.max(slack / 2, 0);
+  return measure.indent;
 }
 
 function split(text: string, marks: readonly MarkRange[]) {

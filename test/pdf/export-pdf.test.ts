@@ -93,7 +93,7 @@ describe("pagination parity with the editor", () => {
     expect(at("Action here.").x).toBeCloseTo(left, 1);
     expect(at("MARY").x).toBeCloseTo(left + ELEMENT_GEOMETRY.character.indent * advance, 1);
     expect(at("Hello there.").x).toBeCloseTo(left + ELEMENT_GEOMETRY.dialogue.indent * advance, 1);
-    expect(at("CUT TO:").x + 7 * advance).toBeCloseTo(540, 1);
+    expect(at("CUT TO:").x + 7 * advance).toBeCloseTo(511.2, 1); // 7.1in, the transition box's edge
     for (const run of page!) expect((run.y - 81) % PAGE.leadingPoints).toBe(0);
   });
 });

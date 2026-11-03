@@ -11,8 +11,8 @@
  * run time; the caller hands in the font bytes.
  */
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, type PDFFont, type PDFPage } from "pdf-lib";
-import { CHARACTER_INCHES, PAGE } from "../screenplay/geometry.ts";
+import { PDFDocument, setCharacterSpacing, type PDFFont, type PDFPage } from "pdf-lib";
+import { CHARACTER_POINTS, COURIER_PRIME_ADVANCE_EM, PAGE } from "../screenplay/geometry.ts";
 import type { PdfPages } from "../screenplay/pdf-pages.ts";
 import { SHEET_POINTS, type TitlePageRun } from "../screenplay/title-page-layout.ts";
 
@@ -23,7 +23,13 @@ export interface CourierPrimeFaces {
   readonly boldItalic: Uint8Array;
 }
 
-const ADVANCE = CHARACTER_INCHES * 72;
+const ADVANCE = CHARACTER_POINTS;
+/**
+ * Courier Prime advances 7.195pt at 12pt; the paper (and Final Draft's PDFs, which
+ * set `Tc` about -0.018 x 12) advance 7. The difference is the text's character
+ * spacing, so a line is as long in the PDF as on the paper.
+ */
+const TRACKING = CHARACTER_POINTS - COURIER_PRIME_ADVANCE_EM * PAGE.fontSizePoints;
 
 export async function renderPdf(pages: PdfPages, faces: CourierPrimeFaces): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -39,6 +45,7 @@ export async function renderPdf(pages: PdfPages, faces: CourierPrimeFaces): Prom
   const sheets = pages.titlePage.length === 0 ? pages.pages : [pages.titlePage, ...pages.pages];
   for (const runs of sheets) {
     const page = pdf.addPage([SHEET_POINTS.width, SHEET_POINTS.height]);
+    page.pushOperators(setCharacterSpacing(TRACKING));
     for (const run of runs) draw(page, fonts, run);
   }
   // Plain objects, so the faces' names can be read from the file without inflating it.
