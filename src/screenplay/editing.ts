@@ -57,6 +57,7 @@ import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { toggleMark } from "prosemirror-commands";
 import { autocomplete, type AutocompleteOptions } from "./autocomplete.ts";
+import type { Spellcheck } from "./spellcheck.ts";
 import { clipboard, pastedComments } from "./clipboard.ts";
 import { dualCaretKey } from "./dual-dialogue.ts";
 import { elementKeys, endsUndoStep, keepHiddenSyntax } from "./element-keys.ts";
@@ -164,6 +165,8 @@ export const markKeys = keymap({
 export interface EditorOptions {
   /** Offer to finish cues and headings from the name lists (step 9). */
   readonly autocomplete?: AutocompleteOptions;
+  /** Underline misspelt words while a pass is on (step 10). Off until toggled. */
+  readonly spellcheck?: Spellcheck;
 }
 
 /**
@@ -178,6 +181,7 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
   // Autocomplete (step 9) is ahead of the plugin that binds Enter and Tab, so
   // that with an offer showing those keys are the offer's.
   const offers = options.autocomplete === undefined ? [] : [autocomplete(options.autocomplete)];
+  const spelling = options.spellcheck === undefined ? [] : [options.spellcheck.plugin];
   return EditorState.create({
     schema: screenplaySchema,
     doc,
@@ -185,7 +189,7 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
     selection: startOfScript(doc),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, ...spelling],
   });
 }
 

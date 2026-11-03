@@ -5,8 +5,11 @@
 //! runs in the webview (ADR-0024), so the only traffic across this boundary is
 //! reading and writing files and asking the writer to choose one.
 //!
-//! There is **one** command, and it is here because the plugin cannot do what
-//! ADR-0008 rule 5 asks for: see `commit_write`.
+//! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
+//! asks for. The three `spell_*` commands are here because spellcheck is ours,
+//! in Rust, off the thread that draws (ADR-0032): see `spelling.rs`.
+
+pub mod spelling;
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -79,6 +82,27 @@ fn commit(landed: &Landed, temporary: &Path, path: &Path, sequence: u64) -> std:
     Ok(())
 }
 
+/// Which of these words the dictionary does not know.
+///
+/// `async`, so Tauri runs it on its thread pool and never on the thread that
+/// draws the window; the webview does not wait on it while the writer types.
+#[tauri::command(async)]
+fn spell_misspelled(words: Vec<String>, engine: tauri::State<'_, spelling::Engine>) -> Result<Vec<String>, String> {
+    Ok(engine.get()?.misspelled(&words))
+}
+
+/// What a word might have been, best first.
+#[tauri::command(async)]
+fn spell_suggest(word: String, engine: tauri::State<'_, spelling::Engine>) -> Result<Vec<String>, String> {
+    Ok(engine.get()?.suggest(&word))
+}
+
+/// Add a word to the writer's own dictionary, for good.
+#[tauri::command(async)]
+fn spell_add_word(word: String, engine: tauri::State<'_, spelling::Engine>) -> Result<(), String> {
+    engine.get()?.add_word(&word)
+}
+
 /// Linux draws no title bar (ADR-0036). `tauri.linux.conf.json` says so, but a
 /// stale build or a toolkit that draws its own client-side bar on Wayland can
 /// leave one anyway, so the window is told again once it exists. Other
@@ -96,6 +120,25 @@ fn drop_title_bar(app: &mut tauri::App) {
 #[cfg(not(target_os = "linux"))]
 fn drop_title_bar(_app: &mut tauri::App) {}
 
+/// The writer's own words live in the application's data folder, outside every
+/// bundle. The dictionary is read on a thread of its own at start-up so the
+/// first pass does not wait for it — and nothing waits for it before the window.
+fn start_spelling(app: &mut tauri::App) {
+    use tauri::Manager;
+    let custom = app
+        .path()
+        .app_local_data_dir()
+        .ok()
+        .map(|folder| folder.join("dictionary").join("custom-words.txt"));
+    app.manage(spelling::Engine::new(custom));
+    let handle = app.handle().clone();
+    std::thread::spawn(move || {
+        if let Err(error) = handle.state::<spelling::Engine>().get().map(|_| ()) {
+            eprintln!("Write-ist could not load its dictionary: {error}");
+        }
+    });
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -103,9 +146,15 @@ pub fn run() {
         .manage(Landed::default())
         .setup(|app| {
             drop_title_bar(app);
+            start_spelling(app);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commit_write])
+        .invoke_handler(tauri::generate_handler![
+            commit_write,
+            spell_misspelled,
+            spell_suggest,
+            spell_add_word
+        ])
         .run(tauri::generate_context!())
         .expect("Write-ist could not open a window");
 }

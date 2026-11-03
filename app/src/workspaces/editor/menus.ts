@@ -6,7 +6,7 @@
  * is absent. The hints are shortcuts that really work, which is why the title
  * page items have none.
  */
-import { Eye, FileDown, FileOutput, FileText, FolderOpen, House, MapPin, Save, UserCheck } from "lucide";
+import { Eye, FileDown, FileOutput, FileText, FolderOpen, House, MapPin, Save, SpellCheck, UserCheck } from "lucide";
 import type { MenuEntry } from "../../menus/drop-menu.ts";
 
 export interface EditorActions {
@@ -19,6 +19,9 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   readonly confirmName: () => void;
   readonly confirmLocation: () => void;
+  readonly toggleSpellcheck: () => void;
+  /** Whether the spelling pass is on, for the tick beside the item. */
+  readonly spellcheckOn: () => boolean;
 }
 
 export function editorMenus(act: EditorActions): Readonly<Record<string, readonly MenuEntry[]>> {
@@ -38,6 +41,16 @@ export function editorMenus(act: EditorActions): Readonly<Record<string, readonl
       { label: "Confirm This Name", hint: "[Ctrl + K]", icon: UserCheck, act: act.confirmName },
       { label: "Confirm This Location", hint: "[Ctrl + K]", icon: MapPin, act: act.confirmLocation },
     ],
-    View: [{ label: "View Title Page", icon: Eye, act: act.viewTitlePage }],
+    View: [
+      { label: "View Title Page", icon: Eye, act: act.viewTitlePage },
+      { divider: true },
+      {
+        label: "Spellcheck",
+        hint: "[Ctrl + ;]",
+        icon: SpellCheck,
+        act: act.toggleSpellcheck,
+        checked: act.spellcheckOn,
+      },
+    ],
   };
 }

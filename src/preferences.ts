@@ -14,8 +14,23 @@ export interface Preferences {
    * but unconfirmed: not offered, not a known word.
    */
   readonly confirmAfterUses: number;
+  /**
+   * How long the writer must stop typing before the scene they changed is
+   * rechecked, while spellcheck is on (slice 2, step 10), in milliseconds.
+   */
+  readonly spellcheckPauseMs: number;
+  /**
+   * Damerau–Levenshtein distance within which a word is a near-match of a
+   * confirmed name or location (*Did you mean MICHAEL?*, Q-T).
+   */
+  readonly spellcheckNearDistance: number;
+  /** The shortest word a near-match is offered for (Q-T). */
+  readonly spellcheckNearMinLength: number;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   confirmAfterUses: 3,
+  spellcheckPauseMs: 1000,
+  spellcheckNearDistance: 1,
+  spellcheckNearMinLength: 4,
 };

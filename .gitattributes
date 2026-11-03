@@ -3,3 +3,4 @@
 # comparison in the round-trip test would be meaningless.
 *.fountain -text
 test/fixtures/** -text
+src-tauri/dictionaries/** -text
