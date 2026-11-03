@@ -6,6 +6,7 @@
  * bytes while being a different pair is the defect worth catching.
  */
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TextSelection, type Command, type EditorState } from "prosemirror-state";
 import { undo, redo } from "prosemirror-history";
@@ -603,7 +604,7 @@ describe("the paper draws the pair from marks, never from the document", () => {
 
   it("hands the stylesheet the rows it needs to line the columns up", () => {
     // Left: cue 1 + (low) 1 + "Hi there, friend." 1 = 3 rows; right: 2.
-    expect(attrs(1)["style"]).toContain("--dual-rows: 3");
+    expect(attrs(1)["style"]).toBeUndefined();
     expect(attrs(4)["style"]).toContain("--dual-left-rows: 3");
     expect(attrs(5)["style"]).toContain("--dual-extra: 1");
     expect(String(attrs(1)["class"])).toContain("dual-first");
@@ -633,5 +634,21 @@ describe("the paper draws the pair from marks, never from the document", () => {
     expect(saved(edited)).toBe(source);
     const found = dualDecorations(edited.doc, layout(manuscriptOf(edited.doc)), manuscriptStarts(edited.doc));
     expect(found).toHaveLength(0);
+  });
+});
+
+describe("the link between the pair is a rule along the cue row", () => {
+  const css = readFileSync("app/src/style/editor.css", "utf8");
+  const rule = css.slice(css.indexOf(".manuscript > .dual-first::after"));
+
+  it("is horizontal, kept off both names by a spacing token, and in tokens' colour", () => {
+    expect(rule).toContain("border-bottom: var(--rule-thin) solid var(--colour-faint)");
+    expect(rule).not.toContain("border-left");
+    expect(rule).toContain("margin-left: var(--space-tight)");
+    expect(css).toContain("var(--dual-start-right) - var(--dual-start-left)) + var(--space-tight)");
+  });
+
+  it("is not printed", () => {
+    expect(rule).toMatch(/@media print\s*{\s*\.manuscript > \.dual-first::after\s*{\s*display: none/);
   });
 });

@@ -14,8 +14,6 @@
  * measuring anything: the number of rows each side takes, from the same wrap
  * the count used.
  *
- *   - `--dual-rows` on the first block of the band: the band's height, for the
- *     rule that links the pair.
  *   - `--dual-left-rows` on the right-hand cue: how far to pull it back up to
  *     the left cue's row.
  *   - `--dual-extra` on the band's last block: the rows the right column falls
@@ -64,7 +62,6 @@ function bandDecorations(doc: EditorNode, starts: readonly number[], band: Band)
   members.forEach((member) => {
     heights[member.column] += member.blank + member.lines;
   });
-  const height = Math.max(heights.left, heights.right);
 
   return members.map((member, i) => {
     const { pos, node } = nodes[i]!;
@@ -75,7 +72,6 @@ function bandDecorations(doc: EditorNode, starts: readonly number[], band: Band)
     const last = i === members.length - 1;
     if (firstOfLeft) {
       classes.push("dual-first");
-      custom.push(`--dual-rows: ${height}`);
     }
     if (firstOfRight) {
       classes.push("dual-right-first");
