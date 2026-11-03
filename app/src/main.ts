@@ -25,12 +25,13 @@ import "./style/menus.css";
 // project, and this is the file where both words are in play.
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { createProject } from "../../src/project/create.ts";
+import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
+import { showNewProject } from "./screens/new-project.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { chosenBy, type Gesture } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -66,7 +67,6 @@ let shell: MountedShell | undefined;
 /** Undefined until the default location has been read. */
 let listing: ProjectsListing | undefined;
 let importing = false;
-let creating = false;
 /** A project on its way closed: its last save is still running. */
 let closing = false;
 let trouble: string | undefined;
@@ -120,13 +120,16 @@ function draw(): void {
 
   gestures =
     screen === "home"
-      ? renderHome(into, { onOpenProject: () => go("open-project"), onQuit: quit, trouble })
+      ? renderHome(into, {
+          onNewProject: askForNewProject,
+          onOpenProject: () => go("open-project"),
+          onQuit: quit,
+          trouble,
+        })
       : renderOpenProject(into, {
           listing,
           importing,
-          creating,
           trouble,
-          onCreate: () => void createOne(),
           onImport: () => void importOne(),
           onOpen: goToProject,
           onBack: () => go("home"),
@@ -257,24 +260,32 @@ async function readProjects(): Promise<string | undefined> {
   }
 }
 
-/** Make an empty screenplay, and open it so the writer can start typing. */
-async function createOne(): Promise<void> {
-  if (creating || importing) return;
-  creating = true;
-  trouble = undefined;
-  draw();
-  try {
-    const project = await createProject(
-      { filesystem: tauriFilesystem, newProjectId },
-      await defaultProjectsDirectory(),
-    );
-    creating = false;
-    goToProject(project);
-  } catch (error) {
-    creating = false;
-    trouble = `A new project could not be made, so nothing was changed. ${message(error)}`;
-    draw();
-  }
+/**
+ * Ask what to make, in a dialog over the home screen, then make it and open it.
+ *
+ * The dialog stays up with the reason when the project could not be made, so
+ * the writer can change the title and try again; nothing is written then.
+ */
+function askForNewProject(): void {
+  showNewProject(into, {
+    onCreate: async (request) => {
+      try {
+        const project = await createProject(
+          { filesystem: tauriFilesystem, newProjectId },
+          await defaultProjectsDirectory(),
+          request,
+        );
+        // The dialog closes as this resolves; the project opens behind it.
+        goToProject(project);
+        return undefined;
+      } catch (error) {
+        return error instanceof CannotCreate
+          ? error.message
+          : `A new project could not be made, so nothing was changed. ${message(error)}`;
+      }
+    },
+    onClose: () => {},
+  });
 }
 
 async function importOne(): Promise<void> {

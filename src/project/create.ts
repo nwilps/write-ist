@@ -1,12 +1,20 @@
 /**
- * Creating a project from nothing: an empty screenplay in a new bundle.
+ * Creating a project from nothing: a titled, empty screenplay in a new bundle.
  *
  * The sibling of import (`import.ts`), minus the file: the same bundle, the same
  * marker, the same order of writes (manuscript first, marker last — a crash
  * between them leaves a folder that is not a bundle, ADR-0015). The id is
  * minted by the caller's `newProjectId`, as import's is.
+ *
+ * What lands on disk is what an import of a script holding only a title page
+ * would have made: `manuscript.fountain` (`Title: …`, no elements yet) and
+ * `project.md`. The manuscript is built by the model's own serialiser, so it
+ * is a file Write-ist would have written itself.
  */
-import { exportScreenplay, importScreenplay } from "../screenplay/import.ts";
+import {
+  exportScreenplay,
+  importScreenplay,
+} from "../screenplay/import.ts";
 import { join } from "./filesystem.ts";
 import {
   folderNameFor,
@@ -21,27 +29,45 @@ import {
   type ProjectMarker,
 } from "./marker.ts";
 
-/** What a new project is called until the writer gives it a title. */
-export const DEFAULT_PROJECT_NAME = "Untitled Screenplay";
+/** What kinds of project can be made. Novels arrive with the prose surface. */
+export const PROJECT_TYPES = ["Screenplay"] as const;
+export type ProjectType = (typeof PROJECT_TYPES)[number];
+
+export interface NewProject {
+  readonly title: string;
+  readonly type: ProjectType;
+}
+
+/** Thrown for a request that cannot be made; its message is for the writer. */
+export class CannotCreate extends Error {}
 
 /**
- * Make an empty Feature in the default location.
+ * Make an empty project with the writer's title, in the default location.
  *
- * The name is the folder name, so when "Untitled Screenplay" is taken the new
- * project is "Untitled Screenplay 2" in the list as well as on disk — two rows
- * with one name would be indistinguishable.
+ * The title is the project's name and its folder name. When a folder of that
+ * name is taken the new project is "Title 2" in the list as well as on disk —
+ * two rows with one name would be indistinguishable — while the manuscript's
+ * title page keeps the title as typed.
  */
 export async function createProject(
   { filesystem, newProjectId }: ImportDependencies,
   projectsDirectory: string,
+  { title, type }: NewProject,
 ): Promise<Project> {
+  const typed = title.replace(/\s+/g, " ").trim();
+  if (typed === "") throw new CannotCreate("A project needs a title.");
+  // Only screenplays exist; a type that is not one must not quietly become one.
+  if (!PROJECT_TYPES.includes(type)) {
+    throw new CannotCreate(`Write-ist cannot make a ${String(type)} yet.`);
+  }
+
   await filesystem.createDirectory(projectsDirectory);
   const taken = new Set(
     (await filesystem.readDirectory(projectsDirectory))
       .filter((entry) => entry.isDirectory)
       .map((entry) => entry.name),
   );
-  const folder = folderNameFor(DEFAULT_PROJECT_NAME, taken);
+  const folder = folderNameFor(typed, taken);
   const marker: ProjectMarker = {
     name: folder,
     formatVersion: FORMAT_VERSION,
@@ -49,9 +75,14 @@ export async function createProject(
     format: "Feature",
   };
 
+  // A newline would end the title early and turn the rest into another field,
+  // so the title is one line (it is collapsed above).
+  const { document } = importScreenplay(
+    new TextEncoder().encode(`Title: ${typed}\n\n`),
+  );
+
   const path = join(projectsDirectory, folder);
   await filesystem.createDirectory(path);
-  const { document } = importScreenplay(new Uint8Array());
   await filesystem.writeFile(
     join(path, MANUSCRIPT_FILE),
     exportScreenplay(document),
