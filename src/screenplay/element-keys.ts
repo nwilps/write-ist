@@ -31,6 +31,7 @@ import type { Transaction } from "prosemirror-state";
 import type { Attrs, Node as EditorNode } from "prosemirror-model";
 import { screenplaySchema } from "./schema.ts";
 import type { ElementType } from "./document.ts";
+import { gapBetween } from "./geometry.ts";
 
 /** What Enter at the end of an element starts, by the type it ends. */
 const AFTER_ENTER: Partial<Record<ElementType, ElementType>> = {
@@ -146,6 +147,7 @@ export const endsUndoStep = new Plugin({
  * character would.
  */
 export const splitElement: Command = (state, dispatch) => {
+  if (restoreGap(state, dispatch)) return true;
   const tr = state.tr.deleteSelection();
   const at = tr.selection.$from;
   // In the title page, or anywhere that is not an element: do nothing, but
@@ -154,6 +156,8 @@ export const splitElement: Command = (state, dispatch) => {
   if (dispatch === undefined) return true;
 
   const type = at.parent.attrs["type"] as ElementType;
+  // The second half is a new element with a gap of its own above it: whatever
+  // squish the first half carries stays with the first (ADR-0038).
   if (at.parentOffset === at.parent.content.size) {
     tr.split(at.pos, 1, [
       {
@@ -164,16 +168,42 @@ export const splitElement: Command = (state, dispatch) => {
   } else if (at.parentOffset === 0) {
     // The whole line moves down and an empty one is left above it, so the
     // hidden suffix goes with the text it belongs to.
-    tr.split(at.pos, 1, [{ type: at.parent.type, attrs: at.parent.attrs }]);
+    tr.split(at.pos, 1, [{ type: at.parent.type, attrs: { ...at.parent.attrs, squished: false } }]);
     const { sceneNumber: _n, dual: _d, ...kept } = at.parent.attrs;
     tr.setNodeMarkup(at.before(), undefined, kept);
   } else {
     const { sceneNumber: _n, dual: _d, ...kept } = at.parent.attrs;
-    tr.split(at.pos, 1, [{ type: at.parent.type, attrs: kept }]);
+    tr.split(at.pos, 1, [{ type: at.parent.type, attrs: { ...kept, squished: false } }]);
   }
   dispatch(structural(tr.scrollIntoView()));
   return true;
 };
+
+/**
+ * Enter at the very end of the upper element of a squished pair: put the gap
+ * back to the table's default, and nothing else. No element is made and the
+ * caret stays exactly where it was (ADR-0038). Anywhere else, or when the gap
+ * is not squished, Enter is not this command's.
+ */
+function restoreGap(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined): boolean {
+  const at = emptyCaret(state);
+  if (at === undefined || at.parentOffset !== at.parent.content.size) return false;
+  const index = at.index(0);
+  const below = index + 1 < at.doc.childCount ? at.doc.child(index + 1) : undefined;
+  if (below === undefined || below.type.name !== "element" || below.attrs["squished"] !== true) {
+    return false;
+  }
+  const squishable = gapBetween(
+    at.parent.attrs["type"] as ElementType,
+    below.attrs["type"] as ElementType,
+  ).squishable;
+  if (!squishable) return false;
+  if (dispatch !== undefined) {
+    const tr = state.tr.setNodeMarkup(at.after(), undefined, { ...below.attrs, squished: false });
+    dispatch(structural(tr));
+  }
+  return true;
+}
 
 /**
  * Tab: change the line the caret is on — every line a selection touches — to
@@ -239,6 +269,13 @@ export const joinBackwards: Command = (state, dispatch) => {
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== 0) return false;
   const before = at.index(0) > 0 ? at.doc.child(at.index(0) - 1) : undefined;
+  if (before !== undefined && squishesGap(before, at.parent)) {
+    if (dispatch !== undefined) {
+      const tr = state.tr.setNodeMarkup(at.before(), undefined, { ...at.parent.attrs, squished: true });
+      dispatch(structural(tr));
+    }
+    return true;
+  }
   // The first element has nothing above it to join; a title line above is not
   // an element to join onto.
   if (before === undefined || before.type.name !== "element")
@@ -246,6 +283,20 @@ export const joinBackwards: Command = (state, dispatch) => {
   if (dispatch !== undefined) dispatch(structural(joinAt(state, at.before(), at.parent)));
   return true;
 };
+
+/**
+ * Does Backspace at the start of `lower` squish the gap rather than join? Only
+ * where the table lets the pair be squished, the gap is not already, and there
+ * is text to leave in place: an empty line is deleted as before.
+ */
+function squishesGap(upper: EditorNode, lower: EditorNode): boolean {
+  return (
+    upper.type.name === "element" &&
+    lower.attrs["squished"] !== true &&
+    lower.content.size > 0 &&
+    gapBetween(upper.attrs["type"] as ElementType, lower.attrs["type"] as ElementType).squishable
+  );
+}
 
 /**
  * Delete at the very end of an element: pull the one below onto it, so the

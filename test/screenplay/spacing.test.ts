@@ -85,6 +85,21 @@ describe("pagination reads the table, whatever the blank count", () => {
     expect(baselines).toEqual([81, 81 + 36, 81 + 60]);
   });
 
+  it("the PDF follows a gap of three, and a squished one, row for row with the paper", () => {
+    const three: SpacingRule = { above: "action", below: "action", blank: 3, squishable: true };
+    const doc = documentOf([
+      el("action", "One."),
+      el("action", "Two."),
+      el("action", "Three.", { squished: true }),
+    ]);
+    const [paper, pdf] = withSpacing([three], () => [
+      layout(doc).pages[0]!.lines.map((line) => line.row),
+      pdfPagesOf(doc).pages[0]!.map((run) => (run.y - 81) / 12),
+    ]);
+    expect(paper).toEqual([0, 4, 5]);
+    expect(pdf).toEqual(paper);
+  });
+
   it("a squished action pair has no gap", () => {
     const doc = documentOf([el("action", "One."), el("action", "Two.", { squished: true })]);
     const [a, b] = paginate(doc).chunks;

@@ -52,6 +52,11 @@ way out is a lookup on the pair of element types either side of it:
 | Lyrics → Lyrics | no |
 | Everything else | yes |
 
+> **Amended 2026-11-03 (ADR-0038).** This table is the *file's* rule and stands for every pair except
+> two. Action → Action and Centered → Centered are now squishable gaps: the blank line is the default
+> gap and its absence is a squished one, both kept as written. The paper and the PDF no longer read
+> this table; they read the spacing table in `geometry.ts`.
+
 **No element is exempt, including omitted ones.** A run of tight prose inside a boneyard is
 spaced by this table like any other run of action, so cut notes written without blank lines
 between them gain them on first import. That is the cost of the boneyard being ordinary elements

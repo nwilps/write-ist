@@ -266,6 +266,26 @@ color and margins, and where text sits on it. It is how the manuscript looks, no
 it: a **Page** is the counted fact, the Paper is the surface the writer sees.
 _Avoid_: canvas, sheet, page (that is the counted unit)
 
+**Spacing table**:
+The one table of how many blank lines the paper and the PDF leave between two adjacent elements,
+keyed by the pair of element types (the one above, the one below), with whether the writer may
+squish the gap. It is presentation, and lives beside the horizontal geometry (`geometry.ts`).
+The Fountain file's own blank-line rule is separate: however many lines the table leaves, the
+file writes one blank line (ADR-0038).
+_Avoid_: blank-line table (that is the file's rule, ADR-0019), line spacing, margins
+
+**Gap**:
+The space between two adjacent elements on the paper, in blank lines. It is not a line and not an
+element: the writer cannot select it. Its default is the spacing table's.
+_Avoid_: blank line (a line in the file), empty paragraph, spacer
+
+**Squished gap**:
+A gap taken down to nothing by the writer, where the spacing table allows it (action then action,
+centered then centered). Held as a flag on the lower element; in the file it is two lines with no
+blank line between them. Backspace at the start of the lower element makes one, and Enter at the
+end of the upper element restores the default gap.
+_Avoid_: tight run (the file's look of it), merged, collapsed
+
 **Target**:
 A page number the writer authors on a plan card, stating where they intend something to
 land. A target is an intention; a page is a fact. Comparing the two is the point of the Plan

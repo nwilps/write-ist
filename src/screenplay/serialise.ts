@@ -2,9 +2,13 @@
  * Writing the flat element sequence back out as Fountain.
  *
  * Blank lines are not stored (ADR-0019), so every one of them is recomputed
- * here from the pair of element types either side of it. That is the whole of
- * the spacing model, and it is what makes ADR-0020's claim — spacing is
- * derived from adjacent element types — actually true.
+ * here from the pair of element types either side of it. That is what makes
+ * ADR-0020's claim — spacing is derived from adjacent element types — true.
+ *
+ * This is the *file's* rule. How far apart two elements are drawn on the paper
+ * and in the PDF is the spacing table in `geometry.ts` (ADR-0038); the one
+ * place the two meet is a squishable pair, where a blank line is the default
+ * gap and its absence is a squished one.
  */
 import { commentInserts, SCREENPLAY_COMMENTS } from "../comments.ts";
 import {

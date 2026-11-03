@@ -385,7 +385,11 @@ describe("Backspace at the start of an element joins it onto the one above (#43)
   it("undoes a split exactly", () => {
     const before = opened(SCENE);
     const split = press(caretAt(before, 1, 4), splitElement);
-    const joined = press(caretAt(split, 2, 0), joinBackwards);
+    // The two halves are an action pair, so the first Backspace squishes the
+    // gap between them (ADR-0038) and the second joins them.
+    const squished = press(caretAt(split, 2, 0), joinBackwards);
+    expect(saved(squished)).toBe(SCENE.replace("Mary makes toast.", "Mary\n makes toast."));
+    const joined = press(caretAt(squished, 2, 0), joinBackwards);
     expect(saved(joined)).toBe(saved(before));
     expect(types(joined)).toEqual(types(before));
   });
