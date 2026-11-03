@@ -195,9 +195,9 @@ describe("the menu and the window", () => {
       /Save a Copy as Fountain…[^}]*\},\s*\{ label: "Export as PDF…"[^}]*act: act\.exportPdf/,
     );
     const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    const body = editor.slice(editor.indexOf("exportAsPdf = () =>"), editor.indexOf("Step 4 and 6"));
-    expect(body).toContain("manuscriptOf(state.doc)");
+    const body = editor.slice(editor.indexOf("const exportAsPdf = (): void =>"), editor.indexOf("Step 4 and 6"));
+    expect(body).toContain("writing.manuscript()");
     expect(body).toMatch(/destination === undefined\) return;/);
-    expect(body).not.toMatch(/session\.save|saving\.now|saveAndShow/);
+    expect(body).not.toMatch(/\.save\(|saving\.now|saveAndShow/);
   });
 });
