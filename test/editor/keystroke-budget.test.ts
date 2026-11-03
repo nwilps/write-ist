@@ -56,6 +56,7 @@ import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { layout, type Layout } from "../../src/screenplay/layout.ts";
 import { paginate, repaginate } from "../../src/screenplay/paginate.ts";
 import { sheetDecorations } from "../../src/screenplay/sheets.ts";
+import type { NameLists } from "../../src/screenplay/names.ts";
 import { namesOf, syncNames } from "../../src/screenplay/names-sync.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
@@ -75,7 +76,11 @@ const WARMUP = 50;
  * what one of them cost.
  */
 function budget(document: ScreenplayDocument, bytes: number): number {
-  let state = editorStateFor(document);
+  // The lists autocomplete (step 9) reads; made below, once there is a document.
+  let names: NameLists | undefined;
+  let state = editorStateFor(document, {
+    autocomplete: { names: () => names!, draw: () => ({}) as HTMLElement },
+  });
 
   // The rest of what a keystroke costs the application: the manuscript is
   // marked unsaved and the autosave pause is restarted. Both are inside the
@@ -137,12 +142,14 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // The character and location lists (slice 2, step 8), kept up to date by
   // the elements each keystroke changed. Part of the real path, so part of the
   // measured cost.
-  const names = namesOf(state.doc);
+  names = namesOf(state.doc);
 
   const keystroke = (): void => {
     const previous = state.doc;
     state = state.apply(state.tr.insertText("a", caret));
-    syncNames(names, previous, state.doc);
+    syncNames(names!, previous, state.doc);
+    // What the view would draw for the autocomplete offer after this key.
+    for (const plugin of state.plugins) plugin.props.decorations?.call(plugin, state);
     session.changed();
     saving.typed();
     laid = layout(manuscriptOf(state.doc), laid, dirtyElement);

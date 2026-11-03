@@ -78,6 +78,7 @@ import { paperDecorations } from "../../../../src/screenplay/sheets.ts";
 import { countsText, wordsIn } from "./counts.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
+import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
@@ -153,10 +154,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // The model, as the writer has it. Replaced on every transaction, and
       // read by the save routine — never by the view (see the head of this
       // file).
-      let state = editorStateFor(opened.document);
+      // Autocomplete (step 9) reads the lists below, which are made after this and
+      // replaced on reload — hence a getter and not the lists themselves.
+      const autocomplete = { names: () => names, draw: drawOffer };
+      let state = editorStateFor(opened.document, { autocomplete });
       // The character and location lists (slice 2, step 8), derived from the
-      // model and kept up to date by the elements each edit changed. Held for
-      // autocomplete and spellcheck to read; nothing draws them yet. What the
+      // model and kept up to date by the elements each edit changed. Autocomplete
+      // offers from them; spellcheck (step 10) will read them too. What the
       // writer confirmed by hand comes from the bundle's names file. If that
       // cannot be read it is not overwritten: confirming is refused.
       let confirmationsReadable = true;
@@ -191,7 +195,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // screenplay now. A fresh state, so undo cannot walk back into the
         // version that was replaced.
         reload: (imported) => {
-          state = editorStateFor(imported.document);
+          state = editorStateFor(imported.document, { autocomplete });
           names = namesOf(state.doc, { explicit: confirmed });
           laid = layout(imported.document);
           seams = paperDecorations(state.doc, laid, drawSheetBreak);

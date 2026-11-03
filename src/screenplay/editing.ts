@@ -56,6 +56,7 @@ import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { toggleMark } from "prosemirror-commands";
+import { autocomplete, type AutocompleteOptions } from "./autocomplete.ts";
 import { clipboard, pastedComments } from "./clipboard.ts";
 import { dualCaretKey } from "./dual-dialogue.ts";
 import { elementKeys, endsUndoStep, keepHiddenSyntax } from "./element-keys.ts";
@@ -159,6 +160,12 @@ export const markKeys = keymap({
   "Mod-u": toggleMark(screenplaySchema.marks["underline"]!),
 });
 
+/** What the window adds to the state the editing tests share. */
+export interface EditorOptions {
+  /** Offer to finish cues and headings from the name lists (step 9). */
+  readonly autocomplete?: AutocompleteOptions;
+}
+
 /**
  * The state a writer types into.
  *
@@ -166,8 +173,11 @@ export const markKeys = keymap({
  * same editor. Everything about *what* the document is stays in
  * `toEditorDocument`; this adds only what has to survive being typed in.
  */
-export function editorStateFor(document: ScreenplayDocument): State {
+export function editorStateFor(document: ScreenplayDocument, options: EditorOptions = {}): State {
   const doc = toEditorDocument(withALineToTypeOn(document));
+  // Autocomplete (step 9) is ahead of the plugin that binds Enter and Tab, so
+  // that with an offer showing those keys are the offer's.
+  const offers = options.autocomplete === undefined ? [] : [autocomplete(options.autocomplete)];
   return EditorState.create({
     schema: screenplaySchema,
     doc,
@@ -175,7 +185,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
     selection: startOfScript(doc),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
   });
 }
 
