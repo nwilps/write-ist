@@ -289,6 +289,8 @@
   font-family: var(--face-manuscript);
   font-size: var(--manuscript-size);
   line-height: var(--manuscript-leading);
+  /* Courier Prime at 12pt, advancing the PDFs' 7pt a character (`geometry.ts`). */
+  letter-spacing: var(--manuscript-tracking);
   /*
    * Whitespace *inside* an element's text is the writer's and is drawn: the
    * corpus sets two spaces after a full stop throughout, and collapsing them
@@ -324,10 +326,11 @@
  * reads every one of these selectors back and checks it against the table, and
  * a rule that cannot be read back cannot be checked.
  *
- * `ch` is Courier Prime's own advance width, so a measure of 61 characters is
- * 61 advances exactly on all three platforms — which is ADR-0024's mitigation
- * for the one risk its wrap measurement did not cover, at the cost of the one
- * CSS rule it said it would cost.
+ * `--ch` is one character's advance — Courier Prime's, tracked down to the
+ * PDFs' 7pt by the `letter-spacing` above — so a measure of 61 characters is
+ * 61 advances on all three platforms, which is ADR-0024's mitigation for the
+ * one risk its wrap measurement did not cover. (Plain `ch` would be the glyph's
+ * advance without the tracking, 2.7% too wide.)
  *
  * **Nothing here is a `text-transform`.** A scene heading and a cue are in
  * capitals because the writer's text is in capitals; faking them in CSS would
@@ -583,7 +586,7 @@
  * left name to just before the right one, so the pair reads as one thing and a
  * cue beside a cue is not mistaken for two scenes. Each name is centred on its
  * column, so where it ends depends on its length: the view hands the left
- * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`5ch`)
+ * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`calc(5 * var(--ch))`)
  * (`dual-columns.ts`), and the rule is placed from them — it begins where the
  * left name ends (half the column plus half the name) and runs to where the
  * right one begins, less the spacing token at each end. It is on the desk

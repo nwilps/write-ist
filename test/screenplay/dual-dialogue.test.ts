@@ -570,20 +570,24 @@ describe("round trip", () => {
 
 describe("the geometry of the columns", () => {
   // Measured from Fountain's PDF of Brick & Steel (fountain.io, Brick-&-Steel.pdf,
-  // `pdftotext -bbox`): 7.2pt a character, left margin 108pt. Left dialogue at
-  // x = 108, right dialogue at x = 333, STEEL centred at 211.5, BRICK at 436.5.
+  // `pdftotext -bbox`): 7pt a character (Courier 12pt with Tc = -0.018), left
+  // margin 108pt. Left dialogue at x = 108, right dialogue at x = 333, STEEL
+  // centred at 211.5, BRICK at 436.5.
   it("is the geometry measured from the reference PDF", () => {
-    const pt = 7.2;
+    const pt = 7;
     const margin = 108;
     expect(DUAL_GEOMETRY.columnStart.left).toBe((108 - margin) / pt);
-    expect(DUAL_GEOMETRY.columnStart.right).toBe((333 - margin) / pt); // 31.25
-    expect(DUAL_GEOMETRY.columnWidth).toBe(2 * (211.5 - 108) / pt); // 28.75
-    expect(DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth).toBe(PAGE.rightMarginCharacters);
+    expect(DUAL_GEOMETRY.columnStart.right).toBeCloseTo((333 - margin) / pt, 10);
+    expect(DUAL_GEOMETRY.columnWidth).toBeCloseTo((2 * (211.5 - 108)) / pt, 10);
+    expect(DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth).toBeCloseTo(
+      PAGE.rightMarginCharacters,
+      10,
+    );
     // Each name is centred on its column's middle.
-    expect(margin + (DUAL_GEOMETRY.columnStart.left + DUAL_GEOMETRY.columnWidth / 2) * pt).toBe(211.5);
-    expect(margin + (DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth / 2) * pt).toBe(436.5);
-    // Right dialogue ends (452pt in the PDF; 455.4 at a true 7.2pt a character)
-    // under the S of SMASH CUT TO: (420-455pt, and its next glyph begins at 461.9).
+    expect(margin + (DUAL_GEOMETRY.columnStart.left + DUAL_GEOMETRY.columnWidth / 2) * pt).toBeCloseTo(211.5, 8);
+    expect(margin + (DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth / 2) * pt).toBeCloseTo(436.5, 8);
+    // Right dialogue ends (452pt in the PDF; 452.2 by advances) under the S of
+    // SMASH CUT TO: (420-455pt, and its next glyph begins at 461.9).
     const end = margin + (DUAL_GEOMETRY.columnStart.right + "Screw retirement.".length) * pt;
     expect(end).toBeGreaterThan(420);
     expect(end).toBeLessThan(461.9);
@@ -592,7 +596,7 @@ describe("the geometry of the columns", () => {
   it("fits two columns and a gutter inside the measure", () => {
     const { columnWidth, columnStart, speech } = DUAL_GEOMETRY;
     expect(columnStart.left + columnWidth).toBeLessThan(columnStart.right);
-    expect(columnStart.right + columnWidth).toBeLessThanOrEqual(PAGE.rightMarginCharacters);
+    expect(columnStart.right + columnWidth).toBeLessThanOrEqual(PAGE.rightMarginCharacters + 1e-9);
     for (const { indent, width } of Object.values(speech)) {
       expect(Number.isInteger(indent) && Number.isInteger(width)).toBe(true);
       expect(indent + width).toBeLessThanOrEqual(columnWidth);
@@ -631,8 +635,8 @@ describe("the paper draws the pair from marks, never from the document", () => {
   });
 
   it("hands the stylesheet both name lengths, so it can centre the rule between them", () => {
-    expect(attrs(1)["style"]).toContain("--dual-name-left: 5ch");
-    expect(attrs(1)["style"]).toContain("--dual-name-right: 5ch");
+    expect(attrs(1)["style"]).toContain("--dual-name-left: calc(5 * var(--ch))");
+    expect(attrs(1)["style"]).toContain("--dual-name-right: calc(5 * var(--ch))");
   });
 
   it("never reaches the file, and never shows the caret", () => {

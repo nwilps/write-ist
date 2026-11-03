@@ -34,9 +34,22 @@
  * ## Characters, not inches
  *
  * Indents and measures below are in **characters**, because a character is
- * what decides a wrap and therefore a page break. Courier Prime's advance is
- * 1228/2048 em = 0.5996 em, so a character at 12pt is 0.09994in — 10 characters
- * per inch to within 0.06%.
+ * what decides a wrap and therefore a page break.
+ *
+ * **A character is 7.0pt, not 7.2.** Courier at 12pt advances 0.6 em = 7.2pt,
+ * and that is what the first measurements here assumed. The PDFs do not set it
+ * so: Final Draft writes every text run with a character-spacing (`Tc`) of
+ * about -0.018 (12 x -0.018 = -0.21pt), so the pen advances 6.99pt a character.
+ * Two independent checks agree. Big Fish's transitions solve to one right edge
+ * only at 7.0 (`CUT TO:` at 491pt with 7 characters, `MATCH CUT TO:` at 449pt
+ * with 13: 491 + 7x7 = 449 + 13x7 = 540pt exactly, where 7.2 gives 541.4 and
+ * 542.6), and Brick & Steel's `SMASH CUT TO:` puts `TO:` ten characters after
+ * `SMASH` at 69.84pt, which is 6.98 a character. The paper therefore advances
+ * 7pt a character too — Courier Prime at 12pt with a negative letter-spacing
+ * that takes its 7.195pt advance down to 7 (`stylesheet()`) — so that a line of
+ * N characters is N x 7pt of paper in the app, in the PDF Final Draft printed,
+ * and in the PDF Write-ist prints. Every position below is a measured point
+ * count divided by 7.
  *
  * Holding the measure in characters is also ADR-0024's mitigation for the one
  * risk its wrap measurement did not cover: *"if the editor column is not an
@@ -133,46 +146,38 @@ export const PAGE = {
   /**
    * Characters across the widest measure on the page — action's.
    *
-   * **Measured, and it disagrees with the arithmetic.** 1.5in of left margin
-   * and Final Draft's nominal 1in right margin leave 6.0in, which is 60
-   * characters at ten to the inch. The PDF wraps action at **61**: of its 1,690
-   * action lines, 144 are exactly 61 characters and none is 63. Final Draft
-   * lays its own text out at about 7.0pt per character rather than 7.2, so 61
-   * of them fit inside its 7.5in right margin; drawn at Courier Prime's true
-   * advance the same 61 characters reach 7.6in.
-   *
-   * Write-ist matches **the character count, not the inch**, because the
-   * character count is what moves a page break. The consequence is a right
-   * margin of 0.9in rather than 1.0in, which is `marginRightInches` below.
+   * Measured: of the PDF's 1,690 action lines, 144 are exactly 61 characters
+   * and none is 63. At 7pt a character 61 of them are 427pt, which ends at
+   * 535pt — inside the 540pt (7.5in) right margin, with 5pt spare, so no
+   * overrun needs explaining. (At 7.2pt they would reach 547pt and need one.)
    */
   measureCharacters: 61,
 
   /**
-   * Characters from the left margin to the right margin proper.
+   * Characters from the left margin to the right margin proper: 432pt, which is
+   * 7.5in on the sheet.
    *
-   * Measured exactly, from the one element Final Draft right-aligns. Four
-   * distinct transitions appear at four x positions, and solving them together
-   * — `CUT TO:` at 491pt with 7 characters against `MATCH CUT TO:` at 449pt
-   * with 13 — gives a right edge of exactly 540pt, or 7.5in, with no remainder
-   * on the other two. So the page's right margin is 1.0in, and action's
-   * sixty-first character is Final Draft overrunning it.
+   * Measured exactly, from the one element Final Draft right-aligns in Big
+   * Fish: `CUT TO:` at 491pt and `MATCH CUT TO:` at 449pt both end at 540pt.
    */
-  rightMarginCharacters: 60,
+  rightMarginCharacters: 432 / 7,
 } as const;
 
 /**
- * Inches per character, from Courier Prime's own advance at `fontSizePoints`.
- *
- * **Ten to the inch is the nominal figure and not this one.** The advance is
- * 1228/2048 em, so a character is 0.09993in and sixty-one of them are 0.004in
- * short of 6.1. Every length below is derived through this rather than through
- * a tidier division by ten, because the file's whole argument for holding the
- * table in characters is that inches are a little bit wrong sixty-one times
- * over — and doing that arithmetic in the one place the argument is made would
- * be a poor joke. The difference is a pixel and a half on the sheet, which is
- * a pixel and a half of the right margin.
+ * Inches per character: 7pt, the pen advance the PDFs measure (see *Characters,
+ * not inches* above), which is a hair under the tenth of an inch Courier's own
+ * 7.2pt would be. Every length below is derived through this rather than through
+ * a tidier division by ten.
  */
-export const CHARACTER_INCHES = (PAGE.fontSizePoints * (1228 / 2048)) / 72;
+export const CHARACTER_POINTS = 7;
+export const CHARACTER_INCHES = CHARACTER_POINTS / 72;
+
+/**
+ * Courier Prime's own advance, in em: 1228/2048. The stylesheet takes the
+ * difference between this and `CHARACTER_POINTS` off every character, so the
+ * face is drawn at 12pt with the PDF's tracking.
+ */
+export const COURIER_PRIME_ADVANCE_EM = 1228 / 2048;
 
 /** Inches a run of characters occupies. */
 export const inchesFor = (characters: number): number => characters * CHARACTER_INCHES;
@@ -229,35 +234,35 @@ export const ELEMENT_GEOMETRY: Readonly<Record<ElementType, ElementMeasure>> = {
   },
 
   character: {
-    indent: 18.75,
-    width: PAGE.rightMarginCharacters - 18.75,
+    indent: 135 / 7,
+    width: PAGE.rightMarginCharacters - 135 / 7,
     alignment: "left",
     source:
-      "Indent measured: 784 cues at exactly x = 243pt, which is 3.375in, or 18.75 characters from the left margin. Not a whole character, and recorded as measured. **The measure is not observed** — no cue in Big Fish wraps and the longest is 27 characters — so it runs to the page's right margin. A narrower guess would wrap a cue Final Draft does not, and inventing a page break is worse than allowing a wide one. The reference puts the indent at 2.0in; the PDF says 1.875in, and the PDF wins.",
+      "Indent measured: 784 cues at exactly x = 243pt, which is 3.375in, or 135/7 = 19.29 characters from the left margin. Not a whole character, and recorded as measured. (Brick & Steel's cues sit at 252pt, 9pt further in: that is Final Draft's stock template against John August's, and Big Fish stays the authority here.) **The measure is not observed** — no cue in Big Fish wraps and the longest is 27 characters — so it runs to the page's right margin. A narrower guess would wrap a cue Final Draft does not, and inventing a page break is worse than allowing a wide one. The reference puts the indent at 2.0in; the PDF says 1.875in, and the PDF wins.",
   },
 
   dialogue: {
-    indent: 8.75,
+    indent: 9,
     width: 39,
     alignment: "left",
     source:
-      "Measured: 1,720 lines at exactly x = 171pt, which is 2.375in, or 8.75 characters from the left margin. The measure is 39 — 202 lines are exactly 39, two are 40 and both break after a hyphen, and none is 41. The reference puts the indent at 1.0in and the measure at 35 characters; the PDF says 0.875in and 39, and the PDF wins on both.",
+      "Measured: 1,720 lines at exactly x = 171pt, which is 2.375in, or exactly 9 characters from the left margin at 7pt a character. The measure is 39 — 202 lines are exactly 39, two are 40 and both break after a hyphen, and none is 41. The reference puts the indent at 1.0in and the measure at 35 characters; the PDF says 0.875in and 39, and the PDF wins on both.",
   },
 
   parenthetical: {
-    indent: 12.7778,
-    width: PAGE.rightMarginCharacters - 12.7778,
+    indent: 92 / 7,
+    width: PAGE.rightMarginCharacters - 92 / 7,
     alignment: "left",
     source:
-      "Indent measured: 97 parentheticals at exactly x = 200pt, which is 2.7778in, or 12.7778 characters from the left margin. Not a whole character, and recorded as measured rather than rounded. **The measure is not observed** — none wraps and the longest is 30 characters — so, like a cue's, it runs to the page's right margin. The reference puts the indent at 1.5in and the measure at 20 characters, and the PDF contradicts the measure outright by printing a 30-character parenthetical on one line.",
+      "Indent measured: 97 parentheticals at exactly x = 200pt, which is 2.7778in, or 92/7 = 13.14 characters from the left margin. Not a whole character, and recorded as measured rather than rounded. **The measure is not observed** — none wraps and the longest is 30 characters — so, like a cue's, it runs to the page's right margin. The reference puts the indent at 1.5in and the measure at 20 characters, and the PDF contradicts the measure outright by printing a 30-character parenthetical on one line.",
   },
 
   transition: {
     indent: 0,
-    width: PAGE.rightMarginCharacters,
+    width: 403.2 / 7,
     alignment: "right",
     source:
-      "Measured: right-aligned to exactly 540pt, or 7.5in — solved from four transitions at four x positions, with no remainder. This is the one element that fixes the page's right margin. The reference agrees that transitions are right-aligned.",
+      "Measured on Fountain's Brick & Steel PDF (Final Draft's stock template): transitions are right-aligned, not set at a fixed left indent — `CUT TO:` (7 characters) begins at 462pt and `SMASH CUT TO:` (13) at 420pt, and both end at exactly 511.2pt, which is 7.1in, Final Draft's stock right edge for a transition (left 5.5in). The box runs from the left margin to that edge, 403.2/7 = 57.6 characters, rather than from 5.5in: Final Draft would wrap a transition longer than 16 characters, and Write-ist does not invent a page break the PDF never exercised. Big Fish's own template right-aligns to 540pt (7.5in) instead; the stock edge wins because it is what Final Draft ships, and Brick & Steel is the PDF the dual-dialogue geometry is measured from.",
   },
 
   centered: {
@@ -382,36 +387,36 @@ export interface DualMeasure {
  * **Dual dialogue: two speeches side by side.**
  *
  * **Measured** from Fountain's own PDF of `Brick & Steel` (fountain.io,
- * `Brick-&-Steel.pdf`, 612 x 792pt, Courier 12pt = 7.2pt a character, left
- * margin 108pt = 1.5in), its one dual-dialogue pair, with
- * `pdftotext -bbox`:
+ * `Brick-&-Steel.pdf`, 612 x 792pt, Courier 12pt advancing 7pt a character —
+ * see *Characters, not inches*, left margin 108pt = 1.5in), its one
+ * dual-dialogue pair, with `pdftotext -bbox`:
  *
  *   - left dialogue "Screw retirement." begins at x = 108pt: column start 0.
- *   - right dialogue begins at x = 333pt: (333 - 108) / 7.2 = 31.25 characters.
+ *   - right dialogue begins at x = 333pt: (333 - 108) / 7 = 32.14 characters.
  *   - STEEL spans 194-229pt, centre 211.5; BRICK spans 419-454pt, centre
  *     436.5. A cue is centred on its column, so each column's half-width is
  *     211.5 - 108 = 436.5 - 333 = 103.5pt: the column is 207pt, 2.875in,
- *     28.75 characters. The right column then ends at 31.25 + 28.75 = 60, the
- *     page's right margin, and the gutter is 2.5 characters.
+ *     207/7 = 29.57 characters. The right column then ends at 225 + 207 =
+ *     432pt, the page's 7.5in right margin, and the gutter is 18pt.
  *   - The right dialogue ends at 452pt, directly under the S of the following
  *     SMASH CUT TO: (420-455pt).
  *
- * Dialogue and parentheticals wrap at whole characters (ADR-0024): 28 fit in
- * 28.75. The PDF's pair has no parenthetical; its indent is the single
- * column's own offset from dialogue (209pt against 180pt, 4 characters), and
- * its measure is what is left of the column.
+ * Dialogue and parentheticals wrap at whole characters (ADR-0024): 29 fit in
+ * 29.57. The PDF's pair has no parenthetical; its indent is the single
+ * column's own offset from dialogue (209pt against 180pt, 29pt = 4.14
+ * characters, held at a whole 4), and its measure is what is left of the column.
  */
 export const DUAL_GEOMETRY = {
   /** Characters across one column; a cue is centred on this. */
-  columnWidth: 28.75,
+  columnWidth: 207 / 7,
   /** Characters from the left margin to each column's left edge. */
-  columnStart: { left: 0, right: 31.25 },
+  columnStart: { left: 0, right: 225 / 7 },
   speech: {
     // The cue is centred across the whole column (`columnWidth`) by the
     // stylesheet; `width` is the most it may fill before it wraps.
-    character: { indent: 0, width: 28 },
-    parenthetical: { indent: 4, width: 24 },
-    dialogue: { indent: 0, width: 28 },
+    character: { indent: 0, width: 29 },
+    parenthetical: { indent: 4, width: 25 },
+    dialogue: { indent: 0, width: 29 },
   } satisfies Record<"character" | "parenthetical" | "dialogue", DualMeasure>,
 } as const;
 
@@ -441,7 +446,12 @@ function shortest(value: number): string {
 const PIXELS_PER_INCH = 96;
 
 const inches = (value: number): string => `${shortest(value * PIXELS_PER_INCH)}px`;
-const characters = (value: number): string => `${shortest(value)}ch`;
+/**
+ * A run of characters as CSS reads it. Not `ch`: the page tracks Courier Prime
+ * down to the PDF's 7pt advance with a negative letter-spacing, and `ch` is the
+ * glyph's advance without it. `--ch` is the advance with it.
+ */
+export const characters = (value: number): string => `calc(${shortest(value)} * var(--ch))`;
 
 /**
  * **The table, rendered as the stylesheet the Editor reads.**
@@ -483,6 +493,10 @@ export function stylesheet(): string {
     "  /* --- The type on it -------------------------------------------------- */",
     "",
     `  --manuscript-size: ${inches(PAGE.fontSizePoints / 72)};`,
+    "  /* One character of paper: the PDFs' 7pt advance, not Courier's 7.2. */",
+    `  --ch: ${CHARACTER_POINTS}pt;`,
+    "  /* What Courier Prime must give up per character to advance exactly --ch. */",
+    `  --manuscript-tracking: calc(var(--ch) - ${COURIER_PRIME_ADVANCE_EM}em);`,
     `  --manuscript-leading: ${shortest(PAGE.leadingPoints / PAGE.fontSizePoints)};`,
     "  /* One blank line: the serialiser's spacing table, drawn as space. */",
     "  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));",
