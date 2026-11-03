@@ -6,7 +6,7 @@
  * is absent. The hints are shortcuts that really work, which is why the title
  * page items have none.
  */
-import { Eye, FileDown, FileOutput, FileText, FolderOpen, House, Save } from "lucide";
+import { Eye, FileDown, FileOutput, FileText, FolderOpen, House, MapPin, Save, UserCheck } from "lucide";
 import type { MenuEntry } from "../../menus/drop-menu.ts";
 
 export interface EditorActions {
@@ -17,6 +17,8 @@ export interface EditorActions {
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
   readonly viewTitlePage: () => void;
+  readonly confirmName: () => void;
+  readonly confirmLocation: () => void;
 }
 
 export function editorMenus(act: EditorActions): Readonly<Record<string, readonly MenuEntry[]>> {
@@ -30,7 +32,12 @@ export function editorMenus(act: EditorActions): Readonly<Record<string, readonl
       { divider: true },
       { label: "Home", hint: "[Esc]", icon: House, act: act.toHome },
     ],
-    Edit: [{ label: "Edit Title Page…", icon: FileText, act: act.editTitlePage }],
+    Edit: [
+      { label: "Edit Title Page…", icon: FileText, act: act.editTitlePage },
+      { divider: true },
+      { label: "Confirm This Name", hint: "[Ctrl + K]", icon: UserCheck, act: act.confirmName },
+      { label: "Confirm This Location", hint: "[Ctrl + K]", icon: MapPin, act: act.confirmLocation },
+    ],
     View: [{ label: "View Title Page", icon: Eye, act: act.viewTitlePage }],
   };
 }

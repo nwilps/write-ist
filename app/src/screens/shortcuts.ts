@@ -79,6 +79,17 @@ export function asksToSearch(press: KeyPress): boolean {
 }
 
 /**
+ * Whether a key press is the writer confirming the name or location the caret
+ * is in (slice 2, step 8): Ctrl+K. Needs a modifier for the same reason a save
+ * does.
+ */
+export function asksToConfirm(press: KeyPress): boolean {
+  if (press.altKey) return false;
+  if (!press.ctrlKey && !press.metaKey) return false;
+  return press.key.toLowerCase() === "k";
+}
+
+/**
  * Whether a key press opens a menu: Alt and the menu's letter, as the desk
  * shows it (`[Alt + F]`). Ctrl and Meta are somebody else's.
  */

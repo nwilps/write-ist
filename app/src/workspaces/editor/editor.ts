@@ -67,7 +67,10 @@ import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
 import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
-import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
+import { elementUnder, manuscriptElementAt } from "../../../../src/screenplay/place.ts";
+import { nameOf, type NameKind, type NameLists } from "../../../../src/screenplay/names.ts";
+import { namesOf, syncNames } from "../../../../src/screenplay/names-sync.ts";
+import { readConfirmations, writeConfirmations } from "../../../../src/project/names-file.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
 import { pageAtElement } from "../../../../src/screenplay/paginate.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
@@ -75,12 +78,13 @@ import { paperDecorations } from "../../../../src/screenplay/sheets.ts";
 import { countsText, wordsIn } from "./counts.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
+import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
-import { asksToSave, asksToSearch } from "../../screens/shortcuts.ts";
+import { asksToConfirm, asksToSave, asksToSearch } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
@@ -115,6 +119,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // Likewise the title page: nothing to edit or show until it has been read.
   let editTitlePage = (): void => {};
   let viewTitlePage = (): void => {};
+  // Likewise confirming a name: nothing to confirm in until it has been read.
+  let confirmHere = (_kind: NameKind): void => {};
   const panels = sidePanels(
     () => startSearch(),
     editorMenus({
@@ -125,6 +131,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       toHome: context.leave.toHome,
       editTitlePage: () => editTitlePage(),
       viewTitlePage: () => viewTitlePage(),
+      confirmName: () => confirmHere("character"),
+      confirmLocation: () => confirmHere("location"),
     }),
   );
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
@@ -146,7 +154,28 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // The model, as the writer has it. Replaced on every transaction, and
       // read by the save routine — never by the view (see the head of this
       // file).
-      let state = editorStateFor(opened.document);
+      // Autocomplete (step 9) reads the lists below, which are made after this and
+      // replaced on reload — hence a getter and not the lists themselves.
+      const autocomplete = { names: () => names, draw: drawOffer };
+      let state = editorStateFor(opened.document, { autocomplete });
+      // The character and location lists (slice 2, step 8), derived from the
+      // model and kept up to date by the elements each edit changed. Autocomplete
+      // offers from them; spellcheck (step 10) will read them too. What the
+      // writer confirmed by hand comes from the bundle's names file. If that
+      // cannot be read it is not overwritten: confirming is refused.
+      let confirmationsReadable = true;
+      let confirmed = { character: [] as readonly string[], location: [] as readonly string[] };
+      try {
+        confirmed = await readConfirmations(context.filesystem, context.project);
+      } catch (error) {
+        confirmationsReadable = false;
+        context.report(
+          `Write-ist could not read this project's confirmed names, so it will not change them. ` +
+            `Your screenplay is not affected. ${message(error)}`,
+        );
+      }
+      if (gone) return;
+      let names: NameLists = namesOf(state.doc, { explicit: confirmed });
       let unfinished: unknown;
       let leaving = false;
       // Held here so a silent reload (#42) can refresh the count too.
@@ -166,7 +195,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // screenplay now. A fresh state, so undo cannot walk back into the
         // version that was replaced.
         reload: (imported) => {
-          state = editorStateFor(imported.document);
+          state = editorStateFor(imported.document, { autocomplete });
+          names = namesOf(state.doc, { explicit: confirmed });
           laid = layout(imported.document);
           seams = paperDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
@@ -281,8 +311,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       view = new EditorView(page, {
         state,
         dispatchTransaction: (transaction) => {
+          const before = state.doc;
           state = state.apply(transaction);
           if (transaction.docChanged) {
+            syncNames(names, before, state.doc);
             session.changed();
             saving.typed();
             context.setSaved("unsaved");
@@ -303,6 +335,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // surface's keymap because *when to save* belongs to the workspace
         // that owns the project, not to the screenplay surface.
         handleKeyDown: (_editor, event) => {
+          if (asksToConfirm(event)) {
+            confirmHere(confirmableKind());
+            return true;
+          }
           if (!asksToSave(event)) return false;
           void saving.now();
           return true;
@@ -320,6 +356,40 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       saveNow = () => {
         void saving.now();
         view?.focus();
+      };
+
+      // Step 8: the writer says the name or location the caret is in is right,
+      // without waiting for it to be used enough times. Written to the names
+      // file, whole or not at all; the manuscript is not touched. A failed
+      // write is said, and the confirmation holds until the project closes.
+      const confirmableKind = (): NameKind => {
+        const at = elementUnder(state.doc, state.selection.head);
+        return at?.type === "scene-heading" ? "location" : "character";
+      };
+      let writingNames: Promise<void> = Promise.resolve();
+      confirmHere = (kind) => {
+        if (view === undefined) return;
+        const at = elementUnder(state.doc, state.selection.head);
+        const found = at === undefined ? undefined : nameOf(at);
+        if (found === undefined || found.kind !== kind || !confirmationsReadable) return;
+        if (names.confirm(kind, found.name)) {
+          confirmed = {
+            character: names.explicit("character"),
+            location: names.explicit("location"),
+          };
+          const toWrite = confirmed;
+          writingNames = writingNames.then(async () => {
+            try {
+              await writeConfirmations(context.filesystem, context.project, toWrite);
+            } catch (error) {
+              context.report(
+                `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+                  `Your screenplay is unchanged. ${message(error)}`,
+              );
+            }
+          });
+        }
+        view.focus();
       };
 
       // Step 7: a finished-product copy, outside the bundle. It reads the model

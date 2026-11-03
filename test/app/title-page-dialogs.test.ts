@@ -167,7 +167,7 @@ describe("View Title Page", () => {
 describe("the Edit and View menus", () => {
   const act = {
     save: vi.fn(), saveCopy: vi.fn(), exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
-    editTitlePage: vi.fn(), viewTitlePage: vi.fn(),
+    editTitlePage: vi.fn(), viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(),
   };
   function panel() {
     const panels = sidePanels(undefined, editorMenus(act));
@@ -180,12 +180,15 @@ describe("the Edit and View menus", () => {
     const menus = editorMenus(act);
     const labels = (name: string) => menus[name]!.map((entry) => ("label" in entry ? entry.label : "—"));
     expect(Object.keys(menus)).toEqual(["File", "Edit", "View"]);
-    expect(labels("Edit")).toEqual(["Edit Title Page…"]);
+    expect(labels("Edit")).toEqual([
+      "Edit Title Page…", "—", "Confirm This Name", "Confirm This Location",
+    ]);
     expect(labels("View")).toEqual(["View Title Page"]);
-    // No shortcut is shown that does not exist.
-    for (const name of ["Edit", "View"]) {
-      expect(menus[name]!.every((entry) => !("hint" in entry))).toBe(true);
-    }
+    // No shortcut is shown that does not exist: only the Confirm items have one.
+    expect(menus["View"]!.every((entry) => !("hint" in entry))).toBe(true);
+    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([
+      "[Ctrl + K]", "[Ctrl + K]",
+    ]);
   });
 
   it("open from their rows like File, and the items run the actions", () => {

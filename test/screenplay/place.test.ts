@@ -8,7 +8,13 @@
 import { describe, expect, it } from "vitest";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { toEditorDocument } from "../../src/screenplay/editor.ts";
-import { elementAt, manuscriptElementAt, positionOfElement } from "../../src/screenplay/place.ts";
+import {
+  elementAt,
+  elementUnder,
+  manuscriptElementAt,
+  positionOfElement,
+  sceneAt,
+} from "../../src/screenplay/place.ts";
 
 const screenplay: ScreenplayDocument = {
   titlePage: [{ key: "Title", inline: { text: "Hi" }, continuations: [] }],
@@ -86,5 +92,45 @@ describe("where a spot is", () => {
     const cue = positionOfElement(leadingBlank, 1, 0);
     expect(manuscriptElementAt(leadingBlank, cue!)).toBe(0);
     expect(elementAt(leadingBlank, cue!)).toEqual({ element: 1, offset: 0, type: "character" });
+  });
+});
+
+describe("what the caret is in, and which scene", () => {
+  const scripted: ScreenplayDocument = {
+    titlePage: [{ key: "Title", inline: { text: "Hi" }, continuations: [] }],
+    elements: [
+      { type: "action", text: "Before.", forced: false },
+      { type: "scene-heading", text: "INT. KITCHEN - DAY", forced: false },
+      { type: "action", text: "", forced: false },
+      { type: "character", text: "EDWARD", forced: false },
+      { type: "scene-heading", text: "EXT. YARD - NIGHT", forced: false, omitted: true },
+      { type: "dialogue", text: "Hello.", forced: false },
+      { type: "scene-heading", text: "INT. HALL - DAY", forced: false },
+    ],
+    comments: [],
+    endsWithNewline: true,
+  };
+  const doc = toEditorDocument(scripted);
+  const start = (element: number): number => {
+    let at = 0;
+    for (let i = 0; i < 1 + element; i++) at += doc.child(i).nodeSize;
+    return at + 1;
+  };
+
+  it("reports the element under the caret with its text", () => {
+    expect(elementUnder(doc, start(3) + 2)).toEqual({
+      element: 3, offset: 2, type: "character", text: "EDWARD", omitted: false,
+    });
+    expect(elementUnder(doc, start(4))?.omitted).toBe(true);
+    expect(elementUnder(doc, 1)).toBeUndefined();
+  });
+
+  it("finds the scene around the caret in the page's numbering", () => {
+    expect(sceneAt(doc, start(0))).toEqual({ heading: undefined, start: 0, end: 1 });
+    expect(sceneAt(doc, start(3))).toEqual({ heading: 1, start: 1, end: 6 });
+    // The heading in the boneyard begins nothing: its scene is the one around it.
+    expect(sceneAt(doc, start(5))).toEqual({ heading: 1, start: 1, end: 6 });
+    expect(sceneAt(doc, start(6))).toEqual({ heading: 6, start: 6, end: 7 });
+    expect(sceneAt(doc, 1)).toBeUndefined();
   });
 });

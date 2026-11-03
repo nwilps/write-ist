@@ -17,6 +17,12 @@ export const MARKER_FILE = "project.md";
  */
 export const MANUSCRIPT_FILE = "manuscript.fountain";
 
+/**
+ * The names the writer confirmed by hand (slice 2, step 8; ADR-0025). Plain
+ * text, project-level, never frozen at lock.
+ */
+export const NAMES_FILE = "names.txt";
+
 /** A project as the application holds it: where it is, and what it says it is. */
 export interface Project {
   /** The bundle's folder. An input to opening it, never its identity (ADR-0015). */

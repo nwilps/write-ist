@@ -133,7 +133,18 @@ stopped at the element boundary (#26).
 
 ### Not done, and belonging to the editor rather than to this layer
 
-- [ ] **Ranges** — scenes and chapters computed from the flat sequence (ADR-0019). No code yet.
+- [x] **Ranges** — scenes computed from the flat sequence (ADR-0019): `src/screenplay/ranges.ts`,
+      with `sceneAt` / `elementUnder` beside `elementAt` in `place.ts`, the one "where is this"
+      module (slice 2, step 8). Chapters belong to the prose surface and are not built.
+- [x] **Name lists** — characters and locations derived from the cues and headings, confirmed after
+      three uses or by the writer, kept up to date from the elements each edit changed
+      (`names.ts`, `names-sync.ts`); the writer's confirmations in `names.txt`. Spellcheck
+      (step 10) reads them; it is not built.
+- [x] **Autocomplete** — a confirmed character finishes a cue; a heading is finished in pieces
+      (`INT.`/`EXT.`, a confirmed location, a time of day). Ghost text and a short list drawn as a
+      widget decoration, never in the document; Tab/Enter accept as one undo step, Esc closes
+      (`src/screenplay/autocomplete.ts`, `app/src/workspaces/editor/autocomplete-draw.ts`; slice 2,
+      step 9). Times of day are the built-in vocabulary only; the script's own are not yet derived.
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
       written to a file (#39). Comment ends were still element *indices*, which nothing moved

@@ -1,0 +1,52 @@
+/*
+ * The autocomplete offer (slice 2, step 9): ghost text after the caret and,
+ * for more than one choice, a short list under it. **Every value here is a
+ * token** (ADR-0030). It is a widget on the paper, not in the manuscript.
+ *
+ * The ghost is quiet — the faint colour, the manuscript's own type, so it sits
+ * where the finished word would. The list is the interface's face, in the
+ * floating look the menus share.
+ */
+
+.autocomplete {
+  position: relative;
+  user-select: none;
+  pointer-events: none;
+}
+
+.autocomplete__ghost {
+  white-space: pre;
+  color: var(--colour-faint);
+}
+
+.autocomplete__list {
+  position: absolute;
+  z-index: var(--layer-menu);
+  top: 100%;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: max-content;
+  padding: var(--space-row-gap);
+  background: var(--colour-raised);
+  border: var(--rule-menu) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  font-family: var(--face-interface);
+  font-size: var(--size-label);
+  line-height: var(--leading-label);
+  letter-spacing: normal;
+  text-indent: 0;
+  text-align: left;
+  color: var(--colour-muted);
+}
+
+.autocomplete__choice {
+  white-space: pre;
+  padding: 0 var(--space-row-label);
+  border-radius: var(--radius-slight);
+}
+
+.autocomplete__choice--selected {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
