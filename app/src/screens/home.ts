@@ -19,6 +19,8 @@ import type { Gesture } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
 
 export interface HomeScreen {
+  /** Ask for a new, empty project (a dialog over this screen). */
+  readonly onNewProject: () => void;
   /** To the Open Project screen, which is where a project comes from. */
   readonly onOpenProject: () => void;
   readonly onQuit: () => void;
@@ -29,6 +31,7 @@ export interface HomeScreen {
 /** Draw the home screen, and return the gestures the window answers to. */
 export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gesture[] {
   const gestures: readonly Gesture[] = [
+    { label: "New Project", key: "n", act: screen.onNewProject },
     { label: "Open Project", key: "o", act: screen.onOpenProject },
     { label: "Quit", key: "q", act: screen.onQuit },
   ];

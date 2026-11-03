@@ -167,11 +167,22 @@ export const markKeys = keymap({
 export function editorStateFor(document: ScreenplayDocument): State {
   return EditorState.create({
     schema: screenplaySchema,
-    doc: toEditorDocument(document),
+    doc: toEditorDocument(withALineToTypeOn(document)),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
     plugins: [undoStack, undoKeys, markKeys, clipboard, elementKeys, maintainElements, endsUndoStep, maintainComments],
   });
+}
+
+/**
+ * A manuscript with no elements — a new project holds only its title page — has
+ * nowhere to put a caret but the title. So the editor is given one blank line,
+ * which is how a writer's blank line always is: spacing, not an element, and
+ * `manuscriptOf` drops it again unless something was typed on it.
+ */
+function withALineToTypeOn(document: ScreenplayDocument): ScreenplayDocument {
+  if (document.elements.length > 0) return document;
+  return { ...document, elements: [{ type: "action", text: "", forced: false }] };
 }
 
 /* ------------------------------------------------------- ends ↔ positions */

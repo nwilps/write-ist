@@ -23,13 +23,15 @@ import "./style/panels.css";
 import "./style/menus.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
-import { open as chooseFile } from "@tauri-apps/plugin-dialog";
+import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
+import { showNewProject } from "./screens/new-project.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { chosenBy, type Gesture } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -103,6 +105,14 @@ function draw(): void {
       whenSwitchedAway,
       whenSwitchedBack,
       ledger: () => ledger,
+      // The dialog's answer is the only place a copy may be written outside the
+      // home folder: the plugin widens the file scope to that one path.
+      chooseCopyLocation: async (suggestedName) =>
+        (await chooseSavePath({
+          title: "Save a copy as Fountain",
+          defaultPath: suggestedName,
+          filters: [{ name: "Fountain screenplay", extensions: ["fountain"] }],
+        })) ?? undefined,
     });
     gestures = shell.gestures;
     return;
@@ -110,7 +120,12 @@ function draw(): void {
 
   gestures =
     screen === "home"
-      ? renderHome(into, { onOpenProject: () => go("open-project"), onQuit: quit, trouble })
+      ? renderHome(into, {
+          onNewProject: askForNewProject,
+          onOpenProject: () => go("open-project"),
+          onQuit: quit,
+          trouble,
+        })
       : renderOpenProject(into, {
           listing,
           importing,
@@ -243,6 +258,34 @@ async function readProjects(): Promise<string | undefined> {
       ? `Write-ist could not read its projects folder. ${message(error)}`
       : `Write-ist could not read its projects folder again, so this list may be out of date. ${message(error)}`;
   }
+}
+
+/**
+ * Ask what to make, in a dialog over the home screen, then make it and open it.
+ *
+ * The dialog stays up with the reason when the project could not be made, so
+ * the writer can change the title and try again; nothing is written then.
+ */
+function askForNewProject(): void {
+  showNewProject(into, {
+    onCreate: async (request) => {
+      try {
+        const project = await createProject(
+          { filesystem: tauriFilesystem, newProjectId },
+          await defaultProjectsDirectory(),
+          request,
+        );
+        // The dialog closes as this resolves; the project opens behind it.
+        goToProject(project);
+        return undefined;
+      } catch (error) {
+        return error instanceof CannotCreate
+          ? error.message
+          : `A new project could not be made, so nothing was changed. ${message(error)}`;
+      }
+    },
+    onClose: () => {},
+  });
 }
 
 async function importOne(): Promise<void> {

@@ -57,10 +57,11 @@
  * the page, which it still has because it is still up, and the writer can try
  * again.
  */
-import { FolderOpen, House, PenLine, Save } from "lucide";
+import { FileDown, FolderOpen, House, PenLine, Save } from "lucide";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
+import { saveFountainCopy, suggestedCopyName } from "../../../../src/project/copy.ts";
 import { openProject } from "../../../../src/project/open.ts";
 import { editingSession } from "../../../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
@@ -102,12 +103,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // Until the manuscript has been read there is nothing to save, and a save
   // asked for then is rightly nothing.
   let saveNow = (): void => {};
+  // Likewise a copy: nothing to copy until the manuscript has been read.
+  let saveCopy = (): void => {};
   // **Only what exists.** Rename, Export and a new project are not here
   // because they are not built; a menu item that pretended would be worse than
   // one that is absent. The hints are shortcuts that really work.
   const panels = sidePanels(() => startSearch(), {
     File: [
       { label: "Save Project", hint: "[Ctrl + S]", icon: Save, act: () => saveNow() },
+      { label: "Save a Copy as Fountain…", icon: FileDown, act: () => saveCopy() },
+      { divider: true },
       { label: "Open Project", icon: FolderOpen, act: context.leave.toProjects },
       { divider: true },
       { label: "Home", hint: "[Esc]", icon: House, act: context.leave.toHome },
@@ -304,6 +309,31 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       saveNow = () => {
         void saving.now();
         view?.focus();
+      };
+
+      // Step 7: a finished-product copy, outside the bundle. It reads the model
+      // as it is *now* and goes nowhere near the save routine, so an unsaved
+      // edit is in the copy and nothing is saved as a side effect. Cancelling
+      // writes nothing; success is silent (ADR-0031).
+      saveCopy = () => {
+        void (async () => {
+          try {
+            const destination = await context.chooseCopyLocation(suggestedCopyName(context.project));
+            if (destination === undefined) return;
+            await saveFountainCopy(
+              context.filesystem,
+              context.project,
+              manuscriptOf(state.doc),
+              destination,
+            );
+          } catch (error) {
+            context.report(
+              `Write-ist could not save the copy. Your screenplay is unchanged. ${message(error)}`,
+            );
+          } finally {
+            view?.focus();
+          }
+        })();
       };
 
       // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.

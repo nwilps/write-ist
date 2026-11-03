@@ -32,6 +32,7 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
     onHome: () => {},
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
+    chooseCopyLocation: async () => undefined,
     ledger: () => undefined,
   });
   return into;

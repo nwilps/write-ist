@@ -131,7 +131,7 @@ function nothingYet(): HTMLElement {
     element("p", { textContent: "No projects yet." }),
     element("p", {
       textContent:
-        "Import a screenplay to start one. The file you import from is left exactly as it is.",
+        "Import a screenplay to start one, or go back and choose New Project. The file you import from is left exactly as it is.",
     }),
   ]);
 }

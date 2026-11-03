@@ -395,3 +395,40 @@ body {
   padding-left: var(--space-roomy);
   color: var(--colour-muted);
 }
+
+/* --- The New Project dialog -------------------------------------------- */
+
+.new-project__form {
+  display: grid;
+  gap: var(--space-roomy);
+  width: var(--measure-reading);
+  max-width: 100%;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.field__label {
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+}
+
+.field__input {
+  font-family: inherit;
+  font-size: inherit;
+  padding: var(--space-tight) var(--space-snug);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-slight);
+  background: var(--colour-base);
+  color: var(--colour-text);
+}
+
+.field__input:focus-visible {
+  border-color: var(--colour-accent);
+}
+
+.new-project__actions {
+  gap: var(--space-snug);
+}

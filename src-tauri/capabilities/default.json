@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the window may do: close itself when the writer asks, choose a file to import, and read and write inside the writer's home directory, and keep the ledger in app-local data.",
+  "description": "What the window may do: close itself when the writer asks, choose a file to import, choose where a copy of the script is saved, and read and write inside the writer's home directory, and keep the ledger in app-local data.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
     "dialog:allow-open",
+    "dialog:allow-save",
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-read-dir",
