@@ -64,7 +64,7 @@ describe("repaginate equals a full paginate", () => {
   it("matches after editing near the end of Big Fish and resumes late", () => {
     const doc = loadFixture("Big-Fish.fountain");
     const prior = paginate(doc);
-    expect(prior.totalPages).toBe(120);
+    expect(prior.totalPages).toBe(123);
     // Last mapped action-like element.
     let dirty = -1;
     for (let i = doc.elements.length - 1; i >= 0; i--) {

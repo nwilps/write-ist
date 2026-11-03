@@ -21,6 +21,7 @@ import {
 } from "../../src/screenplay/paginate.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
+import { PDF_SCENE_HEADING_GAP, withSpacing } from "../support/spacing.ts";
 
 /** Import the way a writer would: CRLF and trailing space normalised. */
 function loadFixture(name: string): ScreenplayDocument {
@@ -50,14 +51,24 @@ describe("paginate against Final Draft's published counts", () => {
     expect(pageCount(loadFixture("Brick-&-Steel.fountain"))).toBe(4);
   });
 
-  it("counts Big Fish within one page of 120", () => {
+  it("counts Big Fish within one page of 120 at the PDF's own spacing", () => {
     // Final Draft's PDF of Big Fish is 120 numbered body pages (title page
     // and the unnumbered epigraph page excluded). Geometry widths come from
     // that same PDF (`geometry.ts`); the engine lands on 120. Q-A (ADR-0033)
     // added 9 splits to the layout and left the count at 120.
-    const pages = pageCount(loadFixture("Big-Fish.fountain"));
+    // Final Draft's PDF of the file has one blank line before a scene heading;
+    // the default table (ADR-0038) has two, so the comparison is run at the PDF's.
+    const pages = withSpacing([PDF_SCENE_HEADING_GAP], () =>
+      pageCount(loadFixture("Big-Fish.fountain")),
+    );
     expect(Math.abs(pages - 120)).toBeLessThanOrEqual(1);
     expect(pages).toBe(120);
+  });
+
+  it("counts Big Fish as 123 pages at Final Draft's template spacing", () => {
+    // Two blank lines before each scene heading (ADR-0038) is three pages more
+    // than the PDF, which was set with one. An intended change, not a drift.
+    expect(pageCount(loadFixture("Big-Fish.fountain"))).toBe(123);
   });
 });
 

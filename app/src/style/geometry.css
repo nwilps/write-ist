@@ -23,7 +23,7 @@
   /* What Courier Prime must give up per character to advance exactly --ch. */
   --manuscript-tracking: calc(var(--ch) - 0.599609375em);
   --manuscript-leading: 1;
-  /* One blank line: the serialiser's spacing table, drawn as space. */
+  /* One blank line, drawn as space: the unit the spacing table counts in. */
   --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
 
   /* --- Each element's place on it -------------------------------------- */
@@ -86,3 +86,212 @@
   /* The sheet, for the borders and seams that read it. */
   --page-height: 1056px;
 }
+
+/*
+ * The spacing table (ADR-0038): blank lines between two adjacent elements,
+ * for every ordered pair of types. A squished gap is the lower element's
+ * `data-squished`, honoured only where the table allows the pair.
+ *
+ * One rule to a pair rather than a selector list: a list of a hundred pairs
+ * is a selector some engines will not read.
+ */
+
+.manuscript > [data-element="scene-heading"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="scene-heading"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="scene-heading"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="action"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="action"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="action"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="character"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="character"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="dialogue"] { margin-top: 0; }
+.manuscript > [data-element="character"] + [data-element="parenthetical"] { margin-top: 0; }
+.manuscript > [data-element="character"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="character"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="dialogue"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="dialogue"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="dialogue"] { margin-top: 0; }
+.manuscript > [data-element="dialogue"] + [data-element="parenthetical"] { margin-top: 0; }
+.manuscript > [data-element="dialogue"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="dialogue"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="parenthetical"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="parenthetical"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="dialogue"] { margin-top: 0; }
+.manuscript > [data-element="parenthetical"] + [data-element="parenthetical"] { margin-top: 0; }
+.manuscript > [data-element="parenthetical"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="parenthetical"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="transition"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="transition"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="transition"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="centered"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="centered"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="centered"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="lyrics"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="lyrics"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="lyrics"] { margin-top: 0; }
+.manuscript > [data-element="lyrics"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="lyrics"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="section"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="section"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="section"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="synopsis"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="synopsis"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="synopsis"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="page-break"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="page-break"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="page-break"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="note"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="note"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="note"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="scene-heading"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="action"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="character"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="dialogue"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="parenthetical"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="transition"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="centered"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="lyrics"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="section"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="synopsis"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="page-break"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="note"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="boneyard-start"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-start"] + [data-element="boneyard-end"] { margin-top: 0; }
+.manuscript > [data-element="boneyard-end"] + [data-element="scene-heading"] { margin-top: calc(var(--manuscript-blank) * 2); }
+.manuscript > [data-element="boneyard-end"] + [data-element="action"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="character"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="dialogue"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="parenthetical"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="transition"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="centered"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="lyrics"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="section"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="synopsis"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="page-break"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="note"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="boneyard-start"] { margin-top: var(--manuscript-blank); }
+.manuscript > [data-element="boneyard-end"] + [data-element="boneyard-end"] { margin-top: 0; }
+
+.manuscript > [data-element="action"] + [data-element="action"][data-squished] { margin-top: 0; }
+.manuscript > [data-element="centered"] + [data-element="centered"][data-squished] { margin-top: 0; }

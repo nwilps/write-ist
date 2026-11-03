@@ -17,8 +17,7 @@
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { dualPairs, nearDualDialogue, type DualPair } from "./pairing.ts";
-import { DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
-import { needsBlankLine } from "./serialise.ts";
+import { DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE, gapLines } from "./geometry.ts";
 
 /** Fountain marginalia: they do not print, so they take no manuscript space. */
 const MARGINALIA: ReadonlySet<Element["type"]> = new Set([
@@ -118,7 +117,7 @@ type Item = {
  *
  * Line wrapping is greedy at spaces and after hyphens against each element's
  * `ELEMENT_GEOMETRY` width (ADR-0024, amended: Final Draft's own wrapping). Vertical packing uses `PAGE.linesPerPage` (55; 54 of
- * text, the last row being `(MORE)`'s), the serialiser's blank-line table,
+ * text, the last row being `(MORE)`'s), the spacing table (`geometry.ts`),
  * dual-dialogue column stacking, keep-with-next for headings, cues and
  * parentheticals, sentence-end splits of dialogue and action, and a `(MORE)` /
  * `CONT'D` line where a speech crosses a page. Text starts at row 0 of every
@@ -608,7 +607,7 @@ function printableItems(document: ScreenplayDocument, from = 0): Item[] {
       elementIndex: i,
       el,
       lines,
-      blank: previous !== undefined && needsBlankLine(previous, el) ? 1 : 0,
+      blank: previous === undefined ? 0 : gapLines(previous.type, el.type, el.squished === true),
     });
     previous = el;
   }

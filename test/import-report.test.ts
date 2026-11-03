@@ -88,30 +88,31 @@ function expectReported(
 }
 
 describe("blank lines placed: the report says what the file shows", () => {
-  it("Brick & Steel: three blank lines differ, and the report says three", () => {
+  it("Brick & Steel: no blank line differs any more, so the report has no entry", () => {
     const bytes = readFixtureBytes("Brick-&-Steel.fountain");
-    const blanks = editsOf(bytes).filter((edit) => edit.text === "");
 
-    // Established from the file before the report is looked at: two blanks
-    // gained in the tight action run, one lost between the two title cards.
-    expect(blanks.filter((edit) => edit.kind === "added")).toHaveLength(2);
-    expect(blanks.filter((edit) => edit.kind === "removed")).toHaveLength(1);
-    expect(blankLinesInFile(bytes)).toBe(3);
-
-    // One entry, one number, for both directions.
-    const { applied } = importScreenplay(bytes).report;
-    expect(entryOf(applied, "blank-lines-placed")).toEqual({
-      kind: "blank-lines-placed",
-      count: 3,
-    });
+    // Established from the file before the report is looked at. The tight
+    // action run and the gap between the title cards are kept as written
+    // (ADR-0038): squished gaps and default gaps, not blanks to place.
+    expect(editsOf(bytes).filter((edit) => edit.text === "")).toEqual([]);
+    expect(blankLinesInFile(bytes)).toBe(0);
+    expectReported(importScreenplay(bytes).report.applied, "blank-lines-placed", 0);
   });
 
-  it("Big Fish augmented: two differ — one gained in the boneyard, one lost at the cards", () => {
-    const bytes = readFixtureBytes("Big-Fish-augmented.fountain");
+  it("still reports a blank line it places: a tight pair the table cannot squish", () => {
+    // A scene heading with its action directly under it is not a pair a writer
+    // may squish, so the table places the blank line and the report counts it.
+    const bytes = new TextEncoder().encode("INT. ROOM - DAY\nShe waits.\n\nShe waits again.\nAnd again.\n");
     const blanks = editsOf(bytes).filter((edit) => edit.text === "");
+    expect(blanks.map((edit) => edit.kind)).toEqual(["added"]);
+    expectReported(importScreenplay(bytes).report.applied, "blank-lines-placed", 1);
+  });
 
-    expect(blanks.map((edit) => edit.kind).sort()).toEqual(["added", "removed"]);
-    expectReported(importScreenplay(bytes).report.applied, "blank-lines-placed", 2);
+  it("Big Fish augmented: none differ — the boneyard's tight prose and the cards are kept", () => {
+    const bytes = readFixtureBytes("Big-Fish-augmented.fountain");
+
+    expect(editsOf(bytes).filter((edit) => edit.text === "")).toEqual([]);
+    expectReported(importScreenplay(bytes).report.applied, "blank-lines-placed", 0);
   });
 
   it("Big Fish: none differ, so the report has no entry at all", () => {
@@ -121,11 +122,11 @@ describe("blank lines placed: the report says what the file shows", () => {
     expectReported(importScreenplay(bytes).report.applied, "blank-lines-placed", 0);
   });
 
-  it("counts the same with (CONT'D) maintenance off, which never moves a blank line", () => {
+  it("reports the same with (CONT'D) maintenance off, which never moves a blank line", () => {
     const bytes = readFixtureBytes("Brick-&-Steel.fountain");
     const { applied } = importScreenplay(bytes, { maintainContinuations: false }).report;
 
-    expect(entryOf(applied, "blank-lines-placed")?.count).toBe(3);
+    expect(entryOf(applied, "blank-lines-placed")).toBeUndefined();
   });
 });
 

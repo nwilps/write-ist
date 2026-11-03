@@ -164,6 +164,83 @@ export const PAGE = {
 } as const;
 
 /**
+ * **The spacing table: the vertical half of the page's geometry** (ADR-0038).
+ *
+ * How many blank lines the paper and the PDF leave between two elements, keyed
+ * by the *pair* of element types — the one above, the one below. The
+ * pagination engine, the paper's stylesheet (generated below) and the PDF all
+ * read it, so they cannot disagree. It is presentation: the Fountain file's own
+ * blank-line rule (`needsBlankLine`, ADR-0019) is a separate thing and is not
+ * read from here.
+ *
+ * - `blank` is how many blank lines the gap holds: any whole number from 0 up.
+ *   Nothing downstream assumes 0 or 1.
+ * - `squishable` says whether the writer may squish the gap to nothing
+ *   (Backspace at the start of the lower element; Enter at the end of the upper
+ *   restores it). A squished gap is the lower element's `squished` flag.
+ *
+ * **First matching row wins**, so put a pair above the row that covers it.
+ * `"any"` matches every type. Changing a spacing, or allowing a new squishable
+ * pair, is a one-line edit here — `npm run geometry` then regenerates the
+ * stylesheet, and a test fails if it is stale.
+ *
+ * The defaults are Final Draft's standard template: two blank lines before a
+ * scene heading (Write-ist has no shot element yet; it would join that row),
+ * one before action, a character and a transition, none inside a speech.
+ */
+export interface Gap {
+  readonly blank: number;
+  readonly squishable: boolean;
+}
+
+export interface SpacingRule extends Gap {
+  readonly above: ElementType | "any";
+  readonly below: ElementType | "any";
+}
+
+const rule = (
+  above: SpacingRule["above"],
+  below: SpacingRule["below"],
+  blank: number,
+  squishable = false,
+): SpacingRule => ({ above, below, blank, squishable });
+
+export const SPACING: readonly SpacingRule[] = [
+  // A boneyard delimiter sits against what it delimits.
+  rule("boneyard-start", "any", 0),
+  rule("any", "boneyard-end", 0),
+  // No blank line falls inside a speech.
+  rule("character", "dialogue", 0),
+  rule("character", "parenthetical", 0),
+  rule("dialogue", "dialogue", 0),
+  rule("dialogue", "parenthetical", 0),
+  rule("parenthetical", "dialogue", 0),
+  rule("parenthetical", "parenthetical", 0),
+  rule("lyrics", "lyrics", 0),
+  // The pairs a writer may squish.
+  rule("action", "action", 1, true),
+  rule("centered", "centered", 1, true),
+  // Final Draft: two blank lines before a scene heading.
+  rule("any", "scene-heading", 2),
+  // Everything else.
+  rule("any", "any", 1),
+];
+
+/** The gap the table gives two adjacent elements. */
+export function gapBetween(above: ElementType, below: ElementType): Gap {
+  const found = SPACING.find(
+    (row) => (row.above === "any" || row.above === above) && (row.below === "any" || row.below === below),
+  );
+  return found ?? { blank: 1, squishable: false };
+}
+
+/** Blank lines between two elements, the lower one's `squished` flag taken into account. */
+export function gapLines(above: ElementType, below: ElementType, squished: boolean): number {
+  const gap = gapBetween(above, below);
+  return squished && gap.squishable ? 0 : gap.blank;
+}
+
+/**
  * Inches per character: 7pt, the pen advance the PDFs measure (see *Characters,
  * not inches* above), which is a hair under the tenth of an inch Courier's own
  * 7.2pt would be. Every length below is derived through this rather than through
@@ -454,6 +531,45 @@ const inches = (value: number): string => `${shortest(value * PIXELS_PER_INCH)}p
 export const characters = (value: number): string => `calc(${shortest(value)} * var(--ch))`;
 
 /**
+ * The spacing table as the paper's margins: one selector for every ordered pair
+ * of element types, and then the
+ * squished form of each pair the table allows. Every pair is spelled out, so a
+ * change to the table cannot leave a pair on a stale default.
+ *
+ * A gap is `blank` times one blank line (`--manuscript-blank`), so any count
+ * works and nothing here knows 0 and 1 are special beyond how they are spelled.
+ * The squished rules are one compound more specific than the pairs they
+ * override, and they match only pairs the table lets the writer squish: a
+ * `data-squished` flag on any other pair does nothing, here as in pagination.
+ */
+function spacingStylesheet(types: readonly ElementType[]): string[] {
+  const margin = (blank: number): string =>
+    blank === 0 ? "0" : blank === 1 ? "var(--manuscript-blank)" : `calc(var(--manuscript-blank) * ${blank})`;
+  const out = [
+    "/*",
+    " * The spacing table (ADR-0038): blank lines between two adjacent elements,",
+    " * for every ordered pair of types. A squished gap is the lower element's",
+    " * `data-squished`, honoured only where the table allows the pair.",
+    " *",
+    " * One rule to a pair rather than a selector list: a list of a hundred pairs",
+    " * is a selector some engines will not read.",
+    " */",
+    "",
+  ];
+  const squished: string[] = [];
+  for (const above of types) {
+    for (const below of types) {
+      const gap = gapBetween(above, below);
+      const pair = `.manuscript > [data-element="${above}"] + [data-element="${below}"]`;
+      out.push(`${pair} { margin-top: ${margin(gap.blank)}; }`);
+      if (gap.squishable) squished.push(`${pair}[data-squished] { margin-top: 0; }`);
+    }
+  }
+  out.push("", ...squished, "");
+  return out;
+}
+
+/**
  * **The table, rendered as the stylesheet the Editor reads.**
  *
  * The page cannot read TypeScript and the pagination engine cannot read CSS,
@@ -498,7 +614,7 @@ export function stylesheet(): string {
     "  /* What Courier Prime must give up per character to advance exactly --ch. */",
     `  --manuscript-tracking: calc(var(--ch) - ${COURIER_PRIME_ADVANCE_EM}em);`,
     `  --manuscript-leading: ${shortest(PAGE.leadingPoints / PAGE.fontSizePoints)};`,
-    "  /* One blank line: the serialiser's spacing table, drawn as space. */",
+    "  /* One blank line, drawn as space: the unit the spacing table counts in. */",
     "  --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));",
     "",
     "  /* --- Each element's place on it -------------------------------------- */",
@@ -528,6 +644,7 @@ export function stylesheet(): string {
   lines.push("  /* The sheet, for the borders and seams that read it. */");
   lines.push(`  --page-height: ${inches(PAGE.heightInches)};`);
   lines.push("}", "");
+  lines.push(...spacingStylesheet(types));
 
   return lines.join("\n");
 }

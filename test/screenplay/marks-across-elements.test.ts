@@ -132,13 +132,11 @@ describe("the two bounds that keep the lookahead safe", () => {
       "And this too.",
       "*/",
     ]);
-    // The delimiters come back as themselves. The blank line between the two
-    // action lines is ADR-0020's seventh normalisation, not a mark: a tight
-    // run of action is separate elements and separate elements are spaced.
+    // The delimiters come back as themselves, and the two action lines stay a
+    // tight run: a squished gap, kept as written (ADR-0038).
     expect(serialise(parse(source)).split("\n")).toEqual([
       "/*",
       "!Cut for length.",
-      "",
       "!And this too.",
       "*/",
     ]);

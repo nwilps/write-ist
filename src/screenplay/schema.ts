@@ -91,6 +91,8 @@ const element: NodeSpec = {
     dual: { default: false },
     /** The element lies between a boneyard's delimiters (ADR-0021). */
     omitted: { default: false },
+    /** The gap above this element is squished to nothing (ADR-0038). */
+    squished: { default: false },
   },
   // `pre-wrap` in the stylesheet, not here: whether the writer's leading
   // whitespace is drawn is a styling question and ADR-0030 keeps those in one
@@ -103,6 +105,7 @@ const element: NodeSpec = {
       // attribute means what it says on every element that has it.
       ...(node.attrs["omitted"] === true ? { "data-omitted": "true" } : {}),
       ...(node.attrs["dual"] === true ? { "data-dual": "true" } : {}),
+      ...(node.attrs["squished"] === true ? { "data-squished": "true" } : {}),
     },
     0,
   ],

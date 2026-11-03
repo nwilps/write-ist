@@ -77,6 +77,7 @@ export function toEditorDocument(document: ScreenplayDocument): EditorNode {
         sceneNumber: element.sceneNumber ?? null,
         dual: element.dual === true,
         omitted: element.omitted === true,
+        squished: element.squished === true,
       },
       markedContent(element),
     ),
@@ -161,6 +162,7 @@ function elementOf(node: EditorNode): Element {
     ...(typeof sceneNumber === "string" ? { sceneNumber } : {}),
     ...(node.attrs["dual"] === true ? { dual: true } : {}),
     ...(node.attrs["omitted"] === true ? { omitted: true } : {}),
+    ...(node.attrs["squished"] === true ? { squished: true } : {}),
   };
 }
 

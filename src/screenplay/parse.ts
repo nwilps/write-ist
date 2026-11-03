@@ -22,6 +22,7 @@ import {
 } from "./document.ts";
 import { liftComments, locateComments, SCREENPLAY_COMMENTS } from "../comments.ts";
 import { parseMarks, parseMarksAcross } from "./marks.ts";
+import { gapBetween } from "./geometry.ts";
 
 /** `Key: value` at the top of the file. Fountain's title page (ADR-0021). */
 const TITLE_PAGE_KEY = /^([A-Za-z][A-Za-z0-9 _-]*):(.*)$/;
@@ -128,6 +129,7 @@ function parseInternal(text: string): Parsed {
   const lifted = liftComments(lines, nextIndex, SCREENPLAY_COMMENTS);
   const body = parseBody(lifted.lines, nextIndex);
   const resolved = resolveMarks(body.elements, body.startsRun);
+  const elements = squishTightPairs(resolved.elements, body.sourceLines);
 
   const comments = locateComments(
     lifted.comments,
@@ -143,11 +145,29 @@ function parseInternal(text: string): Parsed {
   );
 
   return {
-    document: { titlePage: fields, elements: resolved.elements, comments, endsWithNewline },
+    document: { titlePage: fields, elements, comments, endsWithNewline },
     leadingWhitespaceLines: reindented + body.indentedLines,
     markDelimitedLines: resolved.delimitedLines,
     unmatchedCommentDelimiters: lifted.unmatched,
   };
+}
+
+/**
+ * Two lines with no blank line between them are a squished gap, where the
+ * spacing table lets that pair be squished (ADR-0038). Anywhere else the
+ * missing blank line is not consulted, as before: the table places it.
+ */
+function squishTightPairs(
+  elements: readonly Element[],
+  sourceLines: readonly number[],
+): Element[] {
+  return elements.map((element, index) => {
+    const above = elements[index - 1];
+    const tight = above !== undefined && sourceLines[index] === sourceLines[index - 1]! + 1;
+    return tight && gapBetween(above.type, element.type).squishable
+      ? { ...element, squished: true }
+      : element;
+  });
 }
 
 /**
@@ -458,7 +478,7 @@ function classify(
  * marker set aside. Deliberately loose here — Big Fish is what decides this
  * rule, and it arrives in Phase E2.
  */
-function looksLikeCharacter(content: string): boolean {
+export function looksLikeCharacter(content: string): boolean {
   const name = content
     .replace(/\([^)]*\)/g, "")
     .replace(/\^\s*$/, "")
