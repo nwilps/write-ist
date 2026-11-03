@@ -34,6 +34,7 @@ describe("the ways out the shell gives a workspace", () => {
       whenSwitchedAway: quiet,
       whenSwitchedBack: quiet,
       chooseCopyLocation: async () => undefined,
+      choosePdfLocation: async () => undefined,
       ledger: () => undefined,
     });
     given!.leave.toProjects();
@@ -58,6 +59,7 @@ describe("the ways out the shell gives a workspace", () => {
       whenSwitchedAway: quiet,
       whenSwitchedBack: quiet,
       chooseCopyLocation: async () => undefined,
+      choosePdfLocation: async () => undefined,
       ledger: () => undefined,
     });
     const escape = gestures.find((gesture) => gesture.key === "escape");

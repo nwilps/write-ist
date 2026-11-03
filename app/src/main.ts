@@ -114,6 +114,12 @@ function draw(): void {
           defaultPath: suggestedName,
           filters: [{ name: "Fountain screenplay", extensions: ["fountain"] }],
         })) ?? undefined,
+      choosePdfLocation: async (suggestedName) =>
+        (await chooseSavePath({
+          title: "Export as PDF",
+          defaultPath: suggestedName,
+          filters: [{ name: "PDF", extensions: ["pdf"] }],
+        })) ?? undefined,
     });
     gestures = shell.gestures;
     return;

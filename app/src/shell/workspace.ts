@@ -101,6 +101,8 @@ export interface WorkspaceContext {
    * the application's, and the choice is the only permission it carries.
    */
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
+  /** The same for the PDF export: a save dialog, the chosen path or `undefined`. */
+  readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
 }
 
 /** A workspace that has been put on screen. */
