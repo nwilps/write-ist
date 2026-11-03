@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { mountShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext } from "../../app/src/shell/workspace.ts";
-import { countsText, wordsIn } from "../../app/src/workspaces/editor/counts.ts";
+import { countsText, wordsIn } from "../../src/screenplay/counts.ts";
 import { wordCount } from "../../src/project/ledger.ts";
 import { editorStateFor } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";

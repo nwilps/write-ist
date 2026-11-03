@@ -289,6 +289,13 @@ The workspace the in-progress draft is written in, running the project's surface
 workspace like any other, not a frame around the others.
 _Avoid_: Draft, draft view, writing mode
 
+**Manuscript session**:
+A project's manuscript open for writing, with no window: it holds the editing state and works out
+everything drawn from it (layout, seams between sheets, name lists, counts), and it decides
+saving, leaving and confirming a name. The Editor draws what it says. Not the *editing session*
+in `src/project/save.ts`, which is only the save routine's memory of the disk and sits inside it.
+_Avoid_: controller, store
+
 **Workspace bar**:
 The floating bar at the top of the screen listing the workspaces a project shows, in order.
 A format sets the default selection; the writer can add or remove any workspace the app

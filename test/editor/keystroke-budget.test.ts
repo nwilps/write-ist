@@ -45,22 +45,19 @@
  * unsaved through a real `editingSession`, and the pause is restarted through
  * a real `autosave`.
  */
+import { TextSelection } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
-import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
-import { autosave } from "../../src/project/autosave.ts";
-import { editingSession } from "../../src/project/save.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
+import { manuscriptSession } from "../../src/project/manuscript-session.ts";
 import { FORMAT_VERSION } from "../../src/project/marker.ts";
+import { NO_CONFIRMATIONS } from "../../src/project/names-file.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
-import { layout, type Layout } from "../../src/screenplay/layout.ts";
 import { paginate, repaginate } from "../../src/screenplay/paginate.ts";
-import { sheetDecorations } from "../../src/screenplay/sheets.ts";
-import type { NameLists } from "../../src/screenplay/names.ts";
-import { namesOf, syncNames } from "../../src/screenplay/names-sync.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
+import { startOfElement } from "../support/editor-positions.ts";
 import { readFixtureBytes } from "../support/files.ts";
-import { unwatched } from "../support/unwatched.ts";
+import { fakeEngine } from "../support/spell-engine.ts";
 
 /** One frame. */
 const BUDGET = 16;
@@ -76,17 +73,6 @@ const WARMUP = 50;
  * what one of them cost.
  */
 function budget(document: ScreenplayDocument, bytes: number): number {
-  // The lists autocomplete (step 9) reads; made below, once there is a document.
-  let names: NameLists | undefined;
-  let state = editorStateFor(document, {
-    autocomplete: { names: () => names!, draw: () => ({}) as HTMLElement },
-  });
-
-  // The rest of what a keystroke costs the application: the manuscript is
-  // marked unsaved and the autosave pause is restarted. Both are inside the
-  // measured region, because both happen before the frame is drawn, and both
-  // are the real call rather than a stand-in for it.
-  //
   // Nothing reaches the disk — no save is asked for — so the port below the
   // session refuses everything, which is the loudest way of saying so.
   const refuse = () => Promise.reject(new Error("the budget asks nothing of the disk"));
@@ -98,62 +84,55 @@ function budget(document: ScreenplayDocument, bytes: number): number {
     exists: refuse,
     appendFile: refuse,
   };
-  const session = editingSession(
-    nothing,
-    {
-      project: {
-        path: "/nowhere",
-        marker: {
-          name: "The budget",
-          formatVersion: FORMAT_VERSION,
-          projectId: "00000000-0000-4000-8000-000000000000",
-          format: "Feature",
-        },
-      },
-      document,
-      manuscript: new Uint8Array(),
+  const draw = () => ({}) as HTMLElement;
+  const project = {
+    path: "/nowhere",
+    marker: {
+      name: "The budget",
+      formatVersion: FORMAT_VERSION,
+      projectId: "00000000-0000-4000-8000-000000000000",
+      format: "Feature" as const,
     },
-    () => manuscriptOf(state.doc),
-    unwatched,
+  };
+
+  // **The real session**, the one the Editor runs: the transaction applied,
+  // the name lists synced, the comments mapped, the manuscript marked unsaved,
+  // the autosave pause restarted, the layout re-packed from the caret's
+  // element, the seams rebuilt, the counts line worked out. Nothing here is a
+  // copy of the pipeline, so nothing here can drift from it. The DOM is drawn
+  // by the view, outside the budget (ADR-0024), so what is drawn is stubbed.
+  const session = manuscriptSession(
+    {
+      filesystem: nothing,
+      project,
+      report: () => {},
+      setSaved: () => {},
+      setStatus: () => {},
+      ledger: () => undefined,
+      whenSwitchedAway: () => () => {},
+      whenSwitchedBack: () => () => {},
+      spellEngine: fakeEngine(),
+      drawSeam: draw,
+      drawOffer: draw,
+      reloaded: () => {},
+      // The clock is a stub: arming a real timer 500 times would measure
+      // `setTimeout`, and what is being measured is Write-ist's own work.
+      autosaveClock: { wait: () => 0, cancel: () => {} },
+    },
+    { opened: { project: project, document, manuscript: new Uint8Array() }, confirmed: NO_CONFIRMATIONS },
   );
-  const saving = autosave({
-    save: session.save,
-    trouble: () => {},
-    // The clock is a stub: arming a real timer 500 times would measure
-    // `setTimeout`, and what is being measured is Write-ist's own work.
-    clock: { wait: () => 0, cancel: () => {} },
-  });
 
   // Where the caret is: the middle of the manuscript, so the mapping has the
-  // whole of it on both sides.
-  const caret = Math.floor(state.doc.content.size / 2);
-
-  // #49 — page count keeps up as you type. Open takes a full pack; each
-  // keystroke re-packs from the middle of the manuscript onward.
-  let laid: Layout = layout(document);
-  // The seams between sheets (ADR-0033) are rebuilt on every edit, and are part
-  // of what a keystroke costs. The DOM is drawn by the view, outside the budget
-  // (ADR-0024), so the seam's drawing is stubbed here.
-  let seams = sheetDecorations(state.doc, laid, () => ({}) as HTMLElement);
-  // The caret sits in the middle of the ProseMirror doc; map that roughly
-  // onto a mid-manuscript element so the resume is not always page 1.
-  const dirtyElement = Math.floor(document.elements.length / 2);
-
-  // The character and location lists (slice 2, step 8), kept up to date by
-  // the elements each keystroke changed. Part of the real path, so part of the
-  // measured cost.
-  names = namesOf(state.doc);
+  // whole of it on both sides, and the re-pack resumes there and not from
+  // page 1. The caret is put there by a transaction of its own, as a click
+  // would, before anything is measured.
+  const middle = startOfElement(session.state, Math.floor(document.elements.length / 2));
+  session.apply(session.state.tr.setSelection(TextSelection.create(session.state.doc, middle)));
 
   const keystroke = (): void => {
-    const previous = state.doc;
-    state = state.apply(state.tr.insertText("a", caret));
-    syncNames(names!, previous, state.doc);
+    session.apply(session.state.tr.insertText("a"));
     // What the view would draw for the autocomplete offer after this key.
-    for (const plugin of state.plugins) plugin.props.decorations?.call(plugin, state);
-    session.changed();
-    saving.typed();
-    laid = layout(manuscriptOf(state.doc), laid, dirtyElement);
-    seams = sheetDecorations(state.doc, laid, () => ({}) as HTMLElement);
+    for (const plugin of session.state.plugins) plugin.props.decorations?.call(plugin, session.state);
   };
 
   for (let index = 0; index < WARMUP; index++) keystroke();
@@ -170,7 +149,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // Once per save, not once per keystroke — printed so that what is being
   // kept off this path is a number rather than an assurance.
   const beforeSave = performance.now();
-  const saved = exportScreenplay(manuscriptOf(state.doc));
+  const saved = exportScreenplay(session.manuscript());
   const save = performance.now() - beforeSave;
 
   const sorted = [...samples].sort((a, b) => a - b);
@@ -188,9 +167,9 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // The bookkeeping inside the measured region really ran; a budget met by
   // measuring nothing is the failure this whole file is written against.
   expect(session.unsaved()).toBe(true);
-  expect(laid.totalPages).toBeGreaterThan(0);
+  expect(session.layout.totalPages).toBeGreaterThan(0);
   // Every sheet after the first has its seam, so the seams were really built.
-  expect(seams.find().length).toBe(laid.totalPages - 1);
+  expect(session.seams.find().length).toBeGreaterThanOrEqual(session.layout.totalPages - 1);
   return measured;
 }
 

@@ -24,10 +24,10 @@ describe("Save a Copy as Fountain…", () => {
 
   it("copies the model as it is now, never through the save routine", () => {
     const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    const start = editor.indexOf("saveCopy = () =>");
-    const body = editor.slice(start, editor.indexOf("Alt+Enter asks to search"));
-    expect(body).toContain("manuscriptOf(state.doc)");
-    expect(body).not.toMatch(/session\.save|saving\.now|saveAndShow/);
+    const start = editor.indexOf("const saveCopy = (): void =>");
+    const body = editor.slice(start, editor.indexOf("Step 5:"));
+    expect(body).toContain("writing.manuscript()");
+    expect(body).not.toMatch(/\.save\(|saving\.now|saveAndShow/);
   });
 
   it("is granted the save dialog, and no wider write scope than the project already had", () => {

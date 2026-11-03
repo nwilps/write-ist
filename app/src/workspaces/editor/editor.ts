@@ -1,5 +1,5 @@
 /**
- * The Editor workspace: the manuscript, on the page, and written into (#39,
+ * The Editor workspace: the manuscript, on the paper, and written into (#39,
  * #41).
  *
  * `GLOSSARY.md`: *the workspace the in-progress draft is written in, running the
@@ -8,74 +8,49 @@
  * runs on the screenplay surface — the shell hosting it does not, which is
  * ADR-0005's seam and what `test/app/shell-knows-nothing.test.ts` holds.
  *
- * **The page is the spike's** (`nwilps/write-ist-ng`, `spike/src/style.css`): a
+ * **The paper is the spike's** (`nwilps/write-ist-ng`, `spike/src/style.css`): a
  * single sheet, centred on the dark ground, at the page width and margins it
  * sets. The furniture around it is the shell's.
  *
  * ## What this file does and does not do
  *
- * It reads the manuscript, maps it into ProseMirror, mounts the view, and
- * connects three wires: a keystroke to the model, the model to the save
- * routine, and the three moments ADR-0028 names to that routine. Everything
- * each of those wires carries is decided above the window — the surface's
- * schema and mapping in `src/screenplay/`, the save routine in
- * `src/project/save.ts`, the timing in `src/project/autosave.ts` — and every
- * one of them is reached by a test with no window at all. What is left here is
- * the window, which is seam 4, checked by the writer writing in it.
+ * It is the window's adapter over a **manuscript session**
+ * (`src/project/manuscript-session.ts`). The session holds the model and
+ * decides everything — the layout and seams, the name lists, saving, leaving,
+ * the ledger, confirming a name — and is reached by tests with no window at
+ * all. This file mounts the ProseMirror view, hands each transaction to the
+ * session, draws what the session says to draw, and owns the dialogs and the
+ * keys. What is left is the window, which is seam 4, checked by the writer
+ * writing in it.
  *
- * ## Why the state is held here and the view is told about it
+ * ## Why the view is told and is not the holder
  *
- * The usual ProseMirror shape is `view.updateState(view.state.apply(tr))`,
- * which makes the view the holder of the document. It is held here instead so
- * that **the thing the save routine reads is not the view**: ADR-0024 and #37
- * both require the manuscript to be produced by the serialiser from the model,
- * *never* from ProseMirror's own format and never from the DOM, and a save
- * that reached through `view` would be one refactor away from reaching through
- * `view.dom`.
- *
- * ## Saving is asked for here and decided elsewhere
- *
- * A keystroke restarts the pause; switching to another application, asking for
- * a save, and closing the project save at once (ADR-0028). All of them call
- * `autosave`, which calls the one save routine — so there is no second path to
- * a written file and nothing here owns a timer.
- *
- * ## When something else changed the manuscript
- *
- * Switching back to Write-ist asks for a save, and a save compares the disk
- * with what Write-ist last read or wrote (#42, ADR-0028). The session decides;
- * this does what it is told. **Reloaded:** the view is given the new version,
- * silently. **Both kept:** the dated copy is written and nothing is said
- * (ADR-0031). Only failures are reported, through `trouble`.
+ * The session holds the state, so **the thing the save routine reads is not the
+ * view**: ADR-0024 and #37 both require the manuscript to be produced by the
+ * serialiser from the model, *never* from ProseMirror's own format and never
+ * from the DOM.
  *
  * ## It will not come down over a save it could not finish
  *
  * `unmount` answers whether the workspace came down, and answers `false` when
  * the last save failed. The words are still on screen and nowhere else, so
  * destroying the view would destroy them — the silent destruction ADR-0008 was
- * written from, arrived at by a different road. It says what happened beside
- * the page, which it still has because it is still up, and the writer can try
- * again.
+ * written from, arrived at by a different road. The session says what happened
+ * beside the paper, which is still up, and the writer can try again.
  */
 import { PenLine } from "lucide";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { autosave } from "../../../../src/project/autosave.ts";
 import { saveFountainCopy, suggestedCopyName } from "../../../../src/project/copy.ts";
 import { exportPdf, suggestedPdfName } from "../../../../src/project/export-pdf.ts";
 import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
-import { openProject } from "../../../../src/project/open.ts";
-import { editingSession } from "../../../../src/project/save.ts";
-import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing.ts";
-import { elementUnder, manuscriptElementAt } from "../../../../src/screenplay/place.ts";
-import { nameOf, type NameKind, type NameLists } from "../../../../src/screenplay/names.ts";
-import { namesOf, syncNames } from "../../../../src/screenplay/names-sync.ts";
-import { readConfirmations, writeConfirmations } from "../../../../src/project/names-file.ts";
-import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
-import { pageAtElement } from "../../../../src/screenplay/paginate.ts";
+import {
+  manuscriptSession,
+  readManuscript,
+  type ManuscriptSession,
+} from "../../../../src/project/manuscript-session.ts";
+import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
-import { paperDecorations } from "../../../../src/screenplay/sheets.ts";
-import { countsText, wordsIn } from "./counts.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
@@ -85,8 +60,6 @@ import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
 import { asksToConfirm, asksToSave, asksToSearch, asksToToggleSpelling } from "../../screens/shortcuts.ts";
-import { DEFAULT_PREFERENCES } from "../../../../src/preferences.ts";
-import { Spellcheck } from "../../../../src/screenplay/spellcheck.ts";
 import { tauriSpellEngine } from "../../spell-tauri.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
@@ -111,245 +84,184 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     textContent: "Reading your screenplay…",
   });
   page.append(reading);
-  // The paper with a column of panels either side (the desk design, §2.2).
-  let startSearch = (): void => {};
-  // Until the manuscript has been read there is nothing to save, and a save
-  // asked for then is rightly nothing.
-  let saveNow = (): void => {};
-  // Likewise a copy: nothing to copy until the manuscript has been read.
-  let saveCopy = (): void => {};
-  let exportAsPdf = (): void => {};
-  // Likewise the title page: nothing to edit or show until it has been read.
-  let editTitlePage = (): void => {};
-  let viewTitlePage = (): void => {};
-  // Likewise confirming a name: nothing to confirm in until it has been read.
-  let confirmHere = (_kind: NameKind): void => {};
-  // Likewise the spelling pass (step 10): off, and nothing to toggle, until read.
-  let toggleSpelling = (): void => {};
-  let spellingOn = (): boolean => false;
-  const panels = sidePanels(
-    () => startSearch(),
-    editorMenus({
-      save: () => saveNow(),
-      saveCopy: () => saveCopy(),
-      exportPdf: () => exportAsPdf(),
-      toProjects: context.leave.toProjects,
-      toHome: context.leave.toHome,
-      editTitlePage: () => editTitlePage(),
-      viewTitlePage: () => viewTitlePage(),
-      confirmName: () => confirmHere("character"),
-      confirmLocation: () => confirmHere("location"),
-      toggleSpellcheck: () => toggleSpelling(),
-      spellcheckOn: () => spellingOn(),
-    }),
-  );
-  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
-
+  // Until the manuscript has been read there is nothing to do with it, and
+  // each of these asked for then is rightly nothing. The menus are built
+  // before the manuscript is read, so they reach it through the session.
+  let session: ManuscriptSession | undefined;
   let view: EditorView | undefined;
-  /** How to finish and let go. Undefined until the manuscript has been read. */
-  let leave: (() => Promise<boolean>) | undefined;
   let gone = false;
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
 
+  const startSearch = (): void => {
+    if (searching !== undefined || session === undefined || view === undefined) return;
+    const writing = session;
+    // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
+    searching = openSearch(into, {
+      doc: () => writing.state.doc,
+      pageOf: (index) => writing.layout.pagination.pageOfElement[index],
+      jump: ({ from, to }) => {
+        if (view === undefined) return;
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView(),
+        );
+      },
+      closed: () => {
+        searching = undefined;
+        view?.focus();
+      },
+    });
+  };
+
+  const toggleSpelling = (): void => {
+    if (session === undefined || view === undefined) return;
+    session.spellcheck.toggle(view);
+    view.focus();
+  };
+
+  // Step 8: the writer says the name or location the caret is in is right.
+  const confirmHere = (kind: NameKind): void => {
+    if (session === undefined || view === undefined) return;
+    if (!session.confirm(kind)) return;
+    // A confirmed name is a known word now, and a near-match of it a typo.
+    session.spellcheck.refresh(view);
+    view.focus();
+  };
+
+  const saveNow = (): void => {
+    void session?.save();
+    view?.focus();
+  };
+
+  // Step 7: a finished-product copy, outside the bundle. It reads the model
+  // as it is *now* and goes nowhere near the save routine, so an unsaved
+  // edit is in the copy and nothing is saved as a side effect. Cancelling
+  // writes nothing; success is silent (ADR-0031).
+  const saveCopy = (): void => {
+    const writing = session;
+    if (writing === undefined) return;
+    void (async () => {
+      try {
+        const destination = await context.chooseCopyLocation(suggestedCopyName(context.project));
+        if (destination === undefined) return;
+        await saveFountainCopy(
+          context.filesystem,
+          context.project,
+          writing.manuscript(),
+          destination,
+        );
+      } catch (error) {
+        context.report(
+          `Write-ist could not save the copy. Your screenplay is unchanged. ${message(error)}`,
+        );
+      } finally {
+        view?.focus();
+      }
+    })();
+  };
+
+  // Step 5: the PDF, built from the layout of the model as it is *now* and
+  // written outside the bundle. Like the copy it never goes near the save
+  // routine. The fonts are the bundled files, read from the application.
+  const exportAsPdf = (): void => {
+    const writing = session;
+    if (writing === undefined) return;
+    void (async () => {
+      try {
+        const destination = await context.choosePdfLocation(suggestedPdfName(context.project));
+        if (destination === undefined) return;
+        await exportPdf(
+          context.filesystem,
+          context.project,
+          writing.manuscript(),
+          await courierPrimeFaces(),
+          destination,
+        );
+      } catch (error) {
+        context.report(
+          `Write-ist could not export the PDF. Your screenplay is unchanged. ${message(error)}`,
+        );
+      } finally {
+        view?.focus();
+      }
+    })();
+  };
+
+  // Step 4 and 6: the title page is edited in a form and viewed as it
+  // prints; it is never on the paper. Save is one transaction, so autosave
+  // sees it as any edit and Undo takes it back in one step.
+  const editTitlePage = (): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    const writing = session;
+    openTitlePageDialog(into, {
+      titlePage: titlePageOf(writing.state.doc),
+      save: (titlePage) => view?.dispatch(setTitlePage(writing.state, titlePage)),
+      closed: () => view?.focus(),
+    });
+  };
+  const viewTitlePage = (): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    showTitlePagePreview(into, titlePageOf(session.state.doc), () => view?.focus());
+  };
+
+  // The paper with a column of panels either side (the desk design, §2.2).
+  const panels = sidePanels(
+    startSearch,
+    editorMenus({
+      save: saveNow,
+      saveCopy,
+      exportPdf: exportAsPdf,
+      toProjects: context.leave.toProjects,
+      toHome: context.leave.toHome,
+      editTitlePage,
+      viewTitlePage,
+      confirmName: () => confirmHere("character"),
+      confirmLocation: () => confirmHere("location"),
+      toggleSpellcheck: toggleSpelling,
+      spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
+    }),
+  );
+  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
+
   void (async () => {
     try {
-      const opened = await openProject(context.filesystem, context.project);
+      const read = await readManuscript(context.filesystem, context.project, context.report);
       // Closed while the file was being read. A view mounted now would be a
       // view nobody takes down.
       if (gone) return;
 
-      // The model, as the writer has it. Replaced on every transaction, and
-      // read by the save routine — never by the view (see the head of this
-      // file).
-      // Autocomplete (step 9) reads the lists below, which are made after this and
-      // replaced on reload — hence a getter and not the lists themselves.
-      const autocomplete = { names: () => names, draw: drawOffer };
-      // Spellcheck (step 10): off until the writer asks, our own engine in
-      // Rust, and the confirmed names are known words. Never writes to the text.
-      const spellcheck = new Spellcheck({
-        engine: tauriSpellEngine,
-        names: () => names,
-        pause: DEFAULT_PREFERENCES.spellcheckPauseMs,
-        spelling: {
-          nearDistance: DEFAULT_PREFERENCES.spellcheckNearDistance,
-          nearMinLength: DEFAULT_PREFERENCES.spellcheckNearMinLength,
+      const writing = manuscriptSession(
+        {
+          filesystem: context.filesystem,
+          project: context.project,
+          report: context.report,
+          setSaved: context.setSaved,
+          setStatus: context.setStatus,
+          ledger: context.ledger,
+          whenSwitchedAway: context.whenSwitchedAway,
+          whenSwitchedBack: context.whenSwitchedBack,
+          spellEngine: tauriSpellEngine,
+          drawSeam: drawSheetBreak,
+          drawOffer,
+          reloaded: (spellingWasOn) => {
+            view?.updateState(writing.state);
+            if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
+            panels.update(writing.state);
+          },
         },
-      });
-      let state = editorStateFor(opened.document, { autocomplete, spellcheck });
-      // The character and location lists (slice 2, step 8), derived from the
-      // model and kept up to date by the elements each edit changed. Autocomplete
-      // offers from them; spellcheck (step 10) will read them too. What the
-      // writer confirmed by hand comes from the bundle's names file. If that
-      // cannot be read it is not overwritten: confirming is refused.
-      let confirmationsReadable = true;
-      let confirmed = { character: [] as readonly string[], location: [] as readonly string[] };
-      try {
-        confirmed = await readConfirmations(context.filesystem, context.project);
-      } catch (error) {
-        confirmationsReadable = false;
-        context.report(
-          `Write-ist could not read this project's confirmed names, so it will not change them. ` +
-            `Your screenplay is not affected. ${message(error)}`,
-        );
-      }
-      if (gone) return;
-      let names: NameLists = namesOf(state.doc, { explicit: confirmed });
-      let unfinished: unknown;
-      let leaving = false;
-      // Held here so a silent reload (#42) can refresh the count too.
-      let laid: Layout = layout(opened.document);
-      // The seams between sheets, drawn from the layout (ADR-0033). Decorations,
-      // so they are never part of the document and never reach the file.
-      let seams = paperDecorations(state.doc, laid, drawSheetBreak);
-      const showPages = (): void => {
-        const current = pageAtElement(
-          laid.pagination,
-          manuscriptElementAt(state.doc, state.selection.head),
-        );
-        context.setStatus(countsText(current, laid.totalPages, wordsIn(state.doc)));
-      };
-      const session = editingSession(context.filesystem, opened, () => manuscriptOf(state.doc), {
-        // Changed elsewhere, and nothing typed here: the other version is the
-        // screenplay now. A fresh state, so undo cannot walk back into the
-        // version that was replaced.
-        reload: (imported) => {
-          const spellingWasOn = spellcheck.isOn(state);
-          state = editorStateFor(imported.document, { autocomplete, spellcheck });
-          names = namesOf(state.doc, { explicit: confirmed });
-          laid = layout(imported.document);
-          seams = paperDecorations(state.doc, laid, drawSheetBreak);
-          view?.updateState(state);
-          if (spellingWasOn && view !== undefined) spellcheck.setOn(view, true);
-          panels.update(state);
-          showPages();
-        },
-        // The dated copy is already beside the manuscript. Nothing is said:
-        // ADR-0031. A copy that could not be written is not here — that stops
-        // the save, and arrives through `trouble` below.
-        keptBoth: () => {},
-      });
-      /** A save that failed, in the writer's words. */
-      const failure = (error: unknown): string =>
-        `Write-ist could not save your screenplay, so your last few words are ` +
-        `only on screen. ${message(error)}`;
-
-      // Whether the work is on disk, for the save pill. A save that lands with
-      // more typed since (the flag is cleared before the write, so a keystroke
-      // during it stays unsaved) leaves the pill unsaved rather than green.
-      const saveAndShow = async (): ReturnType<typeof session.save> => {
-        context.setSaved("saving");
-        try {
-          return await session.save();
-        } finally {
-          context.setSaved(session.unsaved() ? "unsaved" : "saved");
-        }
-      };
-
-      const saving = autosave({
-        save: saveAndShow,
-        // Autosave is the thing the writer is not watching, so a failure it
-        // swallowed would be a failure nobody ever learned about (ADR-0008
-        // rule 4). Their words are still on screen and still unsaved, and the
-        // next save will try again — which is what this says.
-        //
-        // **Except on the way out**, where there is no next save and the words
-        // are handed back to `leave` to say something truer about instead. Two
-        // panels for one failure would be the application talking over itself.
-        trouble: (error) => {
-          if (leaving) {
-            unfinished = error;
-            return;
-          }
-          // A save with nothing typed still reads the disk to compare it
-          // (#42), and a read that failed then put nothing at risk — so it
-          // says so, rather than that words are only on screen.
-          context.report(
-            session.unsaved()
-              ? `${failure(error)} It will try again.`
-              : `Write-ist could not check whether your screenplay was changed outside it. ` +
-                  `Nothing has been changed. ${message(error)}`,
-          );
-        },
-      });
-
-      // Switching to another application (ADR-0028).
-      const stopSwitchingAway = context.whenSwitchedAway(() => void saving.now());
-      // And back, which is when something else is most likely to have changed
-      // the manuscript. The save compares before it writes anything (#42).
-      const stopSwitchingBack = context.whenSwitchedBack(() => void saving.now());
-
-      leave = async () => {
-        // Closing the project (ADR-0028), through the same routine as every
-        // other save.
-        unfinished = undefined;
-        leaving = true;
-        await saving.now();
-        leaving = false;
-        // **The one save with nothing after it.** There is no later autosave
-        // to try again, because the page is about to go — so it does not go.
-        if (unfinished !== undefined) {
-          context.report(
-            `${failure(unfinished)} This project stays open until it saves, ` +
-              `so nothing you have written is lost.`,
-          );
-          return false;
-        }
-        // The ledger (ADR-0017): Tuesday's words and pages cannot be worked
-        // out later, so they are written now, before the page goes. A failure
-        // here costs a chart, never the manuscript — so the project still leaves.
-        const ledger = context.ledger();
-        if (ledger === undefined) {
-          context.report(
-            `Write-ist could not record today's writing in the ledger. ` +
-              `Your screenplay is saved. The record of your writing days did not start.`,
-          );
-        } else {
-          try {
-            await ledger.recordDay(
-              {
-                id: context.project.marker.projectId,
-                name: context.project.marker.name,
-              },
-              manuscriptOf(state.doc),
-            );
-          } catch (error) {
-            context.report(
-              `Write-ist could not record today's writing in the ledger. ` +
-                `Your screenplay is saved. ${message(error)}`,
-            );
-          }
-        }
-        stopSwitchingAway();
-        stopSwitchingBack();
-        return true;
-      };
-
+        read,
+      );
+      session = writing;
       reading.remove();
 
       // #48 / #49 — page count from the model, never the DOM. Open and reload
       // take a full paginate; each edit re-packs from the affected page onward.
       view = new EditorView(page, {
-        state,
+        state: writing.state,
         dispatchTransaction: (transaction) => {
-          const before = state.doc;
-          state = state.apply(transaction);
-          if (transaction.docChanged) {
-            syncNames(names, before, state.doc);
-            session.changed();
-            saving.typed();
-            context.setSaved("unsaved");
-            const dirty = manuscriptElementAt(state.doc, state.selection.head);
-            laid = layout(manuscriptOf(state.doc), laid, dirty);
-            // Before the view is told, so it draws the seams for this state
-            // and not the last one.
-            seams = paperDecorations(state.doc, laid, drawSheetBreak);
-          }
-          view?.updateState(state);
-          panels.update(state);
-          // Selection moves still refresh the current page; the total only
-          // moves when the manuscript does.
-          if (transaction.docChanged || transaction.selectionSet) showPages();
+          writing.apply(transaction);
+          view?.updateState(writing.state);
+          panels.update(writing.state);
         },
         // The explicit save ADR-0028 pairs with autosave — the same routine,
         // asked for rather than waited for. It is held here rather than in the
@@ -361,14 +273,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             return true;
           }
           if (asksToConfirm(event)) {
-            confirmHere(confirmableKind());
+            confirmHere(writing.confirmableKind());
             return true;
           }
           if (!asksToSave(event)) return false;
-          void saving.now();
+          void writing.save();
           return true;
         },
-        decorations: () => seams,
+        decorations: () => writing.seams,
         // The title page is in the document and not on the paper.
         nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
@@ -378,140 +290,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         attributes: { class: "manuscript", spellcheck: "false" },
       });
       panels.attach(view);
-      panels.update(state);
-      showPages();
-      toggleSpelling = () => {
-        if (view === undefined) return;
-        spellcheck.toggle(view);
-        view.focus();
-      };
-      spellingOn = () => view !== undefined && spellcheck.isOn(view.state);
-      saveNow = () => {
-        void saving.now();
-        view?.focus();
-      };
+      panels.update(writing.state);
+      writing.showCounts();
 
-      // Step 8: the writer says the name or location the caret is in is right,
-      // without waiting for it to be used enough times. Written to the names
-      // file, whole or not at all; the manuscript is not touched. A failed
-      // write is said, and the confirmation holds until the project closes.
-      const confirmableKind = (): NameKind => {
-        const at = elementUnder(state.doc, state.selection.head);
-        return at?.type === "scene-heading" ? "location" : "character";
-      };
-      let writingNames: Promise<void> = Promise.resolve();
-      confirmHere = (kind) => {
-        if (view === undefined) return;
-        const at = elementUnder(state.doc, state.selection.head);
-        const found = at === undefined ? undefined : nameOf(at);
-        if (found === undefined || found.kind !== kind || !confirmationsReadable) return;
-        if (names.confirm(kind, found.name)) {
-          confirmed = {
-            character: names.explicit("character"),
-            location: names.explicit("location"),
-          };
-          const toWrite = confirmed;
-          writingNames = writingNames.then(async () => {
-            try {
-              await writeConfirmations(context.filesystem, context.project, toWrite);
-            } catch (error) {
-              context.report(
-                `Write-ist could not save the confirmed name. It holds while this project is open. ` +
-                  `Your screenplay is unchanged. ${message(error)}`,
-              );
-            }
-          });
-        }
-        // A confirmed name is a known word now, and a near-match of it a typo.
-        spellcheck.refresh(view);
-        view.focus();
-      };
-
-      // Step 7: a finished-product copy, outside the bundle. It reads the model
-      // as it is *now* and goes nowhere near the save routine, so an unsaved
-      // edit is in the copy and nothing is saved as a side effect. Cancelling
-      // writes nothing; success is silent (ADR-0031).
-      saveCopy = () => {
-        void (async () => {
-          try {
-            const destination = await context.chooseCopyLocation(suggestedCopyName(context.project));
-            if (destination === undefined) return;
-            await saveFountainCopy(
-              context.filesystem,
-              context.project,
-              manuscriptOf(state.doc),
-              destination,
-            );
-          } catch (error) {
-            context.report(
-              `Write-ist could not save the copy. Your screenplay is unchanged. ${message(error)}`,
-            );
-          } finally {
-            view?.focus();
-          }
-        })();
-      };
-
-      // Step 5: the PDF, built from the layout of the model as it is *now* and
-      // written outside the bundle. Like the copy it never goes near the save
-      // routine. The fonts are the bundled files, read from the application.
-      exportAsPdf = () => {
-        void (async () => {
-          try {
-            const destination = await context.choosePdfLocation(suggestedPdfName(context.project));
-            if (destination === undefined) return;
-            await exportPdf(
-              context.filesystem,
-              context.project,
-              manuscriptOf(state.doc),
-              await courierPrimeFaces(),
-              destination,
-            );
-          } catch (error) {
-            context.report(
-              `Write-ist could not export the PDF. Your screenplay is unchanged. ${message(error)}`,
-            );
-          } finally {
-            view?.focus();
-          }
-        })();
-      };
-
-      // Step 4 and 6: the title page is edited in a form and viewed as it
-      // prints; it is never on the paper. Save is one transaction, so autosave
-      // sees it as any edit and Undo takes it back in one step.
-      editTitlePage = () => {
-        if (view === undefined || into.querySelector("dialog[open]") !== null) return;
-        openTitlePageDialog(into, {
-          titlePage: titlePageOf(state.doc),
-          save: (titlePage) => view?.dispatch(setTitlePage(state, titlePage)),
-          closed: () => view?.focus(),
-        });
-      };
-      viewTitlePage = () => {
-        if (view === undefined || into.querySelector("dialog[open]") !== null) return;
-        showTitlePagePreview(into, titlePageOf(state.doc), () => view?.focus());
-      };
-
-      // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
       // Capture, so the editor's own Enter handling never sees it.
-      startSearch = (): void => {
-        if (searching !== undefined || view === undefined) return;
-        searching = openSearch(into, {
-          doc: () => state.doc,
-          pageOf: (index) => laid.pagination.pageOfElement[index],
-          jump: ({ from, to }) => {
-            if (view === undefined) return;
-            view.dispatch(
-              view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView(),
-            );
-          },
-          closed: () => {
-            searching = undefined;
-            view?.focus();
-          },
-        });
-      };
       const asksForSearch = (event: KeyboardEvent): void => {
         if (!asksToSearch(event)) return;
         event.preventDefault();
@@ -535,17 +317,17 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     unmount: async () => {
       // Still reading, so there is nothing to save and nothing but a line of
       // text to take down. The read's own continuation sees this and stops.
-      if (leave === undefined) {
+      if (session === undefined) {
         gone = true;
         panels.dispose();
         return true;
       }
-      // The final save first, and it decides: the page comes down only once
+      // The final save first, and it decides: the paper comes down only once
       // the writer's last sentence is on disk.
-      if (!(await leave())) return false;
+      if (!(await session.leave())) return false;
 
       gone = true;
-      leave = undefined;
+      session = undefined;
       stopListeningForSearch?.();
       panels.dispose();
       searching?.close();
