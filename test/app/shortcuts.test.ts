@@ -9,7 +9,7 @@
  * shortcuts is the bug this seam exists to keep out.
  */
 import { describe, expect, it } from "vitest";
-import { asksToConfirm, asksToSave, asksToToggleSpelling, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
+import { chordHint, chordMatches, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
 
 /** A key press as the window reports it, with nothing held down. */
 function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shift", true>> = {}) {
@@ -81,55 +81,40 @@ describe("the gesture a key press chooses", () => {
   });
 });
 
-describe("the writer asking for a save (ADR-0028)", () => {
-  it("is Ctrl+S, and Cmd+S on a Mac", () => {
-    expect(asksToSave(press("s", { ctrl: true }))).toBe(true);
-    expect(asksToSave(press("s", { meta: true }))).toBe(true);
-    expect(asksToSave(press("S", { ctrl: true, shift: true }))).toBe(true);
+describe("a chord (the keys the Editor's command table answers)", () => {
+  const save = { key: "s", mod: true } as const;
+
+  it("is its key with Ctrl, or Cmd on a Mac, and Shift or Caps Lock do not matter", () => {
+    expect(chordMatches(save, press("s", { ctrl: true }))).toBe(true);
+    expect(chordMatches(save, press("s", { meta: true }))).toBe(true);
+    expect(chordMatches(save, press("S", { ctrl: true, shift: true }))).toBe(true);
   });
 
-  it("is not a bare `s`, which is the writer typing", () => {
-    expect(asksToSave(press("s"))).toBe(false);
+  it("is not a bare letter, which is the writer typing, nor Alt with Ctrl", () => {
+    expect(chordMatches(save, press("s"))).toBe(false);
+    expect(chordMatches(save, press("s", { ctrl: true, alt: true }))).toBe(false);
+    expect(chordMatches(save, press("k", { ctrl: true }))).toBe(false);
   });
 
-  it("is not a letter beside a menu item either, so the two never disagree", () => {
-    // `shortcutOf` refuses anything with a modifier and `asksToSave` requires
+  it("is never a letter beside a menu item either, so the two never disagree", () => {
+    // `shortcutOf` refuses anything with a modifier and a `mod` chord requires
     // one, so no key press can be both.
     expect(shortcutOf(press("s", { ctrl: true }))).toBeUndefined();
-    expect(asksToSave(press("o"))).toBe(false);
+    expect(chordMatches(save, press("o"))).toBe(false);
   });
 
-  it("is not Alt+S, which belongs to the window manager", () => {
-    expect(asksToSave(press("s", { ctrl: true, alt: true }))).toBe(false);
-  });
-});
-
-describe("the writer confirming a name or location (slice 2, step 8)", () => {
-  it("is Ctrl+K, and Cmd+K on a Mac", () => {
-    expect(asksToConfirm(press("k", { ctrl: true }))).toBe(true);
-    expect(asksToConfirm(press("K", { meta: true }))).toBe(true);
+  it("can be Alt and a key, with nothing else held", () => {
+    const search = { key: "Enter", alt: true } as const;
+    expect(chordMatches(search, press("Enter", { alt: true }))).toBe(true);
+    expect(chordMatches(search, press("Enter"))).toBe(false);
+    expect(chordMatches(search, press("Enter", { alt: true, ctrl: true }))).toBe(false);
   });
 
-  it("is not a bare k, which is the writer typing, nor Alt+K", () => {
-    expect(asksToConfirm(press("k"))).toBe(false);
-    expect(asksToConfirm(press("k", { ctrl: true, alt: true }))).toBe(false);
-    expect(asksToConfirm(press("s", { ctrl: true }))).toBe(false);
-  });
-});
-
-describe("the spelling pass (slice 2, step 10)", () => {
-  it("is Ctrl+; or Cmd+;", () => {
-    expect(asksToToggleSpelling(press(";", { ctrl: true }))).toBe(true);
-    expect(asksToToggleSpelling(press(";", { meta: true }))).toBe(true);
-  });
-
-  it("is not a bare semicolon, which is the writer typing", () => {
-    expect(asksToToggleSpelling(press(";"))).toBe(false);
-    expect(asksToToggleSpelling(press(";", { shift: true }))).toBe(false);
-  });
-
-  it("is not Alt+Ctrl+;, and not another key", () => {
-    expect(asksToToggleSpelling(press(";", { ctrl: true, alt: true }))).toBe(false);
-    expect(asksToToggleSpelling(press("k", { ctrl: true }))).toBe(false);
+  it("is shown as the desk shows it", () => {
+    expect(chordHint(save)).toBe("[Ctrl + S]");
+    expect(chordHint({ key: ";", mod: true })).toBe("[Ctrl + ;]");
+    expect(chordHint({ key: "Enter", alt: true })).toBe("[Alt + Enter]");
+    expect(chordHint({ key: "f", alt: true })).toBe("[Alt + F]");
+    expect(chordHint({ key: "Escape" })).toBe("[Esc]");
   });
 });

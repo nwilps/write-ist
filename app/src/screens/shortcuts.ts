@@ -56,47 +56,42 @@ export function shortcutOf(press: KeyPress): string | undefined {
 }
 
 /**
- * Whether a key press is the writer asking for a save.
+ * A key that does something while a modifier is held, as data.
  *
- * ADR-0028 makes autosave and an explicit save **one routine**, and this is
- * the explicit one: the reflex every writer already has. It is here rather
- * than in the Editor for the same reason every other key decision is — so it
- * can be decided without a window, and so there is one file to read to know
- * what Write-ist answers to.
- *
- * It needs a modifier, which is why `shortcutOf` cannot answer it: a bare `s`
- * is the letter `s`, and the writer is typing.
+ * `mod` is Ctrl, or Cmd on a Mac. A chord is never a bare letter: a bare
+ * letter is the writer typing, which is why `shortcutOf` cannot answer for
+ * one. The one exception is Escape, which is how a screen is left.
  */
-export function asksToSave(press: KeyPress): boolean {
-  if (press.altKey) return false;
-  if (!press.ctrlKey && !press.metaKey) return false;
-  return press.key.toLowerCase() === "s";
-}
-
-/** Whether a key press is the writer asking to search: Alt+Enter, as the desk shows it. */
-export function asksToSearch(press: KeyPress): boolean {
-  return press.altKey && !press.ctrlKey && !press.metaKey && press.key === "Enter";
+export interface Chord {
+  /** The key, as `KeyboardEvent.key` names it: `s`, `;`, `Enter`, `Escape`. */
+  readonly key: string;
+  /** Ctrl or Cmd. */
+  readonly mod?: true;
+  readonly alt?: true;
 }
 
 /**
- * Whether a key press is the writer confirming the name or location the caret
- * is in (slice 2, step 8): Ctrl+K. Needs a modifier for the same reason a save
- * does.
+ * Whether a key press is exactly this chord: the key, in either case, with the
+ * modifiers the chord names and no others. Shift is never counted, so a
+ * capital still finds its command. Ctrl or Cmd together with Alt is the window
+ * manager's, and matches nothing.
  */
-export function asksToConfirm(press: KeyPress): boolean {
-  if (press.altKey) return false;
-  if (!press.ctrlKey && !press.metaKey) return false;
-  return press.key.toLowerCase() === "k";
+export function chordMatches(chord: Chord, press: KeyPress): boolean {
+  if (chord.mod === true) {
+    if (press.altKey || (!press.ctrlKey && !press.metaKey)) return false;
+  } else if (chord.alt === true) {
+    if (!press.altKey || press.ctrlKey || press.metaKey) return false;
+  } else if (press.altKey || press.ctrlKey || press.metaKey) {
+    return false;
+  }
+  return press.key.toLowerCase() === chord.key.toLowerCase();
 }
 
-/**
- * Whether a key press is the writer toggling the spelling pass (slice 2, step
- * 10): Ctrl/Cmd+;. Needs a modifier for the same reason a save does.
- */
-export function asksToToggleSpelling(press: KeyPress): boolean {
-  if (press.altKey) return false;
-  if (!press.ctrlKey && !press.metaKey) return false;
-  return press.key === ";";
+/** A chord as the desk shows it: `[Ctrl + S]`, `[Alt + Enter]`, `[Esc]`. */
+export function chordHint(chord: Chord): string {
+  const key = chord.key === "Escape" ? "Esc" : chord.key.length === 1 ? chord.key.toUpperCase() : chord.key;
+  const modifier = chord.mod === true ? "Ctrl + " : chord.alt === true ? "Alt + " : "";
+  return `[${modifier}${key}]`;
 }
 
 /**
@@ -104,8 +99,7 @@ export function asksToToggleSpelling(press: KeyPress): boolean {
  * shows it (`[Alt + F]`). Ctrl and Meta are somebody else's.
  */
 export function asksForMenu(press: KeyPress, letter: string): boolean {
-  if (!press.altKey || press.ctrlKey || press.metaKey) return false;
-  return press.key.toLowerCase() === letter;
+  return chordMatches({ key: letter, alt: true }, press);
 }
 
 /** The gesture a key press chooses, if it chooses one. */
