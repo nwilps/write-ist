@@ -15,6 +15,7 @@ import { layout, type Layout, type LayoutLine } from "../../src/screenplay/layou
 import { wrapCount, wrapStarts } from "../../src/screenplay/paginate.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { readFixtureBytes } from "../support/files.ts";
+import { PDF_SCENE_HEADING_GAP, withSpacing } from "../support/spacing.ts";
 
 function el(type: Element["type"], text: string, extra: Partial<Element> = {}): Element {
   return { type, text, forced: false, ...extra };
@@ -335,9 +336,12 @@ describe("what a break may not do", () => {
 
 describe("the rules on the committed fixtures", () => {
   const BREAKS = [
+    // At the default spacing (ADR-0038), two blank lines before a scene
+    // heading. Augmented has one split and three (MORE) fewer than at the PDF's one line, because
+    // the extra rows move where the pages fall.
     ["Big-Fish.fountain", { splits: 10, more: 8 }],
     ["Brick-&-Steel.fountain", { splits: 0, more: 0 }],
-    ["Big-Fish-augmented.fountain", { splits: 11, more: 11 }],
+    ["Big-Fish-augmented.fountain", { splits: 10, more: 8 }],
   ] as const;
 
   for (const [name, expected] of BREAKS) {
@@ -391,10 +395,20 @@ describe("the rules on the committed fixtures", () => {
 describe("Big Fish against Final Draft's own PDF", () => {
   it("puts (MORE) on the eight pages the PDF does", () => {
     // Pages 24, 30, 49, 52, 80, 97, 98 and 107 of fountain.io's Big-Fish.pdf.
-    const l = layout(loadFixture("Big-Fish.fountain"));
+    // The PDF has one blank line before a scene heading, so it is compared
+    // against at that spacing; the default (ADR-0038) is two.
+    const l = withSpacing([PDF_SCENE_HEADING_GAP], () => layout(loadFixture("Big-Fish.fountain")));
     const pages = l.pages
       .filter((page) => page.lines.some((x) => x.kind === "more"))
       .map((page) => page.number);
     expect(pages).toEqual([24, 30, 49, 52, 80, 97, 98, 107]);
+  });
+
+  it("puts (MORE) on these pages at Final Draft's template spacing", () => {
+    const l = layout(loadFixture("Big-Fish.fountain"));
+    const pages = l.pages
+      .filter((page) => page.lines.some((x) => x.kind === "more"))
+      .map((page) => page.number);
+    expect(pages).toEqual([20, 31, 52, 64, 82, 95, 106, 118]);
   });
 });

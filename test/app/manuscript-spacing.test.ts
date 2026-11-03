@@ -26,18 +26,19 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { serialise } from "../../src/screenplay/serialise.ts";
+import { gapBetween, gapLines, stylesheet, type SpacingRule } from "../../src/screenplay/geometry.ts";
 import { ELEMENT_TYPES } from "../../src/screenplay/schema.ts";
-import type { Element, ElementType } from "../../src/screenplay/document.ts";
+import type { ElementType } from "../../src/screenplay/document.ts";
+import { withSpacing } from "../support/spacing.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const STYLESHEET = join(root, "app", "src", "style", "editor.css");
+const STYLESHEETS = ["geometry.css", "editor.css"].map((name) => join(root, "app", "src", "style", name));
 
 let rules: readonly CSSStyleRule[];
 
 beforeAll(() => {
   const style = document.createElement("style");
-  style.textContent = readFileSync(STYLESHEET, "utf8");
+  style.textContent = STYLESHEETS.map((path) => readFileSync(path, "utf8")).join("\n");
   document.head.append(style);
   rules = [...(style.sheet?.cssRules ?? [])].filter(
     (rule): rule is CSSStyleRule => rule instanceof CSSStyleRule,
@@ -45,47 +46,44 @@ beforeAll(() => {
 });
 
 /** One element, as the page draws it. */
-function drawn(type: ElementType): HTMLElement {
+function drawn(type: ElementType, squished = false): HTMLElement {
   const node = document.createElement("div");
   node.setAttribute("data-element", type);
+  if (squished) node.setAttribute("data-squished", "true");
   return node;
 }
 
-/** Whether the stylesheet puts no space between two adjacent elements. */
-function gluedOnScreen(previous: ElementType, next: ElementType): boolean {
+/**
+ * How many blank lines the stylesheet leaves between two adjacent elements.
+ *
+ * Of the rules that match the lower element, the most specific wins; every
+ * rule here is built from attribute selectors, so the longest selector is the
+ * most specific one. The value is read back as the multiple of one blank line
+ * it spells: `0`, `var(--manuscript-blank)` or `calc(var(--manuscript-blank) * N)`.
+ */
+function blankOnScreen(previous: ElementType, next: ElementType, squished = false): number {
   const page = document.createElement("div");
   page.className = "manuscript";
-  page.append(drawn(previous), drawn(next));
+  page.append(drawn(previous), drawn(next, squished));
   document.body.append(page);
 
   const second = page.children[1]!;
-  // The parser normalises `0` to `0px`; both spell no space at all.
-  const glued = rules.some(
-    (rule) =>
-      /^0(?:px)?$/.test(rule.style.getPropertyValue("margin-top")) &&
-      second.matches(rule.selectorText),
-  );
-
+  const matching = rules
+    .filter(
+      (rule) =>
+        rule.selectorText.includes("+") &&
+        rule.style.getPropertyValue("margin-top") !== "" &&
+        second.matches(rule.selectorText),
+    )
+    .sort((a, b) => b.selectorText.length - a.selectorText.length);
   page.remove();
-  return glued;
-}
 
-/** Whether the serialiser writes a blank line between two adjacent elements. */
-function gluedInFile(previous: ElementType, next: ElementType): boolean {
-  const element = (type: ElementType): Element => ({
-    type,
-    text: "x",
-    forced: false,
-    ...(type === "section" ? { depth: 1 } : {}),
-  });
-
-  const written = serialise({
-    titlePage: [],
-    elements: [element(previous), element(next)],
-    comments: [],
-    endsWithNewline: false,
-  });
-  return !written.includes("\n\n");
+  const value = matching[0]?.style.getPropertyValue("margin-top") ?? "";
+  if (/^0(?:px)?$/.test(value)) return 0;
+  if (value === "var(--manuscript-blank)") return 1;
+  const multiple = /^calc\(var\(--manuscript-blank\) \* (\d+)\)$/.exec(value);
+  if (multiple === null) throw new Error(`${previous} → ${next}: unreadable margin-top "${value}"`);
+  return Number(multiple[1]);
 }
 
 describe("the stylesheet parses at all", () => {
@@ -100,19 +98,16 @@ describe("the stylesheet parses at all", () => {
   });
 });
 
-describe("the page's spacing is the serialiser's blank-line table", () => {
+describe("the page's spacing is the spacing table (ADR-0038)", () => {
   it("agrees on all 196 ordered pairs of element types", () => {
     const disagreements: string[] = [];
 
     for (const previous of ELEMENT_TYPES) {
       for (const next of ELEMENT_TYPES) {
-        const onScreen = gluedOnScreen(previous, next);
-        const inFile = gluedInFile(previous, next);
-        if (onScreen !== inFile) {
-          disagreements.push(
-            `${previous} → ${next}: ${inFile ? "no blank line" : "a blank line"} in the file, ` +
-              `${onScreen ? "no space" : "a space"} on the page`,
-          );
+        const onScreen = blankOnScreen(previous, next);
+        const inTable = gapBetween(previous, next).blank;
+        if (onScreen !== inTable) {
+          disagreements.push(`${previous} → ${next}: ${inTable} blank lines in the table, ${onScreen} on the page`);
         }
       }
     }
@@ -121,16 +116,33 @@ describe("the page's spacing is the serialiser's blank-line table", () => {
     expect(ELEMENT_TYPES.length ** 2).toBe(196);
   });
 
-  it("glues a speech together and spaces two action lines apart", () => {
+  it("agrees on a squished gap, and ignores the flag where the table does not allow it", () => {
+    for (const previous of ELEMENT_TYPES) {
+      for (const next of ELEMENT_TYPES) {
+        expect(blankOnScreen(previous, next, true), `${previous} → ${next}`).toBe(
+          gapLines(previous, next, true),
+        );
+      }
+    }
+    expect(blankOnScreen("action", "action", true)).toBe(0);
+    expect(blankOnScreen("action", "dialogue", true)).toBe(1);
+  });
+
+  it("spaces a scene heading two lines and glues a speech", () => {
     // Named cases, so a wholesale failure of the comparison above still reads
     // as something rather than as an empty list.
-    expect(gluedOnScreen("character", "dialogue")).toBe(true);
-    expect(gluedOnScreen("dialogue", "dialogue")).toBe(true);
-    expect(gluedOnScreen("parenthetical", "dialogue")).toBe(true);
-    expect(gluedOnScreen("centered", "centered")).toBe(true);
-    expect(gluedOnScreen("lyrics", "lyrics")).toBe(true);
-    expect(gluedOnScreen("action", "action")).toBe(false);
-    expect(gluedOnScreen("dialogue", "action")).toBe(false);
+    expect(blankOnScreen("action", "scene-heading")).toBe(2);
+    expect(blankOnScreen("character", "dialogue")).toBe(0);
+    expect(blankOnScreen("dialogue", "dialogue")).toBe(0);
+    expect(blankOnScreen("lyrics", "lyrics")).toBe(0);
+    expect(blankOnScreen("action", "action")).toBe(1);
+    expect(blankOnScreen("dialogue", "action")).toBe(1);
+  });
+
+  it("draws any whole number of blank lines, not only 0 and 1", () => {
+    const row: SpacingRule = { above: "action", below: "action", blank: 4, squishable: true };
+    const sheet = withSpacing([row], () => stylesheet());
+    expect(sheet).toContain("calc(var(--manuscript-blank) * 4)");
   });
 });
 

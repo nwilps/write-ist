@@ -7,15 +7,13 @@
  * dual-dialogue cue, and it contains both of the two places where ADR-0019's
  * one-element-one-line rule is recorded as costing the writer something.
  *
- * Those two costs are the reason this file does *not* come back byte-identical
- * to its source, and both are written down in advance rather than discovered
- * and excused:
- *
- *   - the tight run of three action lines gains a blank between each
- *     (ADR-0020's seventh normalisation, ADR-0019's measurement),
- *   - the blank line between the two centered title cards is lost, collapsing
- *     them into one four-line card (ADR-0019, recorded "so it is not later
- *     mistaken for a bug").
+ * Those two costs used to be the reason this file did *not* come back
+ * byte-identical to its source: the tight run of three action lines gained a
+ * blank between each (ADR-0020's seventh normalisation) and the blank between
+ * the two centered title cards was lost. ADR-0038 ended both. A tight pair of
+ * action or centered lines is a *squished gap*, and a blank line between two
+ * of them is the default gap; both are kept as written, so the spacing no
+ * longer costs this file a byte.
  */
 import { describe, expect, it } from "vitest";
 import { exportScreenplay, importScreenplay, reopenAndSave } from "../../src/screenplay/import.ts";
@@ -33,10 +31,10 @@ const NORMALISED_BYTES = 2_873;
 /** ` (CONT'D)` — nine bytes. */
 const EXTENSION = " (CONT'D)";
 const CONTINUATIONS_ADDED = 3;
-/** The tight action run of three lines gains a blank between each. */
-const BLANKS_ADDED = 2;
-/** The blank between the two centered title cards is not representable. */
-const BLANKS_LOST = 1;
+/** The tight action run of three lines is two squished gaps, kept as they are (ADR-0038). */
+const BLANKS_ADDED = 0;
+/** The blank between the two centered title cards is a gap, kept (ADR-0038). */
+const BLANKS_LOST = 0;
 
 /**
  * Leading whitespace on the twelve indented lines is 20 bytes. Five of those
@@ -66,24 +64,24 @@ describe("Brick & Steel, measured as bytes", () => {
     expect(SOURCE_BYTES - NORMALISED_BYTES).toBe(144);
   });
 
-  it("imports to 2,886 bytes, and the arithmetic is the five documented changes", () => {
+  it("imports to 2,885 bytes, and the arithmetic is the three documented changes", () => {
     const bytes = writeBytesAndReadBack("brick-and-steel.roundtrip.fountain", imported());
 
     expect(bytes.length).toBe(IMPORTED_BYTES);
-    expect(IMPORTED_BYTES).toBe(2_886);
+    expect(IMPORTED_BYTES).toBe(2_885);
   });
 
-  it("reports the line endings, the indentation, the extensions and the blank lines, and nothing else", () => {
+  it("reports the line endings, the indentation and the extensions, and nothing else", () => {
     const { report } = importScreenplay(readFixtureBytes(FIXTURE));
 
     expect(report.applied).toEqual([
       { kind: "line-endings-to-lf", count: 144 },
       { kind: "leading-whitespace-dropped", count: INDENTED_LINES_DROPPED },
       { kind: "continuations-added", count: CONTINUATIONS_ADDED },
-      // The two blanks the tight action run gains and the one the title cards
-      // lose — one rule, one count. Absent until issue #27, which is the
-      // defect: the file changed on three lines and the report was silent.
-      { kind: "blank-lines-placed", count: BLANKS_ADDED + BLANKS_LOST },
+      // No blank line moves any more (ADR-0038): the tight action run and the
+      // gap between the title cards are kept, so there is nothing to report.
+      // (Issue #27 is why the report counts blank lines at all: it must say so
+      // whenever one does move, and `import-report.test.ts` holds that.)
     ]);
   });
 });
@@ -102,10 +100,8 @@ describe("every line the round-trip changed is one the ADRs allow", () => {
     lineEdits(withoutBodyIndent(normalisedText()), new TextDecoder().decode(imported()).split("\n"));
 
   it("makes exactly six edits", () => {
-    // Three cues rewritten (a removal and an addition each is counted once
-    // here because the removal and addition pair up), two blanks added, one
-    // blank removed.
-    expect(edits()).toHaveLength(3 * 2 + BLANKS_ADDED + BLANKS_LOST);
+    // Three cues rewritten: a removal and an addition each.
+    expect(edits()).toHaveLength(3 * 2);
   });
 
   it("changes three character cues, by appending an extension to each", () => {
@@ -117,28 +113,26 @@ describe("every line the round-trip changed is one the ADRs allow", () => {
     expect(added).toEqual(["STEEL (CONT'D)", "STEEL (CONT'D)", "COGNITO (CONT'D)"]);
   });
 
-  it("adds two blank lines, and they are the tight action run", () => {
-    const added = edits().filter((edit) => edit.kind === "added" && edit.text === "");
-    expect(added).toHaveLength(BLANKS_ADDED);
-
+  it("keeps the tight action run as it is: two squished gaps, no blank line added", () => {
     const output = new TextDecoder().decode(imported());
     expect(output).toContain(
-      "And then there's a long beat.\n\nLonger than is funny.\n\nLong enough to be depressing.",
-    );
-    // The one genuine multi-line action block in three produced screenplays.
-    expect(normalisedText()).toContain(
       "And then there's a long beat.\nLonger than is funny.\nLong enough to be depressing.",
     );
+    const run = importScreenplay(readFixtureBytes(FIXTURE)).document.elements.filter((e) =>
+      e.text.startsWith("Longer than is funny") || e.text.startsWith("Long enough"),
+    );
+    expect(run.map((e) => e.squished)).toEqual([true, true]);
   });
 
-  it("loses one blank line, and it is the one between the two title cards", () => {
-    const removed = edits().filter((edit) => edit.kind === "removed" && edit.text === "");
-    expect(removed).toHaveLength(BLANKS_LOST);
-
+  it("keeps the blank between the two title cards: two cards, one default gap", () => {
     const output = new TextDecoder().decode(imported());
     expect(output).toContain(
-      "> BRICK BRADDOCK <\n> & DICK STEEL IN <\n> BRICK & STEEL <\n> FULL RETIRED <",
+      "> BRICK BRADDOCK <\n> & DICK STEEL IN <\n\n> BRICK & STEEL <\n> FULL RETIRED <",
     );
+    const cards = importScreenplay(readFixtureBytes(FIXTURE)).document.elements.filter(
+      (e) => e.type === "centered",
+    );
+    expect(cards.map((e) => e.squished === true)).toEqual([false, true, false, true, false]);
   });
 });
 

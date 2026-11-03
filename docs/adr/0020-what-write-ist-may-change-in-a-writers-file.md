@@ -58,6 +58,11 @@ action with no blank between them become three paragraphs — and was admitted o
 exactly one genuine instance across 2,104 action blocks in three produced screenplays. ADR-0019
 records the count and the alternative that was rejected.
 
+> **Amended 2026-11-03 (ADR-0038).** The seventh entry no longer applies to action → action or to
+> centered → centered. Two such lines with no blank line between them are a *squished gap* and are
+> written back with none; a blank line between them is the default gap and is kept. The entry stands
+> for every other pair. Counts below are as measured when it was written.
+
 ### The seventh entry, stated in both directions
 
 *Amended 2026-09-18.* This entry used to read *"a run of action lines with no blank between them

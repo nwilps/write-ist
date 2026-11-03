@@ -85,6 +85,17 @@ export interface Element {
    * exclusions ADR-0018 gives a comment.
    */
   readonly omitted?: boolean;
+  /**
+   * The gap *above* this element has been squished to nothing (ADR-0038).
+   *
+   * Spacing, not text: the gap is a setting on the pair, as in Final Draft,
+   * and there is no empty line for the writer to select. Only meaningful where
+   * the spacing table allows the pair above it to be squished
+   * (`gapBetween(...).squishable`); anywhere else it is ignored, so a change to
+   * the table cannot strand a stale flag. In the file it is the absence of a
+   * blank line between two lines.
+   */
+  readonly squished?: boolean;
 }
 
 /**

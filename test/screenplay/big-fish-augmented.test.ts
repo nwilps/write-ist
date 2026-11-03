@@ -52,10 +52,10 @@ const REMARK_BYTES = REMARKS.reduce((sum, remark) => sum + 1 + remark.length, 0)
 const SOURCE_BYTES = 147_206 + REMARK_BYTES;
 /** Trailing whitespace trimmed: the same 352 bytes as the unaugmented file. */
 const NORMALISED_BYTES = 146_854 + REMARK_BYTES;
-/** The blank between two adjacent centered lines, which cannot be stored. */
-const BLANKS_LOST = 1;
-/** The tight run of two action lines inside the boneyard gains one. */
-const BLANKS_ADDED = 1;
+/** The blank between two adjacent centered lines is a default gap, kept (ADR-0038). */
+const BLANKS_LOST = 0;
+/** The tight run of two action lines inside the boneyard is a squished gap, kept (ADR-0038). */
+const BLANKS_ADDED = 0;
 const CONTINUATIONS_ADDED = 20;
 const EXTENSION = " (CONT'D)";
 /**
@@ -101,16 +101,14 @@ describe("the augmented fixture, measured as bytes", () => {
     expect(IMPORTED_BYTES - REMARK_BYTES - DELIMITERS_ADDED).toBe(147_034);
   });
 
-  it("changes two blank lines, 20 cues and 15 song lines, and nothing else", () => {
+  it("changes no blank line, 20 cues and 15 song lines, and nothing else", () => {
     const edits = lineEdits(normalisedText().split("\n"), output().split("\n"));
 
     const blanks = edits.filter((edit) => edit.text === "");
-    expect(blanks).toEqual([
-      // The tight action run inside the boneyard.
-      { kind: "added", line: 73, text: "" },
-      // The pair of adjacent centered lines.
-      { kind: "removed", line: 105, text: "" },
-    ]);
+    // The tight action run inside the boneyard and the pair of centered lines
+    // with a blank between them both come back as written (ADR-0038): squished
+    // and default gaps, not blank lines the table places.
+    expect(blanks).toEqual([]);
 
     const changed = edits.filter((edit) => edit.text !== "");
     expect(changed).toHaveLength((CONTINUATIONS_ADDED + SPANNING_ELEMENTS) * 2);
@@ -128,11 +126,11 @@ describe("the augmented fixture, measured as bytes", () => {
     }
   });
 
-  it("loses only the blank between the two adjacent centered lines", () => {
-    // ADR-0019: Centered to Centered takes no blank line, so a pair written as
-    // two cards becomes one. The same collapse as Brick & Steel's title cards.
+  it("keeps the blank between the two adjacent centered lines", () => {
+    // ADR-0038: a blank line between two centered lines is the default gap, so
+    // the two cards stay two. (It used to collapse them, as in Brick & Steel.)
     expect(normalisedText()).toContain("> FADE TO BLACK <\n\n> THE BEAST <");
-    expect(output()).toContain("> FADE TO BLACK <\n> THE BEAST <");
+    expect(output()).toContain("> FADE TO BLACK <\n\n> THE BEAST <");
   });
 });
 
@@ -174,12 +172,12 @@ describe("the boneyard is a range, not a container", () => {
   });
 
   it("spaces its contents by the ordinary rules", () => {
-    // The two action lines inside it are a tight run, so they gain a blank
-    // between them — ADR-0020's seventh normalisation, applied in here for the
-    // same reason it applies anywhere else. The blank before the cue was
-    // already there, and comes back from action-to-character.
+    // The two action lines inside it are a tight run: a squished gap, kept
+    // as written (ADR-0038), here for the same reason as anywhere else. The
+    // blank before the cue was already there, and comes back from
+    // action-to-character.
     expect(normalisedText()).toContain("size of a man.\nKept in case");
-    expect(output()).toContain("size of a man.\n\nKept in case");
+    expect(output()).toContain("size of a man.\nKept in case");
     expect(output()).toContain("needs it back.\n\nEDWARD");
   });
 
@@ -218,7 +216,8 @@ describe("the boneyard is a range, not a container", () => {
       "action",
     ]);
     expect(parsed.elements.some((element) => element.omitted === true)).toBe(false);
-    expect(serialise(parsed)).toBe(".INT. KITCHEN - DAY\n\n/*\n\nCut, but never closed.");
+    // The two lines are a tight pair of action: a squished gap, kept (ADR-0038).
+    expect(serialise(parsed)).toBe(".INT. KITCHEN - DAY\n\n/*\nCut, but never closed.");
   });
 
   it("treats a delimiter sharing its line with text as text", () => {

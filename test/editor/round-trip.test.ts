@@ -112,7 +112,7 @@ function through(manuscript: Uint8Array): {
  * The editor may not move one of them by a byte.
  */
 const MANUSCRIPTS: readonly (readonly [string, number])[] = [
-  ["Brick-&-Steel.fountain", 2_886],
+  ["Brick-&-Steel.fountain", 2_885],
   ["Big-Fish.fountain", 146_097],
   ["Big-Fish-augmented.fountain", 147_139],
 ];

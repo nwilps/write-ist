@@ -17,9 +17,11 @@ import { parse } from "../../src/screenplay/parse.ts";
 import { readFixtureBytes } from "../support/files.ts";
 
 const FIXTURES = [
-  ["Big-Fish.fountain", 120],
+  // Two blank lines before a scene heading, as Final Draft's template has them
+  // (ADR-0038): 123 where the PDF's own one-line spacing gave 120.
+  ["Big-Fish.fountain", 123],
   ["Brick-&-Steel.fountain", 4],
-  ["Big-Fish-augmented.fountain", 120],
+  ["Big-Fish-augmented.fountain", 123],
 ] as const;
 
 function loadFixture(name: string): ScreenplayDocument {

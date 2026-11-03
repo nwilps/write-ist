@@ -247,16 +247,16 @@ describe("derived spacing", () => {
     );
   });
 
-  it("gives a tight run of action lines a blank line between each", () => {
-    // ADR-0020's seventh normalisation, and the one genuine loss in the model:
-    // three tight lines become three paragraphs.
+  it("keeps a tight run of action lines tight: each gap is squished, not filled", () => {
+    // ADR-0038 retired ADR-0020's seventh normalisation for action: three
+    // tight lines are three elements with two squished gaps, written back as
+    // they came.
     const tight = "And then there's a long beat.\nLonger than is funny.\nLong enough to be depressing.";
 
     const document = parse(tight);
     expect(types(document)).toEqual(["action", "action", "action"]);
-    expect(serialise(document)).toBe(
-      "And then there's a long beat.\n\nLonger than is funny.\n\nLong enough to be depressing.",
-    );
+    expect(document.elements.map((element) => element.squished === true)).toEqual([false, true, true]);
+    expect(serialise(document)).toBe(tight);
   });
 });
 

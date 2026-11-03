@@ -2,9 +2,13 @@
  * Writing the flat element sequence back out as Fountain.
  *
  * Blank lines are not stored (ADR-0019), so every one of them is recomputed
- * here from the pair of element types either side of it. That is the whole of
- * the spacing model, and it is what makes ADR-0020's claim — spacing is
- * derived from adjacent element types — actually true.
+ * here from the pair of element types either side of it. That is what makes
+ * ADR-0020's claim — spacing is derived from adjacent element types — true.
+ *
+ * This is the *file's* rule. How far apart two elements are drawn on the paper
+ * and in the PDF is the spacing table in `geometry.ts` (ADR-0038); the one
+ * place the two meet is a squishable pair, where a blank line is the default
+ * gap and its absence is a squished one.
  */
 import { commentInserts, SCREENPLAY_COMMENTS } from "../comments.ts";
 import {
@@ -12,7 +16,9 @@ import {
   type Element,
   type ScreenplayDocument,
 } from "./document.ts";
+import { gapBetween } from "./geometry.ts";
 import { renderMarks } from "./marks.ts";
+import { looksLikeCharacter } from "./parse.ts";
 import { SPEECH, continuesSpeech } from "./pairing.ts";
 
 export function serialise(document: ScreenplayDocument): string {
@@ -30,14 +36,34 @@ export function serialise(document: ScreenplayDocument): string {
   // its closer in the element it ends in, across lines if need be (ADR-0018).
   const inserts = commentInserts(document.comments, SCREENPLAY_COMMENTS);
 
+  // Whether the line last written has a blank line above it, which is what lets
+  // an all-capitals line read as a cue.
   let previous: Element | undefined;
+  let blankAbove = true;
   document.elements.forEach((element, index) => {
-    if (previous !== undefined && needsBlankLine(previous, element)) lines.push("");
-    lines.push(renderContent(element, inserts.get(index)));
+    if (previous !== undefined) {
+      blankAbove = blankLineBetween(previous, element);
+      if (blankAbove) lines.push("");
+    }
+    const next = document.elements[index + 1];
+    const headsSquishedPair = next !== undefined && !blankLineBetween(element, next);
+    lines.push(renderContent(element, inserts.get(index), blankAbove && headsSquishedPair));
     previous = element;
   });
 
   return lines.join("\n") + (document.endsWithNewline ? "\n" : "");
+}
+
+/**
+ * Whether the file has a blank line between two adjacent elements.
+ *
+ * The blank-line rule below, except where the spacing table lets the writer
+ * squish the pair (ADR-0038): there the blank line is the default gap and its
+ * absence is the squished one, so the lower element's flag decides.
+ */
+function blankLineBetween(previous: Element, next: Element): boolean {
+  if (gapBetween(previous.type, next.type).squishable) return next.squished !== true;
+  return needsBlankLine(previous, next);
 }
 
 /**
@@ -74,7 +100,12 @@ export function needsBlankLine(previous: Element, next: Element): boolean {
  * ends at the same character, and so inside the forcing marker too:
  * `.[[c:a1 remark]]INT. KITCHEN - DAY[[/c:a1]]` (ADR-0018).
  */
-function renderContent(element: Element, comments?: ReadonlyMap<number, string>): string {
+function renderContent(
+  element: Element,
+  comments?: ReadonlyMap<number, string>,
+  /** A capitals line here, with a line directly below, would be read as a cue. */
+  cueRisk = false,
+): string {
   const text = renderMarks(element, comments);
   switch (element.type) {
     case "scene-heading": {
@@ -84,7 +115,9 @@ function renderContent(element: Element, comments?: ReadonlyMap<number, string>)
       return element.sceneNumber === undefined ? heading : `${heading} #${element.sceneNumber}#`;
     }
     case "action":
-      return element.forced ? `!${text}` : text;
+      // A squished pair writes no blank line under its upper line, and an
+      // all-capitals line with text directly below it is a cue in Fountain.
+      return element.forced || (cueRisk && looksLikeCharacter(text)) ? `!${text}` : text;
     case "character": {
       const cue = element.forced ? `@${text}` : text;
       return element.dual === true ? `${cue} ^` : cue;

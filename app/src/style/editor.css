@@ -463,46 +463,24 @@
 }
 
 /*
- * **The blank-line table, drawn as space** (ADR-0019).
+ * **The spacing table, drawn as space** (ADR-0038).
  *
- * Blank lines are not stored, so where one falls on the way out is a lookup on
- * the pair of element types either side of it — and the space between two
- * elements on screen is the same lookup. The rules below mirror
- * `needsBlankLine` in `src/screenplay/serialise.ts` exactly: a speech never has
- * a blank line inside it, two centered lines and two lyric lines have none
- * between them, and a boneyard delimiter sits against the material it delimits.
+ * Blank lines are not stored, so the space between two elements on screen is a
+ * lookup on the pair of types either side, in the spacing table in
+ * `src/screenplay/geometry.ts`. Its rules — one selector for every ordered pair
+ * of types, and the squished form of each pair the table allows — are generated
+ * into `geometry.css`, because the paper and the page count must read one table.
+ * Here is only the default for an element that follows something that is not an
+ * element, and the first one on the paper.
  *
- * If these two ever disagree the file still round-trips — v2's model is
- * canonical and nothing is read back off the screen (ADR-0024) — but the page
- * would be lying about the file, which is its own bug.
+ * The Fountain file's own blank-line rule (`needsBlankLine`, ADR-0019) is a
+ * different thing and is not mirrored here any more: the paper is not the file.
  */
 .manuscript > * {
   margin-top: var(--manuscript-blank);
 }
 
 .manuscript > :first-child {
-  margin-top: 0;
-}
-
-/*
- * Written out pair by pair rather than folded into `:is()`. The webview
- * understands `:is()` perfectly well; what does not is any tool that has to
- * read this rule back, and `test/app/manuscript-spacing.test.ts` reads every
- * one of these selectors and checks it against what the serialiser actually
- * writes, for all 196 ordered pairs of element types. A rule that cannot be
- * checked is the CSS half of a standard this repo already holds — see the head
- * of that file.
- */
-.manuscript > [data-element="character"] + [data-element="dialogue"],
-.manuscript > [data-element="character"] + [data-element="parenthetical"],
-.manuscript > [data-element="dialogue"] + [data-element="dialogue"],
-.manuscript > [data-element="dialogue"] + [data-element="parenthetical"],
-.manuscript > [data-element="parenthetical"] + [data-element="dialogue"],
-.manuscript > [data-element="parenthetical"] + [data-element="parenthetical"],
-.manuscript > [data-element="centered"] + [data-element="centered"],
-.manuscript > [data-element="lyrics"] + [data-element="lyrics"],
-.manuscript > [data-element="boneyard-start"] + [data-element],
-.manuscript > [data-element] + [data-element="boneyard-end"] {
   margin-top: 0;
 }
 

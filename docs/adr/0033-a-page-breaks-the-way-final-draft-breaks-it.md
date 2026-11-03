@@ -16,6 +16,11 @@ Draft's behaviour is known Write-ist matches it. It added the wrap changes of
 measured as two, not one), rule 7 (`CHARACTER (CONT'D)` in the top margin) and rule 8 (a parenthetical
 after dialogue, and action before a transition), and answered open questions 2 and 3.
 
+**Amended 2026-11-03 ([ADR-0038](0038-the-paper-has-a-spacing-table-and-a-gap-can-be-squished.md)).** The
+page counts and `(MORE)` pages below were measured with one blank line before a scene heading, which is
+what Final Draft's PDF of *Big Fish* has. The spacing table now defaults to two, so *Big Fish* is 123
+pages and the `(MORE)` pages move; the comparison with the PDF is still made, at the PDF's spacing.
+
 ## The forcing reason
 
 Until #87 the engine split an element only when it was longer than a page. Every other element that did

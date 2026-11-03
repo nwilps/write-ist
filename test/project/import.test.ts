@@ -139,7 +139,7 @@ describe("the manuscript an import writes", () => {
   // import and export already produce for these files, now measured from the
   // file on disk rather than from an in-memory result.
   const counts: readonly (readonly [string, number])[] = [
-    ["Brick-&-Steel.fountain", 2_886],
+    ["Brick-&-Steel.fountain", 2_885],
     ["Big-Fish.fountain", 146_097],
     ["Big-Fish-augmented.fountain", 147_139],
   ];

@@ -212,6 +212,15 @@ not built.
   the browser's own CSS parser, because CSS fails silently.
 - Typing was off (`editable: () => false`) until #41 gave a keystroke somewhere to go; it is on.
 
+### Done: the spacing table and squished gaps (ADR-0038)
+
+- The paper and the PDF read `SPACING` in `src/screenplay/geometry.ts`, keyed by the pair of element
+  types: any number of blank lines, and whether the gap may be squished. Scene headings are two lines
+  down (*Big Fish* 123 pages, was 120); the file's blank-line rule is unchanged for everything else.
+- A squished gap is `Element.squished`, written as two lines with no blank line between them. Backspace
+  at the start of the lower line squishes it; Enter at the end of the upper line restores it.
+- **Not run:** the acceptance corpus (`$WRITE_IST_CORPUS`) — its page count will move.
+
 ### Done: the paper is drawn as separate sheets (Slice 2 step 2, PR B)
 
 The layout (`layout()`, which `paginate`'s count is the source of) says where each page breaks; the
