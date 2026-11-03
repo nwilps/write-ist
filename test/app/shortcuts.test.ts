@@ -9,7 +9,7 @@
  * shortcuts is the bug this seam exists to keep out.
  */
 import { describe, expect, it } from "vitest";
-import { asksToSave, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
+import { asksToConfirm, asksToSave, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
 
 /** A key press as the window reports it, with nothing held down. */
 function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shift", true>> = {}) {
@@ -101,5 +101,18 @@ describe("the writer asking for a save (ADR-0028)", () => {
 
   it("is not Alt+S, which belongs to the window manager", () => {
     expect(asksToSave(press("s", { ctrl: true, alt: true }))).toBe(false);
+  });
+});
+
+describe("the writer confirming a name or location (slice 2, step 8)", () => {
+  it("is Ctrl+K, and Cmd+K on a Mac", () => {
+    expect(asksToConfirm(press("k", { ctrl: true }))).toBe(true);
+    expect(asksToConfirm(press("K", { meta: true }))).toBe(true);
+  });
+
+  it("is not a bare k, which is the writer typing, nor Alt+K", () => {
+    expect(asksToConfirm(press("k"))).toBe(false);
+    expect(asksToConfirm(press("k", { ctrl: true, alt: true }))).toBe(false);
+    expect(asksToConfirm(press("s", { ctrl: true }))).toBe(false);
   });
 });

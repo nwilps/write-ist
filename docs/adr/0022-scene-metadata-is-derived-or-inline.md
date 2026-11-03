@@ -89,6 +89,11 @@ usage argument rests on vendor documentation, third-party walkthroughs and file 
   whole document on every keystroke, is precisely the defect `docs/STANDARDS.md` records under
   *"Measure the measurer"*. Derived data is computed on demand or incrementally, and any readout
   of it includes its own cost.
+- **Amended (slice 2, step 8): one thing about the name lists is stored.** The character and
+  location lists are derived, as above. But *"the writer confirmed this name"* is not on the
+  page and no count can recover it, so it is saved in `names.txt` inside the bundle (a kind per
+  line, one indented name under it; ADR-0025). The earlier "no sidecar file" held for everything
+  that can be read off the manuscript, and this is the one thing that cannot.
 - **Deriving is more portable than storing, which is the interoperability argument.** Location
   comes from the slugline and cast from the character cues, so Highland, Slugline and Final
   Draft all reach the same facts from the same text. The synopsis rides Fountain's standard `=`,

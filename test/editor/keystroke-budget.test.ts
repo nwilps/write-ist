@@ -56,6 +56,7 @@ import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { layout, type Layout } from "../../src/screenplay/layout.ts";
 import { paginate, repaginate } from "../../src/screenplay/paginate.ts";
 import { sheetDecorations } from "../../src/screenplay/sheets.ts";
+import { namesOf, syncNames } from "../../src/screenplay/names-sync.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { unwatched } from "../support/unwatched.ts";
@@ -133,8 +134,15 @@ function budget(document: ScreenplayDocument, bytes: number): number {
   // onto a mid-manuscript element so the resume is not always page 1.
   const dirtyElement = Math.floor(document.elements.length / 2);
 
+  // The character and location lists (slice 2, step 8), kept up to date by
+  // the elements each keystroke changed. Part of the real path, so part of the
+  // measured cost.
+  const names = namesOf(state.doc);
+
   const keystroke = (): void => {
+    const previous = state.doc;
     state = state.apply(state.tr.insertText("a", caret));
+    syncNames(names, previous, state.doc);
     session.changed();
     saving.typed();
     laid = layout(manuscriptOf(state.doc), laid, dirtyElement);

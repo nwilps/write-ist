@@ -185,6 +185,20 @@ that writer has adopted — storyline, POV, status. Deliberately not a schema: w
 one axis wholesale, and different writers adopt different ones.
 _Avoid_: field, property, attribute, label, category
 
+**Confirmed name**:
+A character or a scene location the script has settled on: used **three or more times**
+(a preference, `confirmAfterUses`), or confirmed by the writer with **Confirm This Name** /
+**Confirm This Location**. Names used once or twice are in the derived list but unconfirmed —
+autocomplete does not offer them and spellcheck does not trust them, so one typo cannot seed
+more typos. Use-based confirmation is live; the writer's own confirmation stays, and is the one
+piece of the lists that is stored (`names.txt` in the bundle).
+_Avoid_: approved, accepted, known name
+
+**Known word**:
+A word inside a confirmed name or location (`BENNETT'S` in `BENNETT'S HOSPITAL ROOM`) that
+spellcheck does not underline. Ordinary words inside the same name are still checked.
+_Avoid_: whitelisted word, dictionary word
+
 **Boneyard**:
 Text the writer has taken out of the screenplay without deleting it, wrapped in Fountain's
 `/* */`. It is in the file and absent from everything computed off the manuscript — the page
