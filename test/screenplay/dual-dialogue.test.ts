@@ -1,5 +1,5 @@
 /**
- * Dual dialogue: the rules, the commands, the typed `^`, and the page.
+ * Dual dialogue: the commands, the typed `^`, and the paper. (What a pair is: `pairing.test.ts`.)
  *
  * Every result is read two ways, as the repo asks: the bytes the file would
  * hold, and the census of what each element is — a pair that round-trips as
@@ -15,7 +15,6 @@ import {
   canMakeDualDialogue,
   canMakeNormalDialogue,
   canSwapSpeakers,
-  dualPairs,
   makeDualDialogue,
   makeNormalDialogue,
   swapSpeakers,
@@ -55,60 +54,6 @@ const R_TEXT = 4;
 
 const TWO = "INT. A - DAY\n\nSTEEL\nHi.\n\nBRICK\nYo.\n";
 const PAIR = "INT. A - DAY\n\nSTEEL\nHi.\n\nBRICK ^\nYo.\n";
-
-describe("what a pair is", () => {
-  const item = (type: Element["type"], dual = false) => ({ type, dual });
-  it("is two touching speeches, the second carrying the caret", () => {
-    const pairs = dualPairs([
-      item("scene-heading"),
-      item("character"),
-      item("dialogue"),
-      item("character", true),
-      item("parenthetical"),
-      item("dialogue"),
-    ]);
-    expect(pairs).toEqual([{ left: { cue: 1, end: 2 }, right: { cue: 3, end: 5 } }]);
-  });
-
-  it.each(["action", "transition", "scene-heading", "centered", "note", "boneyard-start", "page-break", "lyrics"])(
-    "is not a pair with %s between the speeches",
-    (between) => {
-      expect(
-        dualPairs([
-          item("character"),
-          item("dialogue"),
-          item(between as Element["type"]),
-          item("character", true),
-          item("dialogue"),
-        ]),
-      ).toEqual([]);
-    },
-  );
-
-  it("pairs two speeches and never a third", () => {
-    const pairs = dualPairs([
-      item("character"),
-      item("dialogue"),
-      item("character", true),
-      item("dialogue"),
-      item("character", true),
-      item("dialogue"),
-    ]);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0]!.right.cue).toBe(2);
-  });
-
-  it("needs a speech above, and ignores omitted ones", () => {
-    expect(dualPairs([item("character", true), item("dialogue")])).toEqual([]);
-    expect(
-      dualPairs([
-        { type: "character", omitted: true },
-        { type: "dialogue", omitted: true },
-        { type: "character", dual: true, omitted: true },
-      ]),
-    ).toEqual([]);
-  });
-});
 
 describe("makeDualDialogue", () => {
   it("puts the caret on the speech when the one above touches it", () => {

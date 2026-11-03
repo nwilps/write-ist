@@ -13,16 +13,7 @@ import {
   type ScreenplayDocument,
 } from "./document.ts";
 import { renderMarks } from "./marks.ts";
-
-/** Types that open or continue a speech: a cue and what may follow it. */
-const OPENS_SPEECH: ReadonlySet<Element["type"]> = new Set([
-  "character",
-  "parenthetical",
-  "dialogue",
-]);
-
-/** Types that may continue a speech already in progress. */
-const CONTINUES_SPEECH: ReadonlySet<Element["type"]> = new Set(["parenthetical", "dialogue"]);
+import { SPEECH, continuesSpeech } from "./pairing.ts";
 
 export function serialise(document: ScreenplayDocument): string {
   const lines: string[] = [];
@@ -60,7 +51,7 @@ export function serialise(document: ScreenplayDocument): string {
  * anywhere inside a speech, and Dialogue to Dialogue is one case of it.
  */
 export function needsBlankLine(previous: Element, next: Element): boolean {
-  if (OPENS_SPEECH.has(previous.type) && CONTINUES_SPEECH.has(next.type)) return false;
+  if (SPEECH.has(previous.type) && continuesSpeech(next.type)) return false;
   if (previous.type === "centered" && next.type === "centered") return false;
   if (previous.type === "lyrics" && next.type === "lyrics") return false;
   // A boneyard delimiter sits against what it delimits. The blank lines that

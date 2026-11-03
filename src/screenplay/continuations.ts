@@ -12,13 +12,7 @@
  * have written is left exactly where the writer put it.
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
-
-/** Element types that belong to a speech rather than interrupting one. */
-export const SPEECH: ReadonlySet<Element["type"]> = new Set([
-  "character",
-  "parenthetical",
-  "dialogue",
-]);
+import { SPEECH } from "./pairing.ts";
 
 /** `(CONT'D)`, `(CONTD)`, `(cont'd)` — every spelling in the wild. */
 const CONTINUATION = /\(\s*CONT'?D\s*\)/i;

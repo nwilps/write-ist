@@ -1,33 +1,16 @@
 /**
- * Dual dialogue: two speeches side by side.
+ * Dual dialogue: the commands that make a pair, undo one and turn one round,
+ * and the typed `^`.
  *
- * In Fountain the second speech of a pair carries a `^` after its character
- * cue. In the model that is the cue's `dual` attribute (ADR-0019, ADR-0021): a
- * fact about one element, not text, so the paper never shows it and the file
- * always keeps it. This file holds the rules for what makes a **pair**, and the
- * commands that make one, undo one and turn one round.
+ * What makes a pair is `pairing.ts`'s: these only act on its answers. The
+ * pagination engine asks the same rules, so the paper, the count and the
+ * commands cannot disagree about which speeches are paired.
  *
- * ## What a pair is
- *
- * A **speech** is a character cue and the parenthetical and dialogue elements
- * that follow it directly. A **pair** is two speeches that touch — nothing
- * between the first's last element and the second's cue — where the second
- * cue carries the caret. Anything else between them (action, a transition, a
- * scene heading, centred text, a standing note, a boneyard delimiter) means
- * they are not a pair, and the caret stays in the file doing nothing.
- *
- * **Only two speeches are ever paired.** A speech belongs to at most one pair,
- * so a third speech with a caret after a pair is left alone: the pagination
- * engine (`paginate.ts`) and the editing commands below ask the same function,
- * `dualPairs`, so the page, the count and the commands cannot disagree about
- * which speeches are paired.
- *
- * ## The commands
- *
- * Each takes a document position — anywhere in either speech — and is a
- * single undo step. They are named commands, ready for a context menu to call;
- * no menu and no key is bound here. The `can…` form of each answers whether the
- * command would do anything, so a menu can grey the item out.
+ * Each command takes a document position — anywhere in either speech — and is
+ * a single undo step. They are named commands, ready for a context menu to
+ * call (ADR-0034); no menu and no key is bound here. The `can…` form of each
+ * answers whether the command would do anything, so a menu can grey the item
+ * out.
  */
 import { Fragment, type Node as EditorNode } from "prosemirror-model";
 import { Plugin, TextSelection, type Command, type EditorState, type Transaction } from "prosemirror-state";
@@ -35,67 +18,8 @@ import type { Comment } from "../comments.ts";
 import { pastedComments, type PastedComment } from "./clipboard.ts";
 import type { ElementType } from "./document.ts";
 import { structural } from "./element-keys.ts";
+import { caretToPair, pairOf, speechAt, type DualPair, type Speech, type SpeechItem } from "./pairing.ts";
 import { positionOfElement } from "./place.ts";
-
-/* ------------------------------------------------------------------- rules */
-
-/** What the rules need to know of an element. */
-export interface SpeechItem {
-  readonly type: ElementType;
-  readonly dual?: boolean;
-  readonly omitted?: boolean;
-}
-
-/** A speech: indices of its cue and of its last element, inclusive. */
-export interface Speech {
-  readonly cue: number;
-  readonly end: number;
-}
-
-export interface DualPair {
-  readonly left: Speech;
-  readonly right: Speech;
-}
-
-/** Every speech, in order. A dialogue with no cue above it is not one. */
-export function speechesOf(items: readonly SpeechItem[]): Speech[] {
-  const speeches: Speech[] = [];
-  for (let i = 0; i < items.length; i++) {
-    if (items[i]!.type !== "character") continue;
-    let end = i;
-    while (
-      end + 1 < items.length &&
-      (items[end + 1]!.type === "dialogue" || items[end + 1]!.type === "parenthetical")
-    ) {
-      end += 1;
-    }
-    speeches.push({ cue: i, end });
-    i = end;
-  }
-  return speeches;
-}
-
-/**
- * The pairs in a run of elements, in order. Elements are the manuscript's —
- * the ones that are in the file — so a blank line the writer is standing on
- * does not sit between two speeches.
- */
-export function dualPairs(items: readonly SpeechItem[]): DualPair[] {
-  const speeches = speechesOf(items);
-  const pairs: DualPair[] = [];
-  let used = -1;
-  for (let k = 1; k < speeches.length; k++) {
-    const left = speeches[k - 1]!;
-    const right = speeches[k]!;
-    if (used === k - 1) continue;
-    if (items[right.cue]!.dual !== true) continue;
-    if (left.end + 1 !== right.cue) continue;
-    if (items[left.cue]!.omitted === true || items[right.cue]!.omitted === true) continue;
-    pairs.push({ left, right });
-    used = k;
-  }
-  return pairs;
-}
 
 /* --------------------------------------------------------------- the model */
 
@@ -124,62 +48,25 @@ const itemOf = ({ node }: Entry): SpeechItem => ({
 
 /** Everything the commands ask about, worked out once. */
 interface Situation {
-  readonly doc: EditorNode;
   readonly entries: readonly Entry[];
-  readonly speeches: readonly Speech[];
-  readonly pairs: readonly DualPair[];
-  /** The speech `at` is in, as an index into `speeches`. */
+  readonly items: readonly SpeechItem[];
+  /** The speech `at` is in, as pairing names it. */
   readonly speech: number | undefined;
 }
 
 function situation(state: EditorState, at: number): Situation {
   const entries = entriesOf(state.doc);
   const items = entries.map(itemOf);
-  const speeches = speechesOf(items);
   const index = entries.findIndex(({ pos, node }) => at >= pos && at <= pos + node.nodeSize);
-  const speech =
-    index === -1 ? undefined : speeches.findIndex((s) => s.cue <= index && index <= s.end);
-  return {
-    doc: state.doc,
-    entries,
-    speeches,
-    pairs: dualPairs(items),
-    speech: speech === undefined || speech === -1 ? undefined : speech,
-  };
+  return { entries, items, speech: index === -1 ? undefined : speechAt(items, index) };
 }
 
-const inPair = (s: Situation, speech: Speech): boolean =>
-  s.pairs.some((pair) => pair.left.cue === speech.cue || pair.right.cue === speech.cue);
+/** Which cue to put the caret on to pair the speech at `at`. */
+const planDual = (s: Situation, directions: readonly (-1 | 1)[]): Speech | undefined =>
+  s.speech === undefined ? undefined : caretToPair(s.items, s.speech, directions);
 
-/** The speech directly above or below, if it touches and can still be paired. */
-function neighbour(s: Situation, k: number, direction: -1 | 1): Speech | undefined {
-  const here = s.speeches[k]!;
-  const other = s.speeches[k + direction];
-  if (other === undefined) return undefined;
-  const touches = direction === -1 ? other.end + 1 === here.cue : here.end + 1 === other.cue;
-  if (!touches || inPair(s, other)) return undefined;
-  const omitted = (speech: Speech): boolean => s.entries[speech.cue]!.node.attrs["omitted"] === true;
-  return omitted(other) || omitted(here) ? undefined : other;
-}
-
-/** Which cue to put the caret on to pair the speech at `at`, trying above first. */
-function planDual(s: Situation, directions: readonly (-1 | 1)[]): Speech | undefined {
-  if (s.speech === undefined) return undefined;
-  const here = s.speeches[s.speech]!;
-  if (inPair(s, here)) return undefined;
-  for (const direction of directions) {
-    if (neighbour(s, s.speech, direction) !== undefined) {
-      return direction === -1 ? here : s.speeches[s.speech + 1]!;
-    }
-  }
-  return undefined;
-}
-
-const pairAt = (s: Situation): DualPair | undefined => {
-  if (s.speech === undefined) return undefined;
-  const here = s.speeches[s.speech]!;
-  return s.pairs.find((pair) => pair.left.cue === here.cue || pair.right.cue === here.cue);
-};
+const pairAt = (s: Situation): DualPair | undefined =>
+  s.speech === undefined ? undefined : pairOf(s.items, s.speech);
 
 /* ---------------------------------------------------------------- commands */
 
