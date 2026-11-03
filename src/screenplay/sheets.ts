@@ -14,6 +14,7 @@
 import type { Node as EditorNode } from "prosemirror-model";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { PAGE } from "./geometry.ts";
+import { dualDecorations } from "./dual-columns.ts";
 import type { Layout } from "./layout.ts";
 
 /** One seam: the foot of one sheet, and the head of the next. */
@@ -98,4 +99,19 @@ export function sheetDecorations(
     );
   }
   return DecorationSet.create(doc, widgets);
+}
+
+/**
+ * Everything the paper is drawn with that is not the document: the seams
+ * between sheets, and the pairs of dual dialogue set in their columns.
+ */
+export function paperDecorations(
+  doc: EditorNode,
+  laid: Layout,
+  draw: (seam: SheetBreak) => HTMLElement,
+): DecorationSet {
+  return sheetDecorations(doc, laid, draw).add(
+    doc,
+    dualDecorations(doc, laid, manuscriptStarts(doc)),
+  );
 }

@@ -19,7 +19,7 @@ import type { MarkRange } from "../marks.ts";
 import { appendContinuation, hasContinuation } from "./continuations.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { ELEMENT_GEOMETRY } from "./geometry.ts";
-import { paginate, repaginate, wrapStarts, type Chunk, type PaginationDetail } from "./paginate.ts";
+import { dualWidth, paginate, repaginate, wrapStarts, type Chunk, type PaginationDetail } from "./paginate.ts";
 
 /** The text of the line that closes a speech at a break. */
 export const MORE_TEXT = "(MORE)";
@@ -197,7 +197,7 @@ function textLines(
   // The chunk is wrapped as a paragraph of its own: a part that begins
   // mid-line re-wraps from its first word (ADR-0033).
   const part = el.text.slice(chunk.start, chunk.end);
-  const starts = wrapStarts(part, ELEMENT_GEOMETRY[el.type].width);
+  const starts = wrapStarts(part, column === "full" ? ELEMENT_GEOMETRY[el.type].width : dualWidth(el.type));
   for (let j = 0; j < starts.length; j++) {
     const start = chunk.start + starts[j]!;
     const text = part.slice(starts[j]!, starts[j + 1] ?? part.length).trimEnd();

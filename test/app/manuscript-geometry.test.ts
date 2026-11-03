@@ -80,21 +80,18 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     });
   }
 
-  it("wraps action at 61 characters, not at the 60 the margins imply", () => {
+  it("wraps action at 61 characters, which fit inside the 7.5in margin at 7pt each", () => {
     // 144 action lines in the PDF are exactly 61 characters long; three are 62
-    // and all three break after a hyphen; none is 63. Final Draft lays its own
-    // text out at about 7.0pt a character rather than Courier's 7.2, so 61 of
-    // them fit inside its 7.5in right margin. Write-ist matches the character
-    // count, because the character count is what moves a page break.
+    // and all three break after a hyphen; none is 63. Final Draft advances 7pt
+    // a character, so 61 of them are 427pt and end at 535pt, inside its 540pt
+    // (7.5in) right margin. Write-ist matches the character count, because the
+    // character count is what moves a page break.
     expect(ELEMENT_GEOMETRY.action.width).toBe(61);
     expect(ELEMENT_GEOMETRY["scene-heading"].width).toBe(61);
-    // And the consequence is written down rather than quietly absorbed. 0.904in
-    // rather than a round 0.9, because 61 characters of Courier Prime are
-    // 6.096in and not 6.1 — the same 0.06% the whole table is held in
-    // characters to avoid compounding.
-    expect(marginRightInches()).toBeCloseTo(0.904, 3);
-    expect(marginRightInches()).not.toBeCloseTo(0.9, 3);
-    expect(PAGE.measureCharacters).toBeGreaterThan(PAGE.rightMarginCharacters);
+    expect(pointsFromSheetLeft(PAGE.measureCharacters)).toBeCloseTo(535, 6);
+    expect(marginRightInches()).toBeCloseTo((612 - 535) / 72, 6);
+    expect(PAGE.measureCharacters).toBeLessThan(PAGE.rightMarginCharacters);
+    expect(pointsFromSheetLeft(PAGE.rightMarginCharacters)).toBeCloseTo(540, 6);
   });
 
   it("wraps dialogue at 39 characters, not the reference's 35", () => {
@@ -104,13 +101,15 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     expect(ELEMENT_GEOMETRY.dialogue.width).toBe(39);
   });
 
-  it("right-aligns transitions to the 7.5in margin the PDF fixes", () => {
+  it("right-aligns transitions to Final Draft's 7.1in edge, as Brick & Steel prints them", () => {
     const transition = ELEMENT_GEOMETRY.transition;
     expect(transition.alignment).toBe("right");
-    // Solved from four transitions at four x positions — `CUT TO:` at 491pt
-    // with 7 characters against `MATCH CUT TO:` at 449pt with 13 — giving a
-    // right edge of 540pt with no remainder on the other two.
-    expect(pointsFromSheetLeft(transition.indent + transition.width)).toBeCloseTo(540, 0);
+    // Not a fixed left indent: `CUT TO:` (7 characters) begins at 462pt and
+    // `SMASH CUT TO:` (13) at 420pt, and both end at 511.2pt.
+    const edge = pointsFromSheetLeft(transition.indent + transition.width);
+    expect(edge).toBeCloseTo(511.2, 6);
+    expect(edge - 7 * 7).toBeCloseTo(462, 0);
+    expect(edge - 13 * 7).toBeCloseTo(420, 0);
   });
 
   it("sets the leading to the PDF's 12 points, not the reference's 1.4", () => {
@@ -167,7 +166,7 @@ describe("the industry layout is what Final Draft printed (#40)", () => {
     // ADR-0024's mitigation — a column that is an exact multiple of the advance
     // — only holds where the measure is a whole number of characters. It is,
     // for every element whose wrapping the PDF actually exercises.
-    for (const type of ["action", "scene-heading", "dialogue", "transition"] as const) {
+    for (const type of ["action", "scene-heading", "dialogue"] as const) {
       expect(Number.isInteger(ELEMENT_GEOMETRY[type].width), type).toBe(true);
     }
     // The two that are fractional are the two the PDF never wraps, and they are
@@ -221,15 +220,21 @@ describe("the layout and the page count read one table (#40)", () => {
     expect(ELEMENT_GEOMETRY.centered.alignment).toBe("centre");
   });
 
-  it("measures in `ch`, which is the advance width itself", () => {
+  it("measures in `--ch`, one character's advance at the PDFs' 7pt", () => {
     // ADR-0024's one uncovered risk: "if the editor column is not an exact
     // whole number of Courier Prime advance widths, three engines can round the
-    // fit differently". `ch` is that advance, so the column is an exact
-    // multiple of it by construction rather than by arithmetic.
+    // fit differently". The page tracks Courier Prime down to `--ch` with a
+    // letter-spacing, so a column is an exact multiple of one character by
+    // construction. Plain `ch` would be the glyph's advance without the
+    // tracking, which is 2.7% wider than the PDF.
     const css = readFileSync(GENERATED, "utf8");
+    expect(css).toContain("--ch: 7pt;");
+    expect(css).toContain("--manuscript-tracking: calc(var(--ch) - 0.599609375em);");
     for (const type of ELEMENT_TYPES) {
-      expect(css).toMatch(new RegExp(`${widthProperty(type)}: [\\d.]+ch;`));
+      expect(css).toMatch(new RegExp(`${widthProperty(type)}: calc\\([\\d.]+ \\* var\\(--ch\\)\\);`));
     }
+    expect(css).not.toMatch(/[\d.]ch;/);
+    expect(readFileSync(EDITOR, "utf8")).toContain("letter-spacing: var(--manuscript-tracking);");
   });
 
   it("fakes no capitals in CSS", () => {
@@ -340,15 +345,12 @@ describe("Courier Prime is bundled, not borrowed (ADR-0001, ADR-0030)", () => {
     });
     expect(new Set(advances).size).toBe(1);
 
-    // 1228/2048 em. Ten characters to the inch at 12pt, to within 0.06% — which
-    // is why the table is in characters and the stylesheet in `ch`, and not in
-    // inches that would be a little bit wrong 61 times over.
+    // 1228/2048 em: 7.195pt at 12pt. The PDFs advance 7pt (Tc = -0.018), so the
+    // stylesheet tracks the face down to `CHARACTER_INCHES`, which is not the
+    // tenth of an inch a nominal 10 cpi would be.
     expect(advances[0]).toBeCloseTo(1228 / 2048, 10);
-    expect(CHARACTER_INCHES).toBeCloseTo(0.1, 3);
-    expect(CHARACTER_INCHES).not.toBe(0.1);
-    // And the table's arithmetic goes through it, rather than through a tidier
-    // division by ten that would be wrong 61 times over.
-    expect(inchesFor(61)).toBeCloseTo(6.096, 3);
-    expect(inchesFor(61)).not.toBeCloseTo(6.1, 3);
+    expect(advances[0]! * PAGE.fontSizePoints).toBeCloseTo(7.195, 3);
+    expect(CHARACTER_INCHES * 72).toBe(7);
+    expect(inchesFor(61)).toBeCloseTo(427 / 72, 10);
   });
 });

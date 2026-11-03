@@ -11,61 +11,77 @@
 
   --page-width: 816px;
   --page-inset-top: 96px;
-  --page-inset-right: 86.7813px;
+  --page-inset-right: 102.6667px;
   --page-inset-bottom: 80px;
   --page-inset-left: 144px;
 
   /* --- The type on it -------------------------------------------------- */
 
   --manuscript-size: 16px;
+  /* One character of paper: the PDFs' 7pt advance, not Courier's 7.2. */
+  --ch: 7pt;
+  /* What Courier Prime must give up per character to advance exactly --ch. */
+  --manuscript-tracking: calc(var(--ch) - 0.599609375em);
   --manuscript-leading: 1;
   /* One blank line: the serialiser's spacing table, drawn as space. */
   --manuscript-blank: calc(var(--manuscript-size) * var(--manuscript-leading));
 
   /* --- Each element's place on it -------------------------------------- */
 
-  --indent-scene-heading: 0ch;
-  --width-scene-heading: 61ch;
+  --indent-scene-heading: calc(0 * var(--ch));
+  --width-scene-heading: calc(61 * var(--ch));
   --align-scene-heading: left;
-  --indent-action: 0ch;
-  --width-action: 61ch;
+  --indent-action: calc(0 * var(--ch));
+  --width-action: calc(61 * var(--ch));
   --align-action: left;
-  --indent-character: 18.75ch;
-  --width-character: 41.25ch;
+  --indent-character: calc(19.2857 * var(--ch));
+  --width-character: calc(42.4286 * var(--ch));
   --align-character: left;
-  --indent-dialogue: 8.75ch;
-  --width-dialogue: 39ch;
+  --indent-dialogue: calc(9 * var(--ch));
+  --width-dialogue: calc(39 * var(--ch));
   --align-dialogue: left;
-  --indent-parenthetical: 12.7778ch;
-  --width-parenthetical: 47.2222ch;
+  --indent-parenthetical: calc(13.1429 * var(--ch));
+  --width-parenthetical: calc(48.5714 * var(--ch));
   --align-parenthetical: left;
-  --indent-transition: 0ch;
-  --width-transition: 60ch;
+  --indent-transition: calc(0 * var(--ch));
+  --width-transition: calc(57.6 * var(--ch));
   --align-transition: right;
-  --indent-centered: 0ch;
-  --width-centered: 61ch;
+  --indent-centered: calc(0 * var(--ch));
+  --width-centered: calc(61 * var(--ch));
   --align-centered: center;
-  --indent-lyrics: 0ch;
-  --width-lyrics: 61ch;
+  --indent-lyrics: calc(0 * var(--ch));
+  --width-lyrics: calc(61 * var(--ch));
   --align-lyrics: left;
-  --indent-section: 0ch;
-  --width-section: 61ch;
+  --indent-section: calc(0 * var(--ch));
+  --width-section: calc(61 * var(--ch));
   --align-section: left;
-  --indent-synopsis: 0ch;
-  --width-synopsis: 61ch;
+  --indent-synopsis: calc(0 * var(--ch));
+  --width-synopsis: calc(61 * var(--ch));
   --align-synopsis: left;
-  --indent-page-break: 0ch;
-  --width-page-break: 61ch;
+  --indent-page-break: calc(0 * var(--ch));
+  --width-page-break: calc(61 * var(--ch));
   --align-page-break: left;
-  --indent-note: 0ch;
-  --width-note: 61ch;
+  --indent-note: calc(0 * var(--ch));
+  --width-note: calc(61 * var(--ch));
   --align-note: left;
-  --indent-boneyard-start: 0ch;
-  --width-boneyard-start: 61ch;
+  --indent-boneyard-start: calc(0 * var(--ch));
+  --width-boneyard-start: calc(61 * var(--ch));
   --align-boneyard-start: left;
-  --indent-boneyard-end: 0ch;
-  --width-boneyard-end: 61ch;
+  --indent-boneyard-end: calc(0 * var(--ch));
+  --width-boneyard-end: calc(61 * var(--ch));
   --align-boneyard-end: left;
+
+  /* --- Dual dialogue: two columns across the measure ------------------- */
+
+  --dual-column-width: calc(29.5714 * var(--ch));
+  --dual-start-left: calc(0 * var(--ch));
+  --dual-start-right: calc(32.1429 * var(--ch));
+  --dual-indent-character: calc(0 * var(--ch));
+  --dual-width-character: calc(29 * var(--ch));
+  --dual-indent-parenthetical: calc(4 * var(--ch));
+  --dual-width-parenthetical: calc(25 * var(--ch));
+  --dual-indent-dialogue: calc(0 * var(--ch));
+  --dual-width-dialogue: calc(29 * var(--ch));
 
   /* The sheet, for the borders and seams that read it. */
   --page-height: 1056px;

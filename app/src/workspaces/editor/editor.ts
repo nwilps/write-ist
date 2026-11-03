@@ -69,7 +69,7 @@ import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
 import { pageAtElement } from "../../../../src/screenplay/paginate.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
-import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
+import { paperDecorations } from "../../../../src/screenplay/sheets.ts";
 import { countsText, wordsIn } from "./counts.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
@@ -149,7 +149,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       let laid: Layout = layout(opened.document);
       // The seams between sheets, drawn from the layout (ADR-0033). Decorations,
       // so they are never part of the document and never reach the file.
-      let seams = sheetDecorations(state.doc, laid, drawSheetBreak);
+      let seams = paperDecorations(state.doc, laid, drawSheetBreak);
       const showPages = (): void => {
         const current = pageAtElement(
           laid.pagination,
@@ -164,7 +164,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         reload: (imported) => {
           state = editorStateFor(imported.document);
           laid = layout(imported.document);
-          seams = sheetDecorations(state.doc, laid, drawSheetBreak);
+          seams = paperDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
           panels.update(state);
           showPages();
@@ -286,7 +286,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             laid = layout(manuscriptOf(state.doc), laid, dirty);
             // Before the view is told, so it draws the seams for this state
             // and not the last one.
-            seams = sheetDecorations(state.doc, laid, drawSheetBreak);
+            seams = paperDecorations(state.doc, laid, drawSheetBreak);
           }
           view?.updateState(state);
           panels.update(state);

@@ -16,7 +16,8 @@
  * `paginate` is the reference; after any edits, incremental must equal it.
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
-import { ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
+import { dualPairs, type DualPair } from "./dual-dialogue.ts";
+import { DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
 import { needsBlankLine } from "./serialise.ts";
 
 /** Fountain marginalia: they do not print, so they take no manuscript space. */
@@ -148,6 +149,12 @@ export function repaginate(
     return pack(printableItems(document), document.elements.length, 1, [], [], []);
   }
 
+  // A pair is packed as one band from its first cue, which can lie on an
+  // earlier page than the edit that made it one: pack it from the top.
+  if (nearDualDialogue(document.elements, dirtyElementIndex)) {
+    return pack(printableItems(document), document.elements.length, 1, [], [], []);
+  }
+
   const startPage = cleanPageStart(previous, affectedPage(previous, dirtyElementIndex));
   if (startPage <= 1) {
     return pack(printableItems(document), document.elements.length, 1, [], [], []);
@@ -172,6 +179,38 @@ export function repaginate(
   const fill = previous.fill.slice(0, startPage - 1);
   const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
   return pack(items, document.elements.length, startPage, fill, pageOfElement, chunks);
+}
+
+/**
+ * Is the edit at `dirty` in, or next to, a speech that carries or neighbours a
+ * dual-dialogue caret? A cue with one, the speech above it, or the elements
+ * either side of a deletion that brought two speeches together.
+ */
+function nearDualDialogue(elements: readonly Element[], dirty: number): boolean {
+  for (const at of [dirty - 1, dirty, dirty + 1]) {
+    if (at < 0 || at >= elements.length) continue;
+    let cue = at;
+    while (
+      cue > 0 &&
+      (elements[cue]!.type === "dialogue" || elements[cue]!.type === "parenthetical")
+    ) {
+      cue -= 1;
+    }
+    if (elements[cue]!.type === "character" && elements[cue]!.dual === true) return true;
+    let end = at;
+    while (
+      end + 1 < elements.length &&
+      (elements[end]!.type === "character" ||
+        elements[end]!.type === "dialogue" ||
+        elements[end]!.type === "parenthetical") &&
+      (elements[end + 1]!.type === "dialogue" || elements[end + 1]!.type === "parenthetical")
+    ) {
+      end += 1;
+    }
+    const next = elements[end + 1];
+    if (next !== undefined && next.type === "character" && next.dual === true) return true;
+  }
+  return false;
 }
 
 /**
@@ -608,7 +647,7 @@ function printableItems(document: ScreenplayDocument, from = 0): Item[] {
     previous = el;
   }
 
-  collapseDualDialogue(raw);
+  collapseDualDialogue(raw, dualPairs(elements.slice(start)), start);
 
   return raw
     .filter((entry) => entry.lines !== 0)
@@ -646,8 +685,7 @@ const wrapCache = new Map<number, Map<string, number>>();
 const WRAP_CACHE_LIMIT = 20_000;
 let wrapCached = 0;
 
-function wrappedLines(el: Element): number {
-  const width = ELEMENT_GEOMETRY[el.type].width;
+function wrappedLines(el: Element, width: number = ELEMENT_GEOMETRY[el.type].width): number {
   let byText = wrapCache.get(width);
   if (byText === undefined) wrapCache.set(width, (byText = new Map()));
   let lines = byText.get(el.text);
@@ -766,10 +804,19 @@ export function wrapStarts(text: string, width: number): number[] {
   return starts;
 }
 
+/** The measure of a speech element inside one column of a dual-dialogue pair. */
+export function dualWidth(type: Element["type"]): number {
+  return DUAL_GEOMETRY.speech[type as keyof typeof DUAL_GEOMETRY.speech].width;
+}
+
 /**
- * Dual dialogue (`character` with `dual: true`) shares a vertical band with
- * the preceding speech. Height is `max(left, right)`; the right-hand elements
- * contribute no extra lines of their own.
+ * Dual dialogue: a pair of speeches (`dualPairs`, in `dual-dialogue.ts`)
+ * shares one vertical band. Each column is wrapped at its own, narrower
+ * measure and stacked as a speech is, and the band is as tall as the taller
+ * column. The band is one item and is never split across a page.
+ *
+ * `start` is the manuscript index `elements` begins at, so a resumed pack finds
+ * the same pairs a full one does.
  */
 function collapseDualDialogue(
   raw: {
@@ -779,55 +826,45 @@ function collapseDualDialogue(
     elementIndex: number;
     band?: Band;
   }[],
+  pairs: readonly DualPair[],
+  start: number,
 ): void {
-  for (let i = 0; i < raw.length; i++) {
-    if (!(raw[i]!.el.type === "character" && raw[i]!.el.dual === true)) continue;
-    let leftCue = i - 1;
-    while (
-      leftCue >= 0 &&
-      SPEECH.has(raw[leftCue]!.el.type) &&
-      raw[leftCue]!.el.type !== "character"
-    ) {
-      leftCue -= 1;
+  const at = new Map(raw.map((entry, i) => [entry.elementIndex, i]));
+  const column = (from: number, to: number): number[] => {
+    const found: number[] = [];
+    for (let k = from + start; k <= to + start; k++) {
+      const i = at.get(k);
+      if (i !== undefined) found.push(i);
     }
-    if (leftCue < 0 || raw[leftCue]!.el.type !== "character") continue;
+    return found;
+  };
 
-    let left = raw[leftCue]!.lines;
-    for (let k = leftCue + 1; k < i; k++) {
-      left += raw[k]!.blank + raw[k]!.lines;
-    }
-    let right = raw[i]!.lines;
-    let rightEnd = i;
-    for (let k = i + 1; k < raw.length; k++) {
-      if (!SPEECH.has(raw[k]!.el.type) || raw[k]!.el.type === "character") break;
-      right += raw[k]!.blank + raw[k]!.lines;
-      rightEnd = k;
-    }
-    const combined = Math.max(left, right);
-    const blank = raw[leftCue]!.blank;
+  for (const pair of pairs) {
+    const left = column(pair.left.cue, pair.left.end);
+    const right = column(pair.right.cue, pair.right.end);
+    if (left.length === 0 || right.length === 0) continue;
+
     const members: BandMember[] = [];
-    for (let k = leftCue; k < i; k++) {
-      members.push({
-        elementIndex: raw[k]!.elementIndex,
-        column: "left",
-        lines: raw[k]!.lines,
-        blank: k === leftCue ? 0 : raw[k]!.blank,
+    const heights = { left: 0, right: 0 };
+    for (const [which, indices] of [
+      ["left", left],
+      ["right", right],
+    ] as const) {
+      indices.forEach((i, n) => {
+        const entry = raw[i]!;
+        const lines = wrappedLines(entry.el, dualWidth(entry.el.type));
+        const blank = n === 0 ? 0 : entry.blank;
+        members.push({ elementIndex: entry.elementIndex, column: which, lines, blank });
+        heights[which] += blank + lines;
       });
     }
-    for (let k = i; k <= rightEnd; k++) {
-      members.push({
-        elementIndex: raw[k]!.elementIndex,
-        column: "right",
-        lines: raw[k]!.lines,
-        blank: k === i ? 0 : raw[k]!.blank,
-      });
-    }
-    for (let k = leftCue; k <= rightEnd; k++) {
-      raw[k] = { ...raw[k]!, lines: 0, blank: 0 };
-    }
-    raw[leftCue] = {
-      ...raw[leftCue]!,
-      lines: combined,
+
+    const first = left[0]!;
+    const blank = raw[first]!.blank;
+    for (const i of [...left, ...right]) raw[i] = { ...raw[i]!, lines: 0, blank: 0 };
+    raw[first] = {
+      ...raw[first]!,
+      lines: Math.max(heights.left, heights.right),
       blank,
       band: { members },
     };
