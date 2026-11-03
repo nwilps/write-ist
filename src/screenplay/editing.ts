@@ -67,7 +67,7 @@ import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
 import { keepTitlePageOut, startOfScript } from "./title-page-editing.ts";
-import { elementAt, positionOfElement } from "./place.ts";
+import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { screenplaySchema } from "./schema.ts";
 
 /**
@@ -225,8 +225,8 @@ function placeComments(doc: EditorNode): readonly PlacedComment[] {
 
   const placed: PlacedComment[] = [];
   for (const comment of comments) {
-    const start = positionOfElement(doc, comment.start.element, comment.start.offset);
-    const end = positionOfElement(doc, comment.end.element, comment.end.offset);
+    const start = positionOfElement(doc, paperIndex(comment.start.element), comment.start.offset);
+    const end = positionOfElement(doc, paperIndex(comment.end.element), comment.end.offset);
     // Loud rather than silently dropped (ADR-0008 rule 4). `fromEditorDocument`
     // makes the same check for the same reason; a comment whose end is not a
     // place in the manuscript is a bug upstream, not a comment to discard.

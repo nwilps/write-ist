@@ -1,8 +1,8 @@
 /**
- * Which element a spot on the page is, in both numberings.
+ * Which element a spot on the paper is, in both numberings.
  *
  * The positions below are written out from the node sizes, not borrowed from
- * `place.ts`, so a wrong answer cannot hide behind the arithmetic that produced
+ * `numbering.ts`, so a wrong answer cannot hide behind the arithmetic that produced
  * it (`test/support/editor-positions.ts` is the same rule).
  */
 import { describe, expect, it } from "vitest";
@@ -10,11 +10,11 @@ import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { toEditorDocument } from "../../src/screenplay/editor.ts";
 import {
   elementAt,
-  elementUnder,
   manuscriptElementAt,
+  paperIndex,
   positionOfElement,
-  sceneAt,
-} from "../../src/screenplay/place.ts";
+} from "../../src/screenplay/numbering.ts";
+import { elementUnder, sceneAt } from "../../src/screenplay/place.ts";
 
 const screenplay: ScreenplayDocument = {
   titlePage: [{ key: "Title", inline: { text: "Hi" }, continuations: [] }],
@@ -68,14 +68,14 @@ describe("where a spot is", () => {
 
   it("round-trips an offset inside a cue", () => {
     // E D W A R D — offset 3 is the second A.
-    const position = positionOfElement(doc, 2, 3);
+    const position = positionOfElement(doc, paperIndex(2), 3);
     expect(position).toBe(edward + 1 + 3);
     expect(elementAt(doc, position!)).toEqual({ element: 2, offset: 3, type: "character" });
   });
 
   it("refuses an offset past the text, and an element that is not there", () => {
-    expect(positionOfElement(doc, 2, 7)).toBeUndefined();
-    expect(positionOfElement(doc, 3, 0)).toBeUndefined();
+    expect(positionOfElement(doc, paperIndex(2), 7)).toBeUndefined();
+    expect(positionOfElement(doc, paperIndex(3), 0)).toBeUndefined();
   });
 
   it("reports 0 when the first element on the page is blank", () => {
@@ -89,7 +89,7 @@ describe("where a spot is", () => {
     });
     expect(manuscriptElementAt(leadingBlank, 1)).toBe(0);
     expect(elementAt(leadingBlank, 1)).toEqual({ element: 0, offset: 0, type: "action" });
-    const cue = positionOfElement(leadingBlank, 1, 0);
+    const cue = positionOfElement(leadingBlank, paperIndex(1), 0);
     expect(manuscriptElementAt(leadingBlank, cue!)).toBe(0);
     expect(elementAt(leadingBlank, cue!)).toEqual({ element: 1, offset: 0, type: "character" });
   });

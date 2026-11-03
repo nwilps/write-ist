@@ -26,26 +26,26 @@ import type { Node as EditorNode } from "prosemirror-model";
 import { Decoration } from "prosemirror-view";
 import type { Band } from "./paginate.ts";
 import type { Layout } from "./layout.ts";
+import { manuscriptIndex, startOfManuscriptElement } from "./numbering.ts";
 
 /** The decorations that set the pairs of a layout in two columns. */
 export function dualDecorations(
   doc: EditorNode,
   laid: Layout,
-  starts: readonly number[],
 ): Decoration[] {
   const decorations: Decoration[] = [];
 
   for (const chunk of laid.pagination.chunks) {
     if (chunk.band === undefined) continue;
-    decorations.push(...bandDecorations(doc, starts, chunk.band));
+    decorations.push(...bandDecorations(doc, chunk.band));
   }
   return decorations;
 }
 
-function bandDecorations(doc: EditorNode, starts: readonly number[], band: Band): Decoration[] {
+function bandDecorations(doc: EditorNode, band: Band): Decoration[] {
   const members = band.members;
   const nodes = members.map((member) => {
-    const pos = starts[member.elementIndex];
+    const pos = startOfManuscriptElement(doc, manuscriptIndex(member.elementIndex));
     const node = pos === undefined ? undefined : doc.nodeAt(pos);
     return pos === undefined || node === null || node === undefined ? undefined : { pos, node };
   });

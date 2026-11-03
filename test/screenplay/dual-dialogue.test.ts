@@ -29,7 +29,8 @@ import { serialise } from "../../src/screenplay/serialise.ts";
 import type { Element } from "../../src/screenplay/document.ts";
 import { startOfElement } from "../support/editor-positions.ts";
 import { dualDecorations } from "../../src/screenplay/dual-columns.ts";
-import { manuscriptStarts, paperDecorations, sheetDecorations } from "../../src/screenplay/sheets.ts";
+import { manuscriptElements } from "../../src/screenplay/numbering.ts";
+import { paperDecorations, sheetDecorations } from "../../src/screenplay/sheets.ts";
 import { PAGE } from "../../src/screenplay/geometry.ts";
 
 const opened = (text: string): EditorState => editorStateFor(parse(text));
@@ -553,9 +554,9 @@ describe("the paper draws the pair from marks, never from the document", () => {
   const source = "INT. A - DAY\n\nSTEEL\n(low)\nHi there, friend.\n\nBRICK ^\nYo.\n\nAfter.\n";
   const state = opened(source);
   const laid = layout(parse(source));
-  const decorations = dualDecorations(state.doc, laid, manuscriptStarts(state.doc));
+  const decorations = dualDecorations(state.doc, laid);
   const attrs = (index: number) => {
-    const pos = manuscriptStarts(state.doc)[index]!;
+    const pos = manuscriptElements(state.doc)[index]!.pos;
     // `type.attrs` is ProseMirror's own record of what the decoration sets.
     const found = decorations.find((d) => d.from === pos) as unknown as
       | { type: { attrs: Record<string, unknown> } }
@@ -594,7 +595,7 @@ describe("the paper draws the pair from marks, never from the document", () => {
   it("draws nothing for a caret that pairs nothing", () => {
     const lone = opened("INT. A - DAY\n\nSTEEL\nHi.\n\nCUT TO:\n\nBRICK ^\nYo.\n");
     const parsed = parse("INT. A - DAY\n\nSTEEL\nHi.\n\nCUT TO:\n\nBRICK ^\nYo.\n");
-    expect(dualDecorations(lone.doc, layout(parsed), manuscriptStarts(lone.doc))).toHaveLength(0);
+    expect(dualDecorations(lone.doc, layout(parsed))).toHaveLength(0);
   });
 
   it("stacks while a blank line sits inside the pair", () => {
@@ -606,7 +607,7 @@ describe("the paper draws the pair from marks, never from the document", () => {
       splitElement,
     );
     expect(saved(edited)).toBe(source);
-    const found = dualDecorations(edited.doc, layout(manuscriptOf(edited.doc)), manuscriptStarts(edited.doc));
+    const found = dualDecorations(edited.doc, layout(manuscriptOf(edited.doc)));
     expect(found).toHaveLength(0);
   });
 });

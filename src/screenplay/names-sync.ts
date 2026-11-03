@@ -10,7 +10,7 @@
  * untouched elements (pointer comparisons) plus the elements it changed, and
  * never a re-read of every cue's text.
  *
- * Elements are read in the page's numbering (`place.ts`): title lines are not
+ * Elements are read in the paper's numbering (`numbering.ts`): title lines are not
  * elements and are not looked at.
  */
 import type { Node as EditorNode } from "prosemirror-model";
