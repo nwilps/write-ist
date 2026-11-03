@@ -28,7 +28,8 @@ import { closeHistory } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Plugin, TextSelection, type Command, type EditorState } from "prosemirror-state";
 import type { Transaction } from "prosemirror-state";
-import type { Attrs } from "prosemirror-model";
+import type { Attrs, Node as EditorNode } from "prosemirror-model";
+import { screenplaySchema } from "./schema.ts";
 import type { ElementType } from "./document.ts";
 
 /** What Enter at the end of an element starts, by the type it ends. */
@@ -80,6 +81,38 @@ function attrsForType(from: Attrs, type: ElementType): Attrs {
 }
 
 /**
+ * The syntax an element carries *after* its text that the editor does not show:
+ * a cue's dual-dialogue caret and a heading's scene number, as the file spells
+ * them. Both are attributes of the element (ADR-0019), so they live and die
+ * with it — and an edit that makes the element stop being what they belong to
+ * would otherwise delete them without a word. Where that happens they are put
+ * into the text instead, byte for byte as they were on disk (ADR-0020: the app
+ * never silently changes what the writer wrote).
+ */
+function hiddenSuffix(attrs: Attrs): string {
+  const dual = attrs["dual"] === true ? " ^" : "";
+  const number = typeof attrs["sceneNumber"] === "string" ? ` #${attrs["sceneNumber"] as string}#` : "";
+  return dual + number;
+}
+
+/** Write an element's hidden suffix at the end of its text, if it has one. */
+function spellOutSuffix(tr: Transaction, node: EditorNode, pos: number): void {
+  const suffix = hiddenSuffix(node.attrs);
+  if (suffix === "") return;
+  tr.insert(tr.mapping.map(pos + 1 + node.content.size), screenplaySchema.text(suffix));
+}
+
+/**
+ * Change an element's type, keeping its hidden suffix as text (see
+ * `hiddenSuffix`). The type is always different from the old one here, and the
+ * caret and the scene number each belong to exactly one type.
+ */
+function retype(tr: Transaction, node: EditorNode, pos: number, type: ElementType): void {
+  tr.setNodeMarkup(tr.mapping.map(pos), undefined, attrsForType(node.attrs, type));
+  spellOutSuffix(tr, node, pos);
+}
+
+/**
  * Mark a transaction as a structural change — a new element, a type change, a
  * split or a join — so that it is an undo step of its own (#45, ADR-0019).
  *
@@ -125,6 +158,12 @@ export const splitElement: Command = (state, dispatch) => {
         attrs: attrsForType(at.parent.attrs, typeAfter(type)),
       },
     ]);
+  } else if (at.parentOffset === 0) {
+    // The whole line moves down and an empty one is left above it, so the
+    // hidden suffix goes with the text it belongs to.
+    tr.split(at.pos, 1, [{ type: at.parent.type, attrs: at.parent.attrs }]);
+    const { sceneNumber: _n, dual: _d, ...kept } = at.parent.attrs;
+    tr.setNodeMarkup(at.before(), undefined, kept);
   } else {
     const { sceneNumber: _n, dual: _d, ...kept } = at.parent.attrs;
     tr.split(at.pos, 1, [{ type: at.parent.type, attrs: kept }]);
@@ -147,7 +186,7 @@ export const cycleType: Command = (state, dispatch) => {
   state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name !== "element") return node.type.name === "doc";
     const next = typeAfterTab(node.attrs["type"] as ElementType);
-    if (next !== undefined) tr.setNodeMarkup(pos, undefined, attrsForType(node.attrs, next));
+    if (next !== undefined) retype(tr, node, pos, next);
     return false;
   });
   if (tr.docChanged) dispatch(structural(tr));
@@ -181,7 +220,7 @@ export function setElementType(type: ElementType): Command {
     const tr = state.tr;
     state.doc.nodesBetween(from, to, (node, pos) => {
       if (node.type.name !== "element") return node.type.name === "doc";
-      if (node.attrs["type"] !== type) tr.setNodeMarkup(pos, undefined, attrsForType(node.attrs, type));
+      if (node.attrs["type"] !== type) retype(tr, node, pos, type);
       return false;
     });
     if (tr.docChanged) dispatch(structural(tr));
@@ -201,7 +240,7 @@ export const joinBackwards: Command = (state, dispatch) => {
   // an element to join onto.
   if (before === undefined || before.type.name !== "element")
     return at.parent.type.name === "element";
-  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.before())));
+  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.before(), at.parent)));
   return true;
 };
 
@@ -215,13 +254,19 @@ export const joinForwards: Command = (state, dispatch) => {
   const after = at.index(0) + 1 < at.doc.childCount ? at.doc.child(at.index(0) + 1) : undefined;
   if (after === undefined || after.type.name !== "element")
     return at.parent.type.name === "element";
-  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.after())));
+  if (dispatch !== undefined) dispatch(structural(joinAt(state, at.after(), after)));
   return true;
 };
 
-/** Join the two elements either side of `boundary`, the upper surviving. */
-function joinAt(state: EditorState, boundary: number) {
-  const tr = state.tr.delete(boundary - 1, boundary + 1);
+/**
+ * Join the two elements either side of `boundary`, the upper surviving. The
+ * lower one's hidden suffix is spelled out first, so it is not lost with its
+ * element.
+ */
+function joinAt(state: EditorState, boundary: number, lower: EditorNode) {
+  const tr = state.tr;
+  spellOutSuffix(tr, lower, boundary);
+  tr.delete(boundary - 1, boundary + 1);
   return tr.setSelection(TextSelection.create(tr.doc, boundary - 1)).scrollIntoView();
 }
 
