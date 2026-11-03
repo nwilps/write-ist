@@ -195,7 +195,7 @@ function closeProject(andThen: () => void): void {
     } catch (error) {
       // Nothing the Editor does on the way out is meant to throw, so this is
       // a fault in Write-ist rather than in the writer's disk — and the
-      // writer's last words may be only on screen, so the page stays up.
+      // writer's last words may be only on screen, so the paper stays up.
       closingShell.report(`Write-ist could not close this project. ${message(error)}`);
     } finally {
       // **Released however the unmount ended** (#64). Released only when it
