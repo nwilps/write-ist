@@ -22,11 +22,14 @@ from the file without a word.
    it. The second speech's cue carries the caret and nothing — action, a transition, a scene heading,
    centred text, a note, a boneyard delimiter, a page break — lies between. A speech belongs to one pair
    at most, so a third caret after a pair pairs nothing; it is kept in the file and does nothing.
-2. **Two columns of 29 characters, 2 apart**, filling the 60-character measure; the right column ends at the
-   right margin. Cue, parenthetical and dialogue keep their order of indent inside a column
-   (`DUAL_GEOMETRY` in `geometry.ts`, generated into `geometry.css`). **These numbers are not measured**:
-   no Final Draft PDF in hand has dual dialogue. They follow the common layout and are whole characters so
-   that the wrap is exact.
+2. **Two columns of 28.75 characters, 2.5 apart**, filling the 60-character measure; the right column
+   starts at 31.25 and ends at the right margin, and each cue is **centred on its column**. Cue,
+   parenthetical and dialogue keep their order of indent inside a column (`DUAL_GEOMETRY` in
+   `geometry.ts`, generated into `geometry.css`). **Measured** from Fountain's own PDF of Brick & Steel
+   (fountain.io, `Brick-&-Steel.pdf`) with `pdftotext -bbox`: left dialogue at x = 108pt (margin), right
+   at 333pt, STEEL centred at 211.5pt and BRICK at 436.5pt, so a column is 207pt. Dialogue wraps at
+   28 whole characters so that the wrap is exact. (The PDF's pair has no parenthetical; its indent of 4 is
+   the single column's offset from dialogue.)
 3. **The count wraps each column at its own measure and the band is as tall as the taller one.** A band is
    never split and never gets `(MORE)` or `CONT'D` (ADR-0033); it moves whole.
 4. **The paper draws the columns with decorations, never the document.** The blocks stay one after another;

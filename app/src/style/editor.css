@@ -540,7 +540,8 @@
  */
 .manuscript > [data-dual-column="left"][data-element="character"] {
   margin-left: calc(var(--dual-start-left) + var(--dual-indent-character));
-  width: var(--dual-width-character);
+  width: var(--dual-column-width);
+  text-align: center;
 }
 
 .manuscript > [data-dual-column="left"][data-element="parenthetical"] {
@@ -555,7 +556,8 @@
 
 .manuscript > [data-dual-column="right"][data-element="character"] {
   margin-left: calc(var(--dual-start-right) + var(--dual-indent-character));
-  width: var(--dual-width-character);
+  width: var(--dual-column-width);
+  text-align: center;
 }
 
 .manuscript > [data-dual-column="right"][data-element="parenthetical"] {
@@ -579,25 +581,26 @@
 /*
  * The link between the two: a thin rule along the cue row, from just after the
  * left name to just before the right one, so the pair reads as one thing and a
- * cue beside a cue is not mistaken for two scenes. It is an absolutely
- * positioned box left at its static position — straight after the last
- * character of the left name, whatever its length or extension — and the cue is
- * clipped where the right name begins, less the margin, so the rule never
- * touches either. It is on the desk only: it takes no room, and the PDF draws
- * from the layout, not from this.
+ * cue beside a cue is not mistaken for two scenes. Each name is centred on its
+ * column, so where it ends depends on its length: the view hands the left
+ * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`5ch`)
+ * (`dual-columns.ts`), and the rule is placed from them — it begins where the
+ * left name ends (half the column plus half the name) and runs to where the
+ * right one begins, less the spacing token at each end. It is on the desk
+ * only: it takes no room, and the PDF draws from the layout, not from this.
  */
 .manuscript > .dual-first {
   position: relative;
-  clip-path: inset(
-    0 calc(var(--dual-width-character) - (var(--dual-start-right) - var(--dual-start-left)) + var(--space-tight)) 0 0
-  );
 }
 
 .manuscript > .dual-first::after {
   content: "";
   position: absolute;
-  margin-left: var(--space-tight);
-  width: calc(var(--dual-start-right) - var(--dual-start-left));
+  left: calc((var(--dual-column-width) + var(--dual-name-left)) / 2 + var(--space-tight));
+  width: calc(
+    var(--dual-start-right) - var(--dual-start-left) - (var(--dual-name-left) + var(--dual-name-right)) / 2 -
+      var(--space-tight) * 2
+  );
   height: calc(var(--manuscript-blank) / 2);
   border-bottom: var(--rule-thin) solid var(--colour-faint);
   pointer-events: none;

@@ -16,6 +16,9 @@
  *
  *   - `--dual-left-rows` on the right-hand cue: how far to pull it back up to
  *     the left cue's row.
+ *   - `--dual-name-left` and `--dual-name-right` on the left cue: the lengths of
+ *     the two names, in characters (`ch`), which the link rule between them is
+ *     placed from (each name is centred on its column).
  *   - `--dual-extra` on the band's last block: the rows the right column falls
  *     short by, so what follows clears the left.
  */
@@ -63,6 +66,9 @@ function bandDecorations(doc: EditorNode, starts: readonly number[], band: Band)
     heights[member.column] += member.blank + member.lines;
   });
 
+  const rightCue = members.findIndex((member) => member.column === "right");
+  const nameLength = (i: number): number => nodes[i]?.node.textContent.length ?? 0;
+
   return members.map((member, i) => {
     const { pos, node } = nodes[i]!;
     const classes = ["dual"];
@@ -72,6 +78,9 @@ function bandDecorations(doc: EditorNode, starts: readonly number[], band: Band)
     const last = i === members.length - 1;
     if (firstOfLeft) {
       classes.push("dual-first");
+      if (rightCue > 0) {
+        custom.push(`--dual-name-left: ${nameLength(0)}ch`, `--dual-name-right: ${nameLength(rightCue)}ch`);
+      }
     }
     if (firstOfRight) {
       classes.push("dual-right-first");

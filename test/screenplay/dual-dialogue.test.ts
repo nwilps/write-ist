@@ -569,6 +569,26 @@ describe("round trip", () => {
 });
 
 describe("the geometry of the columns", () => {
+  // Measured from Fountain's PDF of Brick & Steel (fountain.io, Brick-&-Steel.pdf,
+  // `pdftotext -bbox`): 7.2pt a character, left margin 108pt. Left dialogue at
+  // x = 108, right dialogue at x = 333, STEEL centred at 211.5, BRICK at 436.5.
+  it("is the geometry measured from the reference PDF", () => {
+    const pt = 7.2;
+    const margin = 108;
+    expect(DUAL_GEOMETRY.columnStart.left).toBe((108 - margin) / pt);
+    expect(DUAL_GEOMETRY.columnStart.right).toBe((333 - margin) / pt); // 31.25
+    expect(DUAL_GEOMETRY.columnWidth).toBe(2 * (211.5 - 108) / pt); // 28.75
+    expect(DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth).toBe(PAGE.rightMarginCharacters);
+    // Each name is centred on its column's middle.
+    expect(margin + (DUAL_GEOMETRY.columnStart.left + DUAL_GEOMETRY.columnWidth / 2) * pt).toBe(211.5);
+    expect(margin + (DUAL_GEOMETRY.columnStart.right + DUAL_GEOMETRY.columnWidth / 2) * pt).toBe(436.5);
+    // Right dialogue ends (452pt in the PDF; 455.4 at a true 7.2pt a character)
+    // under the S of SMASH CUT TO: (420-455pt, and its next glyph begins at 461.9).
+    const end = margin + (DUAL_GEOMETRY.columnStart.right + "Screw retirement.".length) * pt;
+    expect(end).toBeGreaterThan(420);
+    expect(end).toBeLessThan(461.9);
+  });
+
   it("fits two columns and a gutter inside the measure", () => {
     const { columnWidth, columnStart, speech } = DUAL_GEOMETRY;
     expect(columnStart.left + columnWidth).toBeLessThan(columnStart.right);
@@ -604,10 +624,15 @@ describe("the paper draws the pair from marks, never from the document", () => {
 
   it("hands the stylesheet the rows it needs to line the columns up", () => {
     // Left: cue 1 + (low) 1 + "Hi there, friend." 1 = 3 rows; right: 2.
-    expect(attrs(1)["style"]).toBeUndefined();
+    expect(attrs(1)["style"]).not.toContain("--dual-left-rows");
     expect(attrs(4)["style"]).toContain("--dual-left-rows: 3");
     expect(attrs(5)["style"]).toContain("--dual-extra: 1");
     expect(String(attrs(1)["class"])).toContain("dual-first");
+  });
+
+  it("hands the stylesheet both name lengths, so it can centre the rule between them", () => {
+    expect(attrs(1)["style"]).toContain("--dual-name-left: 5ch");
+    expect(attrs(1)["style"]).toContain("--dual-name-right: 5ch");
   });
 
   it("never reaches the file, and never shows the caret", () => {
@@ -644,8 +669,9 @@ describe("the link between the pair is a rule along the cue row", () => {
   it("is horizontal, kept off both names by a spacing token, and in tokens' colour", () => {
     expect(rule).toContain("border-bottom: var(--rule-thin) solid var(--colour-faint)");
     expect(rule).not.toContain("border-left");
-    expect(rule).toContain("margin-left: var(--space-tight)");
-    expect(css).toContain("var(--dual-start-right) - var(--dual-start-left)) + var(--space-tight)");
+    expect(rule).toContain("var(--space-tight)");
+    expect(rule).toContain("var(--dual-name-left)");
+    expect(rule).toContain("var(--dual-name-right)");
   });
 
   it("is not printed", () => {

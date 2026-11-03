@@ -381,28 +381,37 @@ export interface DualMeasure {
 /**
  * **Dual dialogue: two speeches side by side.**
  *
- * The page's 60 characters are split into two columns of 29 with a gutter of
- * 2: the left column begins at the margin, the right 31 characters in, and
- * the right one ends at the page's right margin. Within a column a speech
- * keeps the order of the single-column page — dialogue is the full column,
- * a parenthetical is indented a little, a cue a little more — and the same
- * numbers serve both columns, so the pair is symmetrical.
+ * **Measured** from Fountain's own PDF of `Brick & Steel` (fountain.io,
+ * `Brick-&-Steel.pdf`, 612 x 792pt, Courier 12pt = 7.2pt a character, left
+ * margin 108pt = 1.5in), its one dual-dialogue pair, with
+ * `pdftotext -bbox`:
  *
- * **These are not measured.** `Big Fish` has no dual dialogue, so the PDF fixes
- * nothing here (Brick & Steel has one pair, in Fountain, with no printed
- * form). They follow the layout screenwriting software has settled on —
- * two narrow columns filling the measure, dialogue about 2.9in wide — and
- * the measures are whole characters, so the wrap is exact (ADR-0024).
+ *   - left dialogue "Screw retirement." begins at x = 108pt: column start 0.
+ *   - right dialogue begins at x = 333pt: (333 - 108) / 7.2 = 31.25 characters.
+ *   - STEEL spans 194-229pt, centre 211.5; BRICK spans 419-454pt, centre
+ *     436.5. A cue is centred on its column, so each column's half-width is
+ *     211.5 - 108 = 436.5 - 333 = 103.5pt: the column is 207pt, 2.875in,
+ *     28.75 characters. The right column then ends at 31.25 + 28.75 = 60, the
+ *     page's right margin, and the gutter is 2.5 characters.
+ *   - The right dialogue ends at 452pt, directly under the S of the following
+ *     SMASH CUT TO: (420-455pt).
+ *
+ * Dialogue and parentheticals wrap at whole characters (ADR-0024): 28 fit in
+ * 28.75. The PDF's pair has no parenthetical; its indent is the single
+ * column's own offset from dialogue (209pt against 180pt, 4 characters), and
+ * its measure is what is left of the column.
  */
 export const DUAL_GEOMETRY = {
-  /** Characters across one column. */
-  columnWidth: 29,
+  /** Characters across one column; a cue is centred on this. */
+  columnWidth: 28.75,
   /** Characters from the left margin to each column's left edge. */
-  columnStart: { left: 0, right: 31 },
+  columnStart: { left: 0, right: 31.25 },
   speech: {
-    character: { indent: 8, width: 21 },
-    parenthetical: { indent: 3, width: 26 },
-    dialogue: { indent: 0, width: 29 },
+    // The cue is centred across the whole column (`columnWidth`) by the
+    // stylesheet; `width` is the most it may fill before it wraps.
+    character: { indent: 0, width: 28 },
+    parenthetical: { indent: 4, width: 24 },
+    dialogue: { indent: 0, width: 28 },
   } satisfies Record<"character" | "parenthetical" | "dialogue", DualMeasure>,
 } as const;
 

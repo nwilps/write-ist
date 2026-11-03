@@ -69,15 +69,15 @@
 
   /* --- Dual dialogue: two columns across the measure ------------------- */
 
-  --dual-column-width: 29ch;
+  --dual-column-width: 28.75ch;
   --dual-start-left: 0ch;
-  --dual-start-right: 31ch;
-  --dual-indent-character: 8ch;
-  --dual-width-character: 21ch;
-  --dual-indent-parenthetical: 3ch;
-  --dual-width-parenthetical: 26ch;
+  --dual-start-right: 31.25ch;
+  --dual-indent-character: 0ch;
+  --dual-width-character: 28ch;
+  --dual-indent-parenthetical: 4ch;
+  --dual-width-parenthetical: 24ch;
   --dual-indent-dialogue: 0ch;
-  --dual-width-dialogue: 29ch;
+  --dual-width-dialogue: 28ch;
 
   /* The sheet, for the borders and seams that read it. */
   --page-height: 1056px;
