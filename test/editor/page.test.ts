@@ -114,7 +114,7 @@ describe("marks are formatting, never syntax (ADR-0018, ADR-0027)", () => {
   });
 });
 
-describe("the title page is displayed at the top (ADR-0021)", () => {
+describe("the title page's markup, which the Editor hides (ADR-0021; step 4)", () => {
   it("draws its lines, before any element", () => {
     const rows = [...page().children];
     const lines = rows.filter((row) => row.hasAttribute("data-title-line"));

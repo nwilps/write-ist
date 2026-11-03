@@ -63,6 +63,7 @@ import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
+import { keepTitlePageOut, startOfScript } from "./title-page-editing.ts";
 import { elementAt, positionOfElement } from "./place.ts";
 import { screenplaySchema } from "./schema.ts";
 
@@ -165,12 +166,15 @@ export const markKeys = keymap({
  * `toEditorDocument`; this adds only what has to survive being typed in.
  */
 export function editorStateFor(document: ScreenplayDocument): State {
+  const doc = toEditorDocument(withALineToTypeOn(document));
   return EditorState.create({
     schema: screenplaySchema,
-    doc: toEditorDocument(withALineToTypeOn(document)),
+    doc,
+    // The title page is not on the paper: the caret starts in the script.
+    selection: startOfScript(doc),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, elementKeys, maintainElements, endsUndoStep, maintainComments],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, elementKeys, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
   });
 }
 

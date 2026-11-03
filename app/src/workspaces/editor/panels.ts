@@ -10,7 +10,7 @@
  * **What is wired and what is not.** Bold, italic and underline run the marks
  * the keyboard already runs; an element row sets the type the way Tab does,
  * and Ctrl+1…7 say the same thing from the keyboard. A menu row opens the menu
- * it is handed (`app/src/menus/`), and a row with none — Edit and View, today —
+ * it is handed (`app/src/menus/`), and a row with none
  * is drawn and does nothing yet. Add comment is the same: a button that
  * pretended would be worse than one that is plainly waiting.
  */

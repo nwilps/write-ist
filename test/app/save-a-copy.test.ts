@@ -12,8 +12,8 @@ const read = (...path: string[]): string => readFileSync(join(root, ...path), "u
 
 describe("Save a Copy as Fountain…", () => {
   it("is in the File menu, beside the other things done with the project", () => {
-    const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    expect(editor).toMatch(/label: "Save a Copy as Fountain…"[^}]*act: \(\) => saveCopy\(\)/);
+    const menus = read("app", "src", "workspaces", "editor", "menus.ts");
+    expect(menus).toMatch(/label: "Save a Copy as Fountain…"[^}]*act: act\.saveCopy/);
   });
 
   it("asks the writer where, and writes nothing when they cancel", () => {

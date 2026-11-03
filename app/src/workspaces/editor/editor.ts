@@ -57,7 +57,7 @@
  * the page, which it still has because it is still up, and the writer can try
  * again.
  */
-import { FileDown, FolderOpen, House, PenLine, Save } from "lucide";
+import { PenLine } from "lucide";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { autosave } from "../../../../src/project/autosave.ts";
@@ -68,10 +68,14 @@ import { editorStateFor, manuscriptOf } from "../../../../src/screenplay/editing
 import { manuscriptElementAt } from "../../../../src/screenplay/place.ts";
 import { layout, type Layout } from "../../../../src/screenplay/layout.ts";
 import { pageAtElement } from "../../../../src/screenplay/paginate.ts";
+import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
 import { sheetDecorations } from "../../../../src/screenplay/sheets.ts";
 import { countsText, wordsIn } from "./counts.ts";
+import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
+import { openTitlePageDialog } from "./title-page-dialog.ts";
+import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
 import { asksToSave, asksToSearch } from "../../screens/shortcuts.ts";
@@ -105,19 +109,20 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let saveNow = (): void => {};
   // Likewise a copy: nothing to copy until the manuscript has been read.
   let saveCopy = (): void => {};
-  // **Only what exists.** Rename, Export and a new project are not here
-  // because they are not built; a menu item that pretended would be worse than
-  // one that is absent. The hints are shortcuts that really work.
-  const panels = sidePanels(() => startSearch(), {
-    File: [
-      { label: "Save Project", hint: "[Ctrl + S]", icon: Save, act: () => saveNow() },
-      { label: "Save a Copy as Fountain…", icon: FileDown, act: () => saveCopy() },
-      { divider: true },
-      { label: "Open Project", icon: FolderOpen, act: context.leave.toProjects },
-      { divider: true },
-      { label: "Home", hint: "[Esc]", icon: House, act: context.leave.toHome },
-    ],
-  });
+  // Likewise the title page: nothing to edit or show until it has been read.
+  let editTitlePage = (): void => {};
+  let viewTitlePage = (): void => {};
+  const panels = sidePanels(
+    () => startSearch(),
+    editorMenus({
+      save: () => saveNow(),
+      saveCopy: () => saveCopy(),
+      toProjects: context.leave.toProjects,
+      toHome: context.leave.toHome,
+      editTitlePage: () => editTitlePage(),
+      viewTitlePage: () => viewTitlePage(),
+    }),
+  );
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   let view: EditorView | undefined;
@@ -299,6 +304,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           return true;
         },
         decorations: () => seams,
+        // The title page is in the document and not on the paper.
+        nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         attributes: { class: "manuscript" },
@@ -334,6 +341,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             view?.focus();
           }
         })();
+      };
+
+      // Step 4 and 6: the title page is edited in a form and viewed as it
+      // prints; it is never on the paper. Save is one transaction, so autosave
+      // sees it as any edit and Undo takes it back in one step.
+      editTitlePage = () => {
+        if (view === undefined || into.querySelector("dialog[open]") !== null) return;
+        openTitlePageDialog(into, {
+          titlePage: titlePageOf(state.doc),
+          save: (titlePage) => view?.dispatch(setTitlePage(state, titlePage)),
+          closed: () => view?.focus(),
+        });
+      };
+      viewTitlePage = () => {
+        if (view === undefined || into.querySelector("dialog[open]") !== null) return;
+        showTitlePagePreview(into, titlePageOf(state.doc), () => view?.focus());
       };
 
       // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
