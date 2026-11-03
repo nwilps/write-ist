@@ -301,6 +301,15 @@
   --layer-menu: 5;
 }
 
+/* --- The title page dialogs ---------------------------------------------- */
+
+:root {
+  /** The preview sheet: US Letter at 70%, so it fits a short window. */
+  --size-title-sheet: 428px;
+  /** Past this the form scrolls rather than the dialog outgrowing the window. */
+  --size-title-form-max: 60vh;
+}
+
 /* --- The search dialog (the desk design, §2.5) --------------------------- */
 
 :root {

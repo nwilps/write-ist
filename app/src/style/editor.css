@@ -261,7 +261,6 @@
  * honest; the count is defined against the sheet, not against the furniture.
  */
 .page {
-  /* Positioning context for title-page lines (#62), which are absolute to the sheet. */
   position: relative;
   width: var(--page-width);
   margin: 0 auto;
@@ -500,38 +499,18 @@
 .manuscript > [data-element="centered"] + [data-element="centered"],
 .manuscript > [data-element="lyrics"] + [data-element="lyrics"],
 .manuscript > [data-element="boneyard-start"] + [data-element],
-.manuscript > [data-element] + [data-element="boneyard-end"],
-.manuscript > [data-title-line] + [data-title-line] {
+.manuscript > [data-element] + [data-element="boneyard-end"] {
   margin-top: 0;
 }
 
 /*
- * The title page (#62), laid out as Final Draft prints it.
- *
- * Placement rules (centre / right-to-7.5in / left-at-1.0in, and each line's
- * top) live in `geometry.css`, generated from `TITLE_PAGE_GEOMETRY`. What this
- * file owns is the page box: title-page lines are absolute to `.page`, so the
- * body has to start one sheet down — `--page-height` is the height #48 gave
- * the sheet. Keys with no row in the table stay in the flow at the top and are
- * never hidden.
+ * The title page is in the document and not on the paper: each title line is a
+ * hidden placeholder (`hiddenTitlePage`), and it is edited and previewed in
+ * dialogs. The first element is therefore not `:first-child`, and must not
+ * start one blank line down.
  */
-.manuscript > [data-title-line] {
-  color: var(--colour-text);
-}
-
-/*
- * Body of the screenplay begins on the next sheet. Absolute title lines take
- * no flow space, so the first element is pushed down by one page less the top
- * inset already on `.page`. Keys with no row in TITLE_PAGE_GEOMETRY stay in
- * normal flow at the top of page 1 and are never hidden.
- */
-/*
- * Reserve page 1 for the absolute title-page lines. Padding (not margin) so it
- * cannot collapse through `.manuscript` into `.page` and leave the body sitting
- * on the title sheet.
- */
-.manuscript:has(> [data-title-field]) {
-  padding-top: calc(var(--page-height) - var(--page-inset-top));
+.manuscript > [data-title-hidden] + :not([data-title-hidden]) {
+  margin-top: 0;
 }
 
 /*

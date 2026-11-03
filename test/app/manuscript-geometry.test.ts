@@ -27,7 +27,6 @@ import {
   CHARACTER_INCHES,
   ELEMENT_GEOMETRY,
   PAGE,
-  TITLE_PAGE_FIELD_LINES,
   TITLE_PAGE_GEOMETRY,
   alignProperty,
   bodyHeightInches,
@@ -291,26 +290,13 @@ describe("the title page is where Final Draft printed it (#62)", () => {
     expect(TITLE_PAGE_GEOMETRY["Copyright"]!.yPoints).toBe(645);
   });
 
-  it("emits a placed rule for every title-page field line the table covers", () => {
+  it("leaves the title page off the paper's stylesheet (step 4)", () => {
+    // The placements above are read by the title-page layout (preview and PDF),
+    // not by the stylesheet: nothing on the paper is placed by key any more.
     const css = readFileSync(GENERATED, "utf8");
     expect(css).toContain("--page-height:");
-    for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
-      for (let line = 0; line < TITLE_PAGE_FIELD_LINES; line += 1) {
-        expect(
-          css,
-          `${key} line ${line}`,
-        ).toContain(
-          `.manuscript > [data-title-field="${key}"][data-title-field-line="${line}"]`,
-        );
-      }
-    }
-  });
-
-  it("starts the body one sheet below the title page", () => {
-    const rules = readFileSync(EDITOR, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(rules).toContain(
-      "padding-top: calc(var(--page-height) - var(--page-inset-top))",
-    );
+    expect(css).not.toContain("data-title");
+    expect(readFileSync(EDITOR, "utf8")).not.toContain("data-title-field");
   });
 });
 

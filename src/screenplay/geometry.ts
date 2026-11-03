@@ -297,6 +297,12 @@ export interface TitlePagePlacement {
    * wrote it. Continuation lines add `PAGE.leadingPoints` per step.
    */
   readonly yPoints: number;
+  /**
+   * When true, `yPoints` is the baseline of the field's *last* line and earlier
+   * lines stack upward from it, so the field's bottom edge stays put however
+   * many lines it has.
+   */
+  readonly growsUp?: boolean;
   readonly source: string;
 }
 
@@ -354,10 +360,15 @@ export const TITLE_PAGE_GEOMETRY: Readonly<Record<string, TitlePagePlacement>> =
     source:
       "Same place as Copyright: left at 1.0in (#62 acceptance). Big Fish carries no Contact line, so the y is Copyright's; a Contact block stacks on the leading from there.",
   },
+  "Draft date": {
+    alignment: "left",
+    xInches: 1.0,
+    yPoints: 645 - 2 * PAGE.leadingPoints,
+    growsUp: true,
+    source:
+      "Bottom-left block, directly above Contact with exactly one empty line between: its last baseline is two leadings above Contact's first (645 - 24 = 621pt). Not measured from Big Fish, which has no Draft date.",
+  },
 };
-
-/** How many lines of one title-page field the generated stylesheet places. */
-export const TITLE_PAGE_FIELD_LINES = 12;
 
 /** CSS custom property names, so the stylesheet and its test cannot drift. */
 export const indentProperty = (type: ElementType): string => `--indent-${type}`;
@@ -438,52 +449,9 @@ export function stylesheet(): string {
   }
 
   lines.push("");
-  lines.push("  /* --- The title page (#62) ----------------------------------------- */");
-  lines.push("");
+  lines.push("  /* The sheet, for the borders and seams that read it. */");
   lines.push(`  --page-height: ${inches(PAGE.heightInches)};`);
-  for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
-    const { alignment, xInches, yPoints } = TITLE_PAGE_GEOMETRY[key]!;
-    lines.push(`  --title-${key}-align: ${CSS_ALIGNMENT[alignment]};`);
-    lines.push(`  --title-${key}-x: ${inches(xInches)};`);
-    // Box top from measured baseline: same 0.18in drop the body margin uses.
-    const topInches = yPoints / 72 - 0.18;
-    lines.push(`  --title-${key}-top: ${inches(topInches)};`);
-  }
-
   lines.push("}", "");
-
-  lines.push("/*");
-  lines.push(" * Title-page lines (#62). Absolute on the sheet so Copyright can sit at");
-  lines.push(" * 1.0in — outside the text margin — and Notes can right-align to 7.5in.");
-  lines.push(" * Continuations share the key via data-title-field; each line index gets");
-  lines.push(" * its own top on the leading grid.");
-  lines.push(" */");
-  lines.push("");
-  for (const key of Object.keys(TITLE_PAGE_GEOMETRY)) {
-    const placement = TITLE_PAGE_GEOMETRY[key]!;
-    for (let line = 0; line < TITLE_PAGE_FIELD_LINES; line++) {
-      const topInches = placement.yPoints / 72 - 0.18 + (line * PAGE.leadingPoints) / 72;
-      lines.push(
-        `.manuscript > [data-title-field="${key}"][data-title-field-line="${line}"] {`,
-      );
-      lines.push(`  position: absolute;`);
-      lines.push(`  top: ${inches(topInches)};`);
-      if (placement.alignment === "centre") {
-        lines.push("  left: 0;");
-        lines.push("  right: 0;");
-        lines.push("  text-align: center;");
-      } else if (placement.alignment === "right") {
-        lines.push("  left: 0;");
-        lines.push(`  width: ${inches(placement.xInches)};`);
-        lines.push("  text-align: right;");
-      } else {
-        lines.push(`  left: ${inches(placement.xInches)};`);
-        lines.push("  text-align: left;");
-      }
-      lines.push("}");
-      lines.push("");
-    }
-  }
 
   return lines.join("\n");
 }

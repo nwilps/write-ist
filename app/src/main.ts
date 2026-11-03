@@ -21,6 +21,7 @@ import "./style/sheets.css";
 import "./style/search.css";
 import "./style/panels.css";
 import "./style/menus.css";
+import "./style/title-page.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";

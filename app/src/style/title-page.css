@@ -1,0 +1,45 @@
+/*
+ * The title page dialogs: the form (it wears the New Project dialog's clothes)
+ * and the preview sheet. Every value is a token (ADR-0030).
+ */
+
+.title-page__fields {
+  display: grid;
+  gap: var(--space-snug);
+  max-height: var(--size-title-form-max);
+  overflow-y: auto;
+  /* Room for the scrollbar without the boxes touching it. */
+  padding-right: var(--space-tight);
+}
+
+.field__input--lines {
+  resize: vertical;
+}
+
+.title-sheet {
+  display: block;
+  width: var(--size-title-sheet);
+  max-width: 100%;
+  height: auto;
+  margin: var(--space-roomy) auto 0;
+  background: var(--colour-page);
+  border: var(--rule-thin) solid var(--colour-border);
+}
+
+.title-run {
+  font-family: var(--face-manuscript);
+  fill: var(--colour-text);
+  white-space: pre;
+}
+
+.title-run--bold {
+  font-weight: var(--weight-bold);
+}
+
+.title-run--italic {
+  font-style: italic;
+}
+
+.title-run--underline {
+  text-decoration: underline;
+}
