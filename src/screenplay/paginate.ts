@@ -16,7 +16,7 @@
  * `paginate` is the reference; after any edits, incremental must equal it.
  */
 import type { Element, ScreenplayDocument } from "./document.ts";
-import { dualPairs, type DualPair } from "./dual-dialogue.ts";
+import { dualPairs, nearDualDialogue, type DualPair } from "./pairing.ts";
 import { DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
 import { needsBlankLine } from "./serialise.ts";
 
@@ -29,8 +29,6 @@ const MARGINALIA: ReadonlySet<Element["type"]> = new Set([
   "boneyard-end",
   "lyrics",
 ]);
-
-const SPEECH: ReadonlySet<Element["type"]> = new Set(["character", "parenthetical", "dialogue"]);
 
 /**
  * How the manuscript sits on pages.
@@ -179,38 +177,6 @@ export function repaginate(
   const fill = previous.fill.slice(0, startPage - 1);
   const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
   return pack(items, document.elements.length, startPage, fill, pageOfElement, chunks);
-}
-
-/**
- * Is the edit at `dirty` in, or next to, a speech that carries or neighbours a
- * dual-dialogue caret? A cue with one, the speech above it, or the elements
- * either side of a deletion that brought two speeches together.
- */
-function nearDualDialogue(elements: readonly Element[], dirty: number): boolean {
-  for (const at of [dirty - 1, dirty, dirty + 1]) {
-    if (at < 0 || at >= elements.length) continue;
-    let cue = at;
-    while (
-      cue > 0 &&
-      (elements[cue]!.type === "dialogue" || elements[cue]!.type === "parenthetical")
-    ) {
-      cue -= 1;
-    }
-    if (elements[cue]!.type === "character" && elements[cue]!.dual === true) return true;
-    let end = at;
-    while (
-      end + 1 < elements.length &&
-      (elements[end]!.type === "character" ||
-        elements[end]!.type === "dialogue" ||
-        elements[end]!.type === "parenthetical") &&
-      (elements[end + 1]!.type === "dialogue" || elements[end + 1]!.type === "parenthetical")
-    ) {
-      end += 1;
-    }
-    const next = elements[end + 1];
-    if (next !== undefined && next.type === "character" && next.dual === true) return true;
-  }
-  return false;
 }
 
 /**
@@ -810,7 +776,7 @@ export function dualWidth(type: Element["type"]): number {
 }
 
 /**
- * Dual dialogue: a pair of speeches (`dualPairs`, in `dual-dialogue.ts`)
+ * Dual dialogue: a pair of speeches (`dualPairs`, in `pairing.ts`)
  * shares one vertical band. Each column is wrapped at its own, narrower
  * measure and stacked as a speech is, and the band is as tall as the taller
  * column. The band is one item and is never split across a page.
