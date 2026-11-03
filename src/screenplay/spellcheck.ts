@@ -42,6 +42,7 @@ import { Plugin, PluginKey, type EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import type { ElementType } from "./document.ts";
 import type { NameLists } from "./names.ts";
+import { manuscriptElements } from "./numbering.ts";
 import { beginsScene } from "./ranges.ts";
 import {
   contextOf,
@@ -370,10 +371,9 @@ export class Spellcheck {
   private publish(view: EditorView, doc: EditorNode, context: SpellContext): void {
     if (view.state.doc !== doc || !this.isOn(view.state)) return;
     const drawn: Decoration[] = [];
-    doc.forEach((node, offset) => {
-      if (node.type.name !== "element" || node.content.size === 0) return;
+    for (const { node, pos: offset } of manuscriptElements(doc)) {
       const issues = this.issuesOf(node, context);
-      if (issues === undefined) return;
+      if (issues === undefined) continue;
       for (const issue of issues) {
         const from = offset + 1 + issue.start;
         const placed: SpellIssue = { word: issue.word, from, to: offset + 1 + issue.end, verdict: issue.verdict };
@@ -386,7 +386,7 @@ export class Spellcheck {
           ),
         );
       }
-    });
+    }
     view.dispatch(
       view.state.tr
         .setMeta(key, { decorations: DecorationSet.create(doc, drawn) } satisfies Meta)

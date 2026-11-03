@@ -15,6 +15,7 @@
  * page a match is on never means a second walk per match.
  */
 import type { Node as EditorNode } from "prosemirror-model";
+import { manuscriptElements, type ManuscriptIndex } from "./numbering.ts";
 
 /** One place the query was found. */
 export interface Match {
@@ -28,8 +29,8 @@ export interface Match {
   readonly offset: number;
   /** How many characters it covers. */
   readonly length: number;
-  /** Among manuscript elements, blank lines omitted (`manuscriptElementAt`). */
-  readonly manuscriptElement: number;
+  /** Among manuscript elements, blank lines omitted (`numbering.ts`). */
+  readonly manuscriptElement: ManuscriptIndex;
 }
 
 /** More than this is a scroll, not a list; the count still says how many. */
@@ -52,19 +53,12 @@ export function findInManuscript(doc: EditorNode, query: string): Found {
   let total = 0;
   if (needle === "") return { total, matches };
 
-  let manuscript = 0;
-  doc.forEach((child, start) => {
-    if (child.type.name !== "element") return;
-    const text = child.textContent;
-    // A blank line is spacing, not a manuscript element (ADR-0019).
-    if (text === "") return;
-    const index = manuscript;
-    manuscript += 1;
-
+  for (const { index, pos: start, node } of manuscriptElements(doc)) {
+    const text = node.textContent;
     const hay = text.toLowerCase();
     // Lower-casing can change a string's length (İ), and an offset into the
     // lowered text would then point at the wrong character.
-    if (hay.length !== text.length) return;
+    if (hay.length !== text.length) continue;
     for (let at = hay.indexOf(needle); at !== -1; at = hay.indexOf(needle, at + needle.length)) {
       total += 1;
       if (matches.length < SHOWN) {
@@ -78,6 +72,6 @@ export function findInManuscript(doc: EditorNode, query: string): Found {
         });
       }
     }
-  });
+  }
   return { total, matches };
 }

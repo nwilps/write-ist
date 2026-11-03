@@ -36,7 +36,7 @@ import {
   type Transaction,
 } from "prosemirror-state";
 import type { Comment } from "../comments.ts";
-import { elementAt, positionOfElement } from "./place.ts";
+import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { normaliseSource } from "../normalise.ts";
 import { toEditorDocument, fromEditorDocument } from "./editor.ts";
 import { parse } from "./parse.ts";
@@ -131,8 +131,8 @@ function commentsWithin(
   if (!Array.isArray(held) || held.length === 0) return [];
   const found: PastedComment[] = [];
   for (const comment of held as readonly Comment[]) {
-    const opens = positionOfElement(doc, comment.start.element, comment.start.offset);
-    const closes = positionOfElement(doc, comment.end.element, comment.end.offset);
+    const opens = positionOfElement(doc, paperIndex(comment.start.element), comment.start.offset);
+    const closes = positionOfElement(doc, paperIndex(comment.end.element), comment.end.offset);
     if (opens === undefined || closes === undefined) continue;
     const start = Math.max(opens, from);
     const end = Math.min(closes, to);
@@ -301,8 +301,8 @@ function payloadFromText(text: string): Payload | undefined {
   const content = doc.content;
   const comments: PastedComment[] = [];
   for (const comment of parsed.comments) {
-    const start = positionOfElement(doc, comment.start.element, comment.start.offset);
-    const end = positionOfElement(doc, comment.end.element, comment.end.offset);
+    const start = positionOfElement(doc, paperIndex(comment.start.element), comment.start.offset);
+    const end = positionOfElement(doc, paperIndex(comment.end.element), comment.end.offset);
     if (start === undefined || end === undefined) continue;
     comments.push({ id: comment.id, remark: comment.remark, start, end });
   }

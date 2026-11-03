@@ -7,7 +7,7 @@
  * own idea of where a scene ends.
  *
  * Indices are into whatever sequence the caller hands over, and the caller
- * says which numbering that is (`place.ts`: the page's, blank lines counted,
+ * says which numbering that is (`numbering.ts`: the paper's, blank lines counted,
  * or the manuscript's). Nothing here knows about ProseMirror.
  *
  * **Cut material takes no part.** A scene heading inside the boneyard is

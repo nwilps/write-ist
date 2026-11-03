@@ -15,10 +15,10 @@ import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { ELEMENT_GEOMETRY, PAGE } from "../../src/screenplay/geometry.ts";
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
 import { layout } from "../../src/screenplay/layout.ts";
+import { manuscriptElements } from "../../src/screenplay/numbering.ts";
 import { paginate, wrapCount } from "../../src/screenplay/paginate.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import {
-  manuscriptStarts,
   sheetBreaks,
   sheetDecorations,
   type SheetBreak,
@@ -76,7 +76,7 @@ describe.each(FIXTURES)("on %s", (name) => {
   });
 
   it("falls where the layout says each page begins", () => {
-    const starts = manuscriptStarts(state.doc);
+    const starts = manuscriptElements(state.doc).map((element) => element.pos);
     expect(starts).toHaveLength(document.elements.length);
     const widgets = sheetDecorations(state.doc, laid, draw)
       .find()

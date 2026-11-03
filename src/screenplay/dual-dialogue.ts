@@ -19,28 +19,11 @@ import { pastedComments, type PastedComment } from "./clipboard.ts";
 import type { ElementType } from "./document.ts";
 import { structural } from "./element-keys.ts";
 import { caretToPair, pairOf, speechAt, type DualPair, type Speech, type SpeechItem } from "./pairing.ts";
-import { positionOfElement } from "./place.ts";
+import { manuscriptElements, paperIndex, positionOfElement, type ManuscriptElement } from "./numbering.ts";
 
 /* --------------------------------------------------------------- the model */
 
-/** One manuscript element in the editor's document. */
-interface Entry {
-  readonly pos: number;
-  readonly node: EditorNode;
-}
-
-/** The elements that are in the file: blank lines the writer stands on are not. */
-function entriesOf(doc: EditorNode): Entry[] {
-  const entries: Entry[] = [];
-  let pos = 0;
-  doc.forEach((node) => {
-    if (node.type.name === "element" && node.content.size > 0) entries.push({ pos, node });
-    pos += node.nodeSize;
-  });
-  return entries;
-}
-
-const itemOf = ({ node }: Entry): SpeechItem => ({
+const itemOf = ({ node }: ManuscriptElement): SpeechItem => ({
   type: node.attrs["type"] as ElementType,
   dual: node.attrs["dual"] === true,
   omitted: node.attrs["omitted"] === true,
@@ -48,14 +31,14 @@ const itemOf = ({ node }: Entry): SpeechItem => ({
 
 /** Everything the commands ask about, worked out once. */
 interface Situation {
-  readonly entries: readonly Entry[];
+  readonly entries: readonly ManuscriptElement[];
   readonly items: readonly SpeechItem[];
   /** The speech `at` is in, as pairing names it. */
   readonly speech: number | undefined;
 }
 
 function situation(state: EditorState, at: number): Situation {
-  const entries = entriesOf(state.doc);
+  const entries = manuscriptElements(state.doc);
   const items = entries.map(itemOf);
   const index = entries.findIndex(({ pos, node }) => at >= pos && at <= pos + node.nodeSize);
   return { entries, items, speech: index === -1 ? undefined : speechAt(items, index) };
@@ -204,8 +187,8 @@ function commentsToCarry(
   if (!Array.isArray(held)) return [];
   const carried: PastedComment[] = [];
   for (const comment of held as readonly Comment[]) {
-    const start = positionOfElement(doc, comment.start.element, comment.start.offset);
-    const end = positionOfElement(doc, comment.end.element, comment.end.offset);
+    const start = positionOfElement(doc, paperIndex(comment.start.element), comment.start.offset);
+    const end = positionOfElement(doc, paperIndex(comment.end.element), comment.end.offset);
     if (start === undefined || end === undefined) continue;
     const block = blocks.find(([from, to]) => start >= from && end <= to);
     if (block === undefined) continue;

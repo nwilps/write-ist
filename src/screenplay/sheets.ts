@@ -16,6 +16,7 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import { PAGE } from "./geometry.ts";
 import { dualDecorations } from "./dual-columns.ts";
 import type { Layout } from "./layout.ts";
+import { manuscriptIndex, startOfManuscriptElement } from "./numbering.ts";
 
 /** One seam: the foot of one sheet, and the head of the next. */
 export interface SheetBreak {
@@ -56,21 +57,6 @@ export function sheetBreaks(laid: Layout): SheetBreak[] {
 }
 
 /**
- * The document position each manuscript element begins at (before its node).
- * Blank lines the writer is standing on are not manuscript elements, and the
- * title page is not an element; the numbering is `manuscriptOf`'s.
- */
-export function manuscriptStarts(doc: EditorNode): number[] {
-  const starts: number[] = [];
-  let at = 0;
-  doc.forEach((child) => {
-    if (child.type.name === "element" && child.content.size > 0) starts.push(at);
-    at += child.nodeSize;
-  });
-  return starts;
-}
-
-/**
  * The seams as decorations. `draw` makes the seam's DOM when the view first
  * needs it; a seam that has not changed keeps the DOM it had, by its key.
  */
@@ -81,10 +67,9 @@ export function sheetDecorations(
 ): DecorationSet {
   const breaks = sheetBreaks(laid);
   if (breaks.length === 0) return DecorationSet.empty;
-  const starts = manuscriptStarts(doc);
   const widgets: Decoration[] = [];
   for (const seam of breaks) {
-    const start = starts[seam.elementIndex];
+    const start = startOfManuscriptElement(doc, manuscriptIndex(seam.elementIndex));
     if (start === undefined) continue;
     // Between elements the seam is before the node; inside one it is that far
     // into its text (the node's own opening takes one position).
@@ -112,6 +97,6 @@ export function paperDecorations(
 ): DecorationSet {
   return sheetDecorations(doc, laid, draw).add(
     doc,
-    dualDecorations(doc, laid, manuscriptStarts(doc)),
+    dualDecorations(doc, laid),
   );
 }
