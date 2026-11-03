@@ -370,6 +370,47 @@ export const TITLE_PAGE_GEOMETRY: Readonly<Record<string, TitlePagePlacement>> =
   },
 };
 
+/** One speech element's place inside one column of a dual-dialogue pair. */
+export interface DualMeasure {
+  /** Characters from the column's left edge to the element's left edge. */
+  readonly indent: number;
+  /** How many characters fit on one of its lines before the text wraps. */
+  readonly width: number;
+}
+
+/**
+ * **Dual dialogue: two speeches side by side.**
+ *
+ * The page's 60 characters are split into two columns of 29 with a gutter of
+ * 2: the left column begins at the margin, the right 31 characters in, and
+ * the right one ends at the page's right margin. Within a column a speech
+ * keeps the order of the single-column page — dialogue is the full column,
+ * a parenthetical is indented a little, a cue a little more — and the same
+ * numbers serve both columns, so the pair is symmetrical.
+ *
+ * **These are not measured.** `Big Fish` has no dual dialogue, so the PDF fixes
+ * nothing here (Brick & Steel has one pair, in Fountain, with no printed
+ * form). They follow the layout screenwriting software has settled on —
+ * two narrow columns filling the measure, dialogue about 2.9in wide — and
+ * the measures are whole characters, so the wrap is exact (ADR-0024).
+ */
+export const DUAL_GEOMETRY = {
+  /** Characters across one column. */
+  columnWidth: 29,
+  /** Characters from the left margin to each column's left edge. */
+  columnStart: { left: 0, right: 31 },
+  speech: {
+    character: { indent: 8, width: 21 },
+    parenthetical: { indent: 3, width: 26 },
+    dialogue: { indent: 0, width: 29 },
+  } satisfies Record<"character" | "parenthetical" | "dialogue", DualMeasure>,
+} as const;
+
+export const dualIndentProperty = (type: keyof typeof DUAL_GEOMETRY.speech): string =>
+  `--dual-indent-${type}`;
+export const dualWidthProperty = (type: keyof typeof DUAL_GEOMETRY.speech): string =>
+  `--dual-width-${type}`;
+
 /** CSS custom property names, so the stylesheet and its test cannot drift. */
 export const indentProperty = (type: ElementType): string => `--indent-${type}`;
 export const widthProperty = (type: ElementType): string => `--width-${type}`;
@@ -446,6 +487,18 @@ export function stylesheet(): string {
     lines.push(`  ${indentProperty(type)}: ${characters(indent)};`);
     lines.push(`  ${widthProperty(type)}: ${characters(width)};`);
     lines.push(`  ${alignProperty(type)}: ${CSS_ALIGNMENT[alignment]};`);
+  }
+
+  lines.push("");
+  lines.push("  /* --- Dual dialogue: two columns across the measure ------------------- */");
+  lines.push("");
+  lines.push(`  --dual-column-width: ${characters(DUAL_GEOMETRY.columnWidth)};`);
+  lines.push(`  --dual-start-left: ${characters(DUAL_GEOMETRY.columnStart.left)};`);
+  lines.push(`  --dual-start-right: ${characters(DUAL_GEOMETRY.columnStart.right)};`);
+  for (const type of Object.keys(DUAL_GEOMETRY.speech) as (keyof typeof DUAL_GEOMETRY.speech)[]) {
+    const { indent, width } = DUAL_GEOMETRY.speech[type];
+    lines.push(`  ${dualIndentProperty(type)}: ${characters(indent)};`);
+    lines.push(`  ${dualWidthProperty(type)}: ${characters(width)};`);
   }
 
   lines.push("");

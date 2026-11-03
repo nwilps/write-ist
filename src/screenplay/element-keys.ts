@@ -119,11 +119,14 @@ function retype(tr: Transaction, node: EditorNode, pos: number, type: ElementTyp
  * `closeHistory` ends the typing run before it; `endsUndoStep` ends the step
  * after it, so typing that follows does not fold back into it.
  */
-function structural(tr: Transaction): Transaction {
+export function structural(tr: Transaction): Transaction {
   return closeHistory(tr).setMeta(STRUCTURAL, true);
 }
 
 const STRUCTURAL = "write-ist:structural";
+
+/** Set by a join that has already written the lower line's hidden syntax into its text. */
+const SPELLED = "write-ist:spelled";
 
 /** Closes the undo step after each structural change; see `structural`. */
 export const endsUndoStep = new Plugin({
@@ -266,6 +269,7 @@ export const joinForwards: Command = (state, dispatch) => {
 function joinAt(state: EditorState, boundary: number, lower: EditorNode) {
   const tr = state.tr;
   spellOutSuffix(tr, lower, boundary);
+  tr.setMeta(SPELLED, true);
   tr.delete(boundary - 1, boundary + 1);
   return tr.setSelection(TextSelection.create(tr.doc, boundary - 1)).scrollIntoView();
 }
@@ -277,6 +281,57 @@ function emptyCaret(state: EditorState) {
   const at = selection.$head;
   return at.parent.type.name === "element" ? at : undefined;
 }
+
+/**
+ * A deletion that joins one line onto another by taking out a stretch that
+ * spans the break — a multi-line selection deleted, typed over, or cut — ends
+ * the lower element, and with it the syntax it carried after its text. If any
+ * of that lower line's text survives onto the line above, the syntax is
+ * written into it, as `joinAt` does for Backspace; if the whole of it was
+ * selected, it was deleted with its caret, and the caret goes too.
+ */
+export const keepHiddenSyntax = new Plugin({
+  appendTransaction: (transactions, _old, state) => {
+    const found: number[] = [];
+    const suffixes: string[] = [];
+    transactions.forEach((transaction, t) => {
+      // Undo and redo replay the appended text with the step that caused it.
+      if (transaction.getMeta("history$") !== undefined) return;
+      if (transaction.getMeta(SPELLED) === true) return;
+      transaction.steps.forEach((_step, s) => {
+        const before = transaction.docs[s]!;
+        const after = transaction.docs[s + 1] ?? transaction.doc;
+        transaction.mapping.maps[s]!.forEach((from, to, newFrom, newTo) => {
+          const $from = before.resolve(from);
+          const $to = before.resolve(to);
+          if ($from.parent === $to.parent) return;
+          if ($from.parent.type.name !== "element" || $to.parent.type.name !== "element") return;
+          // Only a plain deletion or typing-over, where what goes in is text
+          // inside one line: a structural paste carries its own elements.
+          if (after.resolve(newFrom).parent !== after.resolve(newTo).parent) return;
+          const suffix = hiddenSuffix($to.parent.attrs);
+          if (suffix === "" || $to.parentOffset === $to.parent.content.size) return;
+
+          // Where the lower line's text now begins, carried through what follows.
+          let position = transaction.mapping.slice(s + 1).map(newTo);
+          for (const later of transactions.slice(t + 1)) position = later.mapping.map(position);
+          found.push(position);
+          suffixes.push(suffix);
+        });
+      });
+    });
+    if (found.length === 0) return null;
+
+    const tr = state.tr;
+    const order = found.map((_p, i) => i).sort((a, b) => found[b]! - found[a]!);
+    for (const i of order) {
+      const $at = tr.doc.resolve(Math.min(found[i]!, tr.doc.content.size));
+      if ($at.parent.type.name !== "element") continue;
+      tr.insert($at.end(), screenplaySchema.text(suffixes[i]!));
+    }
+    return tr.docChanged ? tr : null;
+  },
+});
 
 /** The keys, as one plugin. */
 export const elementKeys = keymap({

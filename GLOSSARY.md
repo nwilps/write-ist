@@ -76,6 +76,13 @@ The authored text of a draft — the thing the writer types into, and the only a
 survives the app disappearing. Plain text.
 _Avoid_: script, copy, body
 
+**Dual dialogue**:
+Two touching speeches set side by side. The second speech's character cue carries a `^` in the
+file; on the paper the `^` is never shown and the speeches are drawn in two columns
+([ADR-0037](docs/adr/0037-dual-dialogue-is-two-columns-drawn-from-the-flat-sequence.md)). A
+speech is a cue and the parentheticals and dialogue directly after it.
+_Avoid_: split dialogue, simultaneous dialogue
+
 **Sidecar**:
 Everything in a bundle that is not the work itself: comments, notes, plan cards, log entries,
 project metadata. Most of it sits in its own files; a comment is the exception, stored inline

@@ -525,3 +525,76 @@
   color: var(--colour-faint);
   text-decoration: line-through;
 }
+
+/* --- Dual dialogue ------------------------------------------------------- */
+
+/*
+ * Two speeches side by side, drawn from marks the view puts on their blocks
+ * (`src/screenplay/dual-columns.ts`); the `^` is never on the paper. The blocks
+ * are still one after another in the document, so the right-hand speech is
+ * drawn by pulling its cue back up to the left cue's row — `--dual-left-rows`
+ * is how many rows the left speech took, counted by the same wrap the page
+ * count used — and both columns are indented and measured from the generated
+ * `geometry.css`. `--dual-extra` is what the right column falls short of the
+ * left, so that whatever follows clears both.
+ */
+.manuscript > [data-dual-column="left"][data-element="character"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-character));
+  width: var(--dual-width-character);
+}
+
+.manuscript > [data-dual-column="left"][data-element="parenthetical"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-parenthetical));
+  width: var(--dual-width-parenthetical);
+}
+
+.manuscript > [data-dual-column="left"][data-element="dialogue"] {
+  margin-left: calc(var(--dual-start-left) + var(--dual-indent-dialogue));
+  width: var(--dual-width-dialogue);
+}
+
+.manuscript > [data-dual-column="right"][data-element="character"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-character));
+  width: var(--dual-width-character);
+}
+
+.manuscript > [data-dual-column="right"][data-element="parenthetical"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-parenthetical));
+  width: var(--dual-width-parenthetical);
+}
+
+.manuscript > [data-dual-column="right"][data-element="dialogue"] {
+  margin-left: calc(var(--dual-start-right) + var(--dual-indent-dialogue));
+  width: var(--dual-width-dialogue);
+}
+
+.manuscript > [data-dual-column="right"].dual-right-first {
+  margin-top: calc(var(--dual-left-rows) * var(--manuscript-blank) * -1);
+}
+
+.manuscript > .dual-last {
+  padding-bottom: calc(var(--dual-extra) * var(--manuscript-blank));
+}
+
+/*
+ * The link between the two: a thin rule down the gutter, the height of the
+ * band, so the pair reads as one thing and a cue beside a cue is not mistaken
+ * for two scenes. It hangs off the left cue and takes no room.
+ */
+.manuscript > .dual-first {
+  position: relative;
+}
+
+.manuscript > .dual-first::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(
+    var(--dual-start-left) + var(--dual-column-width) +
+      (var(--dual-start-right) - var(--dual-start-left) - var(--dual-column-width)) / 2 -
+      var(--dual-start-left) - var(--dual-indent-character)
+  );
+  height: calc(var(--dual-rows) * var(--manuscript-blank));
+  border-left: var(--rule-thin) solid var(--colour-faint);
+  pointer-events: none;
+}

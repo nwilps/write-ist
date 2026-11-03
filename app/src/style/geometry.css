@@ -67,6 +67,18 @@
   --width-boneyard-end: 61ch;
   --align-boneyard-end: left;
 
+  /* --- Dual dialogue: two columns across the measure ------------------- */
+
+  --dual-column-width: 29ch;
+  --dual-start-left: 0ch;
+  --dual-start-right: 31ch;
+  --dual-indent-character: 8ch;
+  --dual-width-character: 21ch;
+  --dual-indent-parenthetical: 3ch;
+  --dual-width-parenthetical: 26ch;
+  --dual-indent-dialogue: 0ch;
+  --dual-width-dialogue: 29ch;
+
   /* The sheet, for the borders and seams that read it. */
   --page-height: 1056px;
 }

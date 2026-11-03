@@ -28,6 +28,7 @@ import {
 } from "../../src/screenplay/element-keys.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
+import { makeNormalDialogue, swapSpeakers, typedCaret } from "../../src/screenplay/dual-dialogue.ts";
 import { startOfElement } from "../support/editor-positions.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { unwatched } from "../support/unwatched.ts";
@@ -256,5 +257,41 @@ describe("the rest of the syntax, audited", () => {
     const through = editorStateFor(parse(text));
     expect(serialise(manuscriptOf(through.doc))).toBe(text);
     expect(census(serialise(manuscriptOf(through.doc)))).toEqual(census(text));
+  });
+});
+
+describe("dual dialogue made in the editor, saved and reopened", () => {
+  it("keeps a pair made, swapped and unmade through a real save", async () => {
+    const opened = await project("INT. BAR - NIGHT\n\nSTEEL\nHi.\n\nBRICK\nYo.\n");
+    let state = editorStateFor(opened.document);
+    const session = editingSession(nodeFilesystem, opened, () => manuscriptOf(state.doc), unwatched);
+    const save = async () => {
+      session.changed();
+      await session.save();
+      return onDisk(opened.project.path);
+    };
+    const apply = (command: (s: EditorState, d: (tr: import("prosemirror-state").Transaction) => void) => boolean) => {
+      command(state, (tr) => {
+        state = state.apply(tr);
+      });
+    };
+
+    // Typing the caret at the end of BRICK.
+    const end = startOfElement(state, 3) + 5;
+    const typed = typedCaret(state, end, end, "^");
+    expect(typed).toBeDefined();
+    state = state.apply(typed!);
+    const pair = "INT. BAR - NIGHT\n\nSTEEL\nHi.\n\nBRICK ^\nYo.\n";
+    expect(await save()).toBe(pair);
+    expect(census(pair)[3]).toBe("character^:BRICK");
+
+    apply(swapSpeakers(startOfElement(state, 1)));
+    const swapped = "INT. BAR - NIGHT\n\nBRICK\nYo.\n\nSTEEL ^\nHi.\n";
+    expect(await save()).toBe(swapped);
+    const reopened = await openProject(nodeFilesystem, opened.project);
+    expect(census(serialise(reopened.document))).toEqual(census(swapped));
+
+    apply(makeNormalDialogue(startOfElement(state, 1)));
+    expect(await save()).toBe("INT. BAR - NIGHT\n\nBRICK\nYo.\n\nSTEEL\nHi.\n");
   });
 });

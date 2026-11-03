@@ -57,7 +57,8 @@ import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { toggleMark } from "prosemirror-commands";
 import { clipboard, pastedComments } from "./clipboard.ts";
-import { elementKeys, endsUndoStep } from "./element-keys.ts";
+import { dualCaretKey } from "./dual-dialogue.ts";
+import { elementKeys, endsUndoStep, keepHiddenSyntax } from "./element-keys.ts";
 import { maintainElements } from "./maintenance.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
@@ -174,7 +175,7 @@ export function editorStateFor(document: ScreenplayDocument): State {
     selection: startOfScript(doc),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, elementKeys, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut],
   });
 }
 
