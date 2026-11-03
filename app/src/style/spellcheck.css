@@ -1,0 +1,19 @@
+/*
+ * Spellcheck's underline (slice 2, step 10; ADR-0032). **Every value here is a
+ * token** (ADR-0030).
+ *
+ * A decoration on the words, never a character of them: it is not in the file,
+ * the clipboard or the PDF. Thin, wavy and in the alarm colour, so a page full
+ * of unknown names reads as marked and not as shouting.
+ */
+
+.manuscript .spell-error {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--colour-misspelling);
+}
+
+/* *Did you mean MICHAEL?* — a typo of a name the script knows, not a stranger. */
+.manuscript .spell-error--near {
+  text-decoration-color: var(--colour-misspelling-near);
+}

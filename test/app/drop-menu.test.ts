@@ -297,3 +297,22 @@ describe("the menu's look", () => {
     expect(panelsCss).toMatch(/\.desk__column--left \{[^}]*z-index: var\(--layer-menu\)/);
   });
 });
+
+describe("an item that is on or off", () => {
+  it("shows a tick while it is on, asked each time the menu opens", () => {
+    let on = false;
+    const { trigger, list } = build([{ label: "Spellcheck", checked: () => on, act: () => (on = !on) }]);
+    const item = list.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')!;
+    const tick = (): boolean => !item.querySelector(".drop-menu__check")!.hasAttribute("hidden");
+
+    trigger.click();
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    expect(tick()).toBe(false);
+    item.click();
+    expect(on).toBe(true);
+
+    trigger.click();
+    expect(item.getAttribute("aria-checked")).toBe("true");
+    expect(tick()).toBe(true);
+  });
+});

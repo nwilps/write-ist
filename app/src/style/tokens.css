@@ -114,6 +114,14 @@
   /** Something the writer must see. */
   --colour-alarm: #fb4934;
 
+  /**
+   * The line under a word spellcheck does not know (slice 2, step 10). The
+   * alarm colour, but only ever drawn as a thin wavy underline — it marks, and
+   * does not shout. A *Did you mean* near-match is drawn in the accent.
+   */
+  --colour-misspelling: var(--colour-alarm);
+  --colour-misspelling-near: var(--colour-accent);
+
   /** A character's name on the paper. */
   --colour-info: #83a598;
 

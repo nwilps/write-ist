@@ -18,7 +18,7 @@
  * The roles are `menu`, `menuitem` and `separator`, so a screen reader hears a
  * menu.
  */
-import { createElement, type IconNode } from "lucide";
+import { Check, createElement, type IconNode } from "lucide";
 import { element } from "../screens/element.ts";
 import { asksForMenu } from "../screens/shortcuts.ts";
 
@@ -32,6 +32,11 @@ export interface MenuItem {
   readonly act: () => void;
   /** Drawn and doing nothing, and skipped by the arrow keys. */
   readonly unavailable?: boolean;
+  /**
+   * An item that is on or off (Spellcheck). Asked each time the menu opens, so
+   * the mark is true when the writer looks.
+   */
+  readonly checked?: () => boolean;
 }
 
 /** A rule between two groups of items. */
@@ -68,6 +73,7 @@ let showing: DropMenu | undefined;
 /** Make `trigger` open `spec`'s items. */
 export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
   const choices: HTMLButtonElement[] = [];
+  const marks: (() => void)[] = [];
   const list = element("div", { className: "drop-menu", role: "menu", ariaLabel: spec.label, hidden: true });
   for (const entry of spec.items) {
     if (isDivider(entry)) {
@@ -83,6 +89,17 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
       button.append(icon);
     }
     button.append(element("span", { textContent: entry.label }));
+    if (entry.checked !== undefined) {
+      button.setAttribute("role", "menuitemcheckbox");
+      const mark = createElement(Check, { class: "drop-menu__check" });
+      mark.setAttribute("aria-hidden", "true");
+      button.append(mark);
+      marks.push(() => {
+        const on = entry.checked!();
+        button.setAttribute("aria-checked", String(on));
+        mark.toggleAttribute("hidden", !on);
+      });
+    }
     if (entry.hint !== undefined) {
       button.append(element("span", { className: "drop-menu__hint", textContent: entry.hint }));
     }
@@ -168,6 +185,7 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
       if (!list.hidden) return;
       if (showing !== undefined && showing !== menu) showing.close(false);
       showing = menu;
+      for (const mark of marks) mark();
       list.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
       document.addEventListener("pointerdown", outsideClick, true);

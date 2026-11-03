@@ -168,6 +168,7 @@ describe("the Edit and View menus", () => {
   const act = {
     save: vi.fn(), saveCopy: vi.fn(), exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(),
+    toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
   };
   function panel() {
     const panels = sidePanels(undefined, editorMenus(act));
@@ -183,9 +184,9 @@ describe("the Edit and View menus", () => {
     expect(labels("Edit")).toEqual([
       "Edit Title Page…", "—", "Confirm This Name", "Confirm This Location",
     ]);
-    expect(labels("View")).toEqual(["View Title Page"]);
-    // No shortcut is shown that does not exist: only the Confirm items have one.
-    expect(menus["View"]!.every((entry) => !("hint" in entry))).toBe(true);
+    expect(labels("View")).toEqual(["View Title Page", "—", "Spellcheck"]);
+    // No shortcut is shown that does not exist: only Spellcheck has one here.
+    expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + ;]"]);
     expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([
       "[Ctrl + K]", "[Ctrl + K]",
     ]);

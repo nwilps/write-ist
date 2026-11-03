@@ -84,7 +84,10 @@ import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
-import { asksToConfirm, asksToSave, asksToSearch } from "../../screens/shortcuts.ts";
+import { asksToConfirm, asksToSave, asksToSearch, asksToToggleSpelling } from "../../screens/shortcuts.ts";
+import { DEFAULT_PREFERENCES } from "../../../../src/preferences.ts";
+import { Spellcheck } from "../../../../src/screenplay/spellcheck.ts";
+import { tauriSpellEngine } from "../../spell-tauri.ts";
 import { message } from "../../screens/trouble.ts";
 import type {
   MountedWorkspace,
@@ -121,6 +124,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let viewTitlePage = (): void => {};
   // Likewise confirming a name: nothing to confirm in until it has been read.
   let confirmHere = (_kind: NameKind): void => {};
+  // Likewise the spelling pass (step 10): off, and nothing to toggle, until read.
+  let toggleSpelling = (): void => {};
+  let spellingOn = (): boolean => false;
   const panels = sidePanels(
     () => startSearch(),
     editorMenus({
@@ -133,6 +139,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       viewTitlePage: () => viewTitlePage(),
       confirmName: () => confirmHere("character"),
       confirmLocation: () => confirmHere("location"),
+      toggleSpellcheck: () => toggleSpelling(),
+      spellcheckOn: () => spellingOn(),
     }),
   );
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
@@ -157,7 +165,18 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // Autocomplete (step 9) reads the lists below, which are made after this and
       // replaced on reload — hence a getter and not the lists themselves.
       const autocomplete = { names: () => names, draw: drawOffer };
-      let state = editorStateFor(opened.document, { autocomplete });
+      // Spellcheck (step 10): off until the writer asks, our own engine in
+      // Rust, and the confirmed names are known words. Never writes to the text.
+      const spellcheck = new Spellcheck({
+        engine: tauriSpellEngine,
+        names: () => names,
+        pause: DEFAULT_PREFERENCES.spellcheckPauseMs,
+        spelling: {
+          nearDistance: DEFAULT_PREFERENCES.spellcheckNearDistance,
+          nearMinLength: DEFAULT_PREFERENCES.spellcheckNearMinLength,
+        },
+      });
+      let state = editorStateFor(opened.document, { autocomplete, spellcheck });
       // The character and location lists (slice 2, step 8), derived from the
       // model and kept up to date by the elements each edit changed. Autocomplete
       // offers from them; spellcheck (step 10) will read them too. What the
@@ -195,11 +214,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // screenplay now. A fresh state, so undo cannot walk back into the
         // version that was replaced.
         reload: (imported) => {
-          state = editorStateFor(imported.document, { autocomplete });
+          const spellingWasOn = spellcheck.isOn(state);
+          state = editorStateFor(imported.document, { autocomplete, spellcheck });
           names = namesOf(state.doc, { explicit: confirmed });
           laid = layout(imported.document);
           seams = paperDecorations(state.doc, laid, drawSheetBreak);
           view?.updateState(state);
+          if (spellingWasOn && view !== undefined) spellcheck.setOn(view, true);
           panels.update(state);
           showPages();
         },
@@ -335,6 +356,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // surface's keymap because *when to save* belongs to the workspace
         // that owns the project, not to the screenplay surface.
         handleKeyDown: (_editor, event) => {
+          if (asksToToggleSpelling(event)) {
+            toggleSpelling();
+            return true;
+          }
           if (asksToConfirm(event)) {
             confirmHere(confirmableKind());
             return true;
@@ -348,11 +373,19 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
-        attributes: { class: "manuscript" },
+        // The webview's own spellcheck is off: spelling is Write-ist's, on
+        // demand, from the dictionaries inside the application (ADR-0032).
+        attributes: { class: "manuscript", spellcheck: "false" },
       });
       panels.attach(view);
       panels.update(state);
       showPages();
+      toggleSpelling = () => {
+        if (view === undefined) return;
+        spellcheck.toggle(view);
+        view.focus();
+      };
+      spellingOn = () => view !== undefined && spellcheck.isOn(view.state);
       saveNow = () => {
         void saving.now();
         view?.focus();
@@ -389,6 +422,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             }
           });
         }
+        // A confirmed name is a known word now, and a near-match of it a typo.
+        spellcheck.refresh(view);
         view.focus();
       };
 

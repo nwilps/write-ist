@@ -9,7 +9,7 @@
  * shortcuts is the bug this seam exists to keep out.
  */
 import { describe, expect, it } from "vitest";
-import { asksToConfirm, asksToSave, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
+import { asksToConfirm, asksToSave, asksToToggleSpelling, chosenBy, shortcutOf, type Gesture } from "../../app/src/screens/shortcuts.ts";
 
 /** A key press as the window reports it, with nothing held down. */
 function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shift", true>> = {}) {
@@ -114,5 +114,22 @@ describe("the writer confirming a name or location (slice 2, step 8)", () => {
     expect(asksToConfirm(press("k"))).toBe(false);
     expect(asksToConfirm(press("k", { ctrl: true, alt: true }))).toBe(false);
     expect(asksToConfirm(press("s", { ctrl: true }))).toBe(false);
+  });
+});
+
+describe("the spelling pass (slice 2, step 10)", () => {
+  it("is Ctrl+; or Cmd+;", () => {
+    expect(asksToToggleSpelling(press(";", { ctrl: true }))).toBe(true);
+    expect(asksToToggleSpelling(press(";", { meta: true }))).toBe(true);
+  });
+
+  it("is not a bare semicolon, which is the writer typing", () => {
+    expect(asksToToggleSpelling(press(";"))).toBe(false);
+    expect(asksToToggleSpelling(press(";", { shift: true }))).toBe(false);
+  });
+
+  it("is not Alt+Ctrl+;, and not another key", () => {
+    expect(asksToToggleSpelling(press(";", { ctrl: true, alt: true }))).toBe(false);
+    expect(asksToToggleSpelling(press("k", { ctrl: true }))).toBe(false);
   });
 });

@@ -139,12 +139,22 @@ stopped at the element boundary (#26).
 - [x] **Name lists** — characters and locations derived from the cues and headings, confirmed after
       three uses or by the writer, kept up to date from the elements each edit changed
       (`names.ts`, `names-sync.ts`); the writer's confirmations in `names.txt`. Spellcheck
-      (step 10) reads them; it is not built.
+      (step 10) reads them.
 - [x] **Autocomplete** — a confirmed character finishes a cue; a heading is finished in pieces
       (`INT.`/`EXT.`, a confirmed location, a time of day). Ghost text and a short list drawn as a
       widget decoration, never in the document; Tab/Enter accept as one undo step, Esc closes
       (`src/screenplay/autocomplete.ts`, `app/src/workspaces/editor/autocomplete-draw.ts`; slice 2,
       step 9). Times of day are the built-in vocabulary only; the script's own are not yet derived.
+- [x] **Spellcheck** — off by default; Ctrl/Cmd+; or View ▸ Spellcheck toggles a pass that
+      underlines misspelt words on screen only (a decoration, never in the file, the clipboard or
+      the PDF). The engine is `spellbook` (MPL-2.0) in Rust behind a small `SpellEngine` trait,
+      with SCOWL `en_US` compiled in beside its licence, off the UI thread, offline
+      (`src-tauri/src/spelling.rs`, `src/screenplay/spelling.ts`, `src/screenplay/spellcheck.ts`;
+      slice 2, step 10, ADR-0032). Confirmed names and locations are known words; a typo of one
+      is "Did you mean MICHAEL?". The custom dictionary is `custom-words.txt` in the app's local
+      data folder. **Not built:** the right-click menu (ADR-0034, #105) — `suggestionsAt`,
+      `replaceWord` and `addToDictionary` are the commands it will call; `en_GB`; a keyboard way
+      to reach suggestions (the spec has none).
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
       written to a file (#39). Comment ends were still element *indices*, which nothing moved

@@ -92,3 +92,15 @@
   margin: calc(var(--space-row-gap) / 2) var(--space-row-label);
   background: var(--colour-border);
 }
+
+/* An item that is on or off shows a tick while it is on. */
+.drop-menu__check {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+  color: var(--colour-accent);
+}
+
+.drop-menu__check[hidden] {
+  display: none;
+}
