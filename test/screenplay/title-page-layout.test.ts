@@ -58,10 +58,28 @@ describe("the title page's placements (#62)", () => {
   });
 
   it("stacks keys it has no row for at the top of the page", () => {
-    const stacked = runs("Draft date: today\nRevision: Blue\n\nx");
+    const stacked = runs("Revision: Blue\nTagline: one\n\nx");
     expect(stacked.map((run) => [run.text, run.y])).toEqual([
-      ["today", 81],
-      ["Blue", 93],
+      ["Blue", 81],
+      ["one", 93],
+    ]);
+  });
+
+  it("sets Draft date bottom-left, one empty line above Contact", () => {
+    const both = runs("Draft date: today\nContact:\n\tA\n\tB\n\nx");
+    expect(both.map((run) => [run.text, run.x, run.y])).toEqual([
+      ["today", 72, 621],
+      ["A", 72, 645],
+      ["B", 72, 657],
+    ]);
+    // Exactly one empty line (one leading of blank) between the two.
+    expect(645 - 621).toBe(2 * PAGE.leadingPoints);
+    // A several-line date grows upward, keeping its last line the same distance from Contact.
+    const tall = runs("Draft date:\n\tone\n\ttwo\nContact: me\n\nx");
+    expect(tall.map((run) => [run.text, run.y])).toEqual([
+      ["one", 609],
+      ["two", 621],
+      ["me", 645],
     ]);
   });
 });

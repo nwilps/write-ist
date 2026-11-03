@@ -3,7 +3,7 @@
  *
  * Built like the New Project dialog: a modal `<dialog>`, Escape cancels it
  * natively, Enter in a one-line box saves. A box that can hold several lines
- * (Author, Contact, Notes, Other — and any value that already has more than
+ * (Author, Contact, Notes — and any value that already has more than
  * one) is a text area, where Enter is a new line and Ctrl+Enter saves. What a
  * value *means* — marks, continuation indent, keys the dialog has no box for —
  * is `src/screenplay/title-page.ts`'s; this draws and listens.
@@ -36,7 +36,6 @@ const LABELS: Readonly<Record<TitlePageKey, string>> = {
   Source: "Source",
   "Draft date": "Draft date",
   Contact: "Contact",
-  Copyright: "Copyright",
   Notes: "Notes",
 };
 
@@ -66,13 +65,6 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
     boxes.set(key, box);
     return field(id, LABELS[key], box);
   });
-  const other = element("textarea", {
-    id: "title-page-other",
-    className: "field__input field__input--lines",
-    rows: 2,
-    spellcheck: false,
-    value: opened.other,
-  });
 
   const view = element("button", { className: "button", type: "button", textContent: "View" });
   const cancel = element("button", { className: "button", type: "button", textContent: "Cancel" });
@@ -81,7 +73,7 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
 
   const form = element("form", { className: "new-project__form title-page__form" }, [
     element("h2", { className: "report__heading", textContent: "Edit Title Page" }),
-    element("div", { className: "title-page__fields" }, [...rows, field(other.id, "Other fields (Key: value)", other)]),
+    element("div", { className: "title-page__fields" }, rows),
     problem,
     element("div", { className: "report__actions new-project__actions" }, [view, cancel, save]),
   ]);
@@ -93,11 +85,11 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
       TitlePageKey,
       string
     >;
-    const typed: TitlePageForm = { values, other: other.value };
+    const typed: TitlePageForm = { values };
     return applyForm(options.titlePage, typed);
   };
   const say = (words: string): void => problem.replaceChildren(trouble(words));
-  for (const box of [...boxes.values(), other]) box.addEventListener("input", () => problem.replaceChildren());
+  for (const box of boxes.values()) box.addEventListener("input", () => problem.replaceChildren());
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();

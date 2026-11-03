@@ -52,14 +52,13 @@ describe("Edit Title Page", () => {
     const { modal, box } = opened();
     const labels = [...modal.querySelectorAll("label")].map((l) => l.textContent);
     expect(labels).toEqual([
-      "Title", "Credit", "Author(s)", "Source", "Draft date", "Contact", "Copyright", "Notes",
-      "Other fields (Key: value)",
+      "Title", "Credit", "Author(s)", "Source", "Draft date", "Contact", "Notes",
     ]);
     expect(box("title").value).toBe("_**BRICK & STEEL**_\n_**FULL RETIRED**_");
     expect(box("credit").value).toBe("Written by");
     expect(box("author").value).toBe("Stu");
     expect(box("draft-date").value).toBe("");
-    expect(box("other").value).toBe("Revision: Blue");
+    expect(modal.querySelector("#title-page-other, #title-page-copyright")).toBeNull();
     // A value with several lines is never squashed into a one-line input.
     expect(box("title").tagName).toBe("TEXTAREA");
     expect(box("credit").tagName).toBe("INPUT");
@@ -119,15 +118,6 @@ describe("Edit Title Page", () => {
     second.modal.close();
     expect(second.save).not.toHaveBeenCalled();
     expect(second.closed).toHaveBeenCalledTimes(1);
-  });
-
-  it("says what is wrong with Other and stays open", () => {
-    const { modal, save, type, submit } = opened();
-    type("other", "just words");
-    submit();
-    expect(save).not.toHaveBeenCalled();
-    expect(modal.hasAttribute("open")).toBe(true);
-    expect(modal.textContent).toContain("Key: value");
   });
 
   it("previews what is typed now, saved or not, without saving", () => {

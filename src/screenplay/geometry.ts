@@ -297,6 +297,12 @@ export interface TitlePagePlacement {
    * wrote it. Continuation lines add `PAGE.leadingPoints` per step.
    */
   readonly yPoints: number;
+  /**
+   * When true, `yPoints` is the baseline of the field's *last* line and earlier
+   * lines stack upward from it, so the field's bottom edge stays put however
+   * many lines it has.
+   */
+  readonly growsUp?: boolean;
   readonly source: string;
 }
 
@@ -353,6 +359,14 @@ export const TITLE_PAGE_GEOMETRY: Readonly<Record<string, TitlePagePlacement>> =
     yPoints: 645,
     source:
       "Same place as Copyright: left at 1.0in (#62 acceptance). Big Fish carries no Contact line, so the y is Copyright's; a Contact block stacks on the leading from there.",
+  },
+  "Draft date": {
+    alignment: "left",
+    xInches: 1.0,
+    yPoints: 645 - 2 * PAGE.leadingPoints,
+    growsUp: true,
+    source:
+      "Bottom-left block, directly above Contact with exactly one empty line between: its last baseline is two leadings above Contact's first (645 - 24 = 621pt). Not measured from Big Fish, which has no Draft date.",
   },
 };
 

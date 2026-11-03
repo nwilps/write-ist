@@ -111,24 +111,26 @@ describe("editing one field", () => {
 describe("keys the dialog has no box for", () => {
   const TEXT = "Title: x\nRevision: Blue\nTagline: one\n\tof two\nTitle: again\nContact:\n\tA\n\tB\n\tC\n\nHe waits.\n";
 
-  it("lists them, and a repeated key, under Other", () => {
-    const form = formOf(parse(TEXT).titlePage);
+  it("are not in the form, a repeated key or Copyright included", () => {
+    const form = formOf(parse(TEXT + "").titlePage);
     expect(form.values.Title).toBe("x");
-    expect(form.other).toBe("Revision: Blue\nTagline: one\n\tof two\nTitle: again");
+    expect(Object.keys(form)).toEqual(["values"]);
+    expect(TITLE_PAGE_KEYS).not.toContain("Copyright");
   });
 
   it("survives a save that changes something else, in place", () => {
     expect(saved(TEXT, (f) => withValue(f, "Title", "y"))).toBe(TEXT.replace("Title: x", "Title: y"));
   });
 
-  it("survives an edit to Other itself", () => {
-    const after = saved(TEXT, (f) => ({ ...f, other: "Revision: Pink" }));
-    expect(after).toBe("Title: x\nRevision: Pink\nContact:\n\tA\n\tB\n\tC\n\nHe waits.\n");
+  it("Copyright stays in the file, in place, through an edit to a neighbour", () => {
+    const text = "Title: x\nCopyright: (c) 2003\nContact: me\n\nHe waits.\n";
+    expect(saved(text, (f) => withValue(f, "Contact", "you"))).toBe(text.replace("me", "you"));
+    expect(saved(text, (f) => withValue(f, "Title", ""))).toBe("Copyright: (c) 2003\nContact: me\n\nHe waits.\n");
   });
 
-  it("refuses an Other that is not Key: value lines", () => {
-    const applied = applyForm(parse(TEXT).titlePage, { ...formOf(parse(TEXT).titlePage), other: "just words" });
-    expect("problem" in applied).toBe(true);
+  it("every one stays untouched when a box is changed or added", () => {
+    const after = saved(TEXT, (f) => withValue(withValue(f, "Credit", "by"), "Title", "y"));
+    expect(after).toBe(TEXT.replace("Title: x", "Title: y").replace("Contact:", "Credit: by\nContact:"));
   });
 });
 

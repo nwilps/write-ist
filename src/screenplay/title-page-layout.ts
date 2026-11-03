@@ -84,7 +84,7 @@ export function titlePageRuns(titlePage: readonly TitlePageField[]): readonly Ti
         left = PAGE.marginLeftInches * 72;
         baseline = TOP_BASELINE + unplaced++ * PAGE.leadingPoints;
       } else {
-        baseline = placement.yPoints + at * PAGE.leadingPoints;
+        baseline = placement.yPoints + (placement.growsUp ? at - (lines.length - 1) : at) * PAGE.leadingPoints;
         left =
           placement.alignment === "centre"
             ? SHEET_POINTS.width / 2 - width / 2

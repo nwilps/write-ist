@@ -12,8 +12,9 @@
  * holds what it was opened with keeps the very object it had, so Save with
  * nothing changed is the same title page (byte-identical file), and a field
  * with oddities the form cannot show — an unusual space after the colon —
- * survives edits to its neighbours. Keys with no box, and a key repeated, go to
- * "Other" and survive the same way (ADR-0020: the writer's words are theirs).
+ * survives edits to its neighbours. Keys with no box (Copyright among them), and
+ * a key repeated, are not shown at all and stay in the file exactly as they
+ * were (ADR-0020: the writer's words are theirs).
  */
 import type { TitlePageField } from "./document.ts";
 import { TITLE_PAGE_CONTINUATION_INDENT } from "./document.ts";
@@ -29,16 +30,14 @@ export const TITLE_PAGE_KEYS = [
   "Source",
   "Draft date",
   "Contact",
-  "Copyright",
   "Notes",
 ] as const;
 
 export type TitlePageKey = (typeof TITLE_PAGE_KEYS)[number];
 
-/** What the dialog shows: one text per key, and the rest as `Key: value` lines. */
+/** What the dialog shows: one text per key. */
 export interface TitlePageForm {
   readonly values: Readonly<Record<TitlePageKey, string>>;
-  readonly other: string;
 }
 
 const canonical = (key: string): TitlePageKey | undefined =>
@@ -60,24 +59,13 @@ function valueOf(field: TitlePageField): string {
   return lines.filter((line) => line.trim() !== "").join("\n");
 }
 
-function otherFields(titlePage: readonly TitlePageField[]): TitlePageField[] {
-  const own = new Set(representatives(titlePage).values());
-  return titlePage.filter((field) => !own.has(field));
-}
-
 /** The fields as the dialog opens: what the file says, in boxes. */
 export function formOf(titlePage: readonly TitlePageField[]): TitlePageForm {
   const own = representatives(titlePage);
   const values = Object.fromEntries(
     TITLE_PAGE_KEYS.map((key) => [key, own.has(key) ? valueOf(own.get(key)!) : ""]),
   ) as Record<TitlePageKey, string>;
-  const other = serialise({
-    titlePage: otherFields(titlePage),
-    elements: [],
-    comments: [],
-    endsWithNewline: false,
-  });
-  return { values, other };
+  return { values };
 }
 
 /** A box's text as a field, built by the parser; undefined when the box is empty. */
@@ -87,22 +75,6 @@ function fieldOf(key: string, value: string): TitlePageField | undefined {
   const [first, ...rest] = lines as [string, ...string[]];
   const text = [`${key}: ${first}`, ...rest.map((line) => TITLE_PAGE_CONTINUATION_INDENT + line)].join("\n");
   return parse(text).titlePage[0];
-}
-
-/** "Other" as fields, or the reason it is not `Key: value` lines. */
-export function parseOther(text: string): { fields: readonly TitlePageField[] } | { problem: string } {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
-  if (lines.length === 0) return { fields: [] };
-  // A line that is neither `Key: value` nor indented would be quietly read as
-  // a continuation of the field above it; say so instead.
-  const wellFormed = lines.every((line, at) =>
-    /^\s/.test(line) ? at > 0 : /^[^\s:][^:]*:/.test(line),
-  );
-  const parsed = parse(lines.join("\n"));
-  if (!wellFormed || parsed.elements.length > 0 || parsed.titlePage.length === 0) {
-    return { problem: "Other fields are written as “Key: value”, one to a line; a continuation line starts with a tab." };
-  }
-  return { fields: parsed.titlePage };
 }
 
 /**
@@ -119,32 +91,16 @@ export function applyForm(
   const opened = formOf(titlePage);
   const own = representatives(titlePage);
 
-  let other: readonly TitlePageField[] | undefined;
-  if (form.other !== opened.other) {
-    const parsed = parseOther(form.other);
-    if ("problem" in parsed) return parsed;
-    other = parsed.fields;
-  }
-  // Unchanged "Other" keeps its original fields, in the places they were.
-  const originalOthers = new Set(otherFields(titlePage));
-
   const result: TitlePageField[] = [];
   const placed = new Set<TitlePageKey>();
-  let othersWritten = false;
-  const writeOthers = (): void => {
-    if (othersWritten || other === undefined) return;
-    othersWritten = true;
-    result.push(...other);
-  };
 
   for (const field of titlePage) {
-    if (originalOthers.has(field)) {
-      // Changed "Other" is written once, where the first of the old ones stood.
-      if (other === undefined) result.push(field);
-      else writeOthers();
+    const key = canonical(field.key);
+    // No box for it, or not the box's field: the file's own, untouched.
+    if (key === undefined || own.get(key) !== field) {
+      result.push(field);
       continue;
     }
-    const key = canonical(field.key)!;
     placed.add(key);
     if (form.values[key] === opened.values[key]) {
       result.push(field);
@@ -165,7 +121,6 @@ export function applyForm(
     });
     result.splice(after === -1 ? result.length : after, 0, added);
   }
-  if (other !== undefined && !othersWritten) result.push(...other);
   return { titlePage: result };
 }
 

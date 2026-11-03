@@ -14,7 +14,6 @@ import { joinBackwards } from "../../src/screenplay/element-keys.ts";
 import { layout } from "../../src/screenplay/layout.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
-import { parseOther } from "../../src/screenplay/title-page.ts";
 import {
   hiddenTitlePage,
   setTitlePage,
@@ -114,9 +113,4 @@ describe("saving the title page from the dialog", () => {
       "Title: a much longer title\nAuthor: me\n\nHe [[waits]] here.\n",
     );
   });
-});
-
-it("reads Other as a title page or says why not", () => {
-  expect("fields" in parseOther("Revision: Blue")).toBe(true);
-  expect("problem" in parseOther("Revision: Blue\n\nAction text here")).toBe(true);
 });
