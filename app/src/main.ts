@@ -25,6 +25,7 @@ import "./style/menus.css";
 // project, and this is the file where both words are in play.
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { createProject } from "../../src/project/create.ts";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
@@ -65,6 +66,7 @@ let shell: MountedShell | undefined;
 /** Undefined until the default location has been read. */
 let listing: ProjectsListing | undefined;
 let importing = false;
+let creating = false;
 /** A project on its way closed: its last save is still running. */
 let closing = false;
 let trouble: string | undefined;
@@ -122,7 +124,9 @@ function draw(): void {
       : renderOpenProject(into, {
           listing,
           importing,
+          creating,
           trouble,
+          onCreate: () => void createOne(),
           onImport: () => void importOne(),
           onOpen: goToProject,
           onBack: () => go("home"),
@@ -250,6 +254,26 @@ async function readProjects(): Promise<string | undefined> {
     return listing === undefined
       ? `Write-ist could not read its projects folder. ${message(error)}`
       : `Write-ist could not read its projects folder again, so this list may be out of date. ${message(error)}`;
+  }
+}
+
+/** Make an empty screenplay, and open it so the writer can start typing. */
+async function createOne(): Promise<void> {
+  if (creating || importing) return;
+  creating = true;
+  trouble = undefined;
+  draw();
+  try {
+    const project = await createProject(
+      { filesystem: tauriFilesystem, newProjectId },
+      await defaultProjectsDirectory(),
+    );
+    creating = false;
+    goToProject(project);
+  } catch (error) {
+    creating = false;
+    trouble = `A new project could not be made, so nothing was changed. ${message(error)}`;
+    draw();
   }
 }
 

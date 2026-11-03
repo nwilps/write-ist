@@ -263,7 +263,16 @@ body {
 }
 
 .project:hover .project__name,
-.project:focus-visible .project__name {
+.project:focus-visible .projects--new {
+  margin-bottom: var(--space-tight);
+}
+
+.project--new:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.project__name {
   color: var(--colour-accent);
 }
 

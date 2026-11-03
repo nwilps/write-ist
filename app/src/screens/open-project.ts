@@ -35,12 +35,16 @@ export interface OpenProjectScreen {
   readonly listing: ProjectsListing | undefined;
   /** What the writer does here: bring a screenplay in. */
   readonly onImport: () => void;
+  /** Make an empty screenplay and open it. */
+  readonly onCreate: () => void;
   /** Open one of them, which is what the list is for. */
   readonly onOpen: (project: Project) => void;
   /** Back to the home screen. */
   readonly onBack: () => void;
   /** Set while an import is running, so it cannot be started twice. */
   readonly importing: boolean;
+  /** Set while a new project is being made, so it cannot be made twice. */
+  readonly creating?: boolean;
   /** Something went wrong, in words the writer can act on. */
   readonly trouble?: string;
 }
@@ -73,6 +77,7 @@ export function renderOpenProject(
         // rule 3's instinct applied to the screen. Once a read has succeeded,
         // "No projects yet" is a claim someone made good on, and a later read
         // that fails says so beneath the list rather than emptying it.
+        ...(listing === undefined ? [] : [newProjectRow(screen.onCreate, screen.creating === true)]),
         ...(listing === undefined
           ? trouble === undefined
             ? [reading()]
@@ -122,6 +127,26 @@ function projectsList(
   );
 }
 
+/**
+ * The first row of the list: the same shape as a project, so it reads as the
+ * way to add one. A real button, like the rows beneath it.
+ */
+function newProjectRow(onCreate: () => void, creating: boolean): HTMLElement {
+  const row = element(
+    "button",
+    { className: "project project--new", type: "button", disabled: creating },
+    [
+      element("span", {
+        className: "project__name",
+        textContent: creating ? "Creating…" : "New Project",
+      }),
+      element("span", { className: "project__format", textContent: "Screenplay" }),
+    ],
+  );
+  row.addEventListener("click", onCreate);
+  return element("div", { className: "projects projects--new" }, [row]);
+}
+
 function reading(): HTMLElement {
   return element("p", { className: "reading", textContent: "Reading your projects…" });
 }
@@ -131,7 +156,7 @@ function nothingYet(): HTMLElement {
     element("p", { textContent: "No projects yet." }),
     element("p", {
       textContent:
-        "Import a screenplay to start one. The file you import from is left exactly as it is.",
+        "Choose New Project to start one, or import a screenplay. The file you import from is left exactly as it is.",
     }),
   ]);
 }
