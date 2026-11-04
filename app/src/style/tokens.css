@@ -303,6 +303,8 @@
 :root {
   /** The list a File, Edit or View row opens: 280px, beside the left column. */
   --size-menu: 280px;
+  /* One pixel: the unit a measured coordinate (the right-click menu's) is given in. */
+  --size-pixel: 1px;
   /** Its outline is the desk's colour, to part it from the paper it overlaps. */
   --rule-menu: 2px;
   /** Above the paper and the panels' neighbours, below the search dialog. */

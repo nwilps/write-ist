@@ -266,6 +266,13 @@ color and margins, and where text sits on it. It is how the manuscript looks, no
 it: a **Page** is the counted fact, the Paper is the surface the writer sees.
 _Avoid_: canvas, sheet, page (that is the counted unit)
 
+**Context menu**:
+The menu that opens where the writer right-clicks the paper (or at the caret, from the Menu key). It
+is Write-ist's own, drawn from the same list as File, Edit and View, and its items are the command
+table's entries that carry a `context` (ADR-0039). The webview's own right-click menu is never shown on
+the paper.
+_Avoid_: popup
+
 **Spacing table**:
 The one table of how many blank lines the paper and the PDF leave between two adjacent elements,
 keyed by the pair of element types (the one above, the one below), with whether the writer may

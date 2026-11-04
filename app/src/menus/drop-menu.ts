@@ -6,8 +6,8 @@
  * moves and closes is here, once, so Edit and View arrive as a list of items
  * and nothing else.
  *
- * These are application menus, not context menus: ADR-0034's right-click work
- * is separate and takes nothing over here.
+ * The list is `menuList`, which the context menu (`context-menu.ts`, ADR-0034)
+ * draws too: one look and one set of keys for every menu Write-ist has.
  *
  * **Keyboard first, because a drawn menu has to do what a native one did**
  * (ADR-0034's largest cost). Enter, Space or the down arrow on the row opens it
@@ -67,14 +67,49 @@ export interface DropMenu {
 
 const isDivider = (entry: MenuEntry): entry is MenuDivider => "divider" in entry;
 
-/** Only one menu is open at a time; opening another closes this one. */
-let showing: DropMenu | undefined;
+/** Anything that can be told to close, for the rule that only one menu is open. */
+interface Closable {
+  readonly close: (returnFocus?: boolean) => void;
+}
 
-/** Make `trigger` open `spec`'s items. */
-export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
+/** Only one menu is open at a time; opening another closes this one. */
+let showing: Closable | undefined;
+
+/** Make `menu` the one that is open, closing whichever was. */
+export function claimMenu(menu: Closable): void {
+  if (showing !== undefined && showing !== menu) showing.close(false);
+  showing = menu;
+}
+
+/** Say `menu` has closed. */
+export function releaseMenu(menu: Closable): void {
+  if (showing === menu) showing = undefined;
+}
+
+/** The list a menu draws, and what the keyboard does in it. */
+export interface MenuList {
+  readonly list: HTMLElement;
+  /** Ask each ticked item whether it is on, so the marks are true when the writer looks. */
+  readonly refresh: () => void;
+  /** Move focus: by a step, or to the first or last item that can be chosen. */
+  readonly move: (by: number | "first" | "last") => void;
+}
+
+/**
+ * The list itself — items, rules, icons, ticks, hints, and the arrow keys —
+ * which the drop-down menus and the context menu share, so that they look and
+ * behave as one design. `close` is what choosing an item, Escape and Tab do to
+ * the menu; what *opens* it is the caller's.
+ */
+export function menuList(
+  spec: Pick<MenuSpec, "label" | "items">,
+  close: (returnFocus: boolean) => void,
+): MenuList {
   const choices: HTMLButtonElement[] = [];
   const marks: (() => void)[] = [];
   const list = element("div", { className: "drop-menu", role: "menu", ariaLabel: spec.label, hidden: true });
+  // Focusable, so a menu opened by the pointer can still be walked by the arrows.
+  list.tabIndex = -1;
   for (const entry of spec.items) {
     if (isDivider(entry)) {
       list.append(element("div", { className: "drop-menu__divider", role: "separator" }));
@@ -105,7 +140,7 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
     }
     button.addEventListener("click", () => {
       // Focus goes back first so that an action which moves it elsewhere wins.
-      menu.close(true);
+      close(true);
       entry.act();
     });
     choices.push(button);
@@ -113,20 +148,22 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
   }
   const reachable = (): HTMLButtonElement[] => choices.filter((choice) => !choice.disabled);
 
-  trigger.setAttribute("aria-haspopup", "menu");
-  trigger.setAttribute("aria-expanded", "false");
-
-  const outsideClick = (event: Event): void => {
-    if (event.target instanceof Node && anchor.contains(event.target)) return;
-    menu.close(false);
-  };
-
   const move = (by: number | "first" | "last"): void => {
     const here = reachable();
     if (here.length === 0) return;
     const at = here.indexOf(document.activeElement as HTMLButtonElement);
+    // Focus on the list and not on an item (a menu opened by the pointer): down
+    // goes to the first item and up to the last.
     const next =
-      by === "first" ? 0 : by === "last" ? here.length - 1 : (at + by + here.length) % here.length;
+      by === "first"
+        ? 0
+        : by === "last"
+          ? here.length - 1
+          : at < 0
+            ? by > 0
+              ? 0
+              : here.length - 1
+            : (at + by + here.length) % here.length;
     here[next]?.focus();
   };
 
@@ -146,11 +183,11 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
         break;
       case "Escape":
         // Closes the menu and stops there: the window would close the project.
-        menu.close(true);
+        close(true);
         break;
       case "Tab":
         // Leaves the menu, and the Tab goes on to do what a Tab does.
-        menu.close(true);
+        close(true);
         return;
       default:
         return;
@@ -158,6 +195,21 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
     event.preventDefault();
     event.stopPropagation();
   });
+
+  return { list, refresh: () => marks.forEach((mark) => mark()), move };
+}
+
+/** Make `trigger` open `spec`'s items. */
+export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
+  const { list, refresh, move } = menuList(spec, (returnFocus) => menu.close(returnFocus));
+
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const outsideClick = (event: Event): void => {
+    if (event.target instanceof Node && anchor.contains(event.target)) return;
+    menu.close(false);
+  };
 
   trigger.addEventListener("click", () => (menu.isOpen() ? menu.close(true) : menu.open()));
   trigger.addEventListener("keydown", (event) => {
@@ -183,9 +235,8 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
     anchor,
     open: () => {
       if (!list.hidden) return;
-      if (showing !== undefined && showing !== menu) showing.close(false);
-      showing = menu;
-      for (const mark of marks) mark();
+      claimMenu(menu);
+      refresh();
       list.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
       document.addEventListener("pointerdown", outsideClick, true);
@@ -196,7 +247,7 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
       list.hidden = true;
       trigger.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", outsideClick, true);
-      if (showing === menu) showing = undefined;
+      releaseMenu(menu);
       if (returnFocus) trigger.focus();
     },
     isOpen: () => !list.hidden,

@@ -9,6 +9,8 @@ left.** The writer sees one menu, in Write-ist's look, on every platform.
 the application is going so that nothing built meanwhile points the other way.** The work is tracked
 as later work in [issue #105](https://github.com/nwilps/write-ist/issues/105).
 
+**Update, 2026-11-03: the menu on the paper is built — [ADR-0039](0039-the-paper-has-a-right-click-menu-read-from-the-command-table.md).** The rest of this record stands.
+
 ## The forcing reason
 
 [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md) kept right-click the

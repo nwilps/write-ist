@@ -39,7 +39,7 @@
  * beside the paper, which is still up, and the writer can try again.
  */
 import { PenLine } from "lucide";
-import { TextSelection } from "prosemirror-state";
+import { Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { saveFountainCopy, suggestedCopyName } from "../../../../src/project/copy.ts";
 import { exportPdf, suggestedPdfName } from "../../../../src/project/export-pdf.ts";
@@ -51,7 +51,10 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
+import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
+import { contextMenuItems } from "./context-menu-items.ts";
+import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
@@ -112,6 +115,65 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       },
     });
   };
+
+  // ADR-0034: the right-click menu is Write-ist's own. Cut, Copy and Select All
+  // ask the webview to do what the key does (so the same clipboard code runs),
+  // and Paste reads the clipboard and goes through the same `pasteInto` as Ctrl+V.
+  const viaWebview = (command: "cut" | "copy" | "selectAll"): void => {
+    if (view === undefined) return;
+    view.focus();
+    document.execCommand(command);
+  };
+  const pasteFromClipboard = (): void => {
+    const target = view;
+    if (target === undefined) return;
+    void (async () => {
+      try {
+        const incoming = await readClipboard();
+        target.focus();
+        pasteInto(target, incoming);
+      } catch {
+        // The webview may refuse a read that no key press asked for.
+        context.report("Write-ist could not read the clipboard from the menu. Press Ctrl+V to paste.");
+      }
+    })();
+  };
+
+  let contextMenu: ContextMenu | undefined;
+  let contextAsks = 0;
+  /** Open the right-click menu at a point of the window, for a position of the manuscript. */
+  const openContext = async (x: number, y: number, at: number, fromKeyboard: boolean): Promise<void> => {
+    const ask = ++contextAsks;
+    contextMenu?.close(false);
+    const items = await contextMenuItems(host, at);
+    // A newer right-click, or leaving, came while the dictionary was answering.
+    if (ask !== contextAsks || gone || view === undefined) return;
+    const editing = view;
+    contextMenu = openContextMenu({
+      label: "Edit",
+      items,
+      x,
+      y,
+      fromKeyboard,
+      restoreFocus: () => editing.focus(),
+    });
+  };
+  const onContextMenu = (event: MouseEvent): void => {
+    // Suppressed whatever happens: the webview's own menu is never wanted here.
+    event.preventDefault();
+    if (view === undefined || session === undefined) return;
+    const found = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    const at = found?.pos ?? view.state.selection.head;
+    // As in any editor, a right-click outside the selection moves the caret
+    // there first, so the menu acts on what was pointed at; inside it, the
+    // selection stays for Cut and Copy.
+    const { from, to, empty } = view.state.selection;
+    if (found !== null && (empty || at < from || at > to)) {
+      view.dispatch(view.state.tr.setSelection(Selection.near(view.state.doc.resolve(at))));
+    }
+    void openContext(event.clientX, event.clientY, at, false);
+  };
+  page.addEventListener("contextmenu", onContextMenu);
 
   const toggleSpelling = (): void => {
     if (session === undefined || view === undefined) return;
@@ -223,6 +285,30 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     search: startSearch,
+    cut: () => viaWebview("cut"),
+    copy: () => viaWebview("copy"),
+    paste: pasteFromClipboard,
+    selectAll: () => viaWebview("selectAll"),
+    misspellingAt: (at) => {
+      const writing = session;
+      const editing = view;
+      const issue = writing !== undefined && editing !== undefined ? writing.spellcheck.issueAt(editing.state, at) : undefined;
+      if (writing === undefined || editing === undefined || issue === undefined) return undefined;
+      return {
+        suggestions: async () => (await writing.spellcheck.suggestionsAt(editing.state, at)).map((offered) => offered.text),
+        replace: (text) => {
+          writing.spellcheck.replaceWord(editing, issue, text);
+          editing.focus();
+        },
+        addToDictionary: () => {
+          void writing.spellcheck.addToDictionary(editing, issue.word).then(
+            () => editing.focus(),
+            (error: unknown) =>
+              context.report(`Write-ist could not add that word to your dictionary. ${message(error)}`),
+          );
+        },
+      };
+    },
     view: () => view,
   };
 
@@ -276,6 +362,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // *when to save* belongs to the workspace that owns the project, not to
         // the screenplay surface.
         handleKeyDown: (_editor, event) => {
+          // The Menu key and Shift+F10 open the right-click menu at the caret,
+          // as a native one would (ADR-0034's accessibility cost).
+          if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+            event.preventDefault();
+            const head = writing.state.selection.head;
+            const where = view!.coordsAtPos(head);
+            void openContext(where.left, where.bottom, head, true);
+            return true;
+          }
           const asked = commandForKey(event, "editor");
           if (asked === undefined) return false;
           runCommand(asked, host);
@@ -321,6 +416,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // text to take down. The read's own continuation sees this and stops.
       if (session === undefined) {
         gone = true;
+        page.removeEventListener("contextmenu", onContextMenu);
+        contextMenu?.close(false);
         panels.dispose();
         return true;
       }
@@ -330,6 +427,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       gone = true;
       session = undefined;
+      page.removeEventListener("contextmenu", onContextMenu);
+      contextMenu?.close(false);
       stopListeningForSearch?.();
       panels.dispose();
       searching?.close();
@@ -338,6 +437,20 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return true;
     },
   };
+}
+
+/**
+ * The clipboard as the paste rules (#47) take it: the model's own HTML when it
+ * came from Write-ist, and the plain text either way.
+ */
+async function readClipboard(): Promise<{ text: string; html: string }> {
+  let text = "";
+  let html = "";
+  for (const item of await navigator.clipboard.read()) {
+    if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+    if (item.types.includes("text/plain")) text = await (await item.getType("text/plain")).text();
+  }
+  return { text, html };
 }
 
 /** The four bundled Courier Prime faces, as the PDF embeds them. */

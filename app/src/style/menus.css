@@ -104,3 +104,17 @@
 .drop-menu__check[hidden] {
   display: none;
 }
+
+/*
+ * The right-click menu (ADR-0034) is the same list, opened at the pointer
+ * instead of beside a row: fixed to the window, placed by `context-menu.ts`,
+ * and no taller than the window so a long list scrolls rather than leaves it.
+ */
+.drop-menu--context {
+  position: fixed;
+  left: calc(var(--menu-x, 0) * var(--size-pixel));
+  top: calc(var(--menu-y, 0) * var(--size-pixel));
+  max-height: 100%;
+  overflow-y: auto;
+  outline: none;
+}

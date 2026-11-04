@@ -35,6 +35,7 @@ import {
   type EditorState,
   type Transaction,
 } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
 import type { Comment } from "../comments.ts";
 import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { normaliseSource } from "../normalise.ts";
@@ -363,6 +364,18 @@ class ModelSerializer extends DOMSerializer {
 const base = DOMSerializer.fromSchema(screenplaySchema);
 
 /**
+ * Paste `incoming` into the view: the one path a paste takes, whether the
+ * clipboard came with a key press (`handlePaste` below) or was read by the
+ * context menu's Paste item. `false` when there was nothing to paste.
+ */
+export function pasteInto(view: EditorView, incoming: Incoming): boolean {
+  const tr = pasteTransaction(view.state, incoming);
+  if (tr === null) return false;
+  view.dispatch(tr.setMeta("paste", true).setMeta("uiEvent", "paste"));
+  return true;
+}
+
+/**
  * Hands the functions above to the view: copy and cut write the model, paste
  * reads it or, failing that, the plain text. HTML from elsewhere is discarded
  * before ProseMirror can read it (`transformPastedHTML`), so there is no second
@@ -380,11 +393,7 @@ export const clipboard = new Plugin({
     transformPastedHTML: () => "",
     handlePaste: (view, event) => {
       const data = event.clipboardData;
-      const tr = pasteTransaction(view.state, {
-        text: data?.getData("text/plain") ?? "",
-        html: data?.getData("text/html") ?? "",
-      });
-      if (tr !== null) view.dispatch(tr.setMeta("paste", true).setMeta("uiEvent", "paste"));
+      pasteInto(view, { text: data?.getData("text/plain") ?? "", html: data?.getData("text/html") ?? "" });
       return true;
     },
   },
