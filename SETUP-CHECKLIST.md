@@ -187,6 +187,13 @@ format version and minted project id (ADR-0004, ADR-0015), **import** into the d
 - 443 tests with the acceptance corpus present, 9 of them new in #55 — the letter beside each
   gesture, which is the part of a screen decidable without a window.
 
+### Done: the home design (ADR-0042)
+
+The home screen and the New Project dialog follow the approved home design: one typeface, a
+tagline with a blinking cursor, a rule above and below the menu, the first row selected, and a
+dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built: the ASCII logo
+(no text source), the ASCII background, an open type list, Novel, Metrics and Settings.
+
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared

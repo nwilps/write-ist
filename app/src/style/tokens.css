@@ -348,3 +348,23 @@
   /** A word-count box: five or six digits and the spinner. */
   --size-goals-number: 96px;
 }
+
+/* --- The home screen and the New Project dialog (the home design) ------------ */
+
+:root {
+  /** A menu row on the home screen, and each button slot in the dialog. */
+  --measure-home-row: 240px;
+  --measure-dialog-slot: 180px;
+  /** Row to row on the home screen: a 24px row and 10px between. */
+  --space-home-row: var(--space-snug);
+  /** The space between the home screen's pieces: logo, tagline, rule, menu. */
+  --space-home: var(--space-loose);
+  /** The dialog's panel, and the room between its title field and its buttons. */
+  --measure-new-project: 480px;
+  --space-dialog-actions: 20px;
+  /** A field's label, one step under the 13px of the rest of the interface. */
+  --size-caption: 12px;
+  /** The tagline's cursor: how wide, and how long it takes to blink. */
+  --size-caret: 2px;
+  --duration-blink: 1060ms;
+}

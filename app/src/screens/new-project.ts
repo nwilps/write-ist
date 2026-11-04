@@ -3,11 +3,12 @@
  *
  * A modal `<dialog>`, like the import report, so Escape cancels it natively and
  * the window behind hears nothing while it is open. Enter in the title
- * confirms. Create stays disabled until there is a title, and a failure is
+ * confirms, as the label says. Confirm stays disabled until there is a title, and a failure is
  * said inside the dialog — in the writer's words — with the dialog left open
  * so they can change the title and try again.
  */
 import { PROJECT_TYPES, type ProjectType } from "../../../src/project/create.ts";
+import { createElement, ChevronDown } from "lucide";
 import { element } from "./element.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
@@ -30,43 +31,39 @@ export function showNewProject(
 ): HTMLDialogElement {
   const type = element(
     "select",
-    { id: "new-project-type", className: "field__input" },
+    { id: "new-project-type", className: "new-project-dialog__input" },
     PROJECT_TYPES.map((name) => element("option", { value: name, textContent: name })),
   );
   const title = element("input", {
     id: "new-project-title",
-    className: "field__input",
+    className: "new-project-dialog__input",
     type: "text",
+    // A hint, not a name: an empty title is still refused.
+    placeholder: "Untitled",
     autocomplete: "off",
     spellcheck: false,
   });
-  const create = element("button", {
-    className: "button button--leading",
-    type: "submit",
-    textContent: "Create",
-    disabled: true,
-  });
-  const cancel = element("button", {
-    className: "button",
-    type: "button",
-    textContent: "Cancel",
-  });
+  const create = action("Confirm", "Enter", "submit");
+  create.classList.add("new-project-dialog__action--confirm");
+  create.disabled = true;
+  const cancel = action("Cancel", "Esc", "button");
   const problem = element("div", { className: "new-project__problem" });
 
-  const form = element("form", { className: "new-project__form" }, [
-    element("h2", { className: "report__heading", textContent: "New Project" }),
-    element("div", { className: "field" }, [
-      element("label", { htmlFor: type.id, className: "field__label", textContent: "Project type" }),
-      type,
-    ]),
-    element("div", { className: "field" }, [
-      element("label", { htmlFor: title.id, className: "field__label", textContent: "Title" }),
-      title,
-    ]),
+  const field = (label: string, input: HTMLElement, extra: readonly Node[] = []) =>
+    element("div", { className: "new-project-dialog__field" }, [
+      element("label", { htmlFor: input.id, className: "new-project-dialog__label", textContent: label }),
+      element("div", { className: "new-project-dialog__box" }, [input, ...extra]),
+    ]);
+
+  // Cancel on the left, Confirm on the right: the keys the labels promise.
+  const form = element("form", { className: "new-project-dialog__form" }, [
+    field("Project type", type, [chevron()]),
+    field("Project title", title),
     problem,
-    element("div", { className: "report__actions new-project__actions" }, [cancel, create]),
+    element("div", { className: "new-project-dialog__actions" }, [cancel, create]),
   ]);
-  const modal = element("dialog", { className: "report new-project" }, [form]);
+  // No heading (the home design); the dialog is still named for a screen reader.
+  const modal = element("dialog", { className: "new-project-dialog", ariaLabel: "New Project" }, [form]);
 
   let making = false;
   const settle = () => {
@@ -105,6 +102,13 @@ export function showNewProject(
       },
     );
   });
+  // Enter confirms from anywhere in the dialog but a button, which acts on its
+  // own: a select does not submit a form by itself.
+  modal.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.target instanceof HTMLButtonElement) return;
+    event.preventDefault();
+    form.requestSubmit();
+  });
   cancel.addEventListener("click", () => modal.close());
   // Escape closes a dialog natively; it must not while a project is being made.
   modal.addEventListener("cancel", (event) => {
@@ -119,4 +123,18 @@ export function showNewProject(
   modal.showModal();
   title.focus();
   return modal;
+}
+
+/** A button drawn as the home screen's selected row is: `> Label [Key]`. */
+function action(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
+  return element("button", { className: "new-project-dialog__action", type: kind }, [
+    element("span", { className: "new-project-dialog__cursor", ariaHidden: "true", textContent: ">" }),
+    element("span", { textContent: label }),
+    element("span", { ariaHidden: "true", textContent: `[${key}]` }),
+  ]);
+}
+
+/** The drop-down's arrow: Lucide's own drawing, at the icon size (ADR-0035). */
+function chevron(): SVGElement {
+  return createElement(ChevronDown, { class: "new-project-dialog__chevron", "aria-hidden": "true" });
 }

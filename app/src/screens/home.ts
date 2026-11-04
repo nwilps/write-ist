@@ -11,7 +11,8 @@
  * a column of items, each with its letter. Its ASCII animation and its typed
  * tagline are its feel rather than its shape, and its taglines are the
  * writer's own words to add if he wants them; the palette and the typefaces
- * here are ADR-0030's.
+ * here are ADR-0030's. The look — one typeface, a rule above and below, the
+ * first row selected — is the home design's (ADR-0042).
  */
 import { element } from "./element.ts";
 import { menu } from "./menu.ts";
@@ -28,6 +29,17 @@ export interface HomeScreen {
   readonly trouble?: string;
 }
 
+/** The line above and below the menu: 42 box-drawing dashes, as drawn. */
+const RULE_LENGTH = 42;
+
+function rule(): HTMLElement {
+  return element("div", {
+    className: "home-rule",
+    ariaHidden: "true",
+    textContent: "\u2500".repeat(RULE_LENGTH),
+  });
+}
+
 /** Draw the home screen, and return the gestures the window answers to. */
 export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gesture[] {
   const gestures: readonly Gesture[] = [
@@ -40,7 +52,14 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
     element("main", { className: "screen" }, [
       element("div", { className: "composition" }, [
         element("h1", { className: "wordmark", textContent: "Write-ist" }),
-        menu(gestures),
+        element("p", { className: "tagline" }, [
+          document.createTextNode("A calm place to write."),
+          // The blinking cursor is decoration, not part of the sentence.
+          element("span", { className: "tagline__cursor", ariaHidden: "true" }),
+        ]),
+        rule(),
+        menu(gestures, { home: true }),
+        rule(),
         ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
       ]),
     ]),

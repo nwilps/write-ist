@@ -12,11 +12,14 @@
 import { element } from "./element.ts";
 import { LEAVE, type Gesture } from "./shortcuts.ts";
 
-/** Draw a column of gestures. */
-export function menu(gestures: readonly Gesture[]): HTMLElement {
+/**
+ * Draw a column of gestures. `home` is the home screen's look (the home
+ * design): centred rows, the first one selected until the eye moves.
+ */
+export function menu(gestures: readonly Gesture[], { home = false } = {}): HTMLElement {
   return element(
     "ul",
-    { className: "menu" },
+    { className: home ? "menu menu--home" : "menu" },
     gestures.map((gesture) => element("li", { className: "menu__item" }, [item(gesture)])),
   );
 }
