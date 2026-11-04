@@ -15,13 +15,14 @@
  * bound; two commands claiming one key in one place is a test failure, not a
  * precedence rule.
  *
- * **The seam for a context menu.** ADR-0034 has Write-ist drawing its own
- * right-click menus, and says a menu item "must reach the same code as the
- * keyboard shortcut, not a second path". A command that acts at a place in the
+ * **The context menu.** ADR-0034 has Write-ist drawing its own right-click
+ * menus, and says a menu item "must reach the same code as the keyboard
+ * shortcut, not a second path". A command that acts at a place in the
  * manuscript (the dual-dialogue three) takes that place — `run(host, at)` — and
  * says whether it would do anything there — `isAvailable(command, host, at)` —
- * so a menu can grey it out. The three are registered and drawn nowhere: no
- * menu, no key, until that work is scheduled (#105).
+ * so a menu can grey it out. A command is offered on the paper's right-click
+ * menu by giving it a `context` (`context-menu-items.ts` reads them): adding
+ * an item to that menu is one line in this table.
  *
  * The table is data and one lookup; the work stays where it was. The commands
  * that need the window (dialogs, saving, leaving) are reached through the
@@ -29,6 +30,8 @@
  * window at all.
  */
 import {
+  ClipboardPaste,
+  Copy,
   Eye,
   FileDown,
   FileOutput,
@@ -37,6 +40,7 @@ import {
   House,
   MapPin,
   Save,
+  Scissors,
   SpellCheck,
   UserCheck,
   type IconNode,
@@ -70,6 +74,23 @@ export interface EditorActions {
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
   readonly search: () => void;
+  /** Cut, copy, paste and select-all: the same code the keys reach. Where, if anywhere, is the writer's selection. */
+  readonly cut: () => void;
+  readonly copy: () => void;
+  readonly paste: () => void;
+  readonly selectAll: () => void;
+  /** The misspelt word at a position, if the spelling pass is on and has underlined one there. */
+  readonly misspellingAt: (at: number) => Misspelling | undefined;
+}
+
+/** A word the spelling pass has underlined, and what can be done about it. */
+export interface Misspelling {
+  /** Best first; the "Did you mean" fix for a confirmed name leads. */
+  readonly suggestions: () => Promise<readonly string[]>;
+  /** Replace the word: one undo step. */
+  readonly replace: (text: string) => void;
+  /** Make the word right from now on (ADR-0032). */
+  readonly addToDictionary: () => void;
 }
 
 /** What a command is run against. */
@@ -101,6 +122,13 @@ export interface Command {
   readonly keys?: KeyPlace;
   /** The application menu that offers it; a rule is drawn where `group` changes. */
   readonly menu?: { readonly name: MenuName; readonly group: string };
+  /**
+   * The right-click menu on the paper that offers it. Items are drawn in table
+   * order, a rule where `group` changes. A `contextual` group is drawn only
+   * where at least one of its commands is available, so Dual Dialogue is not
+   * offered in action text; inside a drawn group, an unavailable item is greyed.
+   */
+  readonly context?: { readonly group: string; readonly contextual?: true };
   /** For an item that is on or off. */
   readonly checked?: (host: CommandHost) => boolean;
   /**
@@ -111,6 +139,9 @@ export interface Command {
   /** Do it. `at` is where, for a command that acts at a place; default the caret. */
   readonly run: (host: CommandHost, at: number) => void;
 }
+
+/** Whether the writer has anything selected: what Cut and Copy need. */
+const hasSelection = (host: CommandHost): boolean => host.view()?.state.selection.empty === false;
 
 /** The labels of the element types, which the table's rows and the panel both draw. */
 const ELEMENT_LABELS: Readonly<Record<string, string>> = {
@@ -130,12 +161,14 @@ const caretOf = (view: EditorView): number => view.state.selection.head;
 function atPlace(
   id: string,
   label: string,
+  context: Command["context"],
   can: (state: EditorView["state"], at: number) => boolean,
   make: (at: number) => (state: EditorView["state"], dispatch: EditorView["dispatch"]) => boolean,
 ): Command {
   return {
     id,
     label,
+    context,
     available: (host, at) => {
       const view = host.view();
       return view !== undefined && can(view.state, at);
@@ -198,11 +231,18 @@ export const COMMANDS: readonly Command[] = [
     }),
   ),
 
-  // Dual dialogue (ADR-0037): registered for a context menu (ADR-0034), and
-  // offered nowhere yet.
-  atPlace("make-dual-dialogue", "Make Dual Dialogue", canMakeDualDialogue, makeDualDialogue),
-  atPlace("make-normal-dialogue", "Make Normal Dialogue", canMakeNormalDialogue, makeNormalDialogue),
-  atPlace("swap-speakers", "Swap Speakers", canSwapSpeakers, swapSpeakers),
+  // The clipboard and selection. The keys are the webview's and the surface's
+  // (`clipboard.ts`): the table knows them to draw the hint, and the items
+  // reach that same code through the host (ADR-0034).
+  { id: "cut", label: "Cut", icon: Scissors, chord: { key: "x", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.cut() },
+  { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
+  { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.paste() },
+  { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.selectAll() },
+
+  // Dual dialogue (ADR-0037), offered on the paper's right-click menu (ADR-0034).
+  atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),
+  atPlace("make-normal-dialogue", "Make Normal Dialogue", { group: "dual-dialogue", contextual: true }, canMakeNormalDialogue, makeNormalDialogue),
+  atPlace("swap-speakers", "Swap Speakers", { group: "dual-dialogue", contextual: true }, canSwapSpeakers, swapSpeakers),
 ];
 
 export function commandById(id: string): Command | undefined {

@@ -152,9 +152,9 @@ stopped at the element boundary (#26).
       (`src-tauri/src/spelling.rs`, `src/screenplay/spelling.ts`, `src/screenplay/spellcheck.ts`;
       slice 2, step 10, ADR-0032). Confirmed names and locations are known words; a typo of one
       is "Did you mean MICHAEL?". The custom dictionary is `custom-words.txt` in the app's local
-      data folder. **Not built:** the right-click menu (ADR-0034, #105) — `suggestionsAt`,
-      `replaceWord` and `addToDictionary` are the commands it will call; `en_GB`; a keyboard way
-      to reach suggestions (the spec has none).
+      data folder. The right-click menu on the paper is built (ADR-0039,
+      #105): up to five suggestions, then Add to Dictionary, via `suggestionsAt`, `replaceWord` and
+      `addToDictionary`. **Not built:** the same menu on text fields and the desk's panels; `en_GB`. A keyboard way to suggestions is the Menu key / Shift+F10.
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
       written to a file (#39). Comment ends were still element *indices*, which nothing moved

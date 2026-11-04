@@ -170,6 +170,7 @@ describe("the Edit and View menus", () => {
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
     confirmHere: vi.fn(), search: vi.fn(), view: () => undefined,
+      cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), misspellingAt: () => undefined,
   };
   function panel() {
     const panels = sidePanels(undefined, editorMenus(act));

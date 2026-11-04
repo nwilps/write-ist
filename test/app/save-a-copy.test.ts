@@ -18,6 +18,7 @@ describe("Save a Copy as Fountain…", () => {
       save: vi.fn(), saveCopy, exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
       viewTitlePage: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(), confirmHere: vi.fn(),
       toggleSpellcheck: vi.fn(), spellcheckOn: () => false, search: vi.fn(), view: () => undefined,
+      cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), misspellingAt: () => undefined,
     })["File"]!;
     const item = file.find((entry) => "label" in entry && entry.label === "Save a Copy as Fountain…");
     expect(item).toBeDefined();

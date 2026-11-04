@@ -31,10 +31,9 @@
  *
  * ## What the writer can do about an underline
  *
- * There is no menu to do it from yet (ADR-0034: context menus are later work),
- * so the three things a menu will offer are commands, ready for it:
- * `suggestionsAt` (the "Did you mean" fix first, then the dictionary's),
- * `replaceWord` (one undo step) and `addToDictionary`.
+ * The paper's right-click menu (ADR-0039) offers them: `suggestionsAt` (the
+ * "Did you mean" fix first, then the dictionary's), `replaceWord` (one undo
+ * step) and `addToDictionary`.
  */
 import { closeHistory } from "prosemirror-history";
 import type { Node as EditorNode } from "prosemirror-model";

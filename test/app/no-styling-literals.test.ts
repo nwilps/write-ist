@@ -57,7 +57,10 @@ const LITERALS: readonly (readonly [string, RegExp])[] = [
   ["a font name", /font-family\s*:(?!\s*(?:var\(|inherit\b))/],
   ["a numeric font weight", /font-weight\s*:(?!\s*(?:var\(|inherit\b))/],
   ["an inline style", /\bstyle\s*=\s*["']/],
-  ["a style set from code", /\.style\.[A-Za-z]/],
+  // The one allowance: a custom property carrying a *measured* number (where
+  // the right-click menu goes, `context-menu.ts`). The unit and the use of it
+  // are the stylesheet's, so no look is in code.
+  ["a style set from code", /\.style\.(?!setProperty\(\s*"--)[A-Za-z]/],
 ];
 
 /** Every file the writer's look is drawn by, other than the tokens themselves. */
@@ -88,7 +91,7 @@ const OFFENDING: Readonly<Record<string, readonly string[]>> = {
   "a font name": ['  font-family: "JetBrainsMono Nerd Font", monospace;'],
   "a numeric font weight": ["  font-weight: 700;"],
   "an inline style": ['  <p style="color: red">'],
-  "a style set from code": ["  panel.style.background = accent;"],
+  "a style set from code": ["  panel.style.background = accent;", '  panel.style.setProperty("color", accent);'],
 };
 
 describe("the look is data (ADR-0030)", () => {
