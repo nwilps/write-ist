@@ -39,6 +39,8 @@
   font-size: var(--size-label);
   line-height: var(--leading-tight);
   color: var(--colour-muted);
+  /* Trailing spaces count while a line is being typed, so the cursor does not jump. */
+  white-space: pre;
 }
 
 .tagline__cursor {
@@ -53,6 +55,11 @@
   50% {
     opacity: 0;
   }
+}
+
+/* Steady while the hand is moving; it blinks when the line is still. */
+.tagline__cursor--steady {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
