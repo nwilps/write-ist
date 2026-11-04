@@ -8,6 +8,28 @@
 
 /* --- Home ---------------------------------------------------------------- */
 
+/*
+ * Write-ist's name, drawn in characters. The art is one block, never
+ * re-wrapped; on a window narrower than it is, the type shrinks (the fit is
+ * the token's) rather than the lines breaking.
+ */
+.wordmark {
+  margin: 0 0 var(--space-home);
+  font-size: var(--size-logo);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  color: var(--colour-accent);
+}
+
+.wordmark__art {
+  margin: 0;
+  font-family: inherit;
+  font-size: min(100%, var(--size-logo-fit));
+  line-height: inherit;
+  white-space: pre;
+  user-select: none;
+}
+
 .screen .composition:has(.menu--home) {
   gap: var(--space-home);
 }

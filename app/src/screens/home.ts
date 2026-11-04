@@ -15,6 +15,7 @@
  * first row selected — is the home design's (ADR-0042).
  */
 import { element } from "./element.ts";
+import { LOGO } from "./logo.ts";
 import { menu } from "./menu.ts";
 import type { Gesture } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
@@ -56,7 +57,10 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
   into.replaceChildren(
     element("main", { className: "screen" }, [
       element("div", { className: "composition" }, [
-        element("h1", { className: "wordmark", textContent: "Write-ist" }),
+        // The art is for the eye: the heading carries the name, the art is hidden.
+        element("h1", { className: "wordmark", ariaLabel: "Write-ist" }, [
+          element("pre", { className: "wordmark__art", ariaHidden: "true", textContent: LOGO }),
+        ]),
         element("p", { className: "tagline" }, [
           document.createTextNode("A calm place to write."),
           // The blinking cursor is decoration, not part of the sentence.

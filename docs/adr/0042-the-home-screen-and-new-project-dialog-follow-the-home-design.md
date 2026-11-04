@@ -33,9 +33,9 @@ answer to.** Nothing about what the screens do changes.
 
 ## What it does not decide
 
-- **The ASCII logo.** The handoff draws it only inside a picture, not as text, and no source for the
-  art is in the repository. The home screen keeps its text wordmark until the art is supplied as
-  text. **The ASCII slash background** is explicitly not built.
+- **The ASCII slash background** is explicitly not built. (The ASCII logo is built: the art is
+  `app/src/screens/logo.ts`, held byte for byte to the design's `logo.txt` by a test, and set in
+  JetBrains Mono 15px in the accent colour. It scales down on a narrow window rather than wrapping.)
 - **Metrics and Settings do nothing yet.** The design draws them, so the home screen lists them —
   `Metrics [m]` and `Settings [s]`, between Open Project and Quit, in the same muted colour as every
   unselected row. Neither exists, and **by Noah's decision they intentionally do nothing for now**,

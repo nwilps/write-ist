@@ -367,4 +367,11 @@
   /** The tagline's cursor: how wide, and how long it takes to blink. */
   --size-caret: 2px;
   --duration-blink: 1060ms;
+  /**
+   * The logo's type, and how small it may be made to fit. The art is 107
+   * columns, and a column of this face is 0.6em wide, so 66 em-widths of window
+   * is the art with a little air; narrower than that, the type scales down.
+   */
+  --size-logo: 15px;
+  --size-logo-fit: calc(100vw / 66);
 }
