@@ -8,13 +8,18 @@
  * gestures. Nothing is drawn for them now.
  *
  * Shape and flow are v1's `HomeScreen` — a centred composition, a wordmark and
- * a column of items, each with its letter. Its ASCII animation and its typed
- * tagline are its feel rather than its shape, and its taglines are the
- * writer's own words to add if he wants them; the palette and the typefaces
+ * a column of items, each with its letter. Its typed tagline is here too, as
+ * the ghostwriter (`ghostwriter.ts`); its ASCII animation is not. The palette and the typefaces
  * here are ADR-0030's. The look — one typeface, a rule above and below, the
  * first row selected — is the home design's (ADR-0042).
  */
 import { element } from "./element.ts";
+import {
+  createGhostwriter,
+  STATIC_TAGLINE,
+  type GhostState,
+  type Timer,
+} from "./ghostwriter.ts";
 import { LOGO } from "./logo.ts";
 import { menu, navigable } from "./menu.ts";
 import type { Gesture, KeyPress } from "./shortcuts.ts";
@@ -28,6 +33,13 @@ export interface HomeScreen {
   readonly onQuit: () => void;
   /** Something went wrong, in words the writer can act on. */
   readonly trouble?: string;
+  /** Chance, time and motion, handed in so a test can script them. Real ones by default. */
+  readonly ghostwriter?: {
+    readonly random?: () => number;
+    readonly timer?: Timer;
+    /** True shows the tagline still; by default the writer's `prefers-reduced-motion`. */
+    readonly reducedMotion?: boolean;
+  };
 }
 
 /** The line above and below the menu: 42 box-drawing dashes, as drawn. */
@@ -46,6 +58,8 @@ export interface DrawnHome {
   readonly gestures: readonly Gesture[];
   /** Answer a key press; true when it moved the highlight or acted on it. */
   readonly navigate: (press: KeyPress) => boolean;
+  /** Put the tagline's timers away; called when the screen is left. */
+  readonly stop: () => void;
 }
 
 /** Draw the home screen, and return what the window answers to. */
@@ -62,6 +76,27 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): DrawnHome {
   ];
 
   const list = menu(gestures, { home: true });
+
+  const wantsLess =
+    screen.ghostwriter?.reducedMotion ??
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const words = document.createTextNode(wantsLess ? STATIC_TAGLINE : "");
+  // The blinking cursor is decoration, not part of the sentence.
+  const cursor = element("span", { className: "tagline__cursor", ariaHidden: "true" });
+  const draw = (state: GhostState): void => {
+    words.data = state.text;
+    cursor.classList.toggle("tagline__cursor--steady", !state.blinking);
+  };
+  const ghost = createGhostwriter({
+    random: screen.ghostwriter?.random ?? Math.random,
+    timer: screen.ghostwriter?.timer ?? {
+      setTimeout: (run, ms) => window.setTimeout(run, ms),
+      clearTimeout: (handle) => window.clearTimeout(handle as number),
+    },
+    onChange: draw,
+  });
+  if (!wantsLess) ghost.start();
   into.replaceChildren(
     element("main", { className: "screen" }, [
       element("div", { className: "composition" }, [
@@ -69,11 +104,7 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): DrawnHome {
         element("h1", { className: "wordmark", ariaLabel: "Write-ist" }, [
           element("pre", { className: "wordmark__art", ariaHidden: "true", textContent: LOGO }),
         ]),
-        element("p", { className: "tagline" }, [
-          document.createTextNode("A calm place to write."),
-          // The blinking cursor is decoration, not part of the sentence.
-          element("span", { className: "tagline__cursor", ariaHidden: "true" }),
-        ]),
+        element("p", { className: "tagline" }, [words, cursor]),
         rule(),
         list,
         rule(),
@@ -82,5 +113,5 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): DrawnHome {
     ]),
   );
 
-  return { gestures, navigate: navigable(list, gestures) };
+  return { gestures, navigate: navigable(list, gestures), stop: ghost.stop };
 }

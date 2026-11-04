@@ -97,8 +97,13 @@ void (async () => {
 let gestures: readonly Gesture[] = [];
 /** The home screen's arrow keys and Enter; undefined on any other screen. */
 let navigate: ((press: KeyPress) => boolean) | undefined;
+/** Stops the home screen's typing tagline; undefined on any other screen. */
+let stopHome: (() => void) | undefined;
 
 function draw(): void {
+  // Leaving Home, or redrawing it, puts its tagline's timers away.
+  stopHome?.();
+  stopHome = undefined;
   navigate = undefined;
   if (screen === "project") {
     // Mounted once and then left alone: the shell says why, and trouble inside
@@ -141,6 +146,7 @@ function draw(): void {
     });
     gestures = home.gestures;
     navigate = home.navigate;
+    stopHome = home.stop;
     return;
   }
 

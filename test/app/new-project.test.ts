@@ -37,7 +37,12 @@ describe("Home", () => {
 describe("Home, as designed", () => {
   it("draws the tagline, a rule above and below the menu, and selects the first row", () => {
     const into = document.createElement("div");
-    renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {} });
+    renderHome(into, {
+      onNewProject: () => {},
+      onOpenProject: () => {},
+      onQuit: () => {},
+      ghostwriter: { reducedMotion: true },
+    });
     expect(into.querySelector(".tagline")!.textContent).toBe("A calm place to write.");
     const rules = [...into.querySelectorAll(".home-rule")];
     expect(rules.map((r) => r.textContent)).toEqual(["\u2500".repeat(42), "\u2500".repeat(42)]);
