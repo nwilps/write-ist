@@ -1,16 +1,20 @@
 /**
  * The writer's day, for goals (ADR-0040).
  *
- * A day is a calendar date **in the writer's own time zone**, ending at a time
- * the writer will one day choose. That is not the ledger's day: the ledger
- * dates a line in UTC so that one Instant makes one line on every machine
- * (`ledger.ts`), but a daily goal that rolled over at four in the afternoon
- * because the box is in Sydney would be a goal nobody could keep.
+ * A day is a calendar date **in the writer's own time zone** (the operating
+ * system's), ending at a time the writer will one day choose. It is the one
+ * definition of a day in the app: the goals read it, and so does the ledger
+ * (ADR-0041) — a day that rolled over at four in the afternoon because the
+ * box is in Sydney would be a day nobody could keep.
  *
  * **Day ends at is the application's, not a project's.** It is one setting
  * for the whole app, so it is one function here — `dayEndsAt()` — and a
  * settings page, when there is one, changes what that returns. Nothing else in
  * the goals reads a time of day. Until then it answers midnight.
+ *
+ * The zone is read when the instant is dated and never stored, so a writer who
+ * travels, or a clock that changes its offset for daylight saving, only moves
+ * where the *next* instant lands; days already dated are not touched.
  *
  * Days travel as `YYYY-MM-DD` strings and are counted in whole days with UTC
  * arithmetic, which has no daylight-saving hour in it to lose a day in.
@@ -43,14 +47,19 @@ const pad = (value: number): string => String(value).padStart(2, "0");
  * at 04:00, 03:59 still belongs to the day before.
  */
 export function writingDayOf(when: Date, ends: TimeOfDay = dayEndsAt()): string {
+  // Take the wall-clock reading in the local zone, then do the subtraction as
+  // UTC arithmetic: UTC has no skipped or repeated hour, so a day that ends at
+  // 02:30 cannot fall into a spring-forward gap or a fall-back repeat.
   const shifted = new Date(
-    when.getFullYear(),
-    when.getMonth(),
-    when.getDate(),
-    when.getHours() - ends.hour,
-    when.getMinutes() - ends.minute,
+    Date.UTC(
+      when.getFullYear(),
+      when.getMonth(),
+      when.getDate(),
+      when.getHours() - ends.hour,
+      when.getMinutes() - ends.minute,
+    ),
   );
-  return `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}-${pad(shifted.getDate())}`;
+  return toDay(shifted);
 }
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;

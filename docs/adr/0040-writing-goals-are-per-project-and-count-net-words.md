@@ -40,7 +40,7 @@ and clamped only where it is read.
    page is not words written: `wordsIn` now leaves the title page out, as the ledger's count always did.
 5. **The day.** A day is a calendar date in the writer's local time, ending at `dayEndsAt()` —
    midnight, the one function a settings page will drive; there is no settings UI. That is **app-wide,
-   not per project.** It is not the ledger's day, which is UTC (see below).
+   not per project.** It is also the ledger's day since [ADR-0041](0041-every-day-is-the-writers-local-day.md).
 6. **A sprint** is a whole number of words, 50 to 100,000, offered at 500. No timer, no history. It
    counts from its start by the same measure, ends when reached (and disappears, with nothing shown),
    can be ended sooner, and is not saved: it does not outlive the project being open.
@@ -87,9 +87,8 @@ and clamped only where it is read.
   window draws it and passes choices back.
 - **The Goal pill is refreshed every minute** as well as on every edit, so a pill left open across
   midnight notices the new day without a keystroke.
-- **Local-time days, UTC ledger days.** A writer near midnight in a zone far from UTC can see the goals'
-  day and the ledger's day disagree about which date a session fell on. They answer different questions
-  (the writer's day, and a reproducible line) and are not reconciled.
+- **Local-time days, UTC ledger days — superseded.** This call was overturned by Noah the same day:
+  the ledger now dates in the writer's local day too ([ADR-0041](0041-every-day-is-the-writers-local-day.md)).
 - **Not built:** the settings page that moves *Day ends at*; completion animations (deferred); a per-day
   edit of the history.
 

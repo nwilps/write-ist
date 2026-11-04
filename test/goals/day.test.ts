@@ -2,7 +2,7 @@
  * The writer's day (ADR-0040): local time, ending where the app says, midnight
  * until a settings page says otherwise.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   addDays,
   dayEndsAt,
@@ -31,6 +31,25 @@ describe("where the day ends", () => {
     expect(writingDayOf(new Date(2026, 10, 4, 3, 59), fourAm)).toBe("2026-11-03");
     expect(writingDayOf(new Date(2026, 10, 4, 4, 0), fourAm)).toBe("2026-11-04");
     expect(writingDayOf(new Date(2026, 10, 1, 1, 0), { hour: 4, minute: 30 })).toBe("2026-10-31");
+  });
+});
+
+describe("daylight saving", () => {
+  const zone = process.env.TZ;
+  afterEach(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+
+  it("does not lose or repeat a day when the clocks change, even with a late day end", () => {
+    process.env.TZ = "America/New_York";
+    const twoThirty = { hour: 2, minute: 30 };
+    // 2026-03-08 02:00-03:00 does not exist; 2026-11-01 01:00-02:00 happens twice.
+    expect(writingDayOf(new Date("2026-03-08T06:59:00Z"), twoThirty)).toBe("2026-03-07");
+    expect(writingDayOf(new Date("2026-03-08T07:00:00Z"), twoThirty)).toBe("2026-03-08");
+    expect(writingDayOf(new Date("2026-11-01T05:45:00Z"), twoThirty)).toBe("2026-10-31");
+    expect(writingDayOf(new Date("2026-11-01T06:45:00Z"), twoThirty)).toBe("2026-10-31");
+    expect(writingDayOf(new Date("2026-11-01T07:30:00Z"), twoThirty)).toBe("2026-11-01");
   });
 });
 

@@ -10,7 +10,13 @@
  *
  *   opened\t<ISO-8601>
  *   closed\t<ISO-8601>
+ *   days\tlocal\t<ISO-8601>
  *   day\t<YYYY-MM-DD>\t<projectId>\t<words>\t<pages>\t<projectName>
+ *
+ * A `day` date is the writer's local day (`writingDayOf`, ADR-0041). The
+ * `days` line is written once, before the first local-dated `day` line, and
+ * marks the change: `day` lines above it were dated in UTC and stay as
+ * written — the file is append-only, so they are read as the date they carry.
  *
  * The name is last so a name that contains tabs (vanishingly rare) only
  * affects itself. Words skip omitted elements; comments never enter element
@@ -19,12 +25,16 @@
 import type { Instant } from "../instant.ts";
 import { systemInstant } from "../instant.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
+import { writingDayOf } from "../goals/day.ts";
 import { pageCount } from "../screenplay/paginate.ts";
 import type { Filesystem } from "./filesystem.ts";
 import { join } from "./filesystem.ts";
 
 /** The ledger's filename inside `appLocalDataDir()`. */
 export const LEDGER_FILE = "ledger.txt";
+
+/** The line that says the `day` lines after it are dated in local time. */
+const LOCAL_DAYS_MARKER = "days\tlocal";
 
 /** Enough of a project to date a day line. */
 export interface LedgerProject {
@@ -38,7 +48,7 @@ export interface Ledger {
   /** The application closed. One line. */
   recordClosed(): Promise<void>;
   /**
-   * Words and pages for a project on the clock's calendar day.
+   * Words and pages for a project on the writer's local day.
    *
    * Absolute counts at the moment of recording — the manuscript as it stood
    * then. A later chart that wants "words written that day" subtracts the
@@ -61,14 +71,24 @@ export function openLedger(
   const path = join(directory, LEDGER_FILE);
 
   async function append(line: string): Promise<void> {
+    await appendAll([line]);
+  }
+
+  async function appendAll(batch: readonly string[]): Promise<void> {
     // ADR-0008 rule 3: absent is first run; unreadable is refuse to write.
     if (await filesystem.exists(path)) {
       await filesystem.readFile(path);
     } else {
       await filesystem.createDirectory(directory);
     }
-    const bytes = new TextEncoder().encode(`${line}\n`);
+    const bytes = new TextEncoder().encode(batch.map((line) => `${line}\n`).join(""));
     await filesystem.appendFile(path, bytes);
+  }
+
+  async function hasLocalDaysMarker(): Promise<boolean> {
+    if (!(await filesystem.exists(path))) return false;
+    const text = new TextDecoder().decode(await filesystem.readFile(path));
+    return text.split("\n").some((line) => line.startsWith(`${LOCAL_DAYS_MARKER}\t`));
   }
 
   return {
@@ -80,28 +100,19 @@ export function openLedger(
     },
     async recordDay(project, document): Promise<void> {
       const when = instant.now();
-      const day = dayOf(when);
+      const day = writingDayOf(when);
       const words = wordCount(document);
       const pages = pageCount(document);
       const name = project.name.replace(/\t/g, " ");
-      await append(
-        `day\t${day}\t${project.id}\t${words}\t${pages}\t${name}`,
+      const record = `day\t${day}\t${project.id}\t${words}\t${pages}\t${name}`;
+      // One write, so a crash cannot leave the marker without its day line.
+      await appendAll(
+        (await hasLocalDaysMarker())
+          ? [record]
+          : [`${LOCAL_DAYS_MARKER}\t${when.toISOString()}`, record],
       );
     },
   };
-}
-
-/**
- * Calendar day as YYYY-MM-DD in UTC.
- *
- * UTC rather than the writer's zone so the same Instant produces the same day
- * line on every machine (and so a rewound test clock is not shifted by the
- * box's offset). A writer travelling across a date line still gets one
- * continuous day axis; local-time day boundaries can wait for a reader that
- * knows the writer's zone.
- */
-export function dayOf(when: Date): string {
-  return when.toISOString().slice(0, 10);
 }
 
 /**

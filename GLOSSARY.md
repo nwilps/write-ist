@@ -125,7 +125,7 @@ _Avoid_: database, store, cache, index (that is the project-level index, inside 
 
 **Ledger**:
 The append-only record of what the writer produced each day — words and pages per project, and
-how long each session lasted. It sits outside every bundle and spans all of them, because it
+how long each session lasted, dated by the writer's local **Day ends at**. It sits outside every bundle and spans all of them, because it
 is a record of the writer's days rather than a property of any one work, and it outlives a
 project that is deleted. It holds no work: losing it costs a chart, never a word.
 _Avoid_: log (that is the Log workspace), history, metrics (that is the view of it), analytics,
@@ -404,8 +404,8 @@ _Avoid_: push (that is days of tasks in the Log), challenge, session, timer
 
 **Day ends at**:
 Where one of the writer's days stops and the next begins, in their own time zone — midnight until the
-app has a setting for it. It is the app's, one for every project, and it is not the ledger's day, which
-is dated in UTC so one instant makes one line on every machine.
+app has a setting for it. It is the app's, one for every project, and it is the one day the app knows:
+the goals and the ledger both date by it. Old ledger lines dated in UTC are kept as written (ADR-0041).
 _Avoid_: rollover, reset time, midnight (it is only midnight by default)
 
 ### Integrity
