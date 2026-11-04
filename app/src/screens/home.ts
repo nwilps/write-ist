@@ -16,8 +16,8 @@
  */
 import { element } from "./element.ts";
 import { LOGO } from "./logo.ts";
-import { menu } from "./menu.ts";
-import type { Gesture } from "./shortcuts.ts";
+import { menu, navigable } from "./menu.ts";
+import type { Gesture, KeyPress } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
 
 export interface HomeScreen {
@@ -41,8 +41,15 @@ function rule(): HTMLElement {
   });
 }
 
-/** Draw the home screen, and return the gestures the window answers to. */
-export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gesture[] {
+/** The home screen as drawn: its letters, and what the arrow keys and Enter do. */
+export interface DrawnHome {
+  readonly gestures: readonly Gesture[];
+  /** Answer a key press; true when it moved the highlight or acted on it. */
+  readonly navigate: (press: KeyPress) => boolean;
+}
+
+/** Draw the home screen, and return what the window answers to. */
+export function renderHome(into: HTMLElement, screen: HomeScreen): DrawnHome {
   const gestures: readonly Gesture[] = [
     { label: "New Project", key: "n", act: screen.onNewProject },
     { label: "Open Project", key: "o", act: screen.onOpenProject },
@@ -54,6 +61,7 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
     { label: "Quit", key: "q", act: screen.onQuit },
   ];
 
+  const list = menu(gestures, { home: true });
   into.replaceChildren(
     element("main", { className: "screen" }, [
       element("div", { className: "composition" }, [
@@ -67,12 +75,12 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
           element("span", { className: "tagline__cursor", ariaHidden: "true" }),
         ]),
         rule(),
-        menu(gestures, { home: true }),
+        list,
         rule(),
         ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
       ]),
     ]),
   );
 
-  return gestures;
+  return { gestures, navigate: navigable(list, gestures) };
 }

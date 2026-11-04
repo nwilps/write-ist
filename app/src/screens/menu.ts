@@ -10,7 +10,7 @@
  * already act on without a line of code here.
  */
 import { element } from "./element.ts";
-import { LEAVE, type Gesture } from "./shortcuts.ts";
+import { LEAVE, stepped, type Gesture, type KeyPress } from "./shortcuts.ts";
 
 /**
  * Draw a column of gestures. `home` is the home screen's look (the home
@@ -31,6 +31,49 @@ export function menuRow(gestures: readonly Gesture[]): HTMLElement {
     { className: "menu menu--row" },
     gestures.map((gesture) => item(gesture)),
   );
+}
+
+/** The class on the row the highlight is on. */
+const SELECTED = "gesture--selected";
+
+/**
+ * Give a drawn home menu a highlight the keyboard can move.
+ *
+ * One row is selected at a time, the first to begin with. The mouse moves it
+ * (hover), focus moves it (Tab), and Up and Down move it, wrapping at the ends;
+ * the keys also move focus, so a screen reader follows the eye. Enter acts on
+ * the selected row, as a click would. The answer says whether the key was used.
+ */
+export function navigable(
+  list: HTMLElement,
+  gestures: readonly Gesture[],
+): (press: KeyPress) => boolean {
+  const buttons = [...list.querySelectorAll<HTMLButtonElement>("button.gesture")];
+  let selected = 0;
+  const select = (index: number): void => {
+    buttons[selected]?.classList.remove(SELECTED);
+    selected = index;
+    buttons[selected]?.classList.add(SELECTED);
+  };
+  select(0);
+  buttons.forEach((button, index) => {
+    button.addEventListener("mouseenter", () => select(index));
+    button.addEventListener("focus", () => select(index));
+  });
+
+  return (press) => {
+    if (press.key === "Enter" && !press.ctrlKey && !press.metaKey && !press.altKey) {
+      const gesture = gestures[selected];
+      if (gesture === undefined || gesture.unavailable === true) return false;
+      gesture.act();
+      return true;
+    }
+    const to = stepped(gestures, selected, press);
+    if (to === undefined) return false;
+    select(to);
+    buttons[to]?.focus();
+    return true;
+  };
 }
 
 function item(gesture: Gesture): HTMLButtonElement {

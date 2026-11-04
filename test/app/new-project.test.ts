@@ -25,7 +25,7 @@ describe("Home", () => {
   it("offers New Project first, above Open Project", () => {
     const into = document.createElement("div");
     const onNewProject = vi.fn();
-    const gestures = renderHome(into, { onNewProject, onOpenProject: () => {}, onQuit: () => {} });
+    const { gestures } = renderHome(into, { onNewProject, onOpenProject: () => {}, onQuit: () => {} });
     expect(gestures.map((g) => g.label)).toEqual(["New Project", "Open Project", "Metrics", "Settings", "Quit"]);
     const labels = [...into.querySelectorAll(".gesture__label")].map((n) => n.textContent);
     expect(labels).toEqual(["New Project", "Open Project", "Metrics", "Settings", "Quit"]);
@@ -52,7 +52,7 @@ describe("Home, Metrics and Settings", () => {
   it("are drawn between Open Project and Quit, with their keys, and do nothing", () => {
     const into = document.createElement("div");
     const calls = { n: vi.fn(), o: vi.fn(), q: vi.fn() };
-    const gestures = renderHome(into, { onNewProject: calls.n, onOpenProject: calls.o, onQuit: calls.q });
+    const { gestures } = renderHome(into, { onNewProject: calls.n, onOpenProject: calls.o, onQuit: calls.q });
     expect(gestures.map((g) => `${g.label} [${g.key}]`)).toEqual([
       "New Project [n]", "Open Project [o]", "Metrics [m]", "Settings [s]", "Quit [q]",
     ]);
@@ -72,7 +72,7 @@ describe("Home, Metrics and Settings", () => {
 
   it("are chosen by their keys, and the choice does nothing", () => {
     const into = document.createElement("div");
-    const gestures = renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {} });
+    const { gestures } = renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {} });
     const press = (key: string) => ({ key, altKey: false, ctrlKey: false, metaKey: false });
     expect(chosenBy(gestures, press("m"))?.label).toBe("Metrics");
     expect(chosenBy(gestures, press("s"))?.label).toBe("Settings");

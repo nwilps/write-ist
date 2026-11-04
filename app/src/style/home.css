@@ -103,9 +103,7 @@
 }
 
 /* The selected row: the first, until the eye or the keyboard is on another. */
-.menu--home .gesture:hover,
-.menu--home .gesture:focus-visible,
-.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture {
+.menu--home .gesture--selected {
   background: var(--colour-overlay);
   color: var(--colour-accent);
 }
@@ -114,9 +112,7 @@
   outline: none;
 }
 
-.menu--home .gesture:hover .gesture__cursor,
-.menu--home .gesture:focus-visible .gesture__cursor,
-.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture__cursor {
+.menu--home .gesture--selected .gesture__cursor {
   visibility: visible;
 }
 
