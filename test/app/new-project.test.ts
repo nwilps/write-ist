@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
+import { chosenBy } from "../../app/src/screens/shortcuts.ts";
 import { renderOpenProject } from "../../app/src/screens/open-project.ts";
 import { showNewProject } from "../../app/src/screens/new-project.ts";
 
@@ -25,9 +26,9 @@ describe("Home", () => {
     const into = document.createElement("div");
     const onNewProject = vi.fn();
     const gestures = renderHome(into, { onNewProject, onOpenProject: () => {}, onQuit: () => {} });
-    expect(gestures.map((g) => g.label)).toEqual(["New Project", "Open Project", "Quit"]);
+    expect(gestures.map((g) => g.label)).toEqual(["New Project", "Open Project", "Metrics", "Settings", "Quit"]);
     const labels = [...into.querySelectorAll(".gesture__label")].map((n) => n.textContent);
-    expect(labels).toEqual(["New Project", "Open Project", "Quit"]);
+    expect(labels).toEqual(["New Project", "Open Project", "Metrics", "Settings", "Quit"]);
     (into.querySelector("button.gesture") as HTMLButtonElement).click();
     expect(onNewProject).toHaveBeenCalledTimes(1);
   });
@@ -44,6 +45,45 @@ describe("Home, as designed", () => {
     // Rule, menu, rule: in that order.
     const order = [...into.querySelector(".composition")!.children].map((c) => c.className.split(" ")[0]);
     expect(order).toEqual(["wordmark", "tagline", "home-rule", "menu", "home-rule"]);
+  });
+});
+
+describe("Home, Metrics and Settings", () => {
+  it("are drawn between Open Project and Quit, with their keys, and do nothing", () => {
+    const into = document.createElement("div");
+    const calls = { n: vi.fn(), o: vi.fn(), q: vi.fn() };
+    const gestures = renderHome(into, { onNewProject: calls.n, onOpenProject: calls.o, onQuit: calls.q });
+    expect(gestures.map((g) => `${g.label} [${g.key}]`)).toEqual([
+      "New Project [n]", "Open Project [o]", "Metrics [m]", "Settings [s]", "Quit [q]",
+    ]);
+    const buttons = [...into.querySelectorAll<HTMLButtonElement>("button.gesture")];
+    expect(buttons.map((b) => b.querySelector(".gesture__key")!.textContent)).toEqual(["[n]", "[o]", "[m]", "[s]", "[q]"]);
+    // Enabled, so hover and focus reach them like any row; not marked unavailable.
+    for (const i of [2, 3]) {
+      expect(buttons[i]!.disabled).toBe(false);
+      expect(gestures[i]!.unavailable).not.toBe(true);
+      buttons[i]!.click();
+      gestures[i]!.act();
+    }
+    expect(calls.n).not.toHaveBeenCalled();
+    expect(calls.o).not.toHaveBeenCalled();
+    expect(calls.q).not.toHaveBeenCalled();
+  });
+
+  it("are chosen by their keys, and the choice does nothing", () => {
+    const into = document.createElement("div");
+    const gestures = renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {} });
+    const press = (key: string) => ({ key, altKey: false, ctrlKey: false, metaKey: false });
+    expect(chosenBy(gestures, press("m"))?.label).toBe("Metrics");
+    expect(chosenBy(gestures, press("s"))?.label).toBe("Settings");
+    expect(() => chosenBy(gestures, press("m"))!.act()).not.toThrow();
+  });
+
+  it("are not dimmed: the home menu paints every row muted and has no dimmer rule", () => {
+    const css = readFileSync("app/src/style/home.css", "utf8");
+    expect(css).toMatch(/\.menu--home \.gesture \{[^}]*color: var\(--colour-muted\)/);
+    const menuRules = css.match(/[^{}]*\.menu--home[^{}]*\{[^}]*\}/g)!.join("\n");
+    expect(menuRules).not.toMatch(/nth-child|opacity/);
   });
 });
 

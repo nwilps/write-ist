@@ -45,6 +45,11 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gest
   const gestures: readonly Gesture[] = [
     { label: "New Project", key: "n", act: screen.onNewProject },
     { label: "Open Project", key: "o", act: screen.onOpenProject },
+    // TODO(Noah's decision, ADR-0042): Metrics and Settings are drawn and do
+    // nothing yet, on click or on their key. They are not `unavailable` — that
+    // would disable the button and the highlight could not move through them.
+    { label: "Metrics", key: "m", act: () => {} },
+    { label: "Settings", key: "s", act: () => {} },
     { label: "Quit", key: "q", act: screen.onQuit },
   ];
 

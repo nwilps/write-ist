@@ -192,7 +192,7 @@ format version and minted project id (ADR-0004, ADR-0015), **import** into the d
 The home screen and the New Project dialog follow the approved home design: one typeface, a
 tagline with a blinking cursor, a rule above and below the menu, the first row selected, and a
 dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built: the ASCII logo
-(no text source), the ASCII background, an open type list, Novel, Metrics and Settings.
+(no text source), the ASCII background, an open type list, Novel. Metrics and Settings are drawn and do nothing yet (Noah's decision).
 
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 

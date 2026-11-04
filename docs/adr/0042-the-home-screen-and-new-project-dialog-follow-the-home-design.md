@@ -36,8 +36,12 @@ answer to.** Nothing about what the screens do changes.
 - **The ASCII logo.** The handoff draws it only inside a picture, not as text, and no source for the
   art is in the repository. The home screen keeps its text wordmark until the art is supplied as
   text. **The ASCII slash background** is explicitly not built.
-- **Metrics and Settings.** The design draws them; neither exists, and the home screen lists what
-  exists (`home.ts`). No dead rows were added.
+- **Metrics and Settings do nothing yet.** The design draws them, so the home screen lists them —
+  `Metrics [m]` and `Settings [s]`, between Open Project and Quit, in the same muted colour as every
+  unselected row. Neither exists, and **by Noah's decision they intentionally do nothing for now**,
+  on a click or on their key. They are real, enabled buttons (not `unavailable`), so the hover and
+  keyboard highlight moves through them like any row. `home.ts` carries a TODO where each gets its
+  behaviour.
 - **The dialog's wording against the glossary.** The design labels the field *Project type*, which
   `GLOSSARY.md` says to avoid for **Format**. The label is the design's; the word stays out of code
   and prose.
