@@ -143,6 +143,7 @@ What the user picks at New Project — a label plus defaults, running on a surfa
 and TV are screenplay formats; novel, short story and essay are prose formats. Formats set
 defaults, never restrictions.
 _Avoid_: project type, template, genre, document type
+(The New Project dialog's field is labelled *Project type*, in the home design's words, ADR-0042. The word stays out of code and prose.)
 
 **Manifest**:
 The data that declares a format or a workspace to the shell — what it is called, what it

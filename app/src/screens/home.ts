@@ -11,9 +11,11 @@
  * a column of items, each with its letter. Its ASCII animation and its typed
  * tagline are its feel rather than its shape, and its taglines are the
  * writer's own words to add if he wants them; the palette and the typefaces
- * here are ADR-0030's.
+ * here are ADR-0030's. The look — one typeface, a rule above and below, the
+ * first row selected — is the home design's (ADR-0042).
  */
 import { element } from "./element.ts";
+import { LOGO } from "./logo.ts";
 import { menu } from "./menu.ts";
 import type { Gesture } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
@@ -28,19 +30,45 @@ export interface HomeScreen {
   readonly trouble?: string;
 }
 
+/** The line above and below the menu: 42 box-drawing dashes, as drawn. */
+const RULE_LENGTH = 42;
+
+function rule(): HTMLElement {
+  return element("div", {
+    className: "home-rule",
+    ariaHidden: "true",
+    textContent: "\u2500".repeat(RULE_LENGTH),
+  });
+}
+
 /** Draw the home screen, and return the gestures the window answers to. */
 export function renderHome(into: HTMLElement, screen: HomeScreen): readonly Gesture[] {
   const gestures: readonly Gesture[] = [
     { label: "New Project", key: "n", act: screen.onNewProject },
     { label: "Open Project", key: "o", act: screen.onOpenProject },
+    // TODO(Noah's decision, ADR-0042): Metrics and Settings are drawn and do
+    // nothing yet, on click or on their key. They are not `unavailable` — that
+    // would disable the button and the highlight could not move through them.
+    { label: "Metrics", key: "m", act: () => {} },
+    { label: "Settings", key: "s", act: () => {} },
     { label: "Quit", key: "q", act: screen.onQuit },
   ];
 
   into.replaceChildren(
     element("main", { className: "screen" }, [
       element("div", { className: "composition" }, [
-        element("h1", { className: "wordmark", textContent: "Write-ist" }),
-        menu(gestures),
+        // The art is for the eye: the heading carries the name, the art is hidden.
+        element("h1", { className: "wordmark", ariaLabel: "Write-ist" }, [
+          element("pre", { className: "wordmark__art", ariaHidden: "true", textContent: LOGO }),
+        ]),
+        element("p", { className: "tagline" }, [
+          document.createTextNode("A calm place to write."),
+          // The blinking cursor is decoration, not part of the sentence.
+          element("span", { className: "tagline__cursor", ariaHidden: "true" }),
+        ]),
+        rule(),
+        menu(gestures, { home: true }),
+        rule(),
         ...(screen.trouble === undefined ? [] : [troublePanel(screen.trouble)]),
       ]),
     ]),

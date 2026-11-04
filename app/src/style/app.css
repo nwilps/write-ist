@@ -81,16 +81,6 @@ body {
   align-items: stretch;
 }
 
-/* Write-ist's own name, on the home screen. */
-.wordmark {
-  margin: 0;
-  font-size: var(--size-title);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-label);
-  color: var(--colour-accent);
-}
-
 /* What this screen is, on every screen that is not home. */
 .screen__name {
   margin: 0;

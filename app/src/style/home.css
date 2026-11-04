@@ -1,0 +1,275 @@
+/*
+ * The home screen and the New Project dialog (the home design, ADR-0042).
+ *
+ * Everything here is the interface's one typeface, in the colours the desk
+ * uses. The Open Project screen shares the menu's markup and is not touched:
+ * every rule below is behind `.menu--home` or the dialog's own classes.
+ */
+
+/* --- Home ---------------------------------------------------------------- */
+
+/*
+ * Write-ist's name, drawn in characters. The art is one block, never
+ * re-wrapped; on a window narrower than it is, the type shrinks (the fit is
+ * the token's) rather than the lines breaking.
+ */
+.wordmark {
+  margin: 0 0 var(--space-home);
+  font-size: var(--size-logo);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  color: var(--colour-accent);
+}
+
+.wordmark__art {
+  margin: 0;
+  font-family: inherit;
+  font-size: min(100%, var(--size-logo-fit));
+  line-height: inherit;
+  white-space: pre;
+  user-select: none;
+}
+
+.screen .composition:has(.menu--home) {
+  gap: var(--space-home);
+}
+
+.tagline {
+  margin: 0;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  color: var(--colour-muted);
+}
+
+.tagline__cursor {
+  display: inline-block;
+  height: var(--leading-label);
+  vertical-align: text-bottom;
+  border-left: var(--size-caret) solid var(--colour-muted);
+  animation: blink var(--duration-blink) steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tagline__cursor {
+    animation: none;
+  }
+}
+
+.home-rule {
+  color: var(--colour-faint);
+  font-size: var(--size-body);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.menu--home {
+  gap: var(--space-home-row);
+}
+
+.menu--home .gesture {
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-tight);
+  width: var(--measure-home-row);
+  height: var(--size-row);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  color: var(--colour-muted);
+}
+
+.menu--home .gesture__label {
+  flex: none;
+}
+
+.menu--home .gesture__key {
+  font-size: inherit;
+  color: inherit;
+}
+
+.menu--home .gesture__cursor {
+  position: absolute;
+  left: var(--space-tight);
+}
+
+/* The selected row: the first, until the eye or the keyboard is on another. */
+.menu--home .gesture:hover,
+.menu--home .gesture:focus-visible,
+.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
+
+.menu--home .gesture:focus-visible {
+  outline: none;
+}
+
+.menu--home .gesture:hover .gesture__cursor,
+.menu--home .gesture:focus-visible .gesture__cursor,
+.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture__cursor {
+  visibility: visible;
+}
+
+/* --- The New Project dialog ---------------------------------------------- */
+
+/*
+ * Its own classes, deliberately: the title page and Goals dialogs wear
+ * `.report`, `.new-project__form` and `.field`, and a change to those is a
+ * change to them.
+ */
+.new-project-dialog {
+  width: var(--measure-new-project);
+  max-width: 100%;
+  padding: var(--space-roomy);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  background: var(--colour-raised);
+  color: var(--colour-text);
+}
+
+.new-project-dialog::backdrop {
+  background: var(--veil);
+}
+
+.new-project-dialog__form {
+  /* A form brings a bottom margin of its own. */
+  margin: 0;
+  display: grid;
+  gap: var(--space-roomy);
+}
+
+.new-project-dialog__field {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.new-project-dialog__label {
+  font-size: var(--size-caption);
+  line-height: var(--leading-tight);
+  color: var(--colour-muted);
+}
+
+.new-project-dialog__box {
+  position: relative;
+  display: grid;
+}
+
+.new-project-dialog__input {
+  width: 100%;
+  height: var(--size-field);
+  padding: 0 var(--space-panel);
+  font-family: inherit;
+  font-size: var(--size-query);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: 0;
+  background: var(--colour-base);
+  color: var(--colour-text);
+  caret-color: var(--colour-text);
+  appearance: none;
+}
+
+.new-project-dialog__input::placeholder {
+  color: var(--colour-faint);
+  opacity: 1;
+}
+
+.new-project-dialog__input:focus-visible {
+  outline: none;
+  border-color: var(--colour-muted);
+}
+
+.new-project-dialog__chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--space-panel);
+  width: var(--size-icon);
+  height: var(--size-icon);
+  translate: 0 -50%;
+  color: var(--colour-faint);
+  pointer-events: none;
+}
+
+.new-project-dialog__actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-panel);
+  /* The form's own gap is already between the fields and here. */
+  margin-block-start: calc(var(--space-dialog-actions) - var(--space-roomy));
+}
+
+.new-project-dialog__action {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-tight);
+  width: var(--measure-dialog-slot);
+  height: var(--size-row);
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  border: none;
+  background: transparent;
+  color: var(--colour-muted);
+  cursor: pointer;
+}
+
+.new-project-dialog__action:hover,
+.new-project-dialog__action:focus-visible {
+  color: var(--colour-text);
+}
+
+.new-project-dialog__action:focus-visible {
+  outline: none;
+}
+
+.new-project-dialog__cursor {
+  display: none;
+}
+
+/* Confirm looks like the home screen's selected row. */
+.new-project-dialog__action--confirm {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
+
+.new-project-dialog__action--confirm:hover,
+.new-project-dialog__action--confirm:focus-visible {
+  color: var(--colour-accent);
+}
+
+.new-project-dialog__action--confirm .new-project-dialog__cursor {
+  display: inline;
+  position: absolute;
+  left: var(--space-tight);
+}
+
+.new-project-dialog__action:disabled {
+  color: var(--colour-faint);
+  cursor: default;
+}
+
+/* An empty problem line must not add a gap of its own. */
+.new-project-dialog__form .new-project__problem:empty {
+  display: none;
+}
+
+/* The rules sit close to the menu they frame, and far from the tagline. */
+.home-rule:has(+ .menu--home) {
+  margin-bottom: calc(var(--space-snug) - var(--space-home));
+}
+
+.menu--home + .home-rule {
+  margin-top: calc(var(--space-snug) - var(--space-home));
+}
