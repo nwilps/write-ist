@@ -59,6 +59,7 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
+import { openGoalsDialog } from "./goals-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
@@ -70,6 +71,9 @@ import type {
   WorkspaceContext,
   WorkspaceManifest,
 } from "../../shell/workspace.ts";
+/** How often the Goal pill looks at the clock, to notice the day has turned over. */
+const GOAL_REFRESH_MS = 60_000;
+
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
   name: "Editor",
@@ -261,6 +265,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       closed: () => view?.focus(),
     });
   };
+  // ADR-0040: the Goals dialog, from the Edit menu, the counts pill or the Goal
+  // pill. It changes the goals as the writer chooses, so there is nothing to save.
+  const editGoals = (): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    const writing = session;
+    openGoalsDialog(into, {
+      view: writing.goalsView,
+      setDaily: writing.setDailyGoal,
+      startSprint: writing.startSprint,
+      endSprint: writing.endSprint,
+      closed: () => view?.focus(),
+    });
+  };
+  const stopListeningForGoals = context.whenGoalsAsked(editGoals);
+  // The day turns over without a keystroke: the pill is refreshed each minute.
+  const goalClock = setInterval(() => session?.showGoal(), GOAL_REFRESH_MS);
   const viewTitlePage = (): void => {
     if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
     showTitlePagePreview(into, titlePageOf(session.state.doc), () => view?.focus());
@@ -276,6 +296,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     toHome: context.leave.toHome,
     editTitlePage,
     viewTitlePage,
+    editGoals,
     confirmName: () => confirmHere("character"),
     confirmLocation: () => confirmHere("location"),
     // Ctrl+K: whichever the caret is in.
@@ -330,6 +351,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           report: context.report,
           setSaved: context.setSaved,
           setStatus: context.setStatus,
+          setGoal: context.setGoal,
           ledger: context.ledger,
           whenSwitchedAway: context.whenSwitchedAway,
           whenSwitchedBack: context.whenSwitchedBack,
@@ -388,6 +410,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       panels.attach(view);
       panels.update(writing.state);
       writing.showCounts();
+      writing.showGoal();
 
       // Capture, so the editor's own Enter handling never sees it.
       const asksForSearch = (event: KeyboardEvent): void => {
@@ -416,6 +439,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // text to take down. The read's own continuation sees this and stops.
       if (session === undefined) {
         gone = true;
+        clearInterval(goalClock);
+        stopListeningForGoals();
         page.removeEventListener("contextmenu", onContextMenu);
         contextMenu?.close(false);
         panels.dispose();
@@ -426,6 +451,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       if (!(await session.leave())) return false;
 
       gone = true;
+      clearInterval(goalClock);
+      stopListeningForGoals();
       session = undefined;
       page.removeEventListener("contextmenu", onContextMenu);
       contextMenu?.close(false);

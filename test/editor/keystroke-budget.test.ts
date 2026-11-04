@@ -108,6 +108,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
       report: () => {},
       setSaved: () => {},
       setStatus: () => {},
+      setGoal: () => {},
       ledger: () => undefined,
       whenSwitchedAway: () => () => {},
       whenSwitchedBack: () => () => {},
@@ -119,7 +120,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
       // `setTimeout`, and what is being measured is Write-ist's own work.
       autosaveClock: { wait: () => 0, cancel: () => {} },
     },
-    { opened: { project: project, document, manuscript: new Uint8Array() }, confirmed: NO_CONFIRMATIONS },
+    { opened: { project: project, document, manuscript: new Uint8Array() }, confirmed: NO_CONFIRMATIONS, goals: undefined },
   );
 
   // Where the caret is: the middle of the manuscript, so the mapping has the

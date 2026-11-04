@@ -15,11 +15,15 @@ The Pilot/
   log.md               the Log: entries, tasks, pushes
   notes.md             notes
   names.txt            the characters and locations the writer confirmed by hand
+  goals.md             the daily goal, the weekdays that count, and the words written each day
 ```
 
 **`names.txt` is the exception (slice 2, step 8).** It holds only names the writer confirmed,
 plain text, a kind on a line and one indented name under it — kept trivial so its format can
 change cheaply. It is project-level and never frozen at lock, like the other sidecar files.
+
+**`goals.md` follows the shape below** (ADR-0040): a heading, a labelled header (`Daily goal`, `Days`), and
+one line per day under *Words written*. Project-level and never frozen at lock.
 
 **Every other sidecar file is written in the same Pandoc Markdown subset the prose surface uses**
 (ADR-0023), with each record as a section: the writer's words in the body, the application's

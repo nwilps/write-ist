@@ -67,6 +67,20 @@ export interface WorkspaceContext {
    */
   readonly setStatus: (text: string) => void;
   /**
+   * Put a goal in the Goal pill at the foot of the left, or hide the pill with
+   * `undefined` (ADR-0040). The shell draws the pill and its placement; what it
+   * says and which of its states it is in belong to the workspace. `kind` and
+   * `state` are only hooks the stylesheet colours by.
+   */
+  readonly setGoal: (pill: { readonly text: string; readonly kind: string; readonly state: string } | undefined) => void;
+  /**
+   * Hear the writer click the counts pill or the Goal pill — the ways in to the
+   * Goals dialog besides the menu. Given rather than found, like the window
+   * events: the shell owns the pills, and says only that one was pressed.
+   * Answers how to stop listening.
+   */
+  readonly whenGoalsAsked: (act: () => void) => () => void;
+  /**
    * Say whether the workspace's work is on disk, in the save pill beside the
    * counts. `saving` is a save that has started and not yet landed; `unsaved`
    * is work waiting on the next one. A workspace with nothing to save never

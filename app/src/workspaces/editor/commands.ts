@@ -42,6 +42,7 @@ import {
   Save,
   Scissors,
   SpellCheck,
+  Target,
   UserCheck,
   type IconNode,
 } from "lucide";
@@ -66,6 +67,8 @@ export interface EditorActions {
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
   readonly viewTitlePage: () => void;
+  /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
+  readonly editGoals: () => void;
   readonly confirmName: () => void;
   readonly confirmLocation: () => void;
   /** Confirm whichever of the two the caret is in. */
@@ -193,6 +196,7 @@ export const COMMANDS: readonly Command[] = [
 
   // Edit
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
+  { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
   // Ctrl+K confirms whichever the caret is in; the two items confirm one kind
   // each, and show the same key because it is the same key.
   { id: "confirm-here", label: "Confirm Name or Location", chord: { key: "k", mod: true }, run: (host) => host.confirmHere() },

@@ -337,3 +337,14 @@
   /** The desk's own colour at 70%, over everything. No blur. */
   --veil: color-mix(in srgb, var(--colour-base) 70%, transparent);
 }
+
+/* --- The Goals dialog (ADR-0040) ------------------------------------------- */
+
+:root {
+  /** The dialog: a little wider than the title page's form, for thirty bars. */
+  --measure-goals: 560px;
+  /** The chart's plot: tall enough to read a bar against the goal line. */
+  --size-goals-chart: 120px;
+  /** A word-count box: five or six digits and the spinner. */
+  --size-goals-number: 96px;
+}

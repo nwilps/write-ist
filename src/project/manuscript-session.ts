@@ -32,6 +32,11 @@
 import type { DecorationSet } from "prosemirror-view";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { EditorState, Transaction } from "prosemirror-state";
+import { readGoals, writeGoals } from "../goals/file.ts";
+import { NO_GOALS, type Goals } from "../goals/history.ts";
+import { GoalsTracker, type GoalPill, type GoalsView } from "../goals/tracker.ts";
+import type { Weekday } from "../goals/day.ts";
+import type { Instant } from "../instant.ts";
 import { DEFAULT_PREFERENCES } from "../preferences.ts";
 import { message } from "../message.ts";
 import { countsText, wordsIn } from "../screenplay/counts.ts";
@@ -72,6 +77,10 @@ export interface SessionPorts {
   readonly setSaved: (state: SavedState) => void;
   /** The counts line: the page the caret is on, the pages, the words. */
   readonly setStatus: (text: string) => void;
+  /** The Goal pill: what it says, or `undefined` to hide it. */
+  readonly setGoal: (pill: GoalPill | undefined) => void;
+  /** The clock the day's words are dated by; a test drives it. */
+  readonly instant?: Instant;
   /** The ledger, if launch managed to open it. Asked at close, not before. */
   readonly ledger: () => Ledger | undefined;
   /** ADR-0028's first moment. Answers how to stop listening. */
@@ -99,6 +108,8 @@ export interface ManuscriptRead {
   readonly opened: OpenedProject;
   /** The writer's confirmed names, or `undefined` when the file could not be read — then confirming is refused. */
   readonly confirmed: Confirmations | undefined;
+  /** The project's goals, or `undefined` when the file could not be read — then it is not written. */
+  readonly goals: Goals | undefined;
 }
 
 /**
@@ -112,15 +123,26 @@ export async function readManuscript(
   report: (trouble: string) => void,
 ): Promise<ManuscriptRead> {
   const opened = await openProject(filesystem, project);
+  let confirmed: Confirmations | undefined;
   try {
-    return { opened, confirmed: await readConfirmations(filesystem, project) };
+    confirmed = await readConfirmations(filesystem, project);
   } catch (error) {
     report(
       `Write-ist could not read this project's confirmed names, so it will not change them. ` +
         `Your screenplay is not affected. ${message(error)}`,
     );
-    return { opened, confirmed: undefined };
   }
+  // The same rule for the goals file (ADR-0008 rule 3): said, and not overwritten.
+  let goals: Goals | undefined;
+  try {
+    goals = await readGoals(filesystem, project);
+  } catch (error) {
+    report(
+      `Write-ist could not read this project's goals, so it will not change them. ` +
+        `Your screenplay is not affected. ${message(error)}`,
+    );
+  }
+  return { opened, confirmed, goals };
 }
 
 export interface ManuscriptSession {
@@ -142,6 +164,15 @@ export interface ManuscriptSession {
   readonly save: () => Promise<void>;
   /** Say the counts line again. */
   readonly showCounts: () => void;
+  /** Say the Goal pill again (the day may have turned over). */
+  readonly showGoal: () => void;
+  /** The goals as the dialog draws them. */
+  readonly goalsView: () => GoalsView;
+  /** Turn the daily goal on (a number of words) or off, and choose the counted weekdays. */
+  readonly setDailyGoal: (goal: number | undefined, weekdays: readonly Weekday[]) => boolean;
+  /** Start a sprint; `false` for a target that is not allowed. */
+  readonly startSprint: (target: number) => boolean;
+  readonly endSprint: () => void;
   /**
    * Finish and let go: the last save, then the ledger. Answers `false` — and
    * says why — when the save failed, in which case nothing has been let go of.
@@ -203,13 +234,22 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     seams = paperDecorations(state.doc, laid, ports.drawSeam);
   };
 
+  // The words in the manuscript now, held so a keystroke counts them once. The
+  // change in this number across an edit is what the goals are told (ADR-0040);
+  // a manuscript that is loaded sets it and tells them nothing.
+  let words = 0;
+
   const showCounts = (): void => {
     const current = pageAtElement(laid.pagination, manuscriptElementAt(state.doc, state.selection.head));
-    ports.setStatus(countsText(current, laid.totalPages, wordsIn(state.doc)));
+    ports.setStatus(countsText(current, laid.totalPages, words));
   };
 
   state = editorStateFor(opened.document, { autocomplete, spellcheck });
+  words = wordsIn(state.doc);
   settle({ replaced: read.confirmed ?? NO_CONFIRMATIONS });
+
+  const tracker = new GoalsTracker(read.goals ?? NO_GOALS, ports.instant === undefined ? {} : { instant: ports.instant });
+  const showGoal = (): void => ports.setGoal(tracker.view(words).pill);
 
   const session = editingSession(ports.filesystem, opened, () => manuscriptOf(state.doc), {
     // Changed elsewhere, and nothing typed here: the other version is the
@@ -218,8 +258,11 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     reload: (imported) => {
       const spellingWasOn = spellcheck.isOn(state);
       state = editorStateFor(imported.document, { autocomplete, spellcheck });
+      // Someone else's words are not the writer's: counting starts from them.
+      words = wordsIn(state.doc);
       settle({ replaced: confirmationsOf(names) });
       showCounts();
+      showGoal();
       ports.reloaded(spellingWasOn);
     },
     // The dated copy is already beside the manuscript. Nothing is said:
@@ -244,6 +287,35 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       ports.setSaved(session.unsaved() ? "unsaved" : "saved");
     }
   };
+
+  // The goals file (ADR-0040): written a pause after a change, like the
+  // manuscript, and once more on the way out. Never over a file that could not
+  // be read (`read.goals` is then undefined).
+  let goalsTrouble = false;
+  const writeGoalsNow = async (): Promise<void> => {
+    if (read.goals === undefined || !tracker.dirty) return;
+    // Cleared before the write, so a change during it is still to be written.
+    tracker.clean();
+    try {
+      await writeGoals(ports.filesystem, ports.project, tracker.data());
+      goalsTrouble = false;
+    } catch (error) {
+      tracker.unclean();
+      throw error;
+    }
+  };
+  const savingGoals = autosave({
+    save: writeGoalsNow,
+    trouble: (error) => {
+      // Said once, not on every retry: it costs a chart, never a word.
+      if (goalsTrouble) return;
+      goalsTrouble = true;
+      ports.report(
+        `Write-ist could not save your writing goals. Your screenplay is not affected. ${message(error)}`,
+      );
+    },
+    ...(ports.autosaveClock === undefined ? {} : { clock: ports.autosaveClock }),
+  });
 
   // Set while the project is closing, to hold a failure for `leave` to say.
   let leaving = false;
@@ -321,6 +393,9 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
         );
       }
     }
+    // The day's words, with the goal beside them. A failure is said and the
+    // project still leaves, as with the ledger.
+    await savingGoals.now();
     stopSwitchingAway();
     stopSwitchingBack();
     return true;
@@ -374,6 +449,13 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
         saving.typed();
         ports.setSaved("unsaved");
         settle({ editedFrom: before });
+        const wordsBefore = words;
+        words = wordsIn(state.doc);
+        if (words !== wordsBefore) {
+          tracker.wordsChanged(words - wordsBefore);
+          savingGoals.typed();
+          showGoal();
+        }
       }
       // Selection moves still refresh the current page; the total only
       // moves when the manuscript does.
@@ -382,6 +464,25 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     unsaved: session.unsaved,
     save: () => saving.now(),
     showCounts,
+    showGoal,
+    goalsView: () => tracker.view(words),
+    setDailyGoal: (goal, weekdays) => {
+      const set = tracker.setDaily(goal, weekdays);
+      if (set) {
+        savingGoals.typed();
+        showGoal();
+      }
+      return set;
+    },
+    startSprint: (target) => {
+      const started = tracker.startSprint(target);
+      showGoal();
+      return started;
+    },
+    endSprint: () => {
+      tracker.endSprint();
+      showGoal();
+    },
     leave,
     settled: () => writingNames,
     confirmableKind: () => {

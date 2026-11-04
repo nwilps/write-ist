@@ -125,7 +125,7 @@ _Avoid_: database, store, cache, index (that is the project-level index, inside 
 
 **Ledger**:
 The append-only record of what the writer produced each day — words and pages per project, and
-how long each session lasted. It sits outside every bundle and spans all of them, because it
+how long each session lasted, dated by the writer's local **Day ends at**. It sits outside every bundle and spans all of them, because it
 is a record of the writer's days rather than a property of any one work, and it outlives a
 project that is deleted. It holds no work: losing it costs a chart, never a word.
 _Avoid_: log (that is the Log workspace), history, metrics (that is the view of it), analytics,
@@ -297,7 +297,8 @@ _Avoid_: tight run (the file's look of it), merged, collapsed
 A page number the writer authors on a plan card, stating where they intend something to
 land. A target is an intention; a page is a fact. Comparing the two is the point of the Plan
 workspace, which is why they never share a word.
-_Avoid_: planned page, estimated page, goal
+_Avoid_: planned page, estimated page, goal (a **Daily goal** is a number of words a day, set per project
+and kept by the app — a target is a page the writer places by hand)
 
 **Shell**:
 The application frame that hosts the workspaces and the workspace bar without knowing what
@@ -362,7 +363,50 @@ _Avoid_: row, group, layer
 **Push**:
 A named stretch of days in the Log that tasks are worked against, reporting the pace needed
 to clear them. A deadline is a push with nothing in it yet.
-_Avoid_: sprint, milestone, goal, deadline (that is a push, not a second thing)
+_Avoid_: milestone, deadline (that is a push, not a second thing), goal unqualified (say **Daily goal**
+for the words-a-day figure), sprint (a **Sprint** is a one-time word target with no days in it; a push is
+days of tasks, and the two share nothing but a word the Log's author reached for first)
+
+### Writing goals
+
+Three words for the figures the writer sets to keep themselves writing (ADR-0040). They are about
+*words*, never pages, and they are the app's pacing — not the Log's. They do not share a word with the
+planning workspaces' **Push** or **Target**, which is why those entries tell you to say *Daily goal* and
+*Sprint* here.
+
+**Words written**:
+Words added minus words cut, over a day or over a sprint, and never shown below zero. Only what the
+writer changes counts: opening a project, loading a version another program wrote, and moving text
+(a cut and the same words pasted back) add nothing. It is held signed underneath — cutting 40 words and
+pasting them elsewhere is −40 and then 0 — and clamped to zero where it is read.
+_Avoid_: word count (that is the manuscript's total, in the counts pill), productivity, output
+
+**Daily goal**:
+A number of words to write each day, set **per project** and stored in that project's `goals.md`, so it
+travels with the script. The writer chooses which weekdays count, any subset of Monday to Sunday, all
+seven to begin with, and may turn the goal off. A day that does not count neither breaks a streak nor
+extends one. The Goal pill shows it as `320 / 500 today` for as long as it is active, met or not, and
+past it as `620 / 500 today`.
+_Avoid_: target (that is a plan card's page), quota, push (that is the Log's), objective
+
+**Streak**:
+The run of consecutive counted days on which the daily goal was met, counted back from today. Today,
+until it is over, can only help: a counted day not yet met is in progress, not missed. It is read from the
+goal the project has now, so changing the goal changes the history's reading. The best streak is the
+longest such run on record.
+_Avoid_: chain (that is the run of locked drafts), run, combo
+
+**Sprint**:
+A one-time word target the writer sets on the spot — at least 50, offered at 500 — and counted in words
+written from the moment it starts. No timer and no history: reaching its target ends it, the writer may
+end it sooner, and it is gone when the project closes. While one runs it takes the Goal pill's place.
+_Avoid_: push (that is days of tasks in the Log), challenge, session, timer
+
+**Day ends at**:
+Where one of the writer's days stops and the next begins, in their own time zone — midnight until the
+app has a setting for it. It is the app's, one for every project, and it is the one day the app knows:
+the goals and the ledger both date by it. Old ledger lines dated in UTC are kept as written (ADR-0041).
+_Avoid_: rollover, reset time, midnight (it is only midnight by default)
 
 ### Integrity
 

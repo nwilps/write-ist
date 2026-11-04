@@ -90,3 +90,6 @@ writer a chart, never a word, because every word is still in a bundle.
   different ways and must not share one.
 - **`GLOSSARY.md` gains **Ledger**.** The term was held out of the glossary pending this
   decision.
+- **Its days are the writer's local days** (ADR-0041, which amends this). A `day` line is dated by
+  `writingDayOf()`, the same function the goals use; lines written before that change are UTC-dated and
+  stay as written.
