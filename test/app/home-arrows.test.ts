@@ -64,6 +64,18 @@ describe("Home, arrow keys", () => {
     expect(h.selected()).toBe(4);
   });
 
+  it("hovering after the arrows leaves exactly one row highlighted and focused", () => {
+    const h = home();
+    answerKey(press("ArrowDown"), h.screen());
+    answerKey(press("ArrowDown"), h.screen());
+    expect(document.activeElement).toBe(h.buttons[2]);
+    h.buttons[4]!.dispatchEvent(new MouseEvent("mouseenter"));
+    expect(h.selected()).toBe(4);
+    expect(h.buttons.filter((b) => b.classList.contains("gesture--selected"))).toHaveLength(1);
+    expect(document.activeElement).toBe(h.buttons[4]);
+    expect(h.buttons.filter((b) => b.matches(":focus"))).toHaveLength(1);
+  });
+
   it("clicking and the letter shortcuts still work", () => {
     const h = home();
     h.buttons[1]!.click();

@@ -57,7 +57,11 @@ export function navigable(
   };
   select(0);
   buttons.forEach((button, index) => {
-    button.addEventListener("mouseenter", () => select(index));
+    // Hover takes focus too, so the row the keys left focused lets go of it.
+    button.addEventListener("mouseenter", () => {
+      select(index);
+      button.focus({ preventScroll: true });
+    });
     button.addEventListener("focus", () => select(index));
   });
 
