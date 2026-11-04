@@ -38,7 +38,7 @@ import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
 import { showImportReport } from "./screens/import-report.ts";
-import { chosenBy, type Gesture } from "./screens/shortcuts.ts";
+import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
 import { mountShell, type MountedShell } from "./shell/shell.ts";
 import { WORKSPACES } from "./workspaces/registry.ts";
@@ -95,8 +95,11 @@ void (async () => {
 
 /** What the screen now showing answers to. Replaced every time one is drawn. */
 let gestures: readonly Gesture[] = [];
+/** The home screen's arrow keys and Enter; undefined on any other screen. */
+let navigate: ((press: KeyPress) => boolean) | undefined;
 
 function draw(): void {
+  navigate = undefined;
   if (screen === "project") {
     // Mounted once and then left alone: the shell says why, and trouble inside
     // it is said beside the workspace rather than by rebuilding the frame.
@@ -129,22 +132,26 @@ function draw(): void {
     return;
   }
 
-  gestures =
-    screen === "home"
-      ? renderHome(into, {
-          onNewProject: askForNewProject,
-          onOpenProject: () => go("open-project"),
-          onQuit: quit,
-          trouble,
-        })
-      : renderOpenProject(into, {
-          listing,
-          importing,
-          trouble,
-          onImport: () => void importOne(),
-          onOpen: goToProject,
-          onBack: () => go("home"),
-        });
+  if (screen === "home") {
+    const home = renderHome(into, {
+      onNewProject: askForNewProject,
+      onOpenProject: () => go("open-project"),
+      onQuit: quit,
+      trouble,
+    });
+    gestures = home.gestures;
+    navigate = home.navigate;
+    return;
+  }
+
+  gestures = renderOpenProject(into, {
+    listing,
+    importing,
+    trouble,
+    onImport: () => void importOne(),
+    onOpen: goToProject,
+    onBack: () => go("home"),
+  });
 }
 
 /**
@@ -245,11 +252,12 @@ function show(next: Screen): void {
  * hears nothing.
  */
 window.addEventListener("keydown", (event) => {
-  if (into.querySelector("dialog[open]") !== null) return;
-  const gesture = chosenBy(gestures, event);
-  if (gesture === undefined) return;
-  event.preventDefault();
-  gesture.act();
+  const used = answerKey(event, {
+    dialogOpen: into.querySelector("dialog[open]") !== null,
+    gestures,
+    navigate,
+  });
+  if (used) event.preventDefault();
 });
 
 /**

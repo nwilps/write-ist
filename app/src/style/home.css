@@ -102,10 +102,26 @@
   left: var(--space-tight);
 }
 
-/* The selected row: the first, until the eye or the keyboard is on another. */
+/*
+ * Only the selected row is lit. The generic hover and focus looks in app.css
+ * would light a second row (the one the keyboard left focused), so on Home they
+ * are reset here; `navigable` moves selection and focus together instead.
+ */
 .menu--home .gesture:hover,
-.menu--home .gesture:focus-visible,
-.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture {
+.menu--home .gesture:focus-visible {
+  background: transparent;
+  color: var(--colour-muted);
+}
+
+.menu--home .gesture:hover .gesture__cursor,
+.menu--home .gesture:focus-visible .gesture__cursor {
+  visibility: hidden;
+}
+
+/* The selected row: the first, until the eye or the keyboard is on another. */
+.menu--home .gesture--selected,
+.menu--home .gesture--selected:hover,
+.menu--home .gesture--selected:focus-visible {
   background: var(--colour-overlay);
   color: var(--colour-accent);
 }
@@ -114,9 +130,9 @@
   outline: none;
 }
 
-.menu--home .gesture:hover .gesture__cursor,
-.menu--home .gesture:focus-visible .gesture__cursor,
-.menu--home:not(:has(.gesture:hover, .gesture:focus-visible)) .menu__item:first-child .gesture__cursor {
+.menu--home .gesture--selected .gesture__cursor,
+.menu--home .gesture--selected:hover .gesture__cursor,
+.menu--home .gesture--selected:focus-visible .gesture__cursor {
   visibility: visible;
 }
 

@@ -108,3 +108,47 @@ export function chosenBy(gestures: readonly Gesture[], press: KeyPress): Gesture
   if (shortcut === undefined) return undefined;
   return gestures.find((gesture) => gesture.key === shortcut && gesture.unavailable !== true);
 }
+
+/**
+ * Where the highlight goes when an arrow key is pressed, or `undefined` for any
+ * other key. Up and Down step to the next gesture that is available and wrap at
+ * the ends; with nothing available the highlight stays where it is. Held
+ * modifiers mean the writer is talking to the window, not the menu.
+ */
+export function stepped(
+  gestures: readonly Gesture[],
+  from: number,
+  press: KeyPress,
+): number | undefined {
+  if (press.ctrlKey || press.metaKey || press.altKey) return undefined;
+  const direction = press.key === "ArrowDown" ? 1 : press.key === "ArrowUp" ? -1 : 0;
+  if (direction === 0) return undefined;
+  const count = gestures.length;
+  for (let step = 1; step <= count; step += 1) {
+    const index = (((from + direction * step) % count) + count) % count;
+    if (gestures[index]?.unavailable !== true) return index;
+  }
+  return from;
+}
+
+/**
+ * What the window does with a key press: nothing while a modal dialog is up
+ * (it is the writer's whole attention), else the screen's arrow keys and Enter,
+ * else the letter beside a gesture. True when the press was used, and the
+ * window should keep it from the browser.
+ */
+export function answerKey(
+  press: KeyPress,
+  screen: {
+    readonly dialogOpen: boolean;
+    readonly gestures: readonly Gesture[];
+    readonly navigate?: ((press: KeyPress) => boolean) | undefined;
+  },
+): boolean {
+  if (screen.dialogOpen) return false;
+  if (screen.navigate?.(press) === true) return true;
+  const gesture = chosenBy(screen.gestures, press);
+  if (gesture === undefined) return false;
+  gesture.act();
+  return true;
+}
