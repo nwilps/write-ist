@@ -90,6 +90,7 @@ function ports(
       report: (text) => heard.reports.push(text),
       setSaved: (state) => heard.saved.push(state),
       setStatus: (text) => heard.status.push(text),
+      setGoal: () => {},
       ledger: () => undefined,
       whenSwitchedAway: (act) => {
         heard.switchedAway.push(act);

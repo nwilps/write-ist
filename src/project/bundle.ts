@@ -23,6 +23,13 @@ export const MANUSCRIPT_FILE = "manuscript.fountain";
  */
 export const NAMES_FILE = "names.txt";
 
+/**
+ * The project's daily goal and the days written against it (ADR-0040). A
+ * sidecar file in ADR-0025's shape, project-level and never frozen at lock, so
+ * the goal and the streak travel with the script.
+ */
+export const GOALS_FILE = "goals.md";
+
 /** A project as the application holds it: where it is, and what it says it is. */
 export interface Project {
   /** The bundle's folder. An input to opening it, never its identity (ADR-0015). */

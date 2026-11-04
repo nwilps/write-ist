@@ -41,7 +41,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 /** A host whose every action is a spy, and whose editor is the one given. */
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
-    "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage",
+    "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
     "confirmName", "confirmLocation", "confirmHere", "toggleSpellcheck", "search",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
@@ -156,7 +156,7 @@ describe("the Editor's menus", () => {
         "---",
         "Home[Esc]",
       ],
-      Edit: ["Edit Title Page…", "---", "Confirm This Name[Ctrl + K]", "Confirm This Location[Ctrl + K]"],
+      Edit: ["Edit Title Page…", "---", "Edit Goals…", "---", "Confirm This Name[Ctrl + K]", "Confirm This Location[Ctrl + K]"],
       View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]"],
     });
   });

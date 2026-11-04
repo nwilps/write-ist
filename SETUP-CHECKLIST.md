@@ -361,6 +361,17 @@ From the first run, Write-ist appends to `ledger.txt` under app-local data (ADR-
 application opened and closed, and each day left on a project, the absolute word and page counts.
 Nothing reads it yet; it exists so the history exists.
 
+### Done: writing goals, the Goal pill and the Goals dialog (ADR-0040)
+
+A daily word goal per project, with the weekdays that count and a streak; a one-time sprint; and a
+thirty-day chart. The goal and each day's words written live in the bundle's `goals.md` (ADR-0025), so
+they travel with the script. Words written is added minus cut, never below zero; opening a file, loading
+another program's version and moving text add nothing (`src/goals/`, `src/project/manuscript-session.ts`).
+The Goal pill sits with the project's name at the foot-left; the dialog opens from **Edit ▸ Edit Goals…**,
+the word count and the Goal pill (`app/src/workspaces/editor/goals-dialog.ts`). *Day ends at* is midnight,
+from one function (`dayEndsAt`) a settings page will drive. **Not built:** that settings page, and the
+completion animations.
+
 ### Not started, and deliberately above this layer
 
 Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), spellcheck (ADR-0029),

@@ -213,6 +213,34 @@
   display: none;
 }
 
+/*
+ * The counts and the Goal pill are buttons (they open the Goals dialog) that
+ * look like the pills beside them: only the button's own chrome is taken off.
+ */
+button.pill {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.pill:hover,
+button.pill:focus-visible {
+  color: var(--colour-text);
+}
+
+/* The Goal pill (ADR-0040): met is the affirm colour, and past the goal the accent. */
+.pill--goal[data-state="met"] {
+  color: var(--colour-affirm);
+}
+
+.pill--goal[data-state="exceeded"] {
+  color: var(--colour-accent);
+}
+
+.pill--goal[data-kind="sprint"] {
+  color: var(--colour-text);
+}
+
 /* The save pill is a square holding one icon, drawn at 16px (§4). */
 .pill--save {
   width: var(--size-pill);

@@ -95,8 +95,14 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const view = element("main", { className: "shell__view" }, [host]);
   // The counts slot stays empty until the workspace has something to say
   // (#48) — real text, never a guess — and its pill is hidden until then.
-  const counts = element("span", { className: "pill pill--counts", hidden: true });
+  // Pressing the counts or the Goal pill asks the workspace for its goals.
+  const counts = element("button", { className: "pill pill--counts", type: "button", hidden: true });
+  const goal = element("button", { className: "pill pill--goal", type: "button", hidden: true });
   const saved = savePill();
+  const askers = new Set<() => void>();
+  const asked = (): void => askers.forEach((act) => act());
+  counts.addEventListener("click", asked);
+  goal.addEventListener("click", asked);
 
   into.replaceChildren(
     element("div", { className: "shell" }, [
@@ -109,6 +115,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       element("div", { className: "pills pills--left" }, [
         // The project's name is which work they are in.
         element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),
+        goal,
       ]),
       element("div", { className: "pills pills--right" }, [counts, saved.pill]),
     ]),
@@ -123,12 +130,25 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     counts.textContent = text;
     counts.hidden = text === "";
   };
+  const setGoal = (pill: { readonly text: string; readonly kind: string; readonly state: string } | undefined): void => {
+    goal.hidden = pill === undefined;
+    if (pill === undefined) return;
+    goal.textContent = pill.text;
+    goal.dataset["kind"] = pill.kind;
+    goal.dataset["state"] = pill.state;
+    goal.title = "Goals";
+  };
 
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
     project: screen.project,
     filesystem: screen.filesystem,
     report,
     setStatus,
+    setGoal,
+    whenGoalsAsked: (act) => {
+      askers.add(act);
+      return () => void askers.delete(act);
+    },
     setSaved: saved.set,
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
