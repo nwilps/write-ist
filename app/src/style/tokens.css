@@ -269,8 +269,6 @@
 
   /** How wide a column of text is allowed to get before it is hard to read. */
   --measure-reading: 62ch;
-  /** The widest the projects list or a modal grows on a large screen. */
-  --measure-screen: 760px;
 
   /* --- Edges ----------------------------------------------------------- */
 
@@ -374,4 +372,38 @@
    */
   --size-logo: 15px;
   --size-logo-fit: calc(100vw / 66);
+}
+
+/* --- The Open Project screen (the Open Project design, ADR-0043) ------------ */
+
+:root {
+  /**
+   * The header's type, and how small it may be made to fit. The art is 91
+   * columns, and a column of this face is 0.6em wide, so 60 em-widths of window
+   * is the art with a little air; narrower than that, the type scales down.
+   */
+  --size-open-project-art: 9px;
+  --size-open-project-art-fit: calc(100vw / 60);
+  /** A project's row: 480px wide, 24px tall, 32px apart (8px between). */
+  --measure-project-row: 480px;
+  --space-project-row: var(--space-row-gap);
+  /**
+   * The name column, right-aligned, and the room between it and the format:
+   * the format starts 256.5px into the row, 24px after the names end.
+   */
+  --measure-project-name: 232px;
+  --space-project-columns: var(--space-loose);
+  /**
+   * The rules: 51 columns of dashes at most (the design, 1920 wide), cut back a
+   * whole column at a time. `ch` is one column of the interface's face.
+   */
+  --measure-open-project-rule: 51ch;
+  --measure-column: 1ch;
+  /** Between the header and the top rule. */
+  --space-open-project-header: var(--space-roomy);
+  /** Between a rule and the list it frames. */
+  --space-open-project-list: 28px;
+  /** Between the bottom rule and the foot, and between the foot's two labels. */
+  --space-open-project-foot: var(--space-loose);
+  --space-foot-gap: 48px;
 }

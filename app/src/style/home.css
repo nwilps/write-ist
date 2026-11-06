@@ -2,8 +2,8 @@
  * The home screen and the New Project dialog (the home design, ADR-0042).
  *
  * Everything here is the interface's one typeface, in the colours the desk
- * uses. The Open Project screen shares the menu's markup and is not touched:
- * every rule below is behind `.menu--home` or the dialog's own classes.
+ * uses. Every rule below is behind `.menu--home` or the dialog's own classes;
+ * the Open Project screen has its own design, in `open-project.css` (ADR-0043).
  */
 
 /* --- Home ---------------------------------------------------------------- */

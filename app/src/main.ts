@@ -26,6 +26,7 @@ import "./style/panels.css";
 import "./style/menus.css";
 import "./style/title-page.css";
 import "./style/home.css";
+import "./style/open-project.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
@@ -37,6 +38,7 @@ import { listProjects, type ProjectsListing } from "../../src/project/projects.t
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
+import { openProjectSearch } from "./screens/project-search.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -95,7 +97,7 @@ void (async () => {
 
 /** What the screen now showing answers to. Replaced every time one is drawn. */
 let gestures: readonly Gesture[] = [];
-/** The home screen's arrow keys and Enter; undefined on any other screen. */
+/** The arrow keys and Enter of Home and Open Project; undefined on any other screen. */
 let navigate: ((press: KeyPress) => boolean) | undefined;
 /** Stops the home screen's typing tagline; undefined on any other screen. */
 let stopHome: (() => void) | undefined;
@@ -150,13 +152,30 @@ function draw(): void {
     return;
   }
 
-  gestures = renderOpenProject(into, {
+  const openProject = renderOpenProject(into, {
     listing,
     importing,
     trouble,
     onImport: () => void importOne(),
     onOpen: goToProject,
+    onNewProject: askForNewProject,
+    onSearch: searchProjects,
     onBack: () => go("home"),
+  });
+  gestures = openProject.gestures;
+  navigate = openProject.navigate;
+}
+
+/**
+ * The projects' search, over the Open Project screen (Alt+Enter). On the body
+ * rather than the screen, so the listing arriving underneath does not take it
+ * down; it reads the listing as it is when the writer types.
+ */
+function searchProjects(): void {
+  if (document.querySelector(".search") !== null) return;
+  openProjectSearch(document.body, {
+    projects: () => listing?.projects ?? [],
+    open: goToProject,
   });
 }
 
@@ -259,7 +278,7 @@ function show(next: Screen): void {
  */
 window.addEventListener("keydown", (event) => {
   const used = answerKey(event, {
-    dialogOpen: into.querySelector("dialog[open]") !== null,
+    dialogOpen: document.querySelector("dialog[open]") !== null,
     gestures,
     navigate,
   });
@@ -286,13 +305,20 @@ async function readProjects(): Promise<string | undefined> {
 }
 
 /**
- * Ask what to make, in a dialog over the home screen, then make it and open it.
+ * Ask what to make, in a dialog over the screen it was asked from — Home or
+ * Open Project — then make it and open it. Cancelled, it leaves the writer on
+ * that screen.
  *
  * The dialog stays up with the reason when the project could not be made, so
  * the writer can change the title and try again; nothing is written then.
+ *
+ * **On the body, not the screen.** Open Project redraws when its listing
+ * arrives, and a redraw replaces everything drawn into the screen — a dialog
+ * there would vanish under the writer's hands without ever closing.
  */
 function askForNewProject(): void {
-  showNewProject(into, {
+  if (document.querySelector("dialog[open]") !== null) return;
+  showNewProject(document.body, {
     onCreate: async (request) => {
       try {
         const project = await createProject(

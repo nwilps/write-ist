@@ -194,6 +194,15 @@ tagline with a blinking cursor, a rule above and below the menu, the first row s
 dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built: the ASCII logo
 (no text source), the ASCII background, an open type list, Novel. Metrics and Settings are drawn and do nothing yet (Noah's decision).
 
+### Done: the Open Project design (ADR-0043)
+
+The Open Project screen follows the approved Open Project design: the header drawn in characters
+(`app/src/screens/open-project-header.ts`, held byte for byte to the design's `open-project.txt`),
+a rule of up to 51 dashes above and below the real list of projects, one row lit, and **Home
+[Esc]** and **New Project [N]** along the foot. New Project opens the home screen's dialog over
+this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred, finding
+projects. Import keeps its letter, `i`, drawn nowhere, until Noah says where it goes.
+
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared

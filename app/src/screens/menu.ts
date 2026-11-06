@@ -24,12 +24,16 @@ export function menu(gestures: readonly Gesture[], { home = false } = {}): HTMLE
   );
 }
 
-/** Draw gestures in a row, for the foot of a screen that is mostly a list. */
-export function menuRow(gestures: readonly Gesture[]): HTMLElement {
+/**
+ * Draw gestures in a row, for the foot of a screen that is mostly a list.
+ * `foot` is the Open Project design's look: plain labels, the pair centred,
+ * the letters as the design writes them (`[Esc]`, `[N]`).
+ */
+export function menuRow(gestures: readonly Gesture[], { foot = false } = {}): HTMLElement {
   return element(
     "div",
-    { className: "menu menu--row" },
-    gestures.map((gesture) => item(gesture)),
+    { className: foot ? "menu menu--row menu--foot" : "menu menu--row" },
+    gestures.map((gesture) => item(gesture, foot)),
   );
 }
 
@@ -43,12 +47,16 @@ const SELECTED = "gesture--selected";
  * (hover), focus moves it (Tab), and Up and Down move it, wrapping at the ends;
  * the keys also move focus, so a screen reader follows the eye. Enter acts on
  * the selected row, as a click would. The answer says whether the key was used.
+ *
+ * `rows` picks the buttons, one per gesture and in the same order: the home
+ * menu's by default, the Open Project screen's projects when it says so.
  */
 export function navigable(
   list: HTMLElement,
   gestures: readonly Gesture[],
+  rows = "button.gesture",
 ): (press: KeyPress) => boolean {
-  const buttons = [...list.querySelectorAll<HTMLButtonElement>("button.gesture")];
+  const buttons = [...list.querySelectorAll<HTMLButtonElement>(rows)];
   let selected = 0;
   const select = (index: number): void => {
     buttons[selected]?.classList.remove(SELECTED);
@@ -80,7 +88,7 @@ export function navigable(
   };
 }
 
-function item(gesture: Gesture): HTMLButtonElement {
+function item(gesture: Gesture, capitals = false): HTMLButtonElement {
   const button = element(
     "button",
     { className: "gesture", type: "button", disabled: gesture.unavailable === true },
@@ -89,16 +97,17 @@ function item(gesture: Gesture): HTMLButtonElement {
       // reader, which is told by focus instead.
       hidden(element("span", { className: "gesture__cursor", textContent: ">" })),
       element("span", { className: "gesture__label", textContent: gesture.label }),
-      hidden(element("span", { className: "gesture__key", textContent: `[${legend(gesture)}]` })),
+      hidden(element("span", { className: "gesture__key", textContent: `[${legend(gesture, capitals)}]` })),
     ],
   );
   button.addEventListener("click", gesture.act);
   return button;
 }
 
-/** What the letter looks like on the page. */
-function legend({ key }: Gesture): string {
-  return key === LEAVE ? "esc" : key;
+/** What the letter looks like on the page: `esc`, `n`; or `Esc`, `N` in capitals. */
+function legend({ key }: Gesture, capitals: boolean): string {
+  if (key === LEAVE) return capitals ? "Esc" : "esc";
+  return capitals ? key.toUpperCase() : key;
 }
 
 function hidden<T extends HTMLElement>(node: T): T {

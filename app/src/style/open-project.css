@@ -1,0 +1,177 @@
+/*
+ * The Open Project screen (the Open Project design, ADR-0043).
+ *
+ * The interface's one typeface, in the colours Home uses: the header in the
+ * accent, two rules in the faint colour, the projects as two columns with one
+ * row lit, and Home and New Project along the foot. The search Alt+Enter opens
+ * is the desk's (`search.css`), centred here.
+ */
+
+.screen .composition--open-project {
+  max-width: 100%;
+  gap: 0;
+}
+
+/*
+ * The header, drawn in characters. One block, never re-wrapped: on a window
+ * narrower than it is, the type shrinks rather than the lines breaking.
+ */
+.open-project__header {
+  margin: 0 0 var(--space-open-project-header);
+  font-size: var(--size-open-project-art);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  color: var(--colour-accent);
+}
+
+.open-project__art {
+  margin: 0;
+  font-family: inherit;
+  font-size: min(100%, var(--size-open-project-art-fit));
+  line-height: inherit;
+  white-space: pre;
+  user-select: none;
+}
+
+/*
+ * The two rules: 51 dashes at most, centred. A window too narrow for them
+ * loses whole dashes — the box is a whole number of columns (`ch` is one
+ * column of this face), and what does not fit is cut off, never squeezed.
+ */
+.open-project-rule {
+  width: min(var(--measure-open-project-rule), 100%);
+  width: min(var(--measure-open-project-rule), round(down, 100%, var(--measure-column)));
+  overflow: hidden;
+  color: var(--colour-faint);
+  font-size: var(--size-body);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* The rules sit a little apart from what they frame. */
+.open-project__header + .open-project-rule {
+  margin-bottom: var(--space-open-project-list);
+}
+
+.open-project-rule:has(+ .menu--foot) {
+  margin-top: var(--space-open-project-list);
+}
+
+/* Words under the list, or in its place, stand a little apart from it. */
+.composition--open-project > :not(.open-project-rule) + :is(.reading, .trouble) {
+  margin-top: var(--space-roomy);
+}
+
+/* --- The projects -------------------------------------------------------- */
+
+.projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-project-row);
+  width: min(var(--measure-project-row), 100%);
+}
+
+/*
+ * A row, and a real button: choosing one opens it (#39). Name right-aligned,
+ * format beside it. Only the lit row has a bar; `navigable` moves it with the
+ * pointer, focus and the arrows, so there is never a second one.
+ */
+.project {
+  display: grid;
+  grid-template-columns: var(--measure-project-name) 1fr;
+  column-gap: var(--space-project-columns);
+  align-items: center;
+  width: 100%;
+  height: var(--size-row);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project:focus-visible {
+  outline: none;
+}
+
+.project__name {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--colour-muted);
+}
+
+.project__format {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--colour-faint);
+}
+
+.project.gesture--selected {
+  background: var(--colour-overlay);
+}
+
+.project.gesture--selected .project__name {
+  color: var(--colour-accent);
+}
+
+/* --- The foot ------------------------------------------------------------ */
+
+.menu--foot {
+  flex-wrap: nowrap;
+  gap: var(--space-foot-gap);
+  margin-top: var(--space-open-project-foot);
+  padding-top: 0;
+  border-top: none;
+}
+
+.menu--foot .gesture {
+  gap: var(--space-tight);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  color: var(--colour-muted);
+  white-space: nowrap;
+}
+
+.menu--foot .gesture__cursor {
+  display: none;
+}
+
+.menu--foot .gesture__label {
+  flex: none;
+}
+
+.menu--foot .gesture__key {
+  font-size: inherit;
+  color: inherit;
+}
+
+.menu--foot .gesture:hover,
+.menu--foot .gesture:focus-visible {
+  background: transparent;
+  color: var(--colour-text);
+}
+
+.menu--foot .gesture:focus-visible {
+  outline: none;
+}
+
+/* --- The search, centred on this screen ----------------------------------- */
+
+.search--centred {
+  align-items: center;
+  padding-top: 0;
+}

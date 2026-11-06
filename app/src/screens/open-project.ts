@@ -12,18 +12,22 @@
  * corrupted. Choosing one opens it in the Editor (#39), which is the whole of
  * what this screen decides: the shell and the workspace do the rest.
  *
- * Shape and flow are v1's `OpenProjectScreen`: a titled composition, the
- * projects as rows of name and format, and the screen's own gestures along
- * the foot with Escape among them.
+ * The look is the Open Project design (ADR-0043): the header drawn in
+ * characters, a rule above and below the list, the projects in two columns
+ * with one row lit, and **Home [Esc]** and **New Project [N]** along the foot.
+ * New Project opens the home screen's dialog over this one. A search has no
+ * control here: **Alt+Enter** opens it, for whoever goes looking.
  *
  * **Real text on the page.** Every name, count and label below is text a
- * screen reader can read and a writer can select. Nothing is drawn.
+ * screen reader can read and a writer can select. The header's art is the one
+ * thing drawn, and it is hidden behind the heading that names the screen.
  */
 import type { ProjectsListing } from "../../../src/project/projects.ts";
 import type { Project } from "../../../src/project/bundle.ts";
 import { element } from "./element.ts";
-import { menuRow } from "./menu.ts";
-import { LEAVE, type Gesture } from "./shortcuts.ts";
+import { menuRow, navigable } from "./menu.ts";
+import { OPEN_PROJECT_HEADER } from "./open-project-header.ts";
+import { chordMatches, LEAVE, type Gesture, type KeyPress } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
 
 export interface OpenProjectScreen {
@@ -33,10 +37,14 @@ export interface OpenProjectScreen {
    * must never read as an empty one.
    */
   readonly listing: ProjectsListing | undefined;
-  /** What the writer does here: bring a screenplay in. */
+  /** Bring a screenplay in. Asked for by its letter, `i`; the design draws no control for it. */
   readonly onImport: () => void;
   /** Open one of them, which is what the list is for. */
   readonly onOpen: (project: Project) => void;
+  /** Ask for a new, empty project: the New Project dialog, over this screen. */
+  readonly onNewProject: () => void;
+  /** Search the projects: Alt+Enter, and nothing drawn. */
+  readonly onSearch: () => void;
   /** Back to the home screen. */
   readonly onBack: () => void;
   /** Set while an import is running, so it cannot be started twice. */
@@ -45,28 +53,50 @@ export interface OpenProjectScreen {
   readonly trouble?: string;
 }
 
-/** Draw the screen, and return the gestures the window answers to. */
-export function renderOpenProject(
-  into: HTMLElement,
-  screen: OpenProjectScreen,
-): readonly Gesture[] {
+/** The screen as drawn: its letters, and what the arrow keys and Enter do. */
+export interface DrawnOpenProject {
+  readonly gestures: readonly Gesture[];
+  /** Answer a key press; true when it moved the highlight, opened, or searched. */
+  readonly navigate: (press: KeyPress) => boolean;
+}
+
+/** The line above and below the list: 51 box-drawing dashes, as drawn, at most. */
+export const RULE_LENGTH = 51;
+
+/** The chord that opens the search: the Editor's own (`commands.ts`). */
+const SEARCH = { key: "Enter", alt: true } as const;
+
+/** Draw the screen, and return what the window answers to. */
+export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen): DrawnOpenProject {
+  // The foot, as drawn: Home on the left, New Project on the right.
+  const foot: readonly Gesture[] = [
+    { label: "Home", key: LEAVE, act: screen.onBack },
+    { label: "New Project", key: "n", act: screen.onNewProject },
+  ];
+  // TODO(Noah's decision, ADR-0043): the design's foot has no Import, and this
+  // screen is still the only way a screenplay comes in. Its letter stays, drawn
+  // nowhere, until Noah says where Import goes.
   const gestures: readonly Gesture[] = [
-    {
-      // The gesture names itself; `docs/STANDARDS.md` bans the caption that
-      // would otherwise explain it.
-      label: screen.importing ? "Importing…" : "Import a screenplay…",
-      key: "i",
-      act: screen.onImport,
-      unavailable: screen.importing,
-    },
-    { label: "Back", key: LEAVE, act: screen.onBack },
+    ...foot,
+    { label: "Import a screenplay", key: "i", act: screen.onImport, unavailable: screen.importing },
   ];
 
   const { listing, trouble } = screen;
+  const projects = listing?.projects ?? [];
+  const list = projects.length > 0 ? projectsList(projects, screen.onOpen) : undefined;
+
   into.replaceChildren(
     element("main", { className: "screen" }, [
-      element("div", { className: "composition composition--wide" }, [
-        element("h1", { className: "screen__name", textContent: "Open Project" }),
+      element("div", { className: "composition composition--open-project" }, [
+        // The art is for the eye: the heading carries the name, the art is hidden.
+        element("h1", { className: "open-project__header", ariaLabel: "Open Project" }, [
+          element("pre", {
+            className: "open-project__art",
+            ariaHidden: "true",
+            textContent: OPEN_PROJECT_HEADER,
+          }),
+        ]),
+        rule(),
         // A failed read must never read as an empty folder, and never as one
         // still being read either — both are the screen telling the writer
         // something about their disk that nobody checked. That is ADR-0008
@@ -75,34 +105,69 @@ export function renderOpenProject(
         // that fails says so beneath the list rather than emptying it.
         ...(listing === undefined
           ? trouble === undefined
-            ? [reading()]
+            ? [reading("Reading your projects…")]
             : []
-          : listing.projects.length > 0
-            ? [projectsList(listing.projects, screen.onOpen)]
+          : list !== undefined
+            ? [list]
             : [nothingYet()]),
+        ...(screen.importing ? [reading("Importing…")] : []),
         ...(trouble === undefined ? [] : [troublePanel(trouble)]),
         ...(listing === undefined || listing.unreadable.length === 0
           ? []
           : [declined(listing.unreadable)]),
-        menuRow(gestures),
+        rule(),
+        menuRow(foot, { foot: true }),
       ]),
     ]),
   );
 
-  return gestures;
+  // The projects as gestures, so the home menu's highlight can move through them.
+  const rows: readonly Gesture[] = projects.map((project) => ({
+    label: project.marker.name,
+    key: "",
+    act: () => screen.onOpen(project),
+  }));
+  const highlight = list === undefined ? undefined : navigable(list, rows, "button.project");
+
+  return {
+    gestures,
+    navigate: (press) => {
+      if (chordMatches(SEARCH, press)) {
+        screen.onSearch();
+        return true;
+      }
+      // A focused button outside the list — Home, New Project — keeps its own
+      // Enter: the lit project is not what the writer is pointing at then.
+      const focused = document.activeElement;
+      if (focused instanceof HTMLButtonElement && list?.contains(focused) !== true) return false;
+      return highlight?.(press) ?? false;
+    },
+  };
 }
 
 /**
- * The projects, each a real button.
+ * A rule of box-drawing dashes. The design's is 51; on a window too narrow for
+ * that it loses whole dashes, never half of one (`.open-project-rule`).
+ */
+function rule(): HTMLElement {
+  return element("div", {
+    className: "open-project-rule",
+    ariaHidden: "true",
+    textContent: "\u2500".repeat(RULE_LENGTH),
+  });
+}
+
+/**
+ * The projects, each a real button: its name, and its format beside it.
  *
  * **A row is the gesture, and the row says so by being a button.** There is no
  * letter beside it and no caption explaining how to choose one: a list of names
  * is its own affordance, and `docs/STANDARDS.md` bans captioning a gesture that
- * already exists. Tab reaches them and Enter opens one, which is what a button
- * does without a line of code here — the same reason the menus are buttons.
+ * already exists. A click opens one; so does Enter on the lit row, which the
+ * arrows, the pointer and Tab all move, as on the home screen.
  *
  * Letters are deliberately not handed out. A writer may have thirty projects
- * and the alphabet does not stretch; the screen's own two gestures keep theirs.
+ * and the alphabet does not stretch; the screen's own gestures keep theirs.
  */
 function projectsList(
   projects: readonly Project[],
@@ -122,8 +187,8 @@ function projectsList(
   );
 }
 
-function reading(): HTMLElement {
-  return element("p", { className: "reading", textContent: "Reading your projects…" });
+function reading(words: string): HTMLElement {
+  return element("p", { className: "reading", textContent: words });
 }
 
 function nothingYet(): HTMLElement {
@@ -131,7 +196,7 @@ function nothingYet(): HTMLElement {
     element("p", { textContent: "No projects yet." }),
     element("p", {
       textContent:
-        "Import a screenplay to start one, or go back and choose New Project. The file you import from is left exactly as it is.",
+        "Choose New Project to start one, or press I to import a screenplay. The file you import from is left exactly as it is.",
     }),
   ]);
 }
