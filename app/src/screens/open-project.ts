@@ -14,9 +14,9 @@
  *
  * The look is the Open Project design (ADR-0043): the header drawn in
  * characters, a rule above and below the list, the projects in two columns
- * with one row lit, and **Home [Esc]** and **New Project [N]** along the foot.
- * New Project opens the home screen's dialog over this one. A search has no
- * control here: **Alt+Enter** opens it, for whoever goes looking.
+ * with one row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]**
+ * along the foot. New Project opens the home screen's dialog over this one. A
+ * search has no control here: **Alt+Enter** opens it, for whoever goes looking.
  *
  * **Real text on the page.** Every name, count and label below is text a
  * screen reader can read and a writer can select. The header's art is the one
@@ -37,7 +37,7 @@ export interface OpenProjectScreen {
    * must never read as an empty one.
    */
   readonly listing: ProjectsListing | undefined;
-  /** Bring a screenplay in. Asked for by its letter, `i`; the design draws no control for it. */
+  /** Bring a screenplay in: Import [I], in the middle of the foot. */
   readonly onImport: () => void;
   /** Open one of them, which is what the list is for. */
   readonly onOpen: (project: Project) => void;
@@ -60,25 +60,22 @@ export interface DrawnOpenProject {
   readonly navigate: (press: KeyPress) => boolean;
 }
 
-/** The line above and below the list: 51 box-drawing dashes, as drawn, at most. */
-export const RULE_LENGTH = 51;
+/**
+ * The line above and below the list: 70 box-drawing dashes at most — 630px at
+ * the rule's 15px (Noah, after testing; wider than the design's 51).
+ */
+export const RULE_LENGTH = 70;
 
 /** The chord that opens the search: the Editor's own (`commands.ts`). */
 const SEARCH = { key: "Enter", alt: true } as const;
 
 /** Draw the screen, and return what the window answers to. */
 export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen): DrawnOpenProject {
-  // The foot, as drawn: Home on the left, New Project on the right.
-  const foot: readonly Gesture[] = [
-    { label: "Home", key: LEAVE, act: screen.onBack },
-    { label: "New Project", key: "n", act: screen.onNewProject },
-  ];
-  // TODO(Noah's decision, ADR-0043): the design's foot has no Import, and this
-  // screen is still the only way a screenplay comes in. Its letter stays, drawn
-  // nowhere, until Noah says where Import goes.
+  // The foot: Home on the left, Import in the middle, New Project on the right.
   const gestures: readonly Gesture[] = [
-    ...foot,
-    { label: "Import a screenplay", key: "i", act: screen.onImport, unavailable: screen.importing },
+    { label: "Home", key: LEAVE, act: screen.onBack },
+    { label: "Import", key: "i", act: screen.onImport, unavailable: screen.importing },
+    { label: "New Project", key: "n", act: screen.onNewProject },
   ];
 
   const { listing, trouble } = screen;
@@ -116,7 +113,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
           ? []
           : [declined(listing.unreadable)]),
         rule(),
-        menuRow(foot, { foot: true }),
+        menuRow(gestures, { foot: true }),
       ]),
     ]),
   );
@@ -136,7 +133,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
         screen.onSearch();
         return true;
       }
-      // A focused button outside the list — Home, New Project — keeps its own
+      // A focused button outside the list — Home, Import, New Project — keeps its own
       // Enter: the lit project is not what the writer is pointing at then.
       const focused = document.activeElement;
       if (focused instanceof HTMLButtonElement && list?.contains(focused) !== true) return false;
@@ -146,7 +143,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
 }
 
 /**
- * A rule of box-drawing dashes. The design's is 51; on a window too narrow for
+ * A rule of box-drawing dashes, 70 of them; on a window too narrow for
  * that it loses whole dashes, never half of one (`.open-project-rule`).
  */
 function rule(): HTMLElement {
@@ -196,7 +193,7 @@ function nothingYet(): HTMLElement {
     element("p", { textContent: "No projects yet." }),
     element("p", {
       textContent:
-        "Choose New Project to start one, or press I to import a screenplay. The file you import from is left exactly as it is.",
+        "Choose New Project to start one, or Import to bring in a screenplay. The file you import from is left exactly as it is.",
     }),
   ]);
 }

@@ -378,11 +378,12 @@
 
 :root {
   /**
-   * The header's type, and how small it may be made to fit. The art is 91
-   * columns, and a column of this face is 0.6em wide, so 60 em-widths of window
-   * is the art with a little air; narrower than that, the type scales down.
+   * The header's type, and how small it may be made to fit. 7px, smaller than
+   * the design's 9px (Noah, after testing): 91 columns of 0.6em is about 382px.
+   * 60 em-widths of window is the art with a little air; narrower than that,
+   * the type scales down.
    */
-  --size-open-project-art: 9px;
+  --size-open-project-art: 7px;
   --size-open-project-art-fit: calc(100vw / 60);
   /** A project's row: 480px wide, 24px tall, 32px apart (8px between). */
   --measure-project-row: 480px;
@@ -394,16 +395,17 @@
   --measure-project-name: 232px;
   --space-project-columns: var(--space-loose);
   /**
-   * The rules: 51 columns of dashes at most (the design, 1920 wide), cut back a
-   * whole column at a time. `ch` is one column of the interface's face.
+   * The rules: 70 columns of dashes at most — 630px at 15px, wider than the
+   * design's 51 (Noah, after testing) — cut back a whole column at a time.
+   * `ch` is one column of the interface's face. Kept equal to `RULE_LENGTH`.
    */
-  --measure-open-project-rule: 51ch;
+  --measure-open-project-rule: 70ch;
   --measure-column: 1ch;
   /** Between the header and the top rule. */
   --space-open-project-header: var(--space-roomy);
   /** Between a rule and the list it frames. */
   --space-open-project-list: 28px;
-  /** Between the bottom rule and the foot, and between the foot's two labels. */
+  /** Between the bottom rule and the foot, and between the foot's labels. */
   --space-open-project-foot: var(--space-loose);
   --space-foot-gap: 48px;
 }

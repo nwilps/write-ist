@@ -3,8 +3,8 @@
  *
  * The interface's one typeface, in the colours Home uses: the header in the
  * accent, two rules in the faint colour, the projects as two columns with one
- * row lit, and Home and New Project along the foot. The search Alt+Enter opens
- * is the desk's (`search.css`), centred here.
+ * row lit, and Home, Import and New Project along the foot. The search
+ * Alt+Enter opens is the desk's (`search.css`), centred here.
  */
 
 .screen .composition--open-project {
@@ -34,7 +34,7 @@
 }
 
 /*
- * The two rules: 51 dashes at most, centred. A window too narrow for them
+ * The two rules: 70 dashes at most, centred. A window too narrow for them
  * loses whole dashes — the box is a whole number of columns (`ch` is one
  * column of this face), and what does not fit is cut off, never squeezed.
  */

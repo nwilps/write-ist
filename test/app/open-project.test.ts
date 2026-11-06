@@ -1,7 +1,7 @@
 /**
  * The Open Project screen as designed (ADR-0043): the real projects between two
- * rules, one row lit, Home and New Project along the foot, no search drawn, and
- * Alt+Enter for the search that is there anyway.
+ * rules, one row lit, Home, Import and New Project along the foot, no search
+ * drawn, and Alt+Enter for the search that is there anyway.
  *
  * Every project name here is made up.
  */
@@ -30,7 +30,9 @@ beforeAll(() => {
 });
 
 const style = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src", "style");
-const css = readFileSync(join(style, "open-project.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const uncommented = (file: string) => readFileSync(join(style, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = uncommented("open-project.css");
+const tokens = uncommented("tokens.css");
 
 const project = (name: string): Project => ({
   path: `/projects/${name}`,
@@ -78,8 +80,8 @@ describe("Open Project, as designed", () => {
     const order = [...into.querySelector(".composition")!.children].map((c) => c.className.split(" ")[0]);
     expect(order).toEqual(["open-project__header", "open-project-rule", "projects", "open-project-rule", "menu"]);
     const rules = [...into.querySelectorAll(".open-project-rule")].map((r) => r.textContent);
-    expect(RULE_LENGTH).toBe(51);
-    expect(rules).toEqual(["─".repeat(51), "─".repeat(51)]);
+    expect(RULE_LENGTH).toBe(70);
+    expect(rules).toEqual(["─".repeat(70), "─".repeat(70)]);
   });
 
   it("does not wear the home screen's menu or rules", () => {
@@ -88,13 +90,16 @@ describe("Open Project, as designed", () => {
     expect(into.querySelector(".home-rule")).toBeNull();
   });
 
-  it("has Home [Esc] on the left and New Project [N] on the right, and nothing else", () => {
+  it("has Home [Esc] on the left, Import [I] in the middle and New Project [N] on the right, and nothing else", () => {
     const { into } = draw();
     const foot = [...into.querySelectorAll<HTMLButtonElement>(".menu--foot button.gesture")];
     expect(foot.map((b) => b.querySelector(".gesture__label")!.textContent + " " + b.querySelector(".gesture__key")!.textContent)).toEqual([
       "Home [Esc]",
+      "Import [I]",
       "New Project [N]",
     ]);
+    // All three drawn alike: the same element, the same classes.
+    expect(new Set(foot.map((b) => b.className))).toEqual(new Set(["gesture"]));
   });
 
   it("Home goes home, by click and by Escape", () => {
@@ -106,7 +111,7 @@ describe("Open Project, as designed", () => {
 
   it("New Project asks for the dialog, by click and by N", () => {
     const { into, calls, key } = draw();
-    into.querySelectorAll<HTMLButtonElement>(".menu--foot button.gesture")[1]!.click();
+    into.querySelectorAll<HTMLButtonElement>(".menu--foot button.gesture")[2]!.click();
     expect(key(press("n"))).toBe(true);
     expect(key(press("N"))).toBe(true);
     expect(calls.onNewProject).toHaveBeenCalledTimes(3);
@@ -128,15 +133,26 @@ describe("Open Project, as designed", () => {
     expect(calls.onSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps Import on its letter, drawn nowhere (TODO: Noah decides where it goes)", () => {
+  it("Import imports, by click and by I; not while one is running", () => {
     const { into, calls, key } = draw();
-    expect(into.textContent).not.toMatch(/import/i);
+    const button = () => into.querySelectorAll<HTMLButtonElement>(".menu--foot button.gesture")[1]!;
+    button().click();
     expect(key(press("i"))).toBe(true);
-    expect(calls.onImport).toHaveBeenCalledTimes(1);
+    expect(key(press("I"))).toBe(true);
+    expect(calls.onImport).toHaveBeenCalledTimes(3);
     const busy = draw({ importing: true });
+    const busyButton = busy.into.querySelectorAll<HTMLButtonElement>(".menu--foot button.gesture")[1]!;
+    expect(busyButton.disabled).toBe(true);
+    busyButton.click();
     busy.key(press("i"));
     expect(busy.calls.onImport).not.toHaveBeenCalled();
     expect(busy.into.querySelector(".reading")!.textContent).toBe("Importing…");
+  });
+
+  it("says no more than Import does about importing: no hidden letter in the empty list", () => {
+    const empty = draw({ listing: { projects: [], unreadable: [] } }).into.querySelector(".nothing-yet")!;
+    expect(empty.textContent).not.toMatch(/press I/);
+    expect(empty.textContent).toMatch(/Import/);
   });
 });
 
@@ -274,6 +290,16 @@ describe("Open Project, the look", () => {
   it("draws the header in the accent, and the rules faint and cut by whole dashes", () => {
     expect(css).toMatch(/\.open-project__header\s*\{[^}]*color:\s*var\(--colour-accent\)/);
     expect(css).toMatch(/\.open-project-rule\s*\{[^}]*round\(down, 100%, var\(--measure-column\)\)[^}]*overflow:\s*hidden[^}]*color:\s*var\(--colour-faint\)/);
+  });
+
+  it("draws the header at 7px and the rules at most 70 columns — the same as RULE_LENGTH", () => {
+    expect(tokens).toMatch(/--size-open-project-art:\s*7px;/);
+    expect(css).toMatch(/\.open-project__header\s*\{[^}]*font-size:\s*var\(--size-open-project-art\)/);
+    expect(tokens).toMatch(new RegExp(`--measure-open-project-rule:\\s*${RULE_LENGTH}ch;`));
+    expect(css).toMatch(/\.open-project-rule\s*\{[^}]*font-size:\s*var\(--size-body\)/);
+    expect(tokens).toMatch(/--size-body:\s*15px;/);
+    // 70 columns of a 0.6em face at 15px: 630px.
+    expect(RULE_LENGTH * 15 * 0.6).toBe(630);
   });
 
   it("centres the search on this screen", () => {

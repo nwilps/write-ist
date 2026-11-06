@@ -198,10 +198,11 @@ dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built
 
 The Open Project screen follows the approved Open Project design: the header drawn in characters
 (`app/src/screens/open-project-header.ts`, held byte for byte to the design's `open-project.txt`),
-a rule of up to 51 dashes above and below the real list of projects, one row lit, and **Home
-[Esc]** and **New Project [N]** along the foot. New Project opens the home screen's dialog over
-this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred, finding
-projects. Import keeps its letter, `i`, drawn nowhere, until Noah says where it goes.
+drawn at 7px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
+row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]** along the foot — the header
+size, rule width and Import are Noah's changes after testing. New Project opens the home screen's
+dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
+finding projects.
 
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 

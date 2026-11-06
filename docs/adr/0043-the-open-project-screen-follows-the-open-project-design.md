@@ -2,8 +2,8 @@
 
 **The Open Project screen is drawn as Noah's Open Project design (approved 2026-11-06,
 `OPEN-PROJECT-HANDOFF.md`) draws it: the header in characters, a rule above and below the list, one
-project row lit, and Home [Esc] and New Project [N] along the foot. New Project opens the existing
-dialog over this screen; search has no control and opens on Alt+Enter.** What the list is (a
+project row lit, and Home [Esc], Import [I] and New Project [N] along the foot. New Project opens
+the existing dialog over this screen; search has no control and opens on Alt+Enter.** What the list is (a
 listing of the default location, ADR-0015, ADR-0016) and what choosing a project does do not change.
 
 **Status: built, 2026-11-06.**
@@ -18,8 +18,14 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   trailing newlines: drawn, they would be empty space under the art that the design's 154px-tall
   header does not have. The art uses U+FF3C (fullwidth `＼`) ten times in the N, a glyph the bundled
   face does not have; it is kept as drawn and falls back to a system face.
-- **The rules are at most 51 dashes, and lose whole dashes on a narrow window** — the box is a
-  whole number of columns (`round(down, 100%, 1ch)`) and the rest is cut off, never squeezed.
+- **The header is drawn at 7px, not the design's 9px** (Noah, after testing it, 2026-11-06): about
+  382px wide rather than 491px, still centred, still shrinking on a window too narrow for it.
+- **The rules are at most 70 dashes — 630px at 15px, not the design's 51 (459px)** — Noah, after
+  testing it, 2026-11-06. They lose whole dashes on a narrow window: the box is a whole number of
+  columns (`round(down, 100%, 1ch)`) and the rest is cut off, never squeezed.
+- **Import is in the foot, between Home and New Project: Import [I]** (Noah, after testing it,
+  2026-11-06). The design's foot has none, but this screen is the only way a screenplay comes in.
+  It is drawn as the other two are and keeps its letter, `i`; while an import runs it is disabled.
 - **The list is the real one.** Name right-aligned, format beside it in the faint colour, as the
   design's columns; the design's names are dummy data and appear nowhere. One row is lit — the
   first, until the pointer, Tab or the arrows move it — with the home menu's highlight (`navigable`),
@@ -34,7 +40,4 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
 
 ## What it does not decide
 
-- **Where Import goes.** The design's foot has no Import, and this screen is the only way a
-  screenplay comes in. **Until Noah decides**, Import keeps its letter, `i`, drawn nowhere; the
-  empty list says how to use it. `open-project.ts` carries a TODO.
 - **The search's place.** Centred for now; the handoff says Noah may move it.

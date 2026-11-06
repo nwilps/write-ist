@@ -26,8 +26,8 @@ export function menu(gestures: readonly Gesture[], { home = false } = {}): HTMLE
 
 /**
  * Draw gestures in a row, for the foot of a screen that is mostly a list.
- * `foot` is the Open Project design's look: plain labels, the pair centred,
- * the letters as the design writes them (`[Esc]`, `[N]`).
+ * `foot` is the Open Project design's look: plain labels, centred, the
+ * letters as the design writes them (`[Esc]`, `[I]`, `[N]`).
  */
 export function menuRow(gestures: readonly Gesture[], { foot = false } = {}): HTMLElement {
   return element(
