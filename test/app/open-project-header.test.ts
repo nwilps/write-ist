@@ -16,6 +16,8 @@ const screen = {
   onImport: () => {},
   onOpen: () => {},
   onNewProject: () => {},
+  onRename: () => {},
+  onDelete: () => {},
   onSearch: () => {},
   onBack: () => {},
 };

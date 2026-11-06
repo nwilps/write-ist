@@ -18,16 +18,25 @@
  * along the foot. New Project opens the home screen's dialog over this one. A
  * search has no control here: **Alt+Enter** opens it, for whoever goes looking.
  *
+ * **Right-click on a project** — or the Menu key, or Shift+F10, on the lit one
+ * — opens the menu File, Edit and View are drawn from (ADR-0034), with two
+ * items: Rename Project and Delete Project. It acts on the row that was
+ * pointed at, which the right-click lights first, so the lit row and the
+ * menu's project are always the same one. Right-click anywhere else on the
+ * screen opens nothing, and not the webview's own menu either.
+ *
  * **Real text on the page.** Every name, count and label below is text a
  * screen reader can read and a writer can select. The header's art is the one
  * thing drawn, and it is hidden behind the heading that names the screen.
  */
 import type { ProjectsListing } from "../../../src/project/projects.ts";
 import type { Project } from "../../../src/project/bundle.ts";
+import { Pencil, Trash } from "lucide";
+import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "./element.ts";
 import { menuRow, navigable } from "./menu.ts";
 import { OPEN_PROJECT_HEADER } from "./open-project-header.ts";
-import { chordMatches, LEAVE, type Gesture, type KeyPress } from "./shortcuts.ts";
+import { chordMatches, LEAVE, shortcutOf, type Gesture, type KeyPress } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
 
 export interface OpenProjectScreen {
@@ -43,6 +52,10 @@ export interface OpenProjectScreen {
   readonly onOpen: (project: Project) => void;
   /** Ask for a new, empty project: the New Project dialog, over this screen. */
   readonly onNewProject: () => void;
+  /** Rename a project: the right-click menu's first item, for the row pointed at. */
+  readonly onRename: (project: Project) => void;
+  /** Move a project to the deleted folder: the menu's second item. */
+  readonly onDelete: (project: Project) => void;
   /** Search the projects: Alt+Enter, and nothing drawn. */
   readonly onSearch: () => void;
   /** Back to the home screen. */
@@ -69,8 +82,13 @@ export const RULE_LENGTH = 70;
 /** The chord that opens the search: the Editor's own (`commands.ts`). */
 const SEARCH = { key: "Enter", alt: true } as const;
 
+/** The right-click menu, while one is open. A redraw takes it down with the rows. */
+let projectMenu: ContextMenu | undefined;
+
 /** Draw the screen, and return what the window answers to. */
 export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen): DrawnOpenProject {
+  projectMenu?.close(false);
+  projectMenu = undefined;
   // The foot: Home on the left, Import in the middle, New Project on the right.
   const gestures: readonly Gesture[] = [
     { label: "Home", key: LEAVE, act: screen.onBack },
@@ -82,8 +100,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   const projects = listing?.projects ?? [];
   const list = projects.length > 0 ? projectsList(projects, screen.onOpen) : undefined;
 
-  into.replaceChildren(
-    element("main", { className: "screen" }, [
+  const main = element("main", { className: "screen" }, [
       element("div", { className: "composition composition--open-project" }, [
         // The art is for the eye: the heading carries the name, the art is hidden.
         element("h1", { className: "open-project__header", ariaLabel: "Open Project" }, [
@@ -115,8 +132,11 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
         rule(),
         menuRow(gestures, { foot: true }),
       ]),
-    ]),
-  );
+    ]);
+  into.replaceChildren(main);
+  // Write-ist draws its own menus (ADR-0034): the webview's is never wanted
+  // here, and only a project row has one of Write-ist's.
+  main.addEventListener("contextmenu", (event) => event.preventDefault());
 
   // The projects as gestures, so the home menu's highlight can move through them.
   const rows: readonly Gesture[] = projects.map((project) => ({
@@ -125,10 +145,25 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
     act: () => screen.onOpen(project),
   }));
   const highlight = list === undefined ? undefined : navigable(list, rows, "button.project");
+  const menuFor = list === undefined ? undefined : menuOnRows(list, projects, screen);
 
   return {
     gestures,
     navigate: (press) => {
+      if (projectMenu?.isOpen() === true) {
+        // The menu has the keys: its own arrows, Escape and Tab stop there, and
+        // Enter and Space are its focused item's. A letter must not reach the
+        // screen behind it — N would open New Project over the menu. Escape
+        // from anywhere closes the menu, and does not leave the screen.
+        if (press.key === "Escape") projectMenu.close(true);
+        return shortcutOf(press) !== undefined;
+      }
+      // The Menu key, with focus nowhere in particular: the lit row's menu.
+      if (press.key === "ContextMenu" && list !== undefined && menuFor !== undefined) {
+        const lit = list.querySelector<HTMLButtonElement>("button.project.gesture--selected");
+        if (lit !== null) menuFor(lit);
+        return true;
+      }
       if (chordMatches(SEARCH, press)) {
         screen.onSearch();
         return true;
@@ -182,6 +217,76 @@ function projectsList(
       return element("li", {}, [row]);
     }),
   );
+}
+
+/**
+ * Give every project row its right-click menu: Rename Project and Delete
+ * Project, **for that row's project** — each item's action is bound to the row
+ * it was opened on, never read from whichever row is lit when it is chosen.
+ *
+ * A right-click lights the row it lands on and takes focus there, as hover and
+ * Tab do, so there is one highlight and it is on the project the menu is for.
+ * While the menu is open the pointer passing over other rows does not move it:
+ * the highlight stays on the menu's project until the menu goes.
+ *
+ * Answers how to open a row's menu from the keyboard, under the row.
+ */
+function menuOnRows(
+  list: HTMLElement,
+  projects: readonly Project[],
+  screen: OpenProjectScreen,
+): (row: HTMLButtonElement) => void {
+  const rows = [...list.querySelectorAll<HTMLButtonElement>("button.project")];
+  // Capture, on the list: a `mouseenter` does not bubble, but it does pass here
+  // first on its way to the row, and stopping it here is stopping the highlight.
+  list.addEventListener(
+    "mouseenter",
+    (event) => {
+      if (projectMenu?.isOpen() === true) event.stopPropagation();
+    },
+    true,
+  );
+
+  const open = (row: HTMLButtonElement, project: Project, x: number, y: number, fromKeyboard: boolean): void => {
+    row.focus({ preventScroll: true });
+    projectMenu = openContextMenu({
+      label: project.marker.name,
+      items: [
+        { label: "Rename Project", icon: Pencil, act: () => screen.onRename(project) },
+        { label: "Delete Project", icon: Trash, act: () => screen.onDelete(project) },
+      ],
+      x,
+      y,
+      fromKeyboard,
+      restoreFocus: () => {
+        if (row.isConnected) row.focus({ preventScroll: true });
+      },
+    });
+  };
+  // The Menu key and Shift+F10, as a native menu opens (ADR-0034): under the row.
+  const fromKeyboard = (row: HTMLButtonElement): void => {
+    const index = rows.indexOf(row);
+    if (index < 0) return;
+    const box = row.getBoundingClientRect();
+    open(row, projects[index]!, box.left, box.bottom, true);
+  };
+
+  rows.forEach((row, index) => {
+    const project = projects[index]!;
+    row.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      // The screen's own handler would only say the same again.
+      event.stopPropagation();
+      open(row, project, event.clientX, event.clientY, false);
+    });
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      fromKeyboard(row);
+    });
+  });
+  return fromKeyboard;
 }
 
 function reading(words: string): HTMLElement {

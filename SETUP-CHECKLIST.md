@@ -198,11 +198,21 @@ dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built
 
 The Open Project screen follows the approved Open Project design: the header drawn in characters
 (`app/src/screens/open-project-header.ts`, held byte for byte to the design's `open-project.txt`),
-drawn at 7px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
+drawn at 8px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
 row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]** along the foot — the header
 size, rule width and Import are Noah's changes after testing. New Project opens the home screen's
 dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
 finding projects.
+
+### Done: renaming and deleting a project (ADR-0044)
+
+Right-click on a project row on Open Project (or the Menu key, or Shift+F10, on the lit row) opens
+the shared context menu with **Rename Project** and **Delete Project**, for the row right-clicked;
+blank space opens nothing. Rename changes the folder and `project.md` together and refuses a name
+already taken. **Delete moves the whole bundle into `~/Documents/write-ist/Deleted Projects/` and
+erases nothing**; to recover a project, move its folder back into `write-ist`. Every move is the
+`move_folder` command (`src-tauri/src/folders.rs`): one rename, never over anything, never across
+disks, only inside the projects folder. Not built: a restore screen, and emptying the folder.
 
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 

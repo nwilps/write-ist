@@ -35,9 +35,12 @@ import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
+import { CannotRename, renameProject } from "../../src/project/rename.ts";
+import { CannotDelete, deleteProject, deletedFolderIn } from "../../src/project/delete.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
+import { showDeleteProject, showRenameProject } from "./screens/project-dialogs.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
@@ -159,6 +162,8 @@ function draw(): void {
     onImport: () => void importOne(),
     onOpen: goToProject,
     onNewProject: askForNewProject,
+    onRename: askToRename,
+    onDelete: askToDelete,
     onSearch: searchProjects,
     onBack: () => go("home"),
   });
@@ -337,6 +342,82 @@ function askForNewProject(): void {
     },
     onClose: () => {},
   });
+}
+
+/**
+ * Read the projects again and redraw them, if the writer is still looking.
+ * After a rename or a delete — and after one that was refused, because the
+ * refusal may be that the folder changed since the list was read.
+ */
+async function rereadProjects(): Promise<void> {
+  const wrong = await readProjects();
+  if (screen !== "open-project") return;
+  trouble = wrong;
+  draw();
+}
+
+/**
+ * Rename the project that was right-clicked (`src/project/rename.ts`), in a
+ * dialog over the screen. Refused or failed, the dialog stays up with the
+ * reason and the project keeps its name.
+ */
+function askToRename(project: Project): void {
+  if (document.querySelector("dialog[open]") !== null) return;
+  showRenameProject(document.body, {
+    project,
+    onRename: async (name) => {
+      let wrong: string | undefined;
+      try {
+        await renameProject(tauriFilesystem, await defaultProjectsDirectory(), project, name);
+      } catch (error) {
+        wrong =
+          error instanceof CannotRename
+            ? error.message
+            : `The project could not be renamed, so nothing was changed. ${message(error)}`;
+      }
+      await rereadProjects();
+      return wrong;
+    },
+    onClose: () => {},
+  });
+}
+
+/**
+ * Move the project that was right-clicked to the deleted folder
+ * (`src/project/delete.ts`), once the writer has been told where it goes and
+ * that it is not deleted for good. Nothing is ever erased.
+ */
+function askToDelete(project: Project): void {
+  if (document.querySelector("dialog[open]") !== null) return;
+  void (async () => {
+    let directory: string;
+    try {
+      directory = await defaultProjectsDirectory();
+    } catch (error) {
+      trouble = `Write-ist could not find its projects folder, so nothing was moved. ${message(error)}`;
+      draw();
+      return;
+    }
+    if (document.querySelector("dialog[open]") !== null) return;
+    showDeleteProject(document.body, {
+      project,
+      deletedFolder: deletedFolderIn(directory),
+      onDelete: async () => {
+        let wrong: string | undefined;
+        try {
+          await deleteProject(tauriFilesystem, directory, project);
+        } catch (error) {
+          wrong =
+            error instanceof CannotDelete
+              ? error.message
+              : `“${project.marker.name}” could not be moved, so it is where it was. ${message(error)}`;
+        }
+        await rereadProjects();
+        return wrong;
+      },
+      onClose: () => {},
+    });
+  })();
 }
 
 async function importOne(): Promise<void> {

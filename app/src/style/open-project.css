@@ -175,3 +175,31 @@
   align-items: center;
   padding-top: 0;
 }
+
+/* --- Delete Project, said before it is done ----------------------------- */
+
+/*
+ * The New Project dialog's look (`home.css`); only the words are new. The
+ * deleted folder's path stands out, because it is where the project will be.
+ */
+.project-dialog__message {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.project-dialog__line,
+.project-dialog__path {
+  margin: 0;
+  font-size: var(--size-label);
+  line-height: var(--leading-body);
+  color: var(--colour-muted);
+}
+
+.project-dialog__line--lead {
+  color: var(--colour-text);
+}
+
+.project-dialog__path {
+  color: var(--colour-accent);
+  overflow-wrap: anywhere;
+}

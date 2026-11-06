@@ -18,8 +18,9 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   trailing newlines: drawn, they would be empty space under the art that the design's 154px-tall
   header does not have. The art uses U+FF3C (fullwidth `＼`) ten times in the N, a glyph the bundled
   face does not have; it is kept as drawn and falls back to a system face.
-- **The header is drawn at 7px, not the design's 9px** (Noah, after testing it, 2026-11-06): about
-  382px wide rather than 491px, still centred, still shrinking on a window too narrow for it.
+- **The header is drawn at 8px, not the design's 9px** (Noah, after testing it, 2026-11-06; first
+  7px, then 8px the same day): about 437px wide rather than 491px, still centred, still shrinking
+  on a window too narrow for it. The art and the rules are unchanged.
 - **The rules are at most 70 dashes — 630px at 15px, not the design's 51 (459px)** — Noah, after
   testing it, 2026-11-06. They lose whole dashes on a narrow window: the box is a whole number of
   columns (`round(down, 100%, 1ch)`) and the rest is cut off, never squeezed.
@@ -37,6 +38,9 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   the screen, its results projects (name, the match marked, the format where the page would be).
   Up, Down, Enter and Escape as there. Nothing on the screen opens it or mentions it; **Alt+Enter**
   does, the Editor's chord for its own search.
+
+- **A project row has a right-click menu: Rename Project and Delete Project** — recorded in
+  [ADR-0044](0044-deleting-a-project-moves-it-to-deleted-projects.md), with what deleting does.
 
 ## What it does not decide
 

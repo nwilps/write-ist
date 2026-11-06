@@ -126,7 +126,7 @@ export function showNewProject(
 }
 
 /** A button drawn as the home screen's selected row is: `> Label [Key]`. */
-function action(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
+export function action(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
   return element("button", { className: "new-project-dialog__action", type: kind }, [
     element("span", { className: "new-project-dialog__cursor", ariaHidden: "true", textContent: ">" }),
     element("span", { textContent: label }),

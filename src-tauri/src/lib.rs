@@ -6,9 +6,12 @@
 //! reading and writing files and asking the writer to choose one.
 //!
 //! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
-//! asks for. The three `spell_*` commands are here because spellcheck is ours,
-//! in Rust, off the thread that draws (ADR-0032): see `spelling.rs`.
+//! asks for, and `move_folder` because the plugin's rename replaces an empty
+//! folder without a word (`folders.rs`). The three `spell_*` commands are here
+//! because spellcheck is ours, in Rust, off the thread that draws (ADR-0032):
+//! see `spelling.rs`.
 
+pub mod folders;
 pub mod spelling;
 
 use std::collections::HashMap;
@@ -82,6 +85,34 @@ fn commit(landed: &Landed, temporary: &Path, path: &Path, sequence: u64) -> std:
     Ok(())
 }
 
+/// The folder inside `Documents` that holds every project (ADR-0016), as
+/// `PROJECTS_FOLDER` in `app/src/tauri-filesystem.ts` names it.
+const PROJECTS_FOLDER: &str = "write-ist";
+
+/// Move a project's folder — renaming it, or putting it in `Deleted Projects`
+/// — **without ever replacing, copying or deleting anything**.
+///
+/// The plugin's `rename` is `rename(2)`, which puts a folder over an empty
+/// folder at the destination without a word. This refuses that, refuses to
+/// move anything outside the projects folder, and refuses a move across disks
+/// rather than copy and delete.
+#[tauri::command(async)]
+fn move_folder(app: tauri::AppHandle, from: String, to: String) -> Result<(), String> {
+    use tauri::Manager;
+    let root = app
+        .path()
+        .document_dir()
+        .map_err(|error| error.to_string())?
+        .join(PROJECTS_FOLDER);
+    folders::move_within(&root, Path::new(&from), Path::new(&to)).map_err(|error| {
+        if folders::crosses_disks(&error) {
+            "It would have to be copied to another disk, and Write-ist does not do that.".to_string()
+        } else {
+            error.to_string()
+        }
+    })
+}
+
 /// Which of these words the dictionary does not know.
 ///
 /// `async`, so Tauri runs it on its thread pool and never on the thread that
@@ -151,6 +182,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commit_write,
+            move_folder,
             spell_misspelled,
             spell_suggest,
             spell_add_word

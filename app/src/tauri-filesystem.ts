@@ -67,6 +67,13 @@ export const tauriFilesystem: Filesystem = {
     // True append via the plugin's `append` flag — never a full rewrite.
     await writeFile(path, bytes, { append: true });
   },
+
+  async moveFolder(from: string, to: string): Promise<void> {
+    // A command rather than the plugin's `rename`, which replaces an empty
+    // folder at `to` without a word. The command never replaces anything, and
+    // moves only inside the projects folder (`move_folder`, `src-tauri/src/lib.rs`).
+    await invoke("move_folder", { from, to });
+  },
 };
 
 /** The folder inside `Documents` that holds every project (ADR-0016). */
