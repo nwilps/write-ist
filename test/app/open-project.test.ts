@@ -294,8 +294,8 @@ describe("Open Project, the look", () => {
     expect(css).toMatch(/\.open-project-rule\s*\{[^}]*round\(down, 100%, var\(--measure-column\)\)[^}]*overflow:\s*hidden[^}]*color:\s*var\(--colour-faint\)/);
   });
 
-  it("draws the header at 8px and the rules at most 70 columns — the same as RULE_LENGTH", () => {
-    expect(tokens).toMatch(/--size-open-project-art:\s*8px;/);
+  it("draws the header at 9px and the rules at most 70 columns — the same as RULE_LENGTH", () => {
+    expect(tokens).toMatch(/--size-open-project-art:\s*9px;/);
     expect(css).toMatch(/\.open-project__header\s*\{[^}]*font-size:\s*var\(--size-open-project-art\)/);
     expect(tokens).toMatch(new RegExp(`--measure-open-project-rule:\\s*${RULE_LENGTH}ch;`));
     expect(css).toMatch(/\.open-project-rule\s*\{[^}]*font-size:\s*var\(--size-body\)/);

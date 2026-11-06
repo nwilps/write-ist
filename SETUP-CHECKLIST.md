@@ -198,9 +198,11 @@ dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built
 
 The Open Project screen follows the approved Open Project design: the header drawn in characters
 (`app/src/screens/open-project-header.ts`, held byte for byte to the design's `open-project.txt`),
-drawn at 8px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
+drawn at 9px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
 row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]** along the foot — the header
-size, rule width and Import are Noah's changes after testing. New Project opens the home screen's
+size, rule width and Import are Noah's changes after testing. The list shows **eight rows at
+most** and is the only thing that scrolls: fewer whole rows on a short window, the arrows keeping
+the lit row in view, the right-click menu still on the row pointed at. New Project opens the home screen's
 dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
 finding projects.
 

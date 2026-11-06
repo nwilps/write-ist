@@ -18,6 +18,10 @@
  * along the foot. New Project opens the home screen's dialog over this one. A
  * search has no control here: **Alt+Enter** opens it, for whoever goes looking.
  *
+ * **The list shows eight rows at most, and scrolls** (Noah, after testing,
+ * ADR-0043); the header, the rules and the foot stay where they are. A window
+ * too short for eight shows as many whole rows as fit (`rowsThatFit`).
+ *
  * **Right-click on a project** — or the Menu key, or Shift+F10, on the lit one
  * — opens the menu File, Edit and View are drawn from (ADR-0034), with two
  * items: Rename Project and Delete Project. It acts on the row that was
@@ -79,16 +83,38 @@ export interface DrawnOpenProject {
  */
 export const RULE_LENGTH = 70;
 
+/**
+ * The most project rows on the screen at once (Noah, after testing): more
+ * than this and the list scrolls. Kept equal to `--count-project-rows`.
+ */
+export const MOST_ROWS = 8;
+
+/**
+ * How many whole rows fit in `room` pixels of height, rows `row` tall and
+ * `gap` apart: never more than `MOST_ROWS`, never fewer than one — a window
+ * too short even for that scrolls as a whole, as it always has.
+ */
+export function rowsThatFit(room: number, row: number, gap: number): number {
+  // A hair's tolerance, so a fractional layout does not lose a row it has room for.
+  const whole = Math.floor((room + gap + 0.5) / (row + gap));
+  return Math.max(1, Math.min(MOST_ROWS, whole));
+}
+
 /** The chord that opens the search: the Editor's own (`commands.ts`). */
 const SEARCH = { key: "Enter", alt: true } as const;
 
 /** The right-click menu, while one is open. A redraw takes it down with the rows. */
 let projectMenu: ContextMenu | undefined;
 
+/** Fits the list to the window when it is resized; the next drawing replaces it. */
+let fitOnResize: (() => void) | undefined;
+
 /** Draw the screen, and return what the window answers to. */
 export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen): DrawnOpenProject {
   projectMenu?.close(false);
   projectMenu = undefined;
+  if (fitOnResize !== undefined) window.removeEventListener("resize", fitOnResize);
+  fitOnResize = undefined;
   // The foot: Home on the left, Import in the middle, New Project on the right.
   const gestures: readonly Gesture[] = [
     { label: "Home", key: LEAVE, act: screen.onBack },
@@ -100,40 +126,50 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   const projects = listing?.projects ?? [];
   const list = projects.length > 0 ? projectsList(projects, screen.onOpen) : undefined;
 
-  const main = element("main", { className: "screen" }, [
-      element("div", { className: "composition composition--open-project" }, [
-        // The art is for the eye: the heading carries the name, the art is hidden.
-        element("h1", { className: "open-project__header", ariaLabel: "Open Project" }, [
-          element("pre", {
-            className: "open-project__art",
-            ariaHidden: "true",
-            textContent: OPEN_PROJECT_HEADER,
-          }),
-        ]),
-        rule(),
-        // A failed read must never read as an empty folder, and never as one
-        // still being read either — both are the screen telling the writer
-        // something about their disk that nobody checked. That is ADR-0008
-        // rule 3's instinct applied to the screen. Once a read has succeeded,
-        // "No projects yet" is a claim someone made good on, and a later read
-        // that fails says so beneath the list rather than emptying it.
-        ...(listing === undefined
-          ? trouble === undefined
-            ? [reading("Reading your projects…")]
-            : []
-          : list !== undefined
-            ? [list]
-            : [nothingYet()]),
-        ...(screen.importing ? [reading("Importing…")] : []),
-        ...(trouble === undefined ? [] : [troublePanel(trouble)]),
-        ...(listing === undefined || listing.unreadable.length === 0
-          ? []
-          : [declined(listing.unreadable)]),
-        rule(),
-        menuRow(gestures, { foot: true }),
-      ]),
-    ]);
+  const composition = element("div", { className: "composition composition--open-project" }, [
+    // The art is for the eye: the heading carries the name, the art is hidden.
+    element("h1", { className: "open-project__header", ariaLabel: "Open Project" }, [
+      element("pre", {
+        className: "open-project__art",
+        ariaHidden: "true",
+        textContent: OPEN_PROJECT_HEADER,
+      }),
+    ]),
+    rule(),
+    // A failed read must never read as an empty folder, and never as one
+    // still being read either — both are the screen telling the writer
+    // something about their disk that nobody checked. That is ADR-0008
+    // rule 3's instinct applied to the screen. Once a read has succeeded,
+    // "No projects yet" is a claim someone made good on, and a later read
+    // that fails says so beneath the list rather than emptying it.
+    ...(listing === undefined
+      ? trouble === undefined
+        ? [reading("Reading your projects…")]
+        : []
+      : list !== undefined
+        ? [list]
+        : [nothingYet()]),
+    ...(screen.importing ? [reading("Importing…")] : []),
+    ...(trouble === undefined ? [] : [troublePanel(trouble)]),
+    ...(listing === undefined || listing.unreadable.length === 0
+      ? []
+      : [declined(listing.unreadable)]),
+    rule(),
+    menuRow(gestures, { foot: true }),
+  ]);
+  const main = element("main", { className: "screen" }, [composition]);
   into.replaceChildren(main);
+  if (list !== undefined) {
+    const fit = (): void => {
+      if (list.isConnected) fitRows(main, composition, list);
+      else window.removeEventListener("resize", fit);
+    };
+    fit();
+    fitOnResize = fit;
+    window.addEventListener("resize", fit);
+    // The bundled face can arrive after the first drawing, and move the foot.
+    void document.fonts?.ready.then(fit);
+  }
   // Write-ist draws its own menus (ADR-0034): the webview's is never wanted
   // here, and only a project row has one of Write-ist's.
   main.addEventListener("contextmenu", (event) => event.preventDefault());
@@ -287,6 +323,26 @@ function menuOnRows(
     });
   });
   return fromKeyboard;
+}
+
+/**
+ * Size the list's window to whole rows: as many as the window has room for
+ * once the header, rules, foot and the screen's margins have theirs, and
+ * never more than eight. A measured count, handed to the stylesheet, which
+ * owns the row and gap sizes (`.projects`).
+ *
+ * Without a layout — no window yet — it leaves the stylesheet's eight alone.
+ */
+function fitRows(main: HTMLElement, composition: HTMLElement, list: HTMLElement): void {
+  const [first, second] = [...list.children];
+  const row = first?.getBoundingClientRect();
+  if (row === undefined || row.height <= 0) return;
+  const gap = second === undefined ? 0 : second.getBoundingClientRect().top - row.bottom;
+  const style = getComputedStyle(main);
+  const margins = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+  const rest = composition.getBoundingClientRect().height - list.getBoundingClientRect().height;
+  const room = window.innerHeight - margins - rest;
+  list.style.setProperty("--project-rows", String(rowsThatFit(room, row.height, gap)));
 }
 
 function reading(words: string): HTMLElement {

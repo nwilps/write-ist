@@ -65,13 +65,23 @@
 
 /* --- The projects -------------------------------------------------------- */
 
+/*
+ * The list is the one thing on the screen that scrolls: a window of eight
+ * whole rows at most, fewer on a short window (`--project-rows`, measured in
+ * `open-project.ts`). Eight projects or fewer fit it, so there is nothing to
+ * scroll and no scrollbar.
+ */
 .projects {
+  --rows-shown: var(--project-rows, var(--count-project-rows));
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: var(--space-project-row);
   width: min(var(--measure-project-row), 100%);
+  max-height: calc(var(--rows-shown) * var(--size-row) + (var(--rows-shown) - 1) * var(--space-project-row));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /*

@@ -45,7 +45,8 @@ const SELECTED = "gesture--selected";
  *
  * One row is selected at a time, the first to begin with. The mouse moves it
  * (hover), focus moves it (Tab), and Up and Down move it, wrapping at the ends;
- * the keys also move focus, so a screen reader follows the eye. Enter acts on
+ * the keys also move focus, so a screen reader follows the eye, and scroll the
+ * row into view where the list scrolls. Enter acts on
  * the selected row, as a click would. The answer says whether the key was used.
  *
  * `rows` picks the buttons, one per gesture and in the same order: the home
@@ -83,7 +84,10 @@ export function navigable(
     const to = stepped(gestures, selected, press);
     if (to === undefined) return false;
     select(to);
-    buttons[to]?.focus();
+    // In a list that scrolls (Open Project's), the row is brought just into
+    // view — the least scrolling that shows it whole, wrapping included.
+    buttons[to]?.focus({ preventScroll: true });
+    buttons[to]?.scrollIntoView?.({ block: "nearest" });
     return true;
   };
 }
