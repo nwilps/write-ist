@@ -396,6 +396,13 @@
    */
   --count-project-rows: 8;
   /**
+   * The chevrons that say the list scrolls: how far each nudges the way the
+   * rows are, and how long one nudge takes. Two pixels keeps it inside the
+   * 16px under the list that the words beneath it leave (`--space-roomy`).
+   */
+  --distance-hint-bounce: 2px;
+  --duration-hint-bounce: 1600ms;
+  /**
    * The name column, right-aligned, and the room between it and the format:
    * the format starts 256.5px into the row, 24px after the names end.
    */

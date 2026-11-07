@@ -69,8 +69,20 @@
  * The list is the one thing on the screen that scrolls: a window of eight
  * whole rows at most, fewer on a short window (`--project-rows`, measured in
  * `open-project.ts`). Eight projects or fewer fit it, so there is nothing to
- * scroll and no scrollbar.
+ * scroll.
+ *
+ * **It draws no scrollbar** in any of the webviews Tauri runs in — the
+ * standard property for Chromium (WebView2) and current WebKit, the
+ * `::-webkit-scrollbar` one for the WebKit that predates it (Noah, after
+ * testing). The wheel, the trackpad and the arrows scroll it as before; the
+ * chevrons below say when there is more. Nothing else on any screen loses its
+ * scrollbar.
  */
+.projects-window {
+  position: relative;
+  width: min(var(--measure-project-row), 100%);
+}
+
 .projects {
   --rows-shown: var(--project-rows, var(--count-project-rows));
   list-style: none;
@@ -82,6 +94,74 @@
   max-height: calc(var(--rows-shown) * var(--size-row) + (var(--rows-shown) - 1) * var(--space-project-row));
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.projects::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/*
+ * The chevrons: up above the list while rows are scrolled off its top, down
+ * below it while rows wait under its bottom (`projectsWindow`). Each sits
+ * against the list's edge, centred, in the room between the list and its
+ * rule — never over a row — and is laid over that room, so showing one moves
+ * nothing. The pointer goes straight through to whatever is beneath.
+ *
+ * Each nudges, gently, the way the rows are: out and back by a couple of
+ * pixels, slowly. Still, for a writer who has asked for less motion.
+ */
+.projects-hint {
+  position: absolute;
+  left: 50%;
+  display: block;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin-left: calc(var(--size-icon) / -2);
+  color: var(--colour-faint);
+  pointer-events: none;
+  user-select: none;
+  animation: var(--duration-hint-bounce) ease-in-out infinite;
+}
+
+.projects-hint[hidden] {
+  display: none;
+}
+
+.projects-hint--above {
+  bottom: 100%;
+  animation-name: hint-up;
+}
+
+.projects-hint--below {
+  top: 100%;
+  animation-name: hint-down;
+}
+
+.projects-hint__icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes hint-up {
+  50% {
+    translate: 0 calc(-1 * var(--distance-hint-bounce));
+  }
+}
+
+@keyframes hint-down {
+  50% {
+    translate: 0 var(--distance-hint-bounce);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-hint {
+    animation: none;
+  }
 }
 
 /*

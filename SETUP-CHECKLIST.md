@@ -202,7 +202,9 @@ drawn at 9px, a rule of up to 70 dashes (630px) above and below the real list of
 row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]** along the foot — the header
 size, rule width and Import are Noah's changes after testing. The list shows **eight rows at
 most** and is the only thing that scrolls: fewer whole rows on a short window, the arrows keeping
-the lit row in view, the right-click menu still on the row pointed at. New Project opens the home screen's
+the lit row in view, the right-click menu still on the row pointed at. It draws no scrollbar:
+Lucide chevrons above and below the list, nudging gently (still under reduced motion), show only
+when rows are out of view that way. New Project opens the home screen's
 dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
 finding projects.
 

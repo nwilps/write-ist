@@ -20,7 +20,10 @@
  *
  * **The list shows eight rows at most, and scrolls** (Noah, after testing,
  * ADR-0043); the header, the rules and the foot stay where they are. A window
- * too short for eight shows as many whole rows as fit (`rowsThatFit`).
+ * too short for eight shows as many whole rows as fit (`rowsThatFit`). It
+ * draws no scrollbar: a chevron above the list says there are rows above, one
+ * below says there are rows below, and neither is drawn when nothing is out
+ * of view (Noah, after testing, ADR-0043).
  *
  * **Right-click on a project** — or the Menu key, or Shift+F10, on the lit one
  * — opens the menu File, Edit and View are drawn from (ADR-0034), with two
@@ -35,7 +38,7 @@
  */
 import type { ProjectsListing } from "../../../src/project/projects.ts";
 import type { Project } from "../../../src/project/bundle.ts";
-import { Pencil, Trash } from "lucide";
+import { ChevronDown, ChevronUp, createElement, Pencil, Trash, type IconNode } from "lucide";
 import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "./element.ts";
 import { menuRow, navigable } from "./menu.ts";
@@ -125,6 +128,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   const { listing, trouble } = screen;
   const projects = listing?.projects ?? [];
   const list = projects.length > 0 ? projectsList(projects, screen.onOpen) : undefined;
+  const scrolling = list === undefined ? undefined : projectsWindow(list);
 
   const composition = element("div", { className: "composition composition--open-project" }, [
     // The art is for the eye: the heading carries the name, the art is hidden.
@@ -146,8 +150,8 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
       ? trouble === undefined
         ? [reading("Reading your projects…")]
         : []
-      : list !== undefined
-        ? [list]
+      : scrolling !== undefined
+        ? [scrolling.window]
         : [nothingYet()]),
     ...(screen.importing ? [reading("Importing…")] : []),
     ...(trouble === undefined ? [] : [troublePanel(trouble)]),
@@ -159,10 +163,14 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   ]);
   const main = element("main", { className: "screen" }, [composition]);
   into.replaceChildren(main);
-  if (list !== undefined) {
+  if (list !== undefined && scrolling !== undefined) {
     const fit = (): void => {
-      if (list.isConnected) fitRows(main, composition, list);
-      else window.removeEventListener("resize", fit);
+      if (!list.isConnected) {
+        window.removeEventListener("resize", fit);
+        return;
+      }
+      fitRows(main, composition, list);
+      scrolling.hint();
     };
     fit();
     fitOnResize = fit;
@@ -253,6 +261,44 @@ function projectsList(
       return element("li", {}, [row]);
     }),
   );
+}
+
+/**
+ * The list in its window, with a chevron for what is out of view: **up**
+ * above the list when rows have scrolled off the top, **down** below it when
+ * rows are waiting under the bottom, neither when everything fits.
+ *
+ * The list draws no scrollbar (`.projects`), so these are what say it
+ * scrolls. They sit in the room between the list and its rules, never over a
+ * row, and are for the eye only: hidden from a screen reader, which hears the
+ * whole list anyway, and never in the pointer's way — a click or right-click
+ * there lands on what is underneath. Nothing about them is clickable.
+ *
+ * The list's own scroll event keeps them right however it moved — the wheel,
+ * a trackpad, the arrows bringing a row into view — and `hint` is called again
+ * whenever the window refits the list.
+ */
+function projectsWindow(list: HTMLElement): { readonly window: HTMLElement; readonly hint: () => void } {
+  const above = scrollHint(ChevronUp, "above");
+  const below = scrollHint(ChevronDown, "below");
+  const hint = (): void => {
+    // A pixel's tolerance: a fractional scroll on a scaled display is still the end.
+    const top = list.scrollTop;
+    above.hidden = top < 1;
+    below.hidden = list.scrollHeight - list.clientHeight - top < 1;
+  };
+  list.addEventListener("scroll", hint, { passive: true });
+  hint();
+  return { window: element("div", { className: "projects-window" }, [above, list, below]), hint };
+}
+
+/** One of the list's chevrons: Lucide's drawing, at the icon size (ADR-0035). */
+function scrollHint(icon: IconNode, where: "above" | "below"): HTMLElement {
+  const hint = element("span", { className: `projects-hint projects-hint--${where}`, ariaHidden: "true" }, [
+    createElement(icon, { class: "projects-hint__icon" }),
+  ]);
+  hint.hidden = true;
+  return hint;
 }
 
 /**

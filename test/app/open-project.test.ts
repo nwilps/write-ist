@@ -80,7 +80,8 @@ describe("Open Project, as designed", () => {
   it("draws header, rule, list, rule, foot — in that order", () => {
     const { into } = draw();
     const order = [...into.querySelector(".composition")!.children].map((c) => c.className.split(" ")[0]);
-    expect(order).toEqual(["open-project__header", "open-project-rule", "projects", "open-project-rule", "menu"]);
+    // The list is drawn in its window, with the chevrons that say it scrolls.
+    expect(order).toEqual(["open-project__header", "open-project-rule", "projects-window", "open-project-rule", "menu"]);
     const rules = [...into.querySelectorAll(".open-project-rule")].map((r) => r.textContent);
     expect(RULE_LENGTH).toBe(70);
     expect(rules).toEqual(["─".repeat(70), "─".repeat(70)]);
@@ -122,7 +123,8 @@ describe("Open Project, as designed", () => {
   it("draws no search: no label, no icon, no button", () => {
     const { into, drawn } = draw();
     expect(into.textContent).not.toMatch(/search/i);
-    expect(into.querySelector("svg, .search, [aria-label*='earch']")).toBeNull();
+    // The list's chevrons are the one drawing, and they say it scrolls.
+    expect(into.querySelector("svg:not(.projects-hint__icon), .search, [aria-label*='earch']")).toBeNull();
     expect(drawn.gestures.map((g) => g.label)).not.toContain("Search");
   });
 

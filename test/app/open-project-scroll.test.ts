@@ -8,7 +8,7 @@
  * tokens draw them.
  */
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ import {
   type OpenProjectScreen,
 } from "../../app/src/screens/open-project.ts";
 import { answerKey, type KeyPress } from "../../app/src/screens/shortcuts.ts";
+import { ChevronDown, ChevronUp, createElement } from "lucide";
 import type { Project } from "../../src/project/bundle.ts";
 import type { ProjectsListing } from "../../src/project/projects.ts";
 
@@ -300,5 +301,230 @@ describe("eight or fewer: nothing to scroll", () => {
     expect(calls.onSearch).toHaveBeenCalledOnce();
     expect(calls.onBack).toHaveBeenCalledOnce();
     expect(calls.onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("the chevrons: no scrollbar, and a hint of what is out of view", () => {
+  /**
+   * A scroll geometry for the list, which jsdom does not have: `shown` rows
+   * of `count` in view, the list scrolled `top` pixels — and a scroll event
+   * when it moves, as a browser sends one whatever moved it.
+   */
+  function geometry(list: HTMLElement, count: number, shown: number) {
+    const height = (n: number) => n * ROW + Math.max(0, n - 1) * GAP;
+    let top = 0;
+    let rows = shown;
+    Object.defineProperty(list, "scrollHeight", { get: () => height(count), configurable: true });
+    Object.defineProperty(list, "clientHeight", { get: () => height(Math.min(rows, count)), configurable: true });
+    Object.defineProperty(list, "scrollTop", {
+      get: () => top,
+      set: (to: number) => {
+        top = Math.max(0, Math.min(to, height(count) - height(Math.min(rows, count))));
+      },
+      configurable: true,
+    });
+    return {
+      scrollTo(to: number) {
+        list.scrollTop = to;
+        list.dispatchEvent(new Event("scroll"));
+      },
+      showRows(n: number) {
+        rows = n;
+      },
+      end: () => height(count) - height(Math.min(rows, count)),
+    };
+  }
+  const hints = (into: HTMLElement) => ({
+    above: into.querySelector<HTMLElement>(".projects-hint--above")!,
+    below: into.querySelector<HTMLElement>(".projects-hint--below")!,
+  });
+  const showing = (into: HTMLElement) => {
+    const { above, below } = hints(into);
+    return { above: !above.hidden, below: !below.hidden };
+  };
+
+  it("are Lucide's chevron-up and chevron-down, real drawings and not characters", () => {
+    const { into } = draw();
+    const { above, below } = hints(into);
+    expect(above.textContent).toBe("");
+    expect(below.textContent).toBe("");
+    expect(above.querySelector("svg")!.innerHTML).toBe(createElement(ChevronUp).innerHTML);
+    expect(below.querySelector("svg")!.innerHTML).toBe(createElement(ChevronDown).innerHTML);
+  });
+
+  it("at the top: only the down chevron", () => {
+    const { into, list } = draw();
+    geometry(list, 12, 8).scrollTo(0);
+    expect(showing(into)).toEqual({ above: false, below: true });
+  });
+
+  it("in the middle: both", () => {
+    const { into, list } = draw();
+    geometry(list, 12, 8).scrollTo(2 * (ROW + GAP));
+    expect(showing(into)).toEqual({ above: true, below: true });
+  });
+
+  it("at the bottom: only the up chevron — a fractional scroll short of it included", () => {
+    const { into, list } = draw();
+    const scroll = geometry(list, 12, 8);
+    scroll.scrollTo(scroll.end());
+    expect(showing(into)).toEqual({ above: true, below: false });
+    scroll.scrollTo(scroll.end() - 0.5);
+    expect(showing(into)).toEqual({ above: true, below: false });
+    scroll.scrollTo(0.5);
+    expect(showing(into)).toEqual({ above: false, below: true });
+  });
+
+  it("eight projects or fewer: neither, wherever the wheel tries to take it", () => {
+    for (const count of [1, 5, 8]) {
+      const { into, list, rows } = draw(NAMES.slice(0, count));
+      const scroll = geometry(list, count, 8);
+      list.dispatchEvent(new Event("scroll"));
+      expect(showing(into), `${count} projects`).toEqual({ above: false, below: false });
+      rows[0]!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true }));
+      scroll.scrollTo(120);
+      expect(showing(into), `${count} projects, wheeled`).toEqual({ above: false, below: false });
+    }
+  });
+
+  it("with no layout to measure: neither, not a chevron claiming rows nobody counted", () => {
+    const { into } = draw();
+    expect(showing(into)).toEqual({ above: false, below: false });
+  });
+
+  it("follow the wheel: each scroll it makes moves them", () => {
+    const { into, list, rows } = draw();
+    const scroll = geometry(list, 12, 8);
+    list.dispatchEvent(new Event("scroll"));
+    expect(showing(into)).toEqual({ above: false, below: true });
+    // The browser scrolls for the wheel, and says so with a scroll event.
+    const wheel = new WheelEvent("wheel", { deltaY: 60, bubbles: true, cancelable: true });
+    rows[3]!.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(false);
+    scroll.scrollTo(60);
+    expect(showing(into)).toEqual({ above: true, below: true });
+    scroll.scrollTo(10_000);
+    expect(showing(into)).toEqual({ above: true, below: false });
+    scroll.scrollTo(-50);
+    expect(showing(into)).toEqual({ above: false, below: true });
+  });
+
+  it("follow the arrows: Down past the eighth, and the wrap back to the first", () => {
+    const { into, list, rows, key } = draw();
+    const scroll = geometry(list, 12, 8);
+    // `nearest`, as a browser does it: the least scroll that shows the row whole.
+    vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(function (this: HTMLElement) {
+      const index = rows.indexOf(this as HTMLButtonElement);
+      const rowTop = index * (ROW + GAP);
+      const view = list.clientHeight;
+      if (rowTop < list.scrollTop) scroll.scrollTo(rowTop);
+      else if (rowTop + ROW > list.scrollTop + view) scroll.scrollTo(rowTop + ROW - view);
+    });
+    for (let i = 0; i < 8; i += 1) key(press("ArrowDown"));
+    expect(showing(into)).toEqual({ above: true, below: true });
+    for (let i = 0; i < 3; i += 1) key(press("ArrowDown"));
+    expect(showing(into)).toEqual({ above: true, below: false });
+    key(press("ArrowDown"));
+    expect(showing(into)).toEqual({ above: false, below: true });
+    key(press("ArrowUp"));
+    expect(showing(into)).toEqual({ above: true, below: false });
+  });
+
+  it("follow a resize: a window tall enough for everything shows neither, a short one the down", () => {
+    laidOut(500);
+    Object.defineProperty(window, "innerHeight", { value: 900, configurable: true });
+    const { into, list, shown } = draw(NAMES.slice(0, 10));
+    const scroll = geometry(list, 10, 8);
+    window.dispatchEvent(new Event("resize"));
+    expect(showing(into)).toEqual({ above: false, below: true });
+
+    // The rows the stylesheet now shows, from the count the fit hands it.
+    Object.defineProperty(window, "innerHeight", { value: 650, configurable: true });
+    scroll.showRows(4);
+    window.dispatchEvent(new Event("resize"));
+    expect(shown()).toBe("4");
+    expect(showing(into)).toEqual({ above: false, below: true });
+
+    // Scrolled to the end of four, then given room for all ten: nothing left out.
+    scroll.scrollTo(scroll.end());
+    expect(showing(into)).toEqual({ above: true, below: false });
+    scroll.showRows(10);
+    list.scrollTop = 0;
+    window.dispatchEvent(new Event("resize"));
+    expect(showing(into)).toEqual({ above: false, below: false });
+  });
+
+  it("are outside the list, against its edges, and take no room", () => {
+    const { into, list } = draw();
+    const { above, below } = hints(into);
+    const window = list.parentElement!;
+    expect(window.className).toBe("projects-window");
+    expect([...window.children]).toEqual([above, list, below]);
+    expect(list.contains(above) || list.contains(below)).toBe(false);
+    expect(css).toMatch(/\.projects-window\s*\{[^}]*position:\s*relative/);
+    const hint = css.match(/\.projects-hint\s*\{([^}]*)\}/)![1]!;
+    expect(hint).toMatch(/position:\s*absolute/);
+    expect(hint).toMatch(/left:\s*50%/);
+    expect(hint).toMatch(/color:\s*var\(--colour-faint\)/);
+    expect(css).toMatch(/\.projects-hint--above\s*\{[^}]*bottom:\s*100%/);
+    expect(css).toMatch(/\.projects-hint--below\s*\{[^}]*top:\s*100%/);
+    expect(css).toMatch(/\.projects-hint\[hidden\]\s*\{[^}]*display:\s*none/);
+    // The nudge keeps inside the 16px the words under the list leave it.
+    const px = (name: string) => Number(tokens.match(new RegExp(`--${name}:\\s*(\\d+)px;`))![1]);
+    expect(px("size-icon") + px("distance-hint-bounce")).toBeLessThanOrEqual(px("space-roomy"));
+  });
+
+  it("are for the eye: hidden from a screen reader, and never in the pointer's way", () => {
+    const { into } = draw();
+    const { above, below } = hints(into);
+    expect(above.getAttribute("aria-hidden")).toBe("true");
+    expect(below.getAttribute("aria-hidden")).toBe("true");
+    expect(css.match(/\.projects-hint\s*\{([^}]*)\}/)![1]).toMatch(/pointer-events:\s*none/);
+    // Nothing on them to click.
+    const before = into.innerHTML;
+    below.click();
+    expect(into.innerHTML).toBe(before);
+  });
+
+  it("nudge the way the rows are, and keep still for a writer who asked for less motion", () => {
+    const hint = css.match(/\.projects-hint\s*\{([^}]*)\}/)![1]!;
+    expect(hint).toMatch(/animation:\s*var\(--duration-hint-bounce\) ease-in-out infinite/);
+    expect(css).toMatch(/\.projects-hint--above\s*\{[^}]*animation-name:\s*hint-up/);
+    expect(css).toMatch(/\.projects-hint--below\s*\{[^}]*animation-name:\s*hint-down/);
+    expect(css).toMatch(/@keyframes hint-up\s*\{\s*50%\s*\{\s*translate:\s*0 calc\(-1 \* var\(--distance-hint-bounce\)\)/);
+    expect(css).toMatch(/@keyframes hint-down\s*\{\s*50%\s*\{\s*translate:\s*0 var\(--distance-hint-bounce\)/);
+    const still = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?\})\s*\}/)![1]!;
+    expect(still).toMatch(/\.projects-hint\s*\{\s*animation:\s*none/);
+    // After the rules it overrides, so it wins.
+    expect(css.indexOf("prefers-reduced-motion")).toBeGreaterThan(css.indexOf(".projects-hint--below"));
+  });
+
+  it("stand in for the scrollbar, which the list no longer draws — and only the list", () => {
+    const rule = css.match(/\.projects\s*\{([^}]*)\}/)![1]!;
+    expect(rule).toMatch(/scrollbar-width:\s*none/);
+    // Still a scroller: the wheel, the trackpad and the keys still move it.
+    expect(rule).toMatch(/overflow-y:\s*auto/);
+    expect(css).toMatch(/\.projects::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
+    // No other stylesheet hides or styles a scrollbar.
+    for (const name of readdirSync(style).filter((f) => f.endsWith(".css") && f !== "open-project.css")) {
+      expect(uncommented(name), name).not.toMatch(/scrollbar/);
+    }
+    expect(css.match(/scrollbar/g)).toHaveLength(2);
+  });
+
+  it("leave the right-click menu on the row pointed at, and open nothing themselves", () => {
+    const { into, list, rows, lit, calls } = draw();
+    geometry(list, 12, 8).scrollTo(2 * (ROW + GAP));
+    expect(showing(into)).toEqual({ above: true, below: true });
+
+    const onHint = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 240, clientY: 0 });
+    hints(into).above.dispatchEvent(onHint);
+    expect(onHint.defaultPrevented).toBe(true);
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+
+    rows[11]!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }));
+    expect(lit()).toEqual([11]);
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((i) => i.textContent === "Delete Project")!.click();
+    expect(calls.onDelete).toHaveBeenCalledExactlyOnceWith(project(NAMES[11]!));
   });
 });

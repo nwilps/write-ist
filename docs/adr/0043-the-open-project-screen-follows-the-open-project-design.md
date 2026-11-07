@@ -34,11 +34,20 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
 - **The list shows at most eight rows, and only the list scrolls** (Noah, after testing it,
   2026-11-06). Its window is eight rows and the seven gaps between them — 248px, no ninth row
   begun — and the header, the rules and the foot stay outside it. Eight projects or fewer fit, so
-  there is no scrollbar. A window too short for eight shows as many whole rows as fit, one at the
+  there is nothing to scroll. A window too short for eight shows as many whole rows as fit, one at the
   least (`rowsThatFit`, refitted on resize). The wheel and trackpad scroll it natively; Up and Down,
   wrapping included, bring the lit row just into view (`scrollIntoView`, nearest). The right-click
-  menu opens at the pointer and is bound to its row, so scrolling changes neither. The scrollbar is
-  the webview's own: nothing else in the application styles one.
+  menu opens at the pointer and is bound to its row, so scrolling changes neither.
+- **The list draws no scrollbar; chevrons say it scrolls** (Noah, after testing it, 2026-11-06).
+  The scrollbar is hidden on the list alone (`scrollbar-width: none`, and `::-webkit-scrollbar` for
+  the WebKit that predates it); nothing else in the application hides or styles one, and the wheel,
+  trackpad and keys scroll it as before. In its place, Lucide's **chevron-up** sits centred above
+  the list while rows are scrolled off its top, and **chevron-down** below it while rows wait under
+  its bottom; neither shows when nothing is out of view. They are kept right by the list's own
+  scroll event — whatever moved it — and on every refit. Each is laid over the room between the list
+  and its rule, never over a row, so showing one moves nothing; it is in the faint colour, hidden
+  from a screen reader, lets the pointer through, and does nothing when clicked. Each nudges 2px the
+  way the rows are, once every 1.6s, eased; with `prefers-reduced-motion` it keeps still.
 - **New Project is the home screen's dialog, unchanged, over this screen.** Cancel leaves the writer
   here; Confirm makes the project and opens it. The dialog is put on the body rather than the screen,
   so the listing arriving underneath cannot take it down.
