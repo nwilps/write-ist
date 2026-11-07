@@ -194,6 +194,32 @@ tagline with a blinking cursor, a rule above and below the menu, the first row s
 dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built: the ASCII logo
 (no text source), the ASCII background, an open type list, Novel. Metrics and Settings are drawn and do nothing yet (Noah's decision).
 
+### Done: the Open Project design (ADR-0043)
+
+The Open Project screen follows the approved Open Project design: the header drawn in characters
+(`app/src/screens/open-project-header.ts`, held byte for byte to the design's `open-project.txt`),
+drawn at 9px, a rule of up to 70 dashes (630px) above and below the real list of projects, one
+row lit, and **Home [Esc]**, **Import [I]** and **New Project [N]** along the foot — the header
+size, rule width and Import are Noah's changes after testing. The list shows **eight rows at
+most** and is the only thing that scrolls: fewer whole rows on a short window, the arrows keeping
+the lit row in view, the right-click menu still on the row pointed at. It draws no scrollbar:
+Lucide chevrons above and below the list, nudging gently (still under reduced motion), show only
+when rows are out of view that way, measured from the rows themselves so a scaled WebKitGTK's
+rounding cannot leave the down chevron at the bottom. Home's `>` marks the one thing lit, a row or
+an action in the foot. New Project opens the home screen's
+dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
+finding projects.
+
+### Done: renaming and deleting a project (ADR-0044)
+
+Right-click on a project row on Open Project (or the Menu key, or Shift+F10, on the lit row) opens
+the shared context menu with **Rename Project** and **Delete Project**, for the row right-clicked;
+blank space opens nothing. Rename changes the folder and `project.md` together and refuses a name
+already taken. **Delete moves the whole bundle into `~/Documents/write-ist/Deleted Projects/` and
+erases nothing**; to recover a project, move its folder back into `write-ist`. Every move is the
+`move_folder` command (`src-tauri/src/folders.rs`): one rename, never over anything, never across
+disks, only inside the projects folder. Not built: a restore screen, and emptying the folder.
+
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared

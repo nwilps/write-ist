@@ -1,0 +1,339 @@
+/*
+ * The Open Project screen (the Open Project design, ADR-0043).
+ *
+ * The interface's one typeface, in the colours Home uses: the header in the
+ * accent, two rules in the faint colour, the projects as two columns with one
+ * row lit, and Home, Import and New Project along the foot. The search
+ * Alt+Enter opens is the desk's (`search.css`), centred here.
+ */
+
+.screen .composition--open-project {
+  max-width: 100%;
+  gap: 0;
+}
+
+/*
+ * The header, drawn in characters. One block, never re-wrapped: on a window
+ * narrower than it is, the type shrinks rather than the lines breaking.
+ */
+.open-project__header {
+  margin: 0 0 var(--space-open-project-header);
+  font-size: var(--size-open-project-art);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  color: var(--colour-accent);
+}
+
+.open-project__art {
+  margin: 0;
+  font-family: inherit;
+  font-size: min(100%, var(--size-open-project-art-fit));
+  line-height: inherit;
+  white-space: pre;
+  user-select: none;
+}
+
+/*
+ * The two rules: 70 dashes at most, centred. A window too narrow for them
+ * loses whole dashes — the box is a whole number of columns (`ch` is one
+ * column of this face), and what does not fit is cut off, never squeezed.
+ */
+.open-project-rule {
+  width: min(var(--measure-open-project-rule), 100%);
+  width: min(var(--measure-open-project-rule), round(down, 100%, var(--measure-column)));
+  overflow: hidden;
+  color: var(--colour-faint);
+  font-size: var(--size-body);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* The rules sit a little apart from what they frame. */
+.open-project__header + .open-project-rule {
+  margin-bottom: var(--space-open-project-list);
+}
+
+.open-project-rule:has(+ .menu--foot) {
+  margin-top: var(--space-open-project-list);
+}
+
+/* Words under the list, or in its place, stand a little apart from it. */
+.composition--open-project > :not(.open-project-rule) + :is(.reading, .trouble) {
+  margin-top: var(--space-roomy);
+}
+
+/* --- The projects -------------------------------------------------------- */
+
+/*
+ * The list is the one thing on the screen that scrolls: a window of eight
+ * whole rows at most, fewer on a short window (`--project-rows`, measured in
+ * `open-project.ts`). Eight projects or fewer fit it, so there is nothing to
+ * scroll.
+ *
+ * **It draws no scrollbar** in any of the webviews Tauri runs in — the
+ * standard property for Chromium (WebView2) and current WebKit, the
+ * `::-webkit-scrollbar` one for the WebKit that predates it (Noah, after
+ * testing). The wheel, the trackpad and the arrows scroll it as before; the
+ * chevrons below say when there is more. Nothing else on any screen loses its
+ * scrollbar.
+ */
+.projects-window {
+  position: relative;
+  width: min(var(--measure-project-row), 100%);
+}
+
+.projects {
+  --rows-shown: var(--project-rows, var(--count-project-rows));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-project-row);
+  width: min(var(--measure-project-row), 100%);
+  max-height: calc(var(--rows-shown) * var(--size-row) + (var(--rows-shown) - 1) * var(--space-project-row));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.projects::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/*
+ * The chevrons: up above the list while rows are scrolled off its top, down
+ * below it while rows wait under its bottom (`projectsWindow`). Each sits
+ * against the list's edge, centred, in the room between the list and its
+ * rule — never over a row — and is laid over that room, so showing one moves
+ * nothing. The pointer goes straight through to whatever is beneath.
+ *
+ * Each nudges, gently, the way the rows are: out and back by a couple of
+ * pixels, slowly. Still, for a writer who has asked for less motion.
+ */
+.projects-hint {
+  position: absolute;
+  left: 50%;
+  display: block;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin-left: calc(var(--size-icon) / -2);
+  color: var(--colour-faint);
+  pointer-events: none;
+  user-select: none;
+  animation: var(--duration-hint-bounce) ease-in-out infinite;
+}
+
+.projects-hint[hidden] {
+  display: none;
+}
+
+.projects-hint--above {
+  bottom: 100%;
+  animation-name: hint-up;
+}
+
+.projects-hint--below {
+  top: 100%;
+  animation-name: hint-down;
+}
+
+.projects-hint__icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes hint-up {
+  50% {
+    translate: 0 calc(-1 * var(--distance-hint-bounce));
+  }
+}
+
+@keyframes hint-down {
+  50% {
+    translate: 0 var(--distance-hint-bounce);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-hint {
+    animation: none;
+  }
+}
+
+/*
+ * A row, and a real button: choosing one opens it (#39). Name right-aligned,
+ * format beside it. Only the lit row has a bar, and Home's `>` at its start;
+ * `navigable` moves them with the pointer, focus and the arrows, so there is
+ * never a second one.
+ */
+.project {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--measure-project-name) 1fr;
+  column-gap: var(--space-project-columns);
+  align-items: center;
+  width: 100%;
+  height: var(--size-row);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project:focus-visible {
+  outline: none;
+}
+
+.project__name {
+  padding-left: var(--space-project-cursor);
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--colour-muted);
+}
+
+.project__format {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--colour-faint);
+}
+
+.project.gesture--selected {
+  background: var(--colour-overlay);
+}
+
+.project.gesture--selected .project__name {
+  color: var(--colour-accent);
+}
+
+/* Home's `>` (`.menu--home .gesture__cursor`), laid over the row's start: showing it moves nothing. */
+.project .gesture__cursor {
+  position: absolute;
+  top: 0;
+  left: var(--space-tight);
+  line-height: var(--size-row);
+}
+
+.project.gesture--selected .gesture__cursor {
+  visibility: visible;
+}
+
+/* --- The foot ------------------------------------------------------------ */
+
+.menu--foot {
+  flex-wrap: nowrap;
+  gap: var(--space-foot-gap);
+  margin-top: var(--space-open-project-foot);
+  padding-top: 0;
+  border-top: none;
+}
+
+.menu--foot .gesture {
+  position: relative;
+  gap: var(--space-tight);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  color: var(--colour-muted);
+  white-space: nowrap;
+}
+
+/*
+ * Home's `>`, just before the label, in the room between the labels: laid
+ * over it, so showing it moves nothing.
+ */
+.menu--foot .gesture__cursor {
+  position: absolute;
+  right: calc(100% + var(--space-tight));
+}
+
+.menu--foot .gesture__label {
+  flex: none;
+}
+
+.menu--foot .gesture__key {
+  font-size: inherit;
+  color: inherit;
+}
+
+/*
+ * One highlight on the screen, as on Home: the generic hover and focus looks
+ * in app.css would light a second thing (the foot button the pointer is on as
+ * well as the lit row), so they are reset here, and the foot button lit is
+ * the one `oneHighlight` gives the highlight to — never also a row.
+ */
+.menu--foot .gesture:hover,
+.menu--foot .gesture:focus-visible {
+  background: transparent;
+  color: var(--colour-muted);
+}
+
+.menu--foot .gesture:hover .gesture__cursor,
+.menu--foot .gesture:focus-visible .gesture__cursor {
+  visibility: hidden;
+}
+
+.menu--foot .gesture--selected,
+.menu--foot .gesture--selected:hover,
+.menu--foot .gesture--selected:focus-visible {
+  color: var(--colour-text);
+}
+
+.menu--foot .gesture:focus-visible {
+  outline: none;
+}
+
+.menu--foot .gesture--selected .gesture__cursor,
+.menu--foot .gesture--selected:hover .gesture__cursor,
+.menu--foot .gesture--selected:focus-visible .gesture__cursor {
+  visibility: visible;
+}
+
+/* --- The search, centred on this screen ----------------------------------- */
+
+.search--centred {
+  align-items: center;
+  padding-top: 0;
+}
+
+/* --- Delete Project, said before it is done ----------------------------- */
+
+/*
+ * The New Project dialog's look (`home.css`); only the words are new. The
+ * deleted folder's path stands out, because it is where the project will be.
+ */
+.project-dialog__message {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.project-dialog__line,
+.project-dialog__path {
+  margin: 0;
+  font-size: var(--size-label);
+  line-height: var(--leading-body);
+  color: var(--colour-muted);
+}
+
+.project-dialog__line--lead {
+  color: var(--colour-text);
+}
+
+.project-dialog__path {
+  color: var(--colour-accent);
+  overflow-wrap: anywhere;
+}

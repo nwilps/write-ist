@@ -10,8 +10,8 @@
  * Relocated projects, and the registry that would point at them, are out of
  * scope for slice 1.
  */
-import { join, type Filesystem } from "./filesystem.ts";
-import { MARKER_FILE, type Project } from "./bundle.ts";
+import { basename, join, type Filesystem } from "./filesystem.ts";
+import { DELETED_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
 import { parseMarker, type ProjectMarker } from "./marker.ts";
 
 // Lenient, and the only lenient decode in the application: nothing downstream
@@ -84,7 +84,7 @@ export async function listProjects(
  * a thrown read cannot tell them apart. A permission error on a marker that
  * exists is `"unreadable"`, which is what makes it loud.
  */
-async function readMarker(
+export async function readMarker(
   filesystem: Filesystem,
   bundlePath: string,
 ): Promise<ProjectMarker | "no marker" | "unreadable"> {
@@ -105,5 +105,31 @@ async function readMarker(
     return parseMarker(decoder.decode(bytes)) ?? "unreadable";
   } catch {
     return "unreadable";
+  }
+}
+
+/**
+ * Check that the project the writer pointed at is the one on disk now: a
+ * folder directly in the default location, and holding the same project id.
+ *
+ * The list was read a moment — or an afternoon — ago, and the folder may have
+ * been moved, renamed or replaced since. Acting on a different project than
+ * the one the writer chose is the one mistake these gestures cannot make.
+ */
+export async function confirmProject(
+  filesystem: Filesystem,
+  projectsDirectory: string,
+  project: Project,
+  Refusal: new (message: string) => Error,
+): Promise<void> {
+  const name = basename(project.path);
+  if (project.path !== join(projectsDirectory, name) || name === DELETED_FOLDER) {
+    throw new Refusal(`“${project.marker.name}” is not in your projects folder, so it has been left alone.`);
+  }
+  const marker = await readMarker(filesystem, project.path);
+  if (typeof marker === "string" || marker.projectId !== project.marker.projectId) {
+    throw new Refusal(
+      `“${project.marker.name}” has changed on disk since the list was read, so it has been left alone.`,
+    );
   }
 }

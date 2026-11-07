@@ -115,6 +115,13 @@ bundle never records its own location. Duplicating a project in the app mints a 
 the copy is a new project from that moment.
 _Avoid_: project identity, uuid, key, path
 
+**Deleted Projects**:
+The folder a deleted project is moved into, `Deleted Projects` inside the default location
+(`~/Documents/write-ist/`). Deleting a project moves its bundle there whole and unchanged; it is
+never erased, and the writer brings it back by moving the folder back out. It is not a project and
+is never listed as one, and no project may take its name (ADR-0044).
+_Avoid_: trash, bin, recycle bin, archive (nothing here is emptied or packed)
+
 **Registry**:
 The record Write-ist keeps outside every bundle, holding pointers to the bundles the writer
 has moved out of the default location. It never holds any of the writer's work, so losing it
@@ -271,7 +278,8 @@ _Avoid_: canvas, sheet, page (that is the counted unit)
 The menu that opens where the writer right-clicks the paper (or at the caret, from the Menu key). It
 is Write-ist's own, drawn from the same list as File, Edit and View, and its items are the command
 table's entries that carry a `context` (ADR-0039). The webview's own right-click menu is never shown on
-the paper.
+the paper. On the Open Project screen a project row has one too — Rename Project and Delete Project,
+for the row right-clicked (ADR-0044).
 _Avoid_: popup
 
 **Spacing table**:

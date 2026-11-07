@@ -7,7 +7,6 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
 import { chosenBy } from "../../app/src/screens/shortcuts.ts";
-import { renderOpenProject } from "../../app/src/screens/open-project.ts";
 import { showNewProject } from "../../app/src/screens/new-project.ts";
 
 // jsdom has no modal dialog.
@@ -89,39 +88,6 @@ describe("Home, Metrics and Settings", () => {
     expect(css).toMatch(/\.menu--home \.gesture \{[^}]*color: var\(--colour-muted\)/);
     const menuRules = css.match(/[^{}]*\.menu--home[^{}]*\{[^}]*\}/g)!.join("\n");
     expect(menuRules).not.toMatch(/nth-child|opacity/);
-  });
-});
-
-describe("Open Project", () => {
-  it("keeps the old menu look, not the home screen's", () => {
-    const into = document.createElement("div");
-    renderOpenProject(into, {
-      listing: { projects: [], unreadable: [] },
-      importing: false,
-      onImport: () => {},
-      onOpen: () => {},
-      onBack: () => {},
-    });
-    expect(into.querySelector(".menu--home")).toBeNull();
-    expect(into.querySelector(".home-rule")).toBeNull();
-  });
-
-  it("has no New Project row", () => {
-    const into = document.createElement("div");
-    renderOpenProject(into, {
-      listing: {
-        projects: [{ path: "/p/Big Fish", marker: { name: "Big Fish", formatVersion: "1", projectId: "x", format: "Feature" } }],
-        unreadable: [],
-      },
-      importing: false,
-      onImport: () => {},
-      onOpen: () => {},
-      onBack: () => {},
-    });
-    expect(into.textContent).not.toContain("New Project​");
-    expect([...into.querySelectorAll("button.project")].map((b) => b.textContent)).toEqual([
-      "Big FishFeature",
-    ]);
   });
 });
 

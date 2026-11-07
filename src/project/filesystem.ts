@@ -75,6 +75,19 @@ export interface Filesystem {
    * earlier day at risk again.
    */
   appendFile(path: string, bytes: Uint8Array): Promise<void>;
+
+  /**
+   * Move a folder, whole, to a path where nothing is — **one atomic rename,
+   * never a copy and never a delete**.
+   *
+   * Rejects, leaving both paths exactly as they were, when anything at all is
+   * already at `to` (an empty folder too: nothing is ever replaced), when `from`
+   * is not a folder, when `to` is inside `from`, and when the two are on
+   * different disks — a move across disks would have to copy and then delete,
+   * and this refuses rather than do that. Renaming and deleting a project are
+   * both this (`rename.ts`, `delete.ts`).
+   */
+  moveFolder(from: string, to: string): Promise<void>;
 }
 
 /**
