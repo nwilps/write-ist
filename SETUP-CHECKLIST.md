@@ -204,7 +204,9 @@ size, rule width and Import are Noah's changes after testing. The list shows **e
 most** and is the only thing that scrolls: fewer whole rows on a short window, the arrows keeping
 the lit row in view, the right-click menu still on the row pointed at. It draws no scrollbar:
 Lucide chevrons above and below the list, nudging gently (still under reduced motion), show only
-when rows are out of view that way. New Project opens the home screen's
+when rows are out of view that way, measured from the rows themselves so a scaled WebKitGTK's
+rounding cannot leave the down chevron at the bottom. Home's `>` marks the one thing lit, a row or
+an action in the foot. New Project opens the home screen's
 dialog over this screen. Search has no control: Alt+Enter opens the desk's search dialog, centred,
 finding projects.
 

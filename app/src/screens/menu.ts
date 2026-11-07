@@ -38,7 +38,7 @@ export function menuRow(gestures: readonly Gesture[], { foot = false } = {}): HT
 }
 
 /** The class on the row the highlight is on. */
-const SELECTED = "gesture--selected";
+export const SELECTED = "gesture--selected";
 
 /**
  * Give a drawn home menu a highlight the keyboard can move.
@@ -97,15 +97,22 @@ function item(gesture: Gesture, capitals = false): HTMLButtonElement {
     "button",
     { className: "gesture", type: "button", disabled: gesture.unavailable === true },
     [
-      // The `>` v1 put beside the item the eye is on. Hidden from a screen
-      // reader, which is told by focus instead.
-      hidden(element("span", { className: "gesture__cursor", textContent: ">" })),
+      cursor(),
       element("span", { className: "gesture__label", textContent: gesture.label }),
       hidden(element("span", { className: "gesture__key", textContent: `[${legend(gesture, capitals)}]` })),
     ],
   );
   button.addEventListener("click", gesture.act);
   return button;
+}
+
+/**
+ * The `>` v1 put beside the item the eye is on: Home's, and the Open Project
+ * screen's rows and foot draw this same one. Hidden from a screen reader,
+ * which is told by focus instead.
+ */
+export function cursor(): HTMLElement {
+  return hidden(element("span", { className: "gesture__cursor", textContent: ">" }));
 }
 
 /** What the letter looks like on the page: `esc`, `n`; or `Esc`, `N` in capitals. */

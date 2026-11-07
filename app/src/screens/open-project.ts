@@ -41,7 +41,7 @@ import type { Project } from "../../../src/project/bundle.ts";
 import { ChevronDown, ChevronUp, createElement, Pencil, Trash, type IconNode } from "lucide";
 import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "./element.ts";
-import { menuRow, navigable } from "./menu.ts";
+import { cursor, menuRow, navigable, SELECTED } from "./menu.ts";
 import { OPEN_PROJECT_HEADER } from "./open-project-header.ts";
 import { chordMatches, LEAVE, shortcutOf, type Gesture, type KeyPress } from "./shortcuts.ts";
 import { trouble as troublePanel } from "./trouble.ts";
@@ -129,6 +129,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   const projects = listing?.projects ?? [];
   const list = projects.length > 0 ? projectsList(projects, screen.onOpen) : undefined;
   const scrolling = list === undefined ? undefined : projectsWindow(list);
+  const foot = menuRow(gestures, { foot: true });
 
   const composition = element("div", { className: "composition composition--open-project" }, [
     // The art is for the eye: the heading carries the name, the art is hidden.
@@ -159,7 +160,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
       ? []
       : [declined(listing.unreadable)]),
     rule(),
-    menuRow(gestures, { foot: true }),
+    foot,
   ]);
   const main = element("main", { className: "screen" }, [composition]);
   into.replaceChildren(main);
@@ -190,6 +191,7 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
   }));
   const highlight = list === undefined ? undefined : navigable(list, rows, "button.project");
   const menuFor = list === undefined ? undefined : menuOnRows(list, projects, screen);
+  const lit = oneHighlight(list, foot, gestures);
 
   return {
     gestures,
@@ -215,7 +217,19 @@ export function renderOpenProject(into: HTMLElement, screen: OpenProjectScreen):
       // A focused button outside the list — Home, Import, New Project — keeps its own
       // Enter: the lit project is not what the writer is pointing at then.
       const focused = document.activeElement;
+      const plain = !press.ctrlKey && !press.metaKey && !press.altKey;
+      if (lit.foot() !== undefined && plain && (press.key === "ArrowUp" || press.key === "ArrowDown")) {
+        // From the foot, the arrows go back to the project the highlight left.
+        return lit.backToList();
+      }
       if (focused instanceof HTMLButtonElement && list?.contains(focused) !== true) return false;
+      const footGesture = lit.foot();
+      if (footGesture !== undefined && plain && press.key === "Enter") {
+        // Lit in the foot with focus nowhere (a click on blank space): Enter is its.
+        if (footGesture.unavailable === true) return false;
+        footGesture.act();
+        return true;
+      }
       return highlight?.(press) ?? false;
     },
   };
@@ -254,6 +268,7 @@ function projectsList(
     { className: "projects" },
     projects.map((project) => {
       const row = element("button", { className: "project", type: "button" }, [
+        cursor(),
         element("span", { className: "project__name", textContent: project.marker.name }),
         element("span", { className: "project__format", textContent: project.marker.format }),
       ]);
@@ -274,22 +289,54 @@ function projectsList(
  * whole list anyway, and never in the pointer's way — a click or right-click
  * there lands on what is underneath. Nothing about them is clickable.
  *
+ * **What is out of view is read off the rows, not the scroll counters.** The
+ * first row's top above the list's, or the last row's bottom below it, by more
+ * than `edgeTolerance`. `scrollTop`, `scrollHeight` and `clientHeight` are
+ * whole numbers, each rounded on its own, and in WebKitGTK at a scale that is
+ * not a whole number of device pixels they disagree: at 1.1, the list wheeled,
+ * arrowed or scrolled as far as it goes reads 160 + 248 of 409, a pixel that
+ * can never be reached, and the down chevron stayed at the very bottom (Noah,
+ * after testing; ADR-0043). A row's box is not rounded, so at the bottom the
+ * last row's sits within a fraction of a pixel of the list's.
+ *
  * The list's own scroll event keeps them right however it moved — the wheel,
- * a trackpad, the arrows bringing a row into view — and `hint` is called again
- * whenever the window refits the list.
+ * a trackpad, the arrows bringing a row into view — and so does the list
+ * changing size or rows, and `hint` is called again whenever the window refits
+ * the list.
  */
 function projectsWindow(list: HTMLElement): { readonly window: HTMLElement; readonly hint: () => void } {
   const above = scrollHint(ChevronUp, "above");
   const below = scrollHint(ChevronDown, "below");
   const hint = (): void => {
-    // A pixel's tolerance: a fractional scroll on a scaled display is still the end.
-    const top = list.scrollTop;
-    above.hidden = top < 1;
-    below.hidden = list.scrollHeight - list.clientHeight - top < 1;
+    const first = list.firstElementChild;
+    const last = list.lastElementChild;
+    if (first === null || last === null) {
+      above.hidden = below.hidden = true;
+      return;
+    }
+    // The list has no border or padding, so its box is the window rows show in.
+    const view = list.getBoundingClientRect();
+    const edge = edgeTolerance();
+    above.hidden = !(view.top - first.getBoundingClientRect().top > edge);
+    below.hidden = !(last.getBoundingClientRect().bottom - view.bottom > edge);
   };
   list.addEventListener("scroll", hint, { passive: true });
+  list.addEventListener("scrollend", hint, { passive: true });
+  // A list taller or shorter, or rows come and gone, can change what is out of view.
+  if (typeof ResizeObserver === "function") new ResizeObserver(hint).observe(list);
+  if (typeof MutationObserver === "function") new MutationObserver(hint).observe(list, { childList: true });
   hint();
   return { window: element("div", { className: "projects-window" }, [above, list, below]), hint };
+}
+
+/**
+ * How far a row may sit past the list's edge and still count as in view: a CSS
+ * pixel, or one device pixel where that is more (a display scaled below 1).
+ * Anything less is rounding — no scroll the writer could make would show it —
+ * and a single row is 24px, so nothing worth scrolling to hides inside it.
+ */
+export function edgeTolerance(ratio = window.devicePixelRatio): number {
+  return ratio > 0 ? Math.max(1, 1 / ratio) : 1;
 }
 
 /** One of the list's chevrons: Lucide's drawing, at the icon size (ADR-0035). */
@@ -299,6 +346,76 @@ function scrollHint(icon: IconNode, where: "above" | "below"): HTMLElement {
   ]);
   hint.hidden = true;
   return hint;
+}
+
+/**
+ * One highlight on the screen, whichever of the projects and the foot it is in.
+ *
+ * The rows have theirs from `navigable`: the bar, the name in the accent and
+ * Home's `>`. The foot's buttons take it the way Home's rows do — the pointer
+ * arriving, or focus (Tab) — and draw the same `>` beside the label. Lighting
+ * one puts the other down, so there is never a lit row *and* a lit foot
+ * button, and never a dim leftover of either: a row lit again (the pointer,
+ * focus, a right-click, the arrows from the foot) puts the foot's down.
+ *
+ * The highlight stays put while a project's menu is open, as on the rows.
+ */
+function oneHighlight(
+  list: HTMLElement | undefined,
+  foot: HTMLElement,
+  gestures: readonly Gesture[],
+): { readonly foot: () => Gesture | undefined; readonly backToList: () => boolean } {
+  const buttons = [...foot.querySelectorAll<HTMLButtonElement>("button.gesture")];
+  let lit: number | undefined;
+  // The row the foot took the highlight from, to give it back to.
+  let left: HTMLButtonElement | null = null;
+
+  const putDownFoot = (): void => {
+    if (lit !== undefined) buttons[lit]?.classList.remove(SELECTED);
+    lit = undefined;
+  };
+  const lightFoot = (index: number): void => {
+    const row = list?.querySelector<HTMLButtonElement>(`button.project.${SELECTED}`) ?? null;
+    if (row !== null) {
+      left = row;
+      row.classList.remove(SELECTED);
+    }
+    if (lit !== index) putDownFoot();
+    lit = index;
+    buttons[index]?.classList.add(SELECTED);
+  };
+
+  buttons.forEach((button, index) => {
+    button.addEventListener("mouseenter", () => {
+      if (button.disabled || projectMenu?.isOpen() === true) return;
+      lightFoot(index);
+      // Hover takes focus too, as on Home, so a row the keys left focused lets go of it.
+      button.focus({ preventScroll: true });
+    });
+    button.addEventListener("focus", () => lightFoot(index));
+  });
+  // A row lit by anything takes focus with it (`navigable`), which lands here;
+  // the pointer on a row that already had focus lights it without a focus event.
+  list?.addEventListener("focusin", putDownFoot);
+  list?.addEventListener(
+    "mouseenter",
+    (event) => {
+      if (projectMenu?.isOpen() === true) return;
+      if (event.target instanceof HTMLButtonElement && event.target.classList.contains("project")) putDownFoot();
+    },
+    true,
+  );
+
+  return {
+    foot: () => (lit === undefined ? undefined : gestures[lit]),
+    backToList: () => {
+      const row = left?.isConnected === true ? left : list?.querySelector<HTMLButtonElement>("button.project");
+      if (row === null || row === undefined) return false;
+      row.focus({ preventScroll: true });
+      row.scrollIntoView?.({ block: "nearest" });
+      return true;
+    },
+  };
 }
 
 /**

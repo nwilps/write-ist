@@ -166,10 +166,12 @@
 
 /*
  * A row, and a real button: choosing one opens it (#39). Name right-aligned,
- * format beside it. Only the lit row has a bar; `navigable` moves it with the
- * pointer, focus and the arrows, so there is never a second one.
+ * format beside it. Only the lit row has a bar, and Home's `>` at its start;
+ * `navigable` moves them with the pointer, focus and the arrows, so there is
+ * never a second one.
  */
 .project {
+  position: relative;
   display: grid;
   grid-template-columns: var(--measure-project-name) 1fr;
   column-gap: var(--space-project-columns);
@@ -192,6 +194,7 @@
 }
 
 .project__name {
+  padding-left: var(--space-project-cursor);
   overflow: hidden;
   text-align: right;
   text-overflow: ellipsis;
@@ -214,6 +217,18 @@
   color: var(--colour-accent);
 }
 
+/* Home's `>` (`.menu--home .gesture__cursor`), laid over the row's start: showing it moves nothing. */
+.project .gesture__cursor {
+  position: absolute;
+  top: 0;
+  left: var(--space-tight);
+  line-height: var(--size-row);
+}
+
+.project.gesture--selected .gesture__cursor {
+  visibility: visible;
+}
+
 /* --- The foot ------------------------------------------------------------ */
 
 .menu--foot {
@@ -225,6 +240,7 @@
 }
 
 .menu--foot .gesture {
+  position: relative;
   gap: var(--space-tight);
   padding: 0;
   border: none;
@@ -236,8 +252,13 @@
   white-space: nowrap;
 }
 
+/*
+ * Home's `>`, just before the label, in the room between the labels: laid
+ * over it, so showing it moves nothing.
+ */
 .menu--foot .gesture__cursor {
-  display: none;
+  position: absolute;
+  right: calc(100% + var(--space-tight));
 }
 
 .menu--foot .gesture__label {
@@ -249,14 +270,37 @@
   color: inherit;
 }
 
+/*
+ * One highlight on the screen, as on Home: the generic hover and focus looks
+ * in app.css would light a second thing (the foot button the pointer is on as
+ * well as the lit row), so they are reset here, and the foot button lit is
+ * the one `oneHighlight` gives the highlight to — never also a row.
+ */
 .menu--foot .gesture:hover,
 .menu--foot .gesture:focus-visible {
   background: transparent;
+  color: var(--colour-muted);
+}
+
+.menu--foot .gesture:hover .gesture__cursor,
+.menu--foot .gesture:focus-visible .gesture__cursor {
+  visibility: hidden;
+}
+
+.menu--foot .gesture--selected,
+.menu--foot .gesture--selected:hover,
+.menu--foot .gesture--selected:focus-visible {
   color: var(--colour-text);
 }
 
 .menu--foot .gesture:focus-visible {
   outline: none;
+}
+
+.menu--foot .gesture--selected .gesture__cursor,
+.menu--foot .gesture--selected:hover .gesture__cursor,
+.menu--foot .gesture--selected:focus-visible .gesture__cursor {
+  visibility: visible;
 }
 
 /* --- The search, centred on this screen ----------------------------------- */

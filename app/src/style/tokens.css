@@ -409,6 +409,11 @@
   --measure-project-name: 232px;
   --space-project-columns: var(--space-loose);
   /**
+   * The start of a row, kept for Home's `>` where the eye is: a name long
+   * enough to reach it stops short instead, and a shorter one does not move.
+   */
+  --space-project-cursor: calc(var(--space-tight) * 2 + var(--measure-column));
+  /**
    * The rules: 70 columns of dashes at most — 630px at 15px, wider than the
    * design's 51 (Noah, after testing) — cut back a whole column at a time.
    * `ch` is one column of the interface's face. Kept equal to `RULE_LENGTH`.

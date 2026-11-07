@@ -31,6 +31,12 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   design's columns; the design's names are dummy data and appear nowhere. One row is lit — the
   first, until the pointer, Tab or the arrows move it — with the home menu's highlight (`navigable`),
   so there is never a second. A click opens a project; Enter opens the lit one.
+- **Home's `>` marks the one thing lit** (Noah, after testing it, 2026-11-06): the same element
+  Home draws (`cursor()` in `menu.ts`), at the start of the lit row and just before the label of a
+  lit foot action. The foot takes the highlight as Home's rows do — the pointer arriving, or Tab —
+  and lighting either the list or the foot puts the other down, so there is one highlight on the
+  screen and no dim leftover; Up or Down from the foot goes back to the row it left. The `>` is laid
+  over room kept for it, so showing it moves nothing, and a right-click menu keeps it on its row.
 - **The list shows at most eight rows, and only the list scrolls** (Noah, after testing it,
   2026-11-06). Its window is eight rows and the seven gaps between them — 248px, no ninth row
   begun — and the header, the rules and the foot stay outside it. Eight projects or fewer fit, so
@@ -43,8 +49,13 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   the WebKit that predates it); nothing else in the application hides or styles one, and the wheel,
   trackpad and keys scroll it as before. In its place, Lucide's **chevron-up** sits centred above
   the list while rows are scrolled off its top, and **chevron-down** below it while rows wait under
-  its bottom; neither shows when nothing is out of view. They are kept right by the list's own
-  scroll event — whatever moved it — and on every refit. Each is laid over the room between the list
+  its bottom; neither shows when nothing is out of view. **What is out of view is read off the rows'
+  boxes, not the scroll counters**: in WebKitGTK at a scale that is not a whole number of device
+  pixels, `scrollHeight` rounds up a pixel `scrollTop` can never reach (at 1.1: 160 + 248 of 409),
+  and the down chevron stayed at the very bottom (Noah, after testing it, 2026-11-06). A row past
+  the list's edge by a CSS pixel or less (a device pixel, where that is more) counts as in view.
+  They are kept right by the list's own scroll event — whatever moved it — by the list resizing or
+  its rows changing, and on every refit. Each is laid over the room between the list
   and its rule, never over a row, so showing one moves nothing; it is in the faint colour, hidden
   from a screen reader, lets the pointer through, and does nothing when clicked. Each nudges 2px the
   way the rows are, once every 1.6s, eased; with `prefers-reduced-motion` it keeps still.
