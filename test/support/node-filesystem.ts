@@ -7,9 +7,9 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { access, mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import { access, lstat, mkdir, open, readdir, readFile, rename, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
 let written = 0;
@@ -100,6 +100,25 @@ export const nodeFilesystem: Filesystem = {
       await file.sync();
     } finally {
       await file.close();
+    }
+  },
+
+  async moveFolder(from: string, to: string): Promise<void> {
+    // The same steps `move_folder` takes in `src-tauri/src/lib.rs`, so the
+    // tests hold the promise the application keeps.
+    if (!(await lstat(from)).isDirectory()) throw new Error(`${from} is not a folder.`);
+    const inside = relative(resolve(from), resolve(to));
+    if (inside !== ".." && !inside.startsWith("../")) throw new Error(`${to} is inside ${from}.`);
+    // Claim the name first: `mkdir` fails if anything at all is there, so
+    // nothing is ever replaced. The rename then lands on the folder just made,
+    // which is empty — the one thing a rename of a folder may replace.
+    await mkdir(to);
+    try {
+      await rename(from, to);
+    } catch (error) {
+      // Only the empty folder made above; `rmdir` cannot take anything else.
+      await rmdir(to).catch(() => {});
+      throw error;
     }
   },
 };

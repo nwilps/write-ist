@@ -14,8 +14,8 @@ answer to.** Nothing about what the screens do changes.
   same letterforms and metrics, bundled with its licence (`app/public/fonts/OFL-JetBrainsMono.txt`).
   Nothing was added; the screens already inherit `--face-interface`.
 - **The menu's look is the home screen's alone.** `menu()` takes `{ home: true }`, which adds
-  `menu--home`; the Open Project screen is the same markup without it and is unchanged, as the design
-  asks. The selected row is the first one until the pointer or the keyboard is on another, then that
+  `menu--home`; the Open Project screen is the same markup without it and was unchanged, as the design
+  asked. (It has since been redrawn to its own design: ADR-0043.) The selected row is the first one until the pointer or the keyboard is on another, then that
   one — so there is never a second highlight.
 - **Colour names map to tokens:** `surfaces.base` → `--colour-base`, `raised` → `--colour-raised`,
   `overlay` → `--colour-overlay`, `borders.strong` → `--colour-border-strong`, `text.primary` →

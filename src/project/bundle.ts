@@ -30,6 +30,15 @@ export const NAMES_FILE = "names.txt";
  */
 export const GOALS_FILE = "goals.md";
 
+/**
+ * Where a deleted project goes: a folder of this name in the default location,
+ * `~/Documents/write-ist/Deleted Projects/` (`delete.ts`). It holds whole
+ * bundles, moved and never changed, so bringing one back is moving its folder
+ * back out. It has no `project.md` of its own, so the projects list passes over
+ * it, and `folderNameFor` never gives a project its name.
+ */
+export const DELETED_FOLDER = "Deleted Projects";
+
 /** A project as the application holds it: where it is, and what it says it is. */
 export interface Project {
   /** The bundle's folder. An input to opening it, never its identity (ADR-0015). */
@@ -65,6 +74,24 @@ const MAX_LENGTH = 80;
  * in case are one folder on macOS and on Windows.
  */
 export function folderNameFor(projectName: string, taken: ReadonlySet<string>): string {
+  const base = cleanFolderName(projectName);
+  // The deleted folder's name is never a project's, so a project can never be
+  // mistaken for it, nor it for a project.
+  const lowercased = new Set([...taken, DELETED_FOLDER].map((name) => name.toLowerCase()));
+
+  if (!lowercased.has(base.toLowerCase())) return base;
+  for (let suffix = 2; ; suffix++) {
+    const candidate = `${base} ${suffix}`;
+    if (!lowercased.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+/**
+ * A project name made safe for the disk, before any number is added: the
+ * characters no folder may carry become spaces, runs of space become one, and
+ * it is cut to length. Empty becomes `Untitled`.
+ */
+export function cleanFolderName(projectName: string): string {
   const cleaned = projectName
     .replace(FORBIDDEN, " ")
     .replace(/\s+/g, " ")
@@ -75,12 +102,5 @@ export function folderNameFor(projectName: string, taken: ReadonlySet<string>): 
     // on disk disagree.
     .replace(/[. ]+$/, "");
 
-  const base = cleaned === "" ? "Untitled" : cleaned;
-  const lowercased = new Set([...taken].map((name) => name.toLowerCase()));
-
-  if (!lowercased.has(base.toLowerCase())) return base;
-  for (let suffix = 2; ; suffix++) {
-    const candidate = `${base} ${suffix}`;
-    if (!lowercased.has(candidate.toLowerCase())) return candidate;
-  }
+  return cleaned === "" ? "Untitled" : cleaned;
 }
