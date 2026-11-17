@@ -337,6 +337,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   // The paper with a column of panels either side (the desk design, §2.2).
   const panels = sidePanels(startSearch, editorMenus(host));
+  // After every change of state: the panels, and the spellcheck pill, which
+  // shows only while the pass is on — however it was turned on or off.
+  const shown = (writing: ManuscriptSession): void => {
+    panels.update(writing.state);
+    context.setSpellcheck(writing.spellcheck.isOn(writing.state));
+  };
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   void (async () => {
@@ -363,7 +369,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           reloaded: (spellingWasOn) => {
             view?.updateState(writing.state);
             if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
-            panels.update(writing.state);
+            shown(writing);
           },
         },
         read,
@@ -378,7 +384,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         dispatchTransaction: (transaction) => {
           writing.apply(transaction);
           view?.updateState(writing.state);
-          panels.update(writing.state);
+          shown(writing);
         },
         // The explicit save ADR-0028 pairs with autosave, and the other keys
         // the Editor answers while the paper has focus — all from the command
@@ -411,7 +417,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         attributes: { class: "manuscript", spellcheck: "false" },
       });
       panels.attach(view);
-      panels.update(writing.state);
+      shown(writing);
       writing.showCounts();
       writing.showGoal();
 

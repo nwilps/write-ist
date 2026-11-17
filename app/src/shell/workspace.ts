@@ -89,6 +89,12 @@ export interface WorkspaceContext {
    */
   readonly setSaved: (state: SaveState) => void;
   /**
+   * Show the spellcheck pill, just left of the counts, while the workspace's
+   * spellcheck is on; hide it while it is off. Off to begin with. The pill only
+   * says so — it is not a switch.
+   */
+  readonly setSpellcheck: (on: boolean) => void;
+  /**
    * Where the writer can go from here. Both close this project first — saving
    * it, and staying open if that fails (ADR-0028) — so a workspace offers them
    * without knowing how, and without a second path to closing.

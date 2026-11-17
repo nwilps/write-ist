@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createElement, SpellCheck, type IconNode } from "lucide";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext } from "../../app/src/shell/workspace.ts";
@@ -211,6 +212,59 @@ describe("the bottom pills", () => {
       expect(save.dataset["state"]).toBe("saving");
       told("saved");
       expect(save.dataset["state"]).toBe("saved");
+    });
+  });
+
+  describe("show spellcheck, only while it is on", () => {
+    it("is hidden to begin with, since spellcheck starts off", () => {
+      const { into } = shell();
+      const spelling = into.querySelector<HTMLElement>(".pill--spellcheck");
+      expect(spelling === null || spelling.hidden).toBe(true);
+    });
+
+    it("appears just left of the counts when spellcheck is turned on, and goes when it is off", () => {
+      const { into, context } = shell();
+      context().setStatus("Pages: ~3 / 112 | Words: 18,402");
+      const counts = into.querySelector<HTMLElement>(".pills--right .pill--counts")!;
+      const spelling = into.querySelector<HTMLElement>(".pills--right .pill--spellcheck")!;
+
+      context().setSpellcheck(true);
+      expect(spelling.hidden).toBe(false);
+      expect(counts.previousElementSibling).toBe(spelling);
+      expect(spelling.getAttribute("aria-label")).toBe("Spellcheck is on");
+
+      context().setSpellcheck(false);
+      expect(spelling.hidden).toBe(true);
+      context().setSpellcheck(true);
+      expect(spelling.hidden).toBe(false);
+    });
+
+    it("holds the spell-check icon, and is a status like the save pill: no button, no tooltip", () => {
+      const { into, context } = shell();
+      context().setSpellcheck(true);
+      const spelling = into.querySelector<HTMLElement>(".pill--spellcheck")!;
+      const save = into.querySelector<HTMLElement>(".pill--save")!;
+      const icon = spelling.querySelector("svg")!;
+      expect(icon.innerHTML).toBe(createElement(SpellCheck as IconNode).innerHTML);
+      expect(icon.classList.contains("pill__icon")).toBe(true);
+      expect(icon.getAttribute("aria-hidden")).toBe("true");
+
+      expect(spelling.tagName).toBe(save.tagName);
+      expect(spelling.tagName).toBe("SPAN");
+      expect(spelling.getAttribute("role")).toBe("status");
+      expect(spelling.closest("button")).toBeNull();
+      expect(spelling.querySelector("button")).toBeNull();
+      expect(spelling.hasAttribute("tabindex")).toBe(false);
+      expect(spelling.hasAttribute("title")).toBe(false);
+      expect(spelling.querySelector("[title], title")).toBeNull();
+    });
+
+    it("is the save pill's size, in the ordinary text colour", () => {
+      expect(rule(".pill--spellcheck")).toContain("width: var(--size-pill)");
+      expect(rule(".pill--spellcheck")).toContain("padding: 0");
+      expect(rule(".pill--save")).toContain("width: var(--size-pill)");
+      expect(rule(".pill--spellcheck")).toContain("color: var(--colour-text)");
+      expect(rule(".pill--spellcheck")).not.toContain("affirm");
     });
   });
 

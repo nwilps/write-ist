@@ -262,6 +262,16 @@ button.pill:focus-visible {
   animation: pill-pulse var(--duration-save-pulse) ease-in-out infinite;
 }
 
+/*
+ * The spellcheck pill: the save pill's square, with the spell-check icon in
+ * the ordinary text colour. Shown only while spellcheck is on; it is not a switch.
+ */
+.pill--spellcheck {
+  width: var(--size-pill);
+  padding: 0;
+  color: var(--colour-text);
+}
+
 .pill__icon {
   width: var(--size-icon-large);
   height: var(--size-icon-large);

@@ -12,14 +12,14 @@
  * design has no full-width status bar** (§1, §2.3): the workspace bar floats
  * over the top, and along the foot three small pills float over the desk — the
  * project's name at the left, the workspace's counts and the save state at the
- * right.
+ * right — with, while spellcheck is on, a spellcheck pill just left of the counts.
  *
  * **Placement and proportion, not contents.** What goes in the counts pill is
  * the workspace's business — the Editor's pages and words (#48) — so the shell
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
  */
-import { createElement, Save, SaveCheck, type IconNode } from "lucide";
+import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
@@ -100,6 +100,14 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const counts = element("button", { className: "pill pill--counts", type: "button", hidden: true });
   const goal = element("button", { className: "pill pill--goal", type: "button", hidden: true });
   const saved = savePill();
+  // Spellcheck is off when a project opens, so its pill starts hidden. It says
+  // only that the pass is on: a status, like the save pill, not a switch.
+  const spelling = element("span", { className: "pill pill--spellcheck", hidden: true });
+  spelling.setAttribute("role", "status");
+  spelling.setAttribute("aria-label", "Spellcheck is on");
+  const spellingIcon = createElement(SpellCheck as IconNode, { class: "pill__icon" });
+  spellingIcon.setAttribute("aria-hidden", "true");
+  spelling.append(spellingIcon);
   const askers = new Set<() => void>();
   const asked = (): void => askers.forEach((act) => act());
   counts.addEventListener("click", asked);
@@ -118,7 +126,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
         element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),
         goal,
       ]),
-      element("div", { className: "pills pills--right" }, [counts, saved.pill]),
+      element("div", { className: "pills pills--right" }, [spelling, counts, saved.pill]),
     ]),
   );
 
@@ -151,6 +159,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       return () => void askers.delete(act);
     },
     setSaved: saved.set,
+    setSpellcheck: (on) => void (spelling.hidden = !on),
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
     leave: { toProjects: screen.onClose, toHome: screen.onHome },
