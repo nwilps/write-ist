@@ -6,8 +6,9 @@ Write-ist is for writers who want a calm, fast place to write that they actually
 account to make, no subscription, and no cloud. Your work is plain text sitting in a folder on
 your disk, and it stays readable in any text editor even if Write-ist disappears tomorrow.
 
-Screenplay is the only format available right now. Other formats are coming. Write-ist runs on
-**Linux** for now.
+Screenplay is the only format available right now. Other formats are coming. Write-ist is built and
+tested on **Linux**. It should also run on Windows and macOS, but those haven't been tested yet,
+so expect rough edges.
 
 ![The Write-ist home screen](docs/images/home.png)
 
@@ -88,6 +89,8 @@ All of it works fully offline.
 ## Running it yourself
 
 There are **no packaged releases yet**, so for now Write-ist runs from source.
+
+These steps are for Linux. Windows and macOS are untested.
 
 You need:
 
