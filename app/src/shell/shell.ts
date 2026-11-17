@@ -177,8 +177,10 @@ const SAVE_LABELS: Readonly<Record<SaveState, string>> = {
  *
  * A save on a local disk lands in a few milliseconds, so `saving` used to be
  * replaced before it was ever drawn and the pulse was never seen. So once
- * `saving` is shown it stays for one pulse (`--duration-pulse`) at least, and
- * the state it was told meanwhile is drawn when that is up. Only the pill
+ * `saving` is shown it stays for one pulse (`--duration-pulse`) at least — in
+ * which the icon fades bright to dim and back three times
+ * (`--duration-pulse-beat`) — and the state it was told meanwhile is drawn when
+ * that is up. Only the pill
  * waits: the save itself, and the state it reports, do not.
  */
 function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveState) => void } {

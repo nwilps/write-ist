@@ -32,10 +32,11 @@ export function drawSheetBreak(seam: SheetBreak): HTMLElement {
     }),
   );
   parts.push(element("div", { className: "sheet-break__desk" }));
+  // Page 1 carries no number, as in the PDF, and front matter has none to carry.
   parts.push(
     element("div", {
       className: "sheet-break__head",
-      textContent: `${seam.page}.`,
+      textContent: seam.page > 1 ? `${seam.page}.` : "",
     }),
   );
 

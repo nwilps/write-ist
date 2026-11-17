@@ -32,6 +32,7 @@ import type { Attrs, Node as EditorNode } from "prosemirror-model";
 import { screenplaySchema } from "./schema.ts";
 import type { ElementType } from "./document.ts";
 import { gapBetween } from "./geometry.ts";
+import { isPageBreak } from "./page-break-editing.ts";
 
 /** What Enter at the end of an element starts, by the type it ends. */
 const AFTER_ENTER: Partial<Record<ElementType, ElementType>> = {
@@ -267,7 +268,8 @@ export function setElementType(type: ElementType): Command {
     const tr = state.tr;
     state.doc.nodesBetween(from, to, (node, pos) => {
       if (node.type.name !== "element") return node.type.name === "doc";
-      if (node.attrs["type"] !== type) retype(tr, node, pos, type);
+      // A forced page break is not a line with a type: retyped, its `===` would be text.
+      if (node.attrs["type"] !== type && !isPageBreak(node)) retype(tr, node, pos, type);
       return false;
     });
     if (tr.docChanged) dispatch(structural(tr));
@@ -285,6 +287,10 @@ export const joinBackwards: Command = (state, dispatch) => {
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== 0) return false;
   const before = at.index(0) > 0 ? at.doc.child(at.index(0) - 1) : undefined;
+  if (before !== undefined && isPageBreak(before)) {
+    if (dispatch !== undefined) dispatch(structural(removeBreak(state, at.before() - before.nodeSize, before)));
+    return true;
+  }
   if (before !== undefined && squishesGap(before, at.parent)) {
     if (dispatch !== undefined) {
       const tr = state.tr.setNodeMarkup(at.before(), undefined, { ...at.parent.attrs, squished: true });
@@ -299,6 +305,15 @@ export const joinBackwards: Command = (state, dispatch) => {
   if (dispatch !== undefined) dispatch(structural(joinAt(state, at.before(), at.parent)));
   return true;
 };
+
+/**
+ * Backspace or Delete beside a forced page break takes the break out whole,
+ * as a word processor does, and leaves both lines as they were: joined, the
+ * line would vanish into the hidden break (`page-break-editing.ts`).
+ */
+function removeBreak(state: EditorState, pos: number, node: EditorNode): Transaction {
+  return state.tr.delete(pos, pos + node.nodeSize).scrollIntoView();
+}
 
 /**
  * Does Backspace at the start of `lower` squish the gap rather than join? Only
@@ -326,6 +341,10 @@ export const joinForwards: Command = (state, dispatch) => {
   const after = at.index(0) + 1 < at.doc.childCount ? at.doc.child(at.index(0) + 1) : undefined;
   if (after === undefined || after.type.name !== "element")
     return at.parent.type.name === "element";
+  if (isPageBreak(after)) {
+    if (dispatch !== undefined) dispatch(structural(removeBreak(state, at.after(), after)));
+    return true;
+  }
   if (dispatch !== undefined) dispatch(structural(joinAt(state, at.after(), after)));
   return true;
 };

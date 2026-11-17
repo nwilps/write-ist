@@ -253,7 +253,7 @@ button.pill:focus-visible {
 }
 
 .pill--save[data-state="saving"] {
-  animation: pill-pulse var(--duration-pulse) ease-in-out infinite alternate;
+  animation: pill-pulse var(--duration-pulse-beat) ease-in-out infinite alternate;
 }
 
 .pill__icon {
@@ -519,6 +519,17 @@ button.pill:focus-visible {
  * start one blank line down.
  */
 .manuscript > [data-title-hidden] + :not([data-title-hidden]) {
+  margin-top: 0;
+}
+
+/*
+ * A forced page break is in the document and not on the paper either: it is a
+ * hidden placeholder (`hiddenPageBreak`), and the paper shows the seam to a new
+ * sheet instead. Where it opens the script, the line after it is the sheet's
+ * first and takes no blank line above.
+ */
+.manuscript > [data-page-break-hidden]:first-child + *,
+.manuscript > [data-title-hidden] + [data-page-break-hidden] + * {
   margin-top: 0;
 }
 

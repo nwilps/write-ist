@@ -221,7 +221,13 @@
   --size-icon-large: 16px;
   /** The saving icon breathes between full strength and this, gently. */
   --opacity-pulse: 0.35;
+  /** How long the pill shows `saving` at least (`shell.ts`). */
   --duration-pulse: 700ms;
+  /**
+   * One fade of the icon, full to dim or back. Six in the pulse: three full
+   * bright-to-dim-and-back cycles, ending bright as the pill changes.
+   */
+  --duration-pulse-beat: calc(var(--duration-pulse) / 6);
   --space-tab-gap: 32px;
   /**
    * The paper fading off under the window's top and bottom edges: bands as

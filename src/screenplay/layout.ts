@@ -52,7 +52,7 @@ export interface LayoutLine {
 }
 
 export interface LayoutPage {
-  /** 1-based, as the writer counts. */
+  /** 1-based, as the writer counts; 0 on a sheet of front matter, which has no number. */
   readonly number: number;
   /** In reading order: by row, then column. */
   readonly lines: readonly LayoutLine[];
@@ -69,6 +69,11 @@ export interface Split {
 
 export interface Layout {
   readonly totalPages: number;
+  /**
+   * The unnumbered sheets before page 1: what stands above a leading forced
+   * page break (Big Fish's epigraph). Drawn and printed, never counted.
+   */
+  readonly frontMatter: readonly LayoutPage[];
   readonly pages: readonly LayoutPage[];
   readonly splits: readonly Split[];
   /** The count, which is the layout's own source. */
@@ -107,7 +112,15 @@ export function layout(
     splits.push({ elementIndex: chunk.elementIndex, offset: chunk.start, page: chunk.page });
   }
 
-  return { totalPages: pagination.totalPages, pages, splits, pagination };
+  const frontMatter =
+    previous !== undefined && previous.pagination.front === pagination.front
+      ? previous.frontMatter
+      : chunksByPage(pagination.front.chunks, pagination.front.sheets).map((chunks) => ({
+          number: 0,
+          lines: pageLines(document, chunks),
+        }));
+
+  return { totalPages: pagination.totalPages, frontMatter, pages, splits, pagination };
 }
 
 function chunksByPage(chunks: readonly Chunk[], totalPages: number): Chunk[][] {

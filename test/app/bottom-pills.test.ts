@@ -123,6 +123,24 @@ describe("the bottom pills", () => {
       expect(save.getAttribute("aria-label")).toBe("Saved");
     });
 
+    it("fades bright to dim and back at least three times while it holds, and not under reduced motion", () => {
+      // The hold stays 700 ms; the icon's fade is the hold's sixth, so the
+      // pulse is three full cycles, bright to dim to bright, ending bright.
+      expect(pulse).toBe("700ms");
+      const beat = /--duration-pulse-beat:\s*([^;]+);/.exec(tokens)![1]!.trim();
+      const divisor = Number(/^calc\(var\(--duration-pulse\) \/ (\d+)\)$/.exec(beat)![1]);
+      // `alternate`: one iteration is one fade; a full cycle is two.
+      expect(divisor / 2).toBeGreaterThanOrEqual(3);
+      expect(Number.isInteger(divisor / 2)).toBe(true);
+      const editor = readFileSync(join(style, "editor.css"), "utf8");
+      expect(editor).toMatch(
+        /\.pill--save\[data-state="saving"\] \{\s*animation: pill-pulse var\(--duration-pulse-beat\) ease-in-out infinite alternate;/,
+      );
+      expect(editor).toMatch(
+        /@media \(prefers-reduced-motion: reduce\) \{\s*\.pill--save\[data-state="saving"\] \{\s*animation: none;/,
+      );
+    });
+
     it("does not hold a save that took longer than a pulse", () => {
       const { save, told } = saving();
       told("saving");

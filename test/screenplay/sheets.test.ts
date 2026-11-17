@@ -66,13 +66,21 @@ describe.each(FIXTURES)("on %s", (name) => {
   const breaks = sheetBreaks(laid);
   const state = editorStateFor(document);
 
-  it("has one seam for every sheet after the first", () => {
+  // Big Fish's epigraph, above its leading `====`, is a sheet of its own
+  // before page 1, with no number; Brick & Steel has none.
+  const sheets = [...laid.frontMatter, ...laid.pages];
+
+  it("has one seam for every sheet after the first, the front matter's included", () => {
     expect(laid.totalPages).toBe(paginate(document).totalPages);
-    expect(breaks).toHaveLength(laid.totalPages - 1);
-    expect(breaks.map((seam) => seam.page)).toEqual(
-      Array.from({ length: laid.totalPages - 1 }, (_, i) => i + 2),
+    expect(laid.frontMatter).toHaveLength(name === "Big-Fish.fountain" ? 1 : 0);
+    expect(breaks).toHaveLength(sheets.length - 1);
+    expect(breaks.map((seam) => seam.page)).toEqual(sheets.slice(1).map((sheet) => sheet.number));
+    // After front matter the seam opens page 1; without it, the first opens page 2.
+    const firstNumbered = laid.frontMatter.length > 0 ? 1 : 2;
+    expect(breaks.filter((seam) => seam.page > 0).map((seam) => seam.page)).toEqual(
+      Array.from({ length: laid.totalPages - firstNumbered + 1 }, (_, i) => i + firstNumbered),
     );
-    expect(sheetDecorations(state.doc, laid, draw).find()).toHaveLength(laid.totalPages - 1);
+    expect(sheetDecorations(state.doc, laid, draw).find()).toHaveLength(sheets.length - 1);
   });
 
   it("falls where the layout says each page begins", () => {
@@ -82,7 +90,7 @@ describe.each(FIXTURES)("on %s", (name) => {
       .find()
       .sort((a, b) => a.from - b.from);
     breaks.forEach((seam, i) => {
-      const first = laid.pages[seam.page - 1]!.lines.find((line) => line.kind === "text")!;
+      const first = sheets[i + 1]!.lines.find((line) => line.kind === "text")!;
       expect(seam.elementIndex).toBe(first.elementIndex);
       const node = state.doc.nodeAt(starts[seam.elementIndex]!)!;
       expect(node.textContent).toBe(document.elements[seam.elementIndex]!.text);
@@ -101,10 +109,10 @@ describe.each(FIXTURES)("on %s", (name) => {
   });
 
   it("leaves rows left that make every sheet 55 lines", () => {
-    for (const seam of breaks) {
-      const last = laid.pages[seam.page - 2]!.lines.at(-1)!;
+    breaks.forEach((seam, i) => {
+      const last = sheets[i]!.lines.at(-1)!;
       expect(last.row + 1 + seam.rowsLeft).toBe(PAGE.linesPerPage);
-    }
+    });
   });
 
   it("closes a speech with (MORE) exactly where it is reopened", () => {

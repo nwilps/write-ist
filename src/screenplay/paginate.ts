@@ -34,7 +34,9 @@ const MARGINALIA: ReadonlySet<Element["type"]> = new Set([
  *
  * `totalPages` is the numbered body only: the title page is never counted,
  * and a leading forced page-break (Big Fish's epigraph) leaves that front
- * matter unnumbered, with page 1 at the content after it.
+ * matter unnumbered, with page 1 at the content after it. The front matter is
+ * still laid out — on sheets of its own, in `PaginationDetail.front` — so it is
+ * drawn on the paper and printed in the PDF; it is only not counted.
  */
 export interface Pagination {
   readonly totalPages: number;
@@ -59,6 +61,18 @@ export interface PaginationDetail extends Pagination {
    * (#87). `paginate` counts from it and `layout` draws from it, so the count
    * and the lines cannot disagree. Ordered by page.
    */
+  readonly chunks: readonly Chunk[];
+  /** The unnumbered sheets above a leading forced page break; none without one. */
+  readonly front: FrontMatter;
+}
+
+/**
+ * Front matter: what stands above a leading forced page break, on sheets that
+ * come before page 1 and carry no number. Its chunks' `page` counts these
+ * sheets from 1, apart from the numbered body.
+ */
+export interface FrontMatter {
+  readonly sheets: number;
   readonly chunks: readonly Chunk[];
 }
 
@@ -124,7 +138,7 @@ type Item = {
  * page (ADR-0033).
  */
 export function paginate(document: ScreenplayDocument): PaginationDetail {
-  return pack(printableItems(document), document.elements.length, 1, [], [], []);
+  return { ...pack(printableItems(document), document.elements.length, 1, [], [], []), front: frontMatter(document) };
 }
 
 /**
@@ -143,19 +157,22 @@ export function repaginate(
   dirtyElementIndex: number | undefined,
 ): PaginationDetail {
   if (previous === undefined || previous.totalPages === 0 || dirtyElementIndex === undefined) {
-    return pack(printableItems(document), document.elements.length, 1, [], [], []);
+    return paginate(document);
   }
 
   // A pair is packed as one band from its first cue, which can lie on an
   // earlier page than the edit that made it one: pack it from the top.
   if (nearDualDialogue(document.elements, dirtyElementIndex)) {
-    return pack(printableItems(document), document.elements.length, 1, [], [], []);
+    return paginate(document);
   }
 
   const startPage = cleanPageStart(previous, affectedPage(previous, dirtyElementIndex));
   if (startPage <= 1) {
-    return pack(printableItems(document), document.elements.length, 1, [], [], []);
+    return paginate(document);
   }
+
+  // An edit below the leading break leaves everything above it as it was.
+  const front = dirtyElementIndex > leadingBreak(document.elements) ? previous.front : frontMatter(document);
 
   // Only the items from the resume point on are wrapped: the pages before it
   // are kept, so wrapping them again would make every keystroke cost the
@@ -175,7 +192,7 @@ export function repaginate(
 
   const fill = previous.fill.slice(0, startPage - 1);
   const chunks = previous.chunks.filter((chunk) => chunk.page < startPage);
-  return pack(items, document.elements.length, startPage, fill, pageOfElement, chunks);
+  return { ...pack(items, document.elements.length, startPage, fill, pageOfElement, chunks), front };
 }
 
 /**
@@ -284,7 +301,7 @@ function pack(
   fillIn: readonly number[],
   pageOfElementIn: readonly (number | undefined)[],
   chunksIn: readonly Chunk[],
-): PaginationDetail {
+): Omit<PaginationDetail, "front"> {
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: elementCount },
     (_, i) => pageOfElementIn[i],
@@ -557,19 +574,47 @@ function splitPoint(item: Item, offset: number, remaining: number, avail: number
 }
 
 /**
+ * The index of a leading forced page break — one before the first scene
+ * heading, as Big Fish's after its epigraph — or -1 when there is none. What
+ * stands above it is front matter: printed on sheets of its own, unnumbered,
+ * with page 1 at the content after the break, as Final Draft prints it.
+ */
+function leadingBreak(elements: readonly Element[]): number {
+  const firstBreak = elements.findIndex((element) => element.type === "page-break");
+  if (firstBreak < 0) return -1;
+  const firstScene = elements.findIndex((element) => element.type === "scene-heading");
+  return firstScene < 0 || firstBreak < firstScene ? firstBreak : -1;
+}
+
+/**
+ * The front matter's sheets: everything above a leading forced page break,
+ * packed by the same rules as the body but numbered apart from it, so it is
+ * printed and drawn and never counted. Small, so it is packed whole each time.
+ */
+function frontMatter(document: ScreenplayDocument): FrontMatter {
+  const end = leadingBreak(document.elements);
+  if (end <= 0) return NO_FRONT_MATTER;
+  const packed = pack(printableItems(document, 0, 0, end), document.elements.length, 1, [], [], []);
+  return { sheets: packed.totalPages, chunks: packed.chunks };
+}
+
+const NO_FRONT_MATTER: FrontMatter = { sheets: 0, chunks: [] };
+
+/**
  * Build the printable stream: skip title/front-matter, drop marginalia and
  * omitted elements, collapse dual dialogue to max(left, right).
+ *
+ * `begin` and `end` bound the stretch read: by default the numbered body,
+ * which starts after a leading forced page break (`leadingBreak`).
  */
-function printableItems(document: ScreenplayDocument, from = 0): Item[] {
+function printableItems(
+  document: ScreenplayDocument,
+  from = 0,
+  begin = leadingBreak(document.elements) + 1,
+  end = document.elements.length,
+): Item[] {
   const { elements } = document;
-  let start = 0;
-  const firstBreak = elements.findIndex((element) => element.type === "page-break");
-  const firstScene = elements.findIndex((element) => element.type === "scene-heading");
-  // Leading forced page-break before the first scene heading: Big Fish's
-  // epigraph page. Final Draft leaves it unnumbered; page 1 starts after.
-  if (firstBreak >= 0 && (firstScene < 0 || firstBreak < firstScene)) {
-    start = firstBreak + 1;
-  }
+  let start = begin;
 
   type Raw = {
     elementIndex: number;
@@ -593,7 +638,7 @@ function printableItems(document: ScreenplayDocument, from = 0): Item[] {
     start = from;
   }
 
-  for (let i = start; i < elements.length; i++) {
+  for (let i = start; i < end; i++) {
     const el = elements[i]!;
     if (el.omitted === true || MARGINALIA.has(el.type)) continue;
     if (el.type === "page-break") {
@@ -612,7 +657,7 @@ function printableItems(document: ScreenplayDocument, from = 0): Item[] {
     previous = el;
   }
 
-  collapseDualDialogue(raw, dualPairs(elements.slice(start)), start);
+  collapseDualDialogue(raw, dualPairs(elements.slice(start, end)), start);
 
   return raw
     .filter((entry) => entry.lines !== 0)

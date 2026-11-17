@@ -42,7 +42,11 @@ export async function renderPdf(pages: PdfPages, faces: CourierPrimeFaces): Prom
     italic: await pdf.embedFont(faces.italic, { subset: true }),
     boldItalic: await pdf.embedFont(faces.boldItalic, { subset: true }),
   };
-  const sheets = pages.titlePage.length === 0 ? pages.pages : [pages.titlePage, ...pages.pages];
+  const sheets = [
+    ...(pages.titlePage.length === 0 ? [] : [pages.titlePage]),
+    ...pages.frontMatter,
+    ...pages.pages,
+  ];
   for (const runs of sheets) {
     const page = pdf.addPage([SHEET_POINTS.width, SHEET_POINTS.height]);
     page.pushOperators(setCharacterSpacing(TRACKING));

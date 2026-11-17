@@ -67,6 +67,7 @@ import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
 import { keepTitlePageOut, startOfScript } from "./title-page-editing.ts";
+import { keepPageBreaksWhole, outsidePageBreak } from "./page-break-editing.ts";
 import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { screenplaySchema } from "./schema.ts";
 
@@ -186,10 +187,10 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
     schema: screenplaySchema,
     doc,
     // The title page is not on the paper: the caret starts in the script.
-    selection: startOfScript(doc),
+    selection: outsidePageBreak(doc, startOfScript(doc)),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, ...spelling],
+    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
   });
 }
 

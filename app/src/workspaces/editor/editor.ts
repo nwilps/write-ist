@@ -51,6 +51,7 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
+import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
 import { contextMenuItems } from "./context-menu-items.ts";
@@ -400,8 +401,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           return true;
         },
         decorations: () => writing.seams,
-        // The title page is in the document and not on the paper.
-        nodeViews: hiddenTitlePage,
+        // The title page and a forced page break's `===` are in the document
+        // and not on the paper; the break is drawn as the seam to a new sheet.
+        nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         // The webview's own spellcheck is off: spelling is Write-ist's, on
