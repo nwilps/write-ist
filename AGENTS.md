@@ -4,27 +4,23 @@ A fully local, offline writing application. See [`README.md`](README.md) for the
 project and [`docs/PLANNING.md`](docs/PLANNING.md) for the v1 post-mortem. Open questions are
 GitHub Issues, never a doc.
 
-**Status: v2, Slice 1 complete — the smallest Write-ist a screenplay can be written in (#37).**
-The document model is built and tested: **bytes on disk ↔ a flat sequence of typed elements**,
-both surfaces, with marks and comments, in `src/`. Above it, `src/project/` holds the bundle,
-the `project.md` marker, import, open, autosave, and the ledger. The application launches — a
-Tauri window over the system webview, opening on a home screen, with **Open Project** its own
-screen (#38, #55). Opening a project shows the manuscript in the **Editor**, a ProseMirror
-workspace the shell hosts through a manifest, with the round-trip holding through it (#39). The
-writer types and it saves itself (#41); outside changes are never overwritten (#42); Enter, Tab,
-capitals, (CONT'D), undo, marks, and the clipboard work as expected (#43–#47); the page count
-keeps up as you type (#48, #49); the title page matches Final Draft (#62); and the ledger records
-the writer's days (#50). The manuscript is laid out in **industry format** (#40): Courier Prime
-bundled, and one geometry table, measured from Final Draft's PDF, that both the page and the
-count read. The paper is drawn as **separate sheets** (Slice 2 step 2): the layout (`layout()`)
-says where each page breaks, and the view draws the seam — a strip of desk, the page number,
-`(MORE)` and `CHARACTER (CONT'D)` — as a decoration that is never in the document or the file
-(`src/screenplay/sheets.ts`, ADR-0024, ADR-0033).
+**Status: v2. Slice 1 is done (#37); most of Slice 2 (#86) is on `main`.** A short summary —
+`SETUP-CHECKLIST.md` Phase 5 is the detailed record, and wins where the two disagree.
 
-Still above this layer: drafts and locking, the registry, spellcheck, ranges (scenes/chapters
-from the flat sequence), the workspace bar, and further slices. Before proposing work, read
-`SETUP-CHECKLIST.md` Phase 5 for what is built and what is not. The round-trip gate is the
-acceptance test for anything touching `src/`: `npm test`.
+- **Built:** the document model (**bytes on disk ↔ a flat sequence of typed elements**, both
+  surfaces, with marks and comments, in `src/`) and the project layer above it (`src/project/`:
+  bundle, marker, import, open, autosave, outside changes, the ledger). The Tauri app with Home
+  and Open Project (rename, recoverable delete), the **Editor** on the paper in industry format,
+  drawn as **separate sheets**; Save a Copy as Fountain; the title page off the paper, with Edit
+  Title Page and View Title Page; Export as PDF; scenes (ranges), name and location lists,
+  autocomplete; on-demand spellcheck; search; the bottom pills; writing goals.
+- **Left in Slice 2:** #92 (the caret at sheet seams, checked on Linux/WebKitGTK) and #103 (a full
+  start-to-finish pass, and the numbers the spec names).
+- **Not started:** drafts and locking, the registry, the prose surface in the app, and real Notes
+  and Plan workspaces (the tabs are placeholders). #105 is recorded later work.
+
+Before proposing work, read `SETUP-CHECKLIST.md` Phase 5. The round-trip gate is the acceptance
+test for anything touching `src/`: `npm test`.
 
 
 ## Branch and pull-request rules
@@ -45,7 +41,7 @@ ADR-0020's tenth entry).
 ### What to read
 
 **Read the ticket, its parent spec, and the decisions they cite — not the whole record.** There are
-thirty ADRs, some 2,800 lines of them, and a ticket about keyboard shortcuts has no use for the one
+forty-four ADRs (through ADR-0044), some 3,900 lines of them, and a ticket about keyboard shortcuts has no use for the one
 about the ledger. The tickets cite what applies; follow the citations and stop there.
 
 So, before starting:
@@ -106,19 +102,18 @@ In this order:
 2. **`docs/adr/`** — the decisions, each with its forcing reason. The spine runs
    0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose) → 0019 and 0020 (the
    document model, and what the app may change in a writer's file), with 0008 (sidecar
-   integrity) explaining why v2 is a rewrite. 0019–0030 are the newest and the most
-   load-bearing for implementation.
+   integrity) explaining why v2 is a rewrite. 0019 onward are the most load-bearing
+   for implementation; 0032–0044 are the newest, made during Slice 2.
 3. **`docs/STANDARDS.md`** — the rules, which are not decisions. Each one names the bug that
    produced it. Short; read it whole.
 4. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is
    timeboxed.
-5. **`docs/PLANNING.md`** — the v1 post-mortem, and how to read the feature catalog.
+5. **`docs/PLANNING.md`** — the v1 post-mortem, and how to work on this project.
 6. **`docs/research/`** — the evidence behind ADR-0010 and ADR-0011, and the editor-shape
    spike that Phase 3 decides with.
 
-The live feature catalog is a published Artifact (URL and access in `PLANNING.md`). Always
-read the store, never a copy of it. It is scaffolding for deciding, and it is being retired
-as the repo takes over — so extract from it, never add to it.
+The old feature catalog (a Claude.ai Artifact) is **retired** (Noah, 2026-11-17). Don't read it
+or add to it: the repo — `GLOSSARY.md`, the ADRs and the issue tracker — is the only store.
 
 ## Agent skills
 
@@ -128,7 +123,8 @@ GitHub Issues on `nwilps/write-ist`, via the `gh` CLI. See `docs/agents/issue-tr
 
 ### Triage labels
 
-The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+`ready-for-agent` and `ready-for-human` are in use; `needs-triage`, `needs-info` and `wontfix`
+are not. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

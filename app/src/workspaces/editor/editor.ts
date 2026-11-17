@@ -77,8 +77,9 @@ const GOAL_REFRESH_MS = 60_000;
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
   name: "Editor",
-  // The workspace bar is not built (#37), and when it is, the Editor is its
-  // first tab — as it is in the prototype.
+  // The Editor is the workspace bar's first tab, as it is in the prototype.
+  // Notes and Plan sit beside it as temporary placeholders
+  // (`../placeholders.ts`) that the bar cannot yet switch to.
   key: "1",
   icon: PenLine,
   mount,

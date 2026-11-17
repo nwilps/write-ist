@@ -1,8 +1,9 @@
 # Write-ist v2 — setup & planning checklist
 
-Working order agreed 2026-09-10. Temporary: it was to be deleted once implementation started, and
-implementation has started — but Phase 5 is now the only record of what is built and what is not,
-so it stays until `/to-tickets` puts that in the tracker, and goes then.
+Working order agreed 2026-09-10. Phases 0–4 are the setup, kept as history. **Phase 5 is the
+detailed record of what is built and what is not** — the single status source. The Status sections
+of `README.md` and `AGENTS.md` are short summaries of it; when a change changes what the app can do,
+this file is updated first and they follow.
 
 Rule for the whole list: **timebox the setup.** v1 got built while procrastinating on the
 screenplay it was for. If workflow adoption stops producing Write-ist artifacts and starts
@@ -191,8 +192,10 @@ format version and minted project id (ADR-0004, ADR-0015), **import** into the d
 
 The home screen and the New Project dialog follow the approved home design: one typeface, a
 tagline with a blinking cursor, a rule above and below the menu, the first row selected, and a
-dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. Not built: the ASCII logo
-(no text source), the ASCII background, an open type list, Novel. Metrics and Settings are drawn and do nothing yet (Noah's decision).
+dialog without a heading — Cancel [Esc] left, Confirm [Enter] right. The WRITE-IST ASCII logo is
+drawn too, held byte for byte to the design's `logo.txt` (`app/src/screens/logo.ts`), and the
+tagline is typed by the v1 ghostwriter (#132). Not built: the ASCII background, an open type list,
+Novel. Metrics and Settings are drawn and do nothing yet (Noah's decision).
 
 ### Done: the Open Project design (ADR-0043)
 
@@ -225,8 +228,9 @@ disks, only inside the projects folder. Not built: a restore screen, and emptyin
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared
 through a manifest and hosted by the **shell**, which knows nothing about what it hosts
 (ADR-0005) — a rule with a test that fails on it, over `app/src/shell/`: no `"screenplay"`, no
-element type by name, no import from a surface. It is the only workspace; the workspace bar is
-not built.
+element type by name, no import from a surface. It is the only real workspace. *Since then:* the
+workspace bar is drawn (#110), with temporary **Notes** and **Plan** placeholder tabs
+(`app/src/workspaces/placeholders.ts`) that it cannot yet switch to.
 
 - The editing engine is **ProseMirror** (ADR-0024), its document mapped from the existing model
   and back to it (`src/screenplay/schema.ts`, `src/screenplay/editor.ts`). Nothing in `src/`
@@ -237,7 +241,7 @@ not built.
   misread element.
 - Every one of ADR-0021's fourteen element types is displayed, each carrying its type in the
   page as `data-element`, which is what spellcheck keys on next slice (ADR-0029). Marks are
-  `em`, `strong` and `u`; no delimiter is drawn. The title page is at the top, cut material is
+  `em`, `strong` and `u`; no delimiter is drawn. The title page was at the top (it has since left the paper, #117), cut material is
   struck through, dual dialogue is stacked with its flag intact, and the five comments survive
   invisibly.
 - The page follows the **spike** and the furniture the **prototype**; the page's spacing mirrors
@@ -377,22 +381,62 @@ cover typing and structural edits (#45); bold, italic and underline toggle from 
 
 ### Done: the page count, live as you type (#48, #49)
 
-One engine owns the count (ADR-0024). Opening a project shows `Page N of M` in the status bar
-(#48); typing keeps it current (#49). *Big Fish* reads about 120 pages; *Brick & Steel* reads 4.
+One engine owns the count (ADR-0024). Opening a project shows the count (#48); typing keeps it
+current (#49). The status bar it first sat in is gone: the count is now in the bottom pills as
+`Pages: ~X / Y | Words: …` (#114). *Big Fish* reads about 120 pages; *Brick & Steel* reads 4.
 The geometry table (#40) is what both the page and the count read — there is only one.
 
 ### Done: the title page matches Final Draft (#62)
 
 Title, Credit, Author and Source are centred; Notes right-align to the 7.5in margin; Copyright
 and Contact sit at 1.0in — measured from the same *Big Fish* PDF pass as #40. Continuations
-carry a view-only field attribute so Notes can be selected without a CSS sibling trap. Keys with
-no placement stay visible at the top of page 1.
+carry a view-only field attribute so Notes can be selected without a CSS sibling trap. *Since
+then:* the title page is off the paper (#117) — edited in Edit Title Page and seen in View Title
+Page and the PDF, with the same measured placements.
 
 ### Done: the ledger records the writer's days (#50)
 
 From the first run, Write-ist appends to `ledger.txt` under app-local data (ADR-0017): when the
 application opened and closed, and each day left on a project, the absolute word and page counts.
 Nothing reads it yet; it exists so the history exists.
+
+### Done: the desk around the paper (#110, #111, #114, #115)
+
+- **The workspace bar** (#110): a floating tab pill at the top — **Editor**, plus temporary **Notes**
+  and **Plan** placeholder tabs (`app/src/workspaces/placeholders.ts`). The placeholders have no
+  behaviour and the bar cannot yet switch to them.
+- **Search** (#111): Alt+Enter opens a dialog over the paper; a case-insensitive find over the
+  visible text, each match with its page, Enter to jump (`src/screenplay/search.ts`). On Open
+  Project the same dialog finds projects.
+- **The bottom pills** (#114) replace the status bar: the project's name at the left;
+  `Pages: ~X / Y | Words: …` and the save state at the right.
+- **The File menu** (#115), with Edit and View beside it (#117), all read from one command table
+  (#126) that the right-click menu on the paper also reads (#128).
+
+### Done: Save a Copy as Fountain (#116, slice 2 step 7)
+
+**File ▸ Save a Copy as Fountain…** writes the script as it is now, unsaved typing included, to a
+`.fountain` file wherever the writer chooses — with comments and the boneyard left out (a speech
+whose every line was cut loses its cue too). The project's own manuscript is never touched and
+cannot be chosen as the destination. Temp, flush, rename; cancel writes nothing.
+
+### Done: the title page leaves the paper, Edit Title Page and View Title Page (#117, steps 4 and 6)
+
+**Edit Title Page…** is a form over the Fountain title page (Title, Credit, Author(s), Source,
+Draft date, Contact, Copyright, Notes, and an Other box), written back through the parser and
+serialiser; saving unchanged writes nothing, and a save is one undo step. **View Title Page**
+draws it read-only from `titlePageRuns()`, the same runs the PDF prints. The title page stays in
+the document and the file but is no longer drawn on the paper, and the caret cannot enter it.
+
+### Done: Export as PDF (#118, slice 2 step 5)
+
+**File ▸ Export as PDF…** exports what is on screen, unsaved typing included, through a save
+dialog. Pages come from `layout()` — the same page rule as the paper — with comments and the
+boneyard stripped as in the Fountain copy; `(MORE)` and `CHARACTER (CONT'D)` printed; page numbers
+from page 2; the title page as page 1 when it has anything on it. Courier Prime is embedded as a
+subset; nothing is fetched. `pdf-lib` and `@pdf-lib/fontkit` (MIT) in `src/pdf/render.ts`, the
+only code that touches them. It never writes `manuscript.fountain`. Measured on *Big Fish* at the
+time: 120 layout pages, 121 PDF pages.
 
 ### Done: writing goals, the Goal pill and the Goals dialog (ADR-0040)
 
@@ -405,19 +449,21 @@ the word count and the Goal pill (`app/src/workspaces/editor/goals-dialog.ts`). 
 from one function (`dayEndsAt`) a settings page will drive. **Not built:** that settings page, and the
 completion animations.
 
+### Left in Slice 2 (#86)
+
+- [ ] **#92** — check the caret, Backspace and Delete where one sheet meets the next, in the real
+      window on Linux (WebKitGTK).
+- [ ] **#103** — a full pass from start to finish, with the numbers the spec names.
+
 ### Not started, and deliberately above this layer
 
-Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), spellcheck (ADR-0029),
-and the rest of the application — workspace bar, the other workspaces.
+Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), the prose surface in the
+application (novels; chapters as ranges), and the rest of the workspaces — real Notes and Plan,
+not the placeholder tabs. Recorded for later: Write-ist drawing every context menu itself (#105).
 
-### Still to run
-
-- [ ] `/to-tickets` — tracer-bullet slices with blocking edges (Slice 1 tickets exist; further
-      slices still to chart)
-- [ ] `/implement` — drives `/tdd` at pre-agreed seams, closes with `/code-review`
-
-Open questions live in GitHub Issues and nowhere else. Slice 1's parent is #37. The early list's last
-question, #15 (leading whitespace), was decided 2026-10-30: normalised (ADR-0020's tenth entry).
+Open questions live in GitHub Issues and nowhere else. Slice 1's parent is #37; Slice 2's is #86.
+The early list's last question, #15 (leading whitespace), was decided 2026-10-30: normalised
+(ADR-0020's tenth entry).
 
 ---
 
@@ -425,11 +471,7 @@ question, #15 (leading whitespace), was decided 2026-10-30: normalised (ADR-0020
 
 - **Ralph loop / AFK agents.** Built for grinding through well-specified tickets. The
   current goal is understanding the whole yourself; an unattended loop defeats that.
-- **Migrating the feature catalog.** It works, it's edited between sessions, and it
-  becomes an *input* to `GLOSSARY.md` — not a casualty of it.
-
-  **But it has a sunset.** Decided 2026-09-10: as implementation approaches, the repo
-  becomes the single source of truth. The catalog is scaffolding for *deciding*, not a
-  system of record to maintain in parallel — a second store that drifts is exactly the
-  staleness problem the anchor rules exist to prevent. Once its load-bearing content has
-  landed in `GLOSSARY.md`, the ADRs, and the tracker, retire it rather than syncing it.
+- **Migrating the feature catalog.** Never migrated, and now not needed: **the catalog is
+  retired** (Noah's decision, 2026-11-17). It was scaffolding for *deciding*, given a sunset on
+  2026-09-10 so the repo would become the single source of truth; its load-bearing content landed
+  in `GLOSSARY.md`, the ADRs and the tracker. Nothing reads it or adds to it.
