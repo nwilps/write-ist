@@ -1,13 +1,13 @@
 # Write-ist
 
-**A free, lightweight desktop app for writers, on your own computer, in your own files.**
+**A free, lightweight desktop app for writers. It runs on your machine, writes to your files, and reports to no one.**
 
-Write-ist is for writers who want a calm, fast place to write that they actually own. There is no
-account to make, no subscription, and no cloud. Your work is plain text sitting in a folder on
-your disk, and it stays readable in any text editor even if Write-ist disappears tomorrow.
+Write-ist is for writers who want a calm, fast place to write that they actually own. No account,
+no subscription, no cloud: none of the usual rentware. Your work is bare text sitting in a folder
+on your disk, and it stays readable in any text editor even if Write-ist disappears tomorrow.
 
 Screenplay is the only format available right now. Other formats are coming. Write-ist is built and
-tested on **Linux**. It should also run on Windows and macOS, but those haven't been tested yet,
+tested on **Linux**. It should also run on Windows and macOS, but nobody has tested those yet,
 so expect rough edges.
 
 ![The Write-ist home screen](docs/images/home.png)
@@ -26,16 +26,16 @@ ownership away from their users, treating us more like data cattle than a user b
 So, in plain terms:
 
 - **It's free.** Not a trial, not freemium. Free.
-- **It's open source**, under the MIT license.
+- **It's open source**, under the MIT license. Read it, fork it, take it apart.
 - **Your files are plain files you own.** A project is an ordinary folder, and a screenplay
-  inside it is a [Fountain](https://fountain.io) text file. No proprietary format, no lock-in.
-- **No account.** Nothing to sign up for or log in to.
-- **No cloud.** Nothing you write is sent anywhere.
-- **It works offline**, all of it, all the time.
+  inside it is a [Fountain](https://fountain.io) text file. No proprietary format, no lock-in, no standard tax.
+- **No account.** Nothing to sign up for, nothing to log in to, no profile kept on you.
+- **No cloud.** Nothing you write leaves the machine.
+- **It runs gridless:** offline, all of it, all the time.
 
-## What it does today
+## Inventory
 
-Everything below is in the app now.
+Everything below is in the app now. No vaporware.
 
 **Writing**
 
@@ -55,7 +55,7 @@ Everything below is in the app now.
 - **Character and location lists**, built from your script. **Confirm** a name or location and
   autocomplete offers it and spellcheck knows it.
 - **Spellcheck, on demand.** Off until you turn it on (View ▸ Spellcheck). Right-click a flagged
-  word for suggestions or to add it to your dictionary. It runs entirely on your computer.
+  word for suggestions or to add it to your dictionary. It runs entirely on your computer and phones nothing home.
 - **Search** through the script, and jump to any match.
 - **Page and word counts** along the bottom of the window, kept up to date as you type.
 - **Writing goals.** A daily word goal with a streak, one-off sprints, and a thirty-day chart.
@@ -78,17 +78,18 @@ Everything below is in the app now.
 - **Rename** or **delete** a project from its right-click menu. Deleting is recoverable: the
   project is moved to a `Deleted Projects` folder, never erased, and moving it back restores it.
 
-## Ways to use it
+## Use cases
 
 - **Write a screenplay from scratch.** Create a project and start typing.
 - **Bring in a script you already have.** Import a Fountain file and keep going.
 - **Hand your script to someone else.** Export a PDF, or save a clean Fountain copy.
 
-All of it works fully offline.
+None of it needs a network.
 
-## Running it yourself
+## Build it yourself
 
-There are **no packaged releases yet**, so for now Write-ist runs from source.
+There are **no packaged releases yet**, so for now Write-ist runs from source. At least you
+know exactly what you are running.
 
 These steps are for Linux. Windows and macOS are untested.
 
@@ -117,7 +118,7 @@ Some tests need a local corpus path (`$WRITE_IST_CORPUS`) and skip when it is ab
 
 ## Early days
 
-Write-ist is unfinished. It is early, it is being worked on, and things may change. If you're
+Write-ist is unfinished. It is early, it is being worked on, and things may change without notice. If you're
 curious how it's going, [`SETUP-CHECKLIST.md`](SETUP-CHECKLIST.md) and the
 [GitHub issues](https://github.com/nwilps/write-ist/issues) show where it is. The design
 decisions behind the app, each with its reasons, are in [`docs/adr/`](docs/adr/).
