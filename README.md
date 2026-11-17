@@ -21,7 +21,7 @@ so expect rough edges.
 Write-ist is meant as the punk rock middle finger to our current cyberpunk tech overlords, who
 use terms like "industry standard" to force us into tools that are out of date, poorly
 maintained, slow, buggy, inflexible, grossly overpriced, and designed to squeeze every bit of
-ownership away from their users, treating us more like data cattle than a user base.
+ownership away from their users, treating us more like data cattle than customers.
 
 So, in plain terms:
 
