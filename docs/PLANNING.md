@@ -1,7 +1,7 @@
 # Write-ist v2 — planning brief
 
-What this file holds: the v1 post-mortem, how to read the feature catalog, and how to work
-on this project.
+What this file holds: the v1 post-mortem, a note on the retired feature catalog, and how to
+work on this project.
 
 What it does **not** hold, and must not re-accumulate:
 
@@ -43,57 +43,12 @@ a refactor.
 
 ---
 
-## The live feature catalog
+## The feature catalog — retired
 
-**https://claude.ai/code/artifact/fb75cbb0-70bc-4a2e-9c07-2d3ecbe540b7**
-
-A published Artifact backed by the `db` capability. Noah edits it in the browser; Claude reads
-it back with the Artifact tool:
-
-```
-action: read_db, db_op: list, collection: "sections", url: <the URL above>
-```
-
-Pass `out_dir` to save the documents as files rather than loading them into context.
-
-**Always read the store. Never assume the tags in this file or in memory are current** — Noah
-re-triages continuously.
-
-**It has a sunset.** The catalog is scaffolding for *deciding*, not a system of record to
-maintain in parallel. As its load-bearing content lands in `GLOSSARY.md`, the ADRs and the
-tracker, it is retired rather than synced. Extract from it; never add to it.
-
-### Data shape
-
-Collection `sections`, one document per section:
-
-```json
-{ "slug": "INT. SECTION — HEADING", "note": "...", "order": 100,
-  "items": [ { "id": "...", "t": "feature text", "g": "v2|someday|no",
-               "f": "load-bearing note, empty if none",
-               "a": ["area", "..."], "order": 100 } ] }
-```
-
-As of 2026-09-09: 11 sections, 167 in scope (100 `v2`, 67 `someday`), 38 rejected,
-73 load-bearing.
-
-### Tags (`g`)
-
-- `v2` — in scope for the rewrite.
-- `someday` — plausible later. **These are the stress-test corpus**: the point is not to build
-  them, it's to check the architecture survives them.
-- `no` — decided against, with the reason in `f`. Rendered in a collapsed archive at the foot
-  of the page and excluded from all totals.
-
-### Areas (`a`) — where a user reaches the feature
-
-`global`, `home`, `open`, `editor/shell`, `editor/text`, `editor/screenplay`, `editor/prose`,
-`editor/workspace/{notes,plan,log,outline,characters}`, `settings`, `metrics`, `export`,
-`version`, `internal`.
-
-Slash paths roll up hierarchically in the page's **By area** view. `internal` means the item
-has no screen at all — it's an architectural constraint. A feature may list several areas;
-there is one record, never duplicates.
+Before the repo took over, features were triaged in a separate catalog, an Artifact outside this
+repository. It was scaffolding for *deciding*, never a system of record, and it had a sunset from
+the start. **Noah retired it on 2026-11-17.** Its load-bearing content lives on in `GLOSSARY.md`,
+the ADRs and the issue tracker; nothing should read it, link to it or add to it.
 
 ---
 
@@ -108,8 +63,6 @@ there is one record, never duplicates.
   when a decision only gains a consequence; write a new one that supersedes when the decision
   itself changes. Never renumber, never delete.
 - **An open question goes in the tracker**, not here.
-- When editing the catalog programmatically, read the store first and merge — Noah edits
-  between sessions.
 
 ## A far-future maybe, not a plan
 
