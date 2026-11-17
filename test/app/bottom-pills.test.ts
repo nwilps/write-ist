@@ -93,75 +93,124 @@ describe("the bottom pills", () => {
     expect(drawn()).toBe(savedDrawing);
   });
 
-  describe("hold a save that lands at once on its pulse for one pulse", () => {
+  describe("show a save for three seconds, three pulses, before the green check", () => {
     const tokens = readFileSync(join(style, "tokens.css"), "utf8");
-    const pulse = /--duration-pulse:\s*([^;]+);/.exec(tokens)![1]!.trim();
-    const PULSE = Number.parseFloat(pulse);
+    const token = (name: string): string =>
+      new RegExp(`--${name}:\\s*([^;]+);`).exec(tokens)![1]!.trim();
+    const look = token("duration-saving");
+    const LOOK = 3000;
     afterEach(() => {
       vi.useRealTimers();
-      document.documentElement.style.removeProperty("--duration-pulse");
+      document.documentElement.style.removeProperty("--duration-saving");
     });
 
     function saving(): { save: HTMLElement; told: WorkspaceContext["setSaved"] } {
       vi.useFakeTimers();
-      document.documentElement.style.setProperty("--duration-pulse", pulse);
+      document.documentElement.style.setProperty("--duration-saving", look);
       const { into, context } = shell();
       const save = into.querySelector<HTMLElement>(".pill--save")!;
       return { save, told: context().setSaved };
     }
 
-    it("so the pulse is seen, and then says what it was told", () => {
-      expect(pulse).toMatch(/^\d+ms$/);
-      const { save, told } = saving();
-      told("saving");
-      told("saved");
-      expect(save.dataset["state"]).toBe("saving");
-      vi.advanceTimersByTime(PULSE - 1);
-      expect(save.dataset["state"]).toBe("saving");
-      vi.advanceTimersByTime(1);
-      expect(save.dataset["state"]).toBe("saved");
-      expect(save.getAttribute("aria-label")).toBe("Saved");
-    });
-
-    it("fades bright to dim and back at least three times while it holds, and not under reduced motion", () => {
-      // The hold stays 700 ms; the icon's fade is the hold's sixth, so the
-      // pulse is three full cycles, bright to dim to bright, ending bright.
-      expect(pulse).toBe("700ms");
-      const beat = /--duration-pulse-beat:\s*([^;]+);/.exec(tokens)![1]!.trim();
-      const divisor = Number(/^calc\(var\(--duration-pulse\) \/ (\d+)\)$/.exec(beat)![1]);
-      // `alternate`: one iteration is one fade; a full cycle is two.
-      expect(divisor / 2).toBeGreaterThanOrEqual(3);
-      expect(Number.isInteger(divisor / 2)).toBe(true);
-      const editor = readFileSync(join(style, "editor.css"), "utf8");
+    it("lasts three seconds, pulsing once a second, and not at all under reduced motion", () => {
+      expect(look).toBe("3s");
+      // One pulse is bright, dim, bright; three of them fill the three seconds.
+      expect(token("duration-save-pulse")).toBe("calc(var(--duration-saving) / 3)");
+      expect(rule('.pill--save[data-state="saving"]')).toContain(
+        "animation: pill-pulse var(--duration-save-pulse) ease-in-out infinite",
+      );
+      expect(rule('.pill--save[data-state="saving"]')).not.toContain("alternate");
       expect(editor).toMatch(
-        /\.pill--save\[data-state="saving"\] \{\s*animation: pill-pulse var\(--duration-pulse-beat\) ease-in-out infinite alternate;/,
+        /@keyframes pill-pulse \{\s*0%,\s*100% \{\s*opacity: 1;\s*\}\s*50% \{\s*opacity: var\(--opacity-save-dim\);\s*\}\s*\}/,
       );
       expect(editor).toMatch(
         /@media \(prefers-reduced-motion: reduce\) \{\s*\.pill--save\[data-state="saving"\] \{\s*animation: none;/,
       );
     });
 
-    it("does not hold a save that took longer than a pulse", () => {
+    it("dims the save icon while there is unsaved work", () => {
+      expect(rule('.pill--save[data-state="unsaved"]')).toContain("opacity: var(--opacity-save-dim)");
+      expect(Number.parseFloat(token("opacity-save-dim"))).toBeLessThan(1);
       const { save, told } = saving();
+      told("unsaved");
+      expect(save.dataset["state"]).toBe("unsaved");
+      expect(save.getAttribute("aria-label")).toBe("Not yet saved");
+    });
+
+    it("turns green only when the three seconds are up, for a save that landed at once", () => {
+      const { save, told } = saving();
+      told("unsaved");
       told("saving");
-      vi.advanceTimersByTime(PULSE * 2);
+      told("saved");
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(LOOK - 1);
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(1);
+      expect(save.dataset["state"]).toBe("saved");
+      expect(save.getAttribute("aria-label")).toBe("Saved");
+      // And it stays green until the work changes.
+      vi.advanceTimersByTime(LOOK * 10);
+      expect(save.dataset["state"]).toBe("saved");
       told("unsaved");
       expect(save.dataset["state"]).toBe("unsaved");
     });
 
-    it("draws only the last state it was told, and keeps pulsing through a second save", () => {
+    it("keeps pulsing for a save that takes longer, and turns green when it lands", () => {
+      const { save, told } = saving();
+      told("saving");
+      vi.advanceTimersByTime(LOOK * 2);
+      expect(save.dataset["state"]).toBe("saving");
+      told("saved");
+      expect(save.dataset["state"]).toBe("saved");
+    });
+
+    it("goes back to dim at once when the work changes mid-pulse, and never shows the green check", () => {
+      const { save, told } = saving();
+      // Every state the pill passes through, from the value each change replaced.
+      const changes = new MutationObserver(() => {});
+      changes.observe(save, { attributeFilter: ["data-state"], attributeOldValue: true });
+      told("saving");
+      told("saved");
+      vi.advanceTimersByTime(LOOK / 2);
+      told("unsaved");
+      expect(save.dataset["state"]).toBe("unsaved");
+      vi.advanceTimersByTime(LOOK * 2);
+      expect(save.dataset["state"]).toBe("unsaved");
+
+      // The next save pulses again, from the start, and this one is let finish.
+      told("saving");
+      expect(save.dataset["state"]).toBe("saving");
+      told("saved");
+      vi.advanceTimersByTime(LOOK - 1);
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(1);
+      expect(save.dataset["state"]).toBe("saved");
+      const seen = [...changes.takeRecords().map((change) => change.oldValue), save.dataset["state"]];
+      expect(seen).toEqual(["saved", "saving", "unsaved", "saving", "saved"]);
+    });
+
+    it("never turns green after a save that left work unsaved, or that failed", () => {
+      // The session reports `unsaved` when the save fails, or when words were
+      // typed while it ran; the error itself is said elsewhere.
+      const { save, told } = saving();
+      told("saving");
+      told("unsaved");
+      expect(save.dataset["state"]).toBe("unsaved");
+      vi.advanceTimersByTime(LOOK * 2);
+      expect(save.dataset["state"]).toBe("unsaved");
+    });
+
+    it("keeps one saving look through a second save started during it", () => {
       const { save, told } = saving();
       told("saving");
       told("saved");
-      vi.advanceTimersByTime(PULSE / 2);
+      vi.advanceTimersByTime(LOOK / 2);
       told("saving");
-      told("unsaved");
-      vi.advanceTimersByTime(PULSE / 2 - 1);
+      vi.advanceTimersByTime(LOOK / 2);
+      // The second save has not landed: still saving.
       expect(save.dataset["state"]).toBe("saving");
-      vi.advanceTimersByTime(1);
-      expect(save.dataset["state"]).toBe("unsaved");
-      vi.advanceTimersByTime(PULSE * 2);
-      expect(save.dataset["state"]).toBe("unsaved");
+      told("saved");
+      expect(save.dataset["state"]).toBe("saved");
     });
   });
 

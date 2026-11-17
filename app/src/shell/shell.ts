@@ -171,17 +171,16 @@ const SAVE_LABELS: Readonly<Record<SaveState, string>> = {
 
 /**
  * The save pill (the desk design, §2.3, §4): a 32px square holding one icon —
- * `save-check` in the affirm colour when the work is on disk, `save` in the
- * text colour when it is not, and pulsing while a save is under way. The state
- * is told to it; it never decides.
+ * `save-check` in the affirm colour when the work is on disk, `save` dimmed
+ * when it is not, and `save` pulsing while a save is under way. The state is
+ * told to it; it never decides.
  *
- * A save on a local disk lands in a few milliseconds, so `saving` used to be
- * replaced before it was ever drawn and the pulse was never seen. So once
- * `saving` is shown it stays for one pulse (`--duration-pulse`) at least — in
- * which the icon fades bright to dim and back three times
- * (`--duration-pulse-beat`) — and the state it was told meanwhile is drawn when
- * that is up. Only the pill
- * waits: the save itself, and the state it reports, do not.
+ * A save on a local disk lands in a few milliseconds, too quick to see. So once
+ * `saving` is shown it stays for the whole saving look (`--duration-saving`,
+ * three seconds: three pulses, one a second), and a save that succeeded turns
+ * green only when that is up. Work changed meanwhile is drawn at once, dimmed:
+ * the green check never stands over unsaved work. Only the pill waits: the save
+ * itself, and the state it reports, do not.
  */
 function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveState) => void } {
   const drawings = {
@@ -190,25 +189,33 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
     saving: createElement(Save as IconNode, { class: "pill__icon" }),
   };
   const pill = element("span", { className: "pill pill--save", role: "status" });
-  let savingSince: number | undefined;
-  let held: ReturnType<typeof setTimeout> | undefined;
+  // While the saving look runs: its timer, and whether the save has landed.
+  let showing: ReturnType<typeof setTimeout> | undefined;
+  let landed = false;
+  const stop = (): void => {
+    clearTimeout(showing);
+    showing = undefined;
+  };
   const set = (state: SaveState): void => {
-    clearTimeout(held);
-    held = undefined;
+    if (state === "unsaved") {
+      stop();
+      draw("unsaved");
+      return;
+    }
     if (state === "saving") {
-      if (savingSince === undefined) {
-        savingSince = Date.now();
-        draw(state);
+      landed = false;
+      if (showing === undefined && pill.dataset["state"] !== "saving") {
+        draw("saving");
+        showing = setTimeout(() => {
+          showing = undefined;
+          if (landed) draw("saved");
+        }, savingLook());
       }
       return;
     }
-    const left = savingSince === undefined ? 0 : savingSince + onePulse() - Date.now();
-    if (left > 0) {
-      held = setTimeout(() => set(state), left);
-      return;
-    }
-    savingSince = undefined;
-    draw(state);
+    // `saved`: shown now if the saving look is over (or never ran), else when it is.
+    landed = true;
+    if (showing === undefined) draw("saved");
   };
   const draw = (state: SaveState): void => {
     pill.dataset["state"] = state;
@@ -223,12 +230,12 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
 }
 
 /**
- * One pulse of the saving icon, in milliseconds, read from the token the
- * animation runs on so the two cannot drift apart. Without the stylesheet
- * there is no pulse to wait for.
+ * How long the pill shows `saving`, in milliseconds, read from the token the
+ * animation is built on so the two cannot drift apart. Without the stylesheet
+ * there is no saving look to wait for.
  */
-function onePulse(): number {
-  const token = getComputedStyle(document.documentElement).getPropertyValue("--duration-pulse").trim();
+function savingLook(): number {
+  const token = getComputedStyle(document.documentElement).getPropertyValue("--duration-saving").trim();
   const value = Number.parseFloat(token);
   if (Number.isNaN(value)) return 0;
   return token.endsWith("ms") ? value : value * 1000;
