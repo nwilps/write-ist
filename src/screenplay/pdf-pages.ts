@@ -33,6 +33,8 @@ const NUMBER_RIGHT = 540;
 export interface PdfPages {
   /** Page 1 when the title page has anything on it; otherwise empty. */
   readonly titlePage: readonly TitlePageRun[];
+  /** The unnumbered sheets above a leading forced page break, after the title page and before page 1. */
+  readonly frontMatter: readonly (readonly TitlePageRun[])[];
   /** One list of runs per numbered page of the layout. */
   readonly pages: readonly (readonly TitlePageRun[])[];
 }
@@ -51,7 +53,8 @@ export function pdfPagesOf(document: ScreenplayDocument): PdfPages {
     for (const line of page.lines) runs.push(...lineRuns(reduced, line));
     return runs;
   });
-  return { titlePage: titlePageRuns(reduced.titlePage), pages };
+  const frontMatter = laid.frontMatter.map((sheet) => sheet.lines.flatMap((line) => lineRuns(reduced, line)));
+  return { titlePage: titlePageRuns(reduced.titlePage), frontMatter, pages };
 }
 
 function run(

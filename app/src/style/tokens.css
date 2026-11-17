@@ -219,9 +219,15 @@
   --space-pill-gap: var(--space-panel);
   /** The save pill's icon (§4), a step up from the 14px of the panels. */
   --size-icon-large: 16px;
-  /** The saving icon breathes between full strength and this, gently. */
-  --opacity-pulse: 0.35;
-  --duration-pulse: 700ms;
+  /**
+   * How faint the save icon is: dimmed while there is unsaved work, and the
+   * low point of each pulse while saving.
+   */
+  --opacity-save-dim: 0.35;
+  /** How long the pill shows `saving` at least (`shell.ts`): three pulses. */
+  --duration-saving: 3s;
+  /** One pulse of the saving icon, bright to dim and back: one a second. */
+  --duration-save-pulse: calc(var(--duration-saving) / 3);
   --space-tab-gap: 32px;
   /**
    * The paper fading off under the window's top and bottom edges: bands as

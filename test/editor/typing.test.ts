@@ -16,9 +16,12 @@ import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import type { Command, EditorState } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
+import { undo } from "prosemirror-history";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import {
   cycleType,
+  cycleTypeBack,
+  elementKeys,
   joinBackwards,
   joinForwards,
   splitElement,
@@ -369,6 +372,56 @@ describe("Tab changes the type of the line the caret is on (#43)", () => {
   });
 });
 
+describe("Shift-Tab walks Tab's cycle backwards", () => {
+  it("walks the whole cycle the other way and comes back to a scene heading", () => {
+    let state = caretAt(opened("INT. KITCHEN - DAY"), 0, 3);
+    const seen: ElementType[] = [];
+    for (let step = 0; step < 6; step++) {
+      state = press(state, cycleTypeBack);
+      seen.push(types(state)[0]!);
+    }
+    expect(seen).toEqual([
+      "transition",
+      "parenthetical",
+      "dialogue",
+      "character",
+      "action",
+      "scene-heading",
+    ]);
+  });
+
+  it("takes a line back to the type it had before Tab", () => {
+    const state = caretAt(opened(SCENE), 1, 3);
+    const back = press(press(state, cycleType), cycleTypeBack);
+    // Only the type: the cue on the way capitalised the text (#44).
+    expect(types(back)).toEqual(types(state));
+  });
+
+  it("is bound to Shift-Tab, and claims the key even outside the cycle", () => {
+    const keyed = (state: EditorState): EditorState => {
+      let next = state;
+      const view = { state, dispatch: (tr: Parameters<typeof state.apply>[0]) => (next = state.apply(tr)) };
+      const event = new KeyboardEventLike("Tab", { shiftKey: true });
+      expect(elementKeys.props.handleKeyDown!.call(elementKeys, view as never, event as never)).toBe(true);
+      return next;
+    };
+    expect(types(keyed(caretAt(opened("Mary makes toast."), 0, 2)))).toEqual(["scene-heading"]);
+    expect(types(keyed(caretAt(opened("~La la la"), 0, 2)))).toEqual(["lyrics"]);
+  });
+});
+
+/** Just enough of a key event for the keymap to read. */
+class KeyboardEventLike {
+  readonly altKey = false;
+  readonly ctrlKey = false;
+  readonly metaKey = false;
+  readonly shiftKey: boolean;
+  readonly keyCode = 0;
+  constructor(readonly key: string, { shiftKey = false } = {}) {
+    this.shiftKey = shiftKey;
+  }
+}
+
 describe("Backspace at the start of an element joins it onto the one above (#43)", () => {
   it("keeps the upper element's type", () => {
     const after = press(caretAt(opened(SCENE), 3, 0), joinBackwards);
@@ -435,6 +488,45 @@ describe("a selection across several elements is not held", () => {
     // file it is nothing at all.
     expect(saved(after)).toBe("INT. KITCHEN - DAY\n\nMary makes toast.\n\n> FADE OUT.");
     expect(types(after)).toEqual(["scene-heading", "action", "transition"]);
+  });
+});
+
+describe("Backspace and Delete take out a selection across lines, as Cut does", () => {
+  /** From partway into the action line to partway into the dialogue. */
+  function selected(): EditorState {
+    const state = opened(SCENE);
+    const from = startOfElement(state, 1) + "Mary makes".length;
+    const to = startOfElement(state, 3) + "Mor".length;
+    return state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
+  }
+
+  for (const [key, command] of [["Backspace", joinBackwards], ["Delete", joinForwards]] as const) {
+    it(`${key} deletes it, the upper line keeping its type`, () => {
+      const state = selected();
+      expect(command(state)).toBe(true);
+      const after = press(state, command);
+      expect(texts(after)).toEqual(["INT. KITCHEN - DAY", "Mary makesning.", " FADE OUT."]);
+      expect(types(after)).toEqual(["scene-heading", "action", "transition"]);
+      expect(after.selection.empty).toBe(true);
+      expect(after.selection.from).toBe(startOfElement(after, 1) + "Mary makes".length);
+      // Exactly what Cut leaves, without the copy.
+      expect(saved(after)).toBe(saved(state.apply(state.tr.deleteSelection())));
+    });
+
+    it(`${key}'s deletion is undone in one step`, () => {
+      const state = selected();
+      const restored = press(press(state, command), undo);
+      expect(saved(restored)).toBe(saved(state));
+      expect(types(restored)).toEqual(types(state));
+    });
+  }
+
+  it("deletes a selection inside one line too", () => {
+    const state = opened(SCENE);
+    const from = startOfElement(state, 1) + "Mary".length;
+    const to = from + " makes".length;
+    const after = press(state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to))), joinBackwards);
+    expect(texts(after)[1]).toBe("Mary toast.");
   });
 });
 

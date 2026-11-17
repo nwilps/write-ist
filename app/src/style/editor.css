@@ -252,8 +252,24 @@ button.pill:focus-visible {
   color: var(--colour-affirm);
 }
 
+/* Unsaved work: the save icon, dimmed. */
+.pill--save[data-state="unsaved"] {
+  opacity: var(--opacity-save-dim);
+}
+
+/* Saving: the save icon at full strength, pulsing once a second. */
 .pill--save[data-state="saving"] {
-  animation: pill-pulse var(--duration-pulse) ease-in-out infinite alternate;
+  animation: pill-pulse var(--duration-save-pulse) ease-in-out infinite;
+}
+
+/*
+ * The spellcheck pill: the save pill's square, with the spell-check icon in
+ * the ordinary text colour. Shown only while spellcheck is on; it is not a switch.
+ */
+.pill--spellcheck {
+  width: var(--size-pill);
+  padding: 0;
+  color: var(--colour-text);
 }
 
 .pill__icon {
@@ -262,15 +278,18 @@ button.pill:focus-visible {
   flex: none;
 }
 
+/* One pulse: bright, dim, bright. */
 @keyframes pill-pulse {
-  from {
+  0%,
+  100% {
     opacity: 1;
   }
-  to {
-    opacity: var(--opacity-pulse);
+  50% {
+    opacity: var(--opacity-save-dim);
   }
 }
 
+/* No pulse: saving stays at full strength, still for the whole saving look. */
 @media (prefers-reduced-motion: reduce) {
   .pill--save[data-state="saving"] {
     animation: none;
@@ -519,6 +538,17 @@ button.pill:focus-visible {
  * start one blank line down.
  */
 .manuscript > [data-title-hidden] + :not([data-title-hidden]) {
+  margin-top: 0;
+}
+
+/*
+ * A forced page break is in the document and not on the paper either: it is a
+ * hidden placeholder (`hiddenPageBreak`), and the paper shows the seam to a new
+ * sheet instead. Where it opens the script, the line after it is the sheet's
+ * first and takes no blank line above.
+ */
+.manuscript > [data-page-break-hidden]:first-child + *,
+.manuscript > [data-title-hidden] + [data-page-break-hidden] + * {
   margin-top: 0;
 }
 

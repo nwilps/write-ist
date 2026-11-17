@@ -51,6 +51,7 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
+import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
 import { contextMenuItems } from "./context-menu-items.ts";
@@ -336,6 +337,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   // The paper with a column of panels either side (the desk design, §2.2).
   const panels = sidePanels(startSearch, editorMenus(host));
+  // After every change of state: the panels, and the spellcheck pill, which
+  // shows only while the pass is on — however it was turned on or off.
+  const shown = (writing: ManuscriptSession): void => {
+    panels.update(writing.state);
+    context.setSpellcheck(writing.spellcheck.isOn(writing.state));
+  };
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
 
   void (async () => {
@@ -362,7 +369,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           reloaded: (spellingWasOn) => {
             view?.updateState(writing.state);
             if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
-            panels.update(writing.state);
+            shown(writing);
           },
         },
         read,
@@ -377,7 +384,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         dispatchTransaction: (transaction) => {
           writing.apply(transaction);
           view?.updateState(writing.state);
-          panels.update(writing.state);
+          shown(writing);
         },
         // The explicit save ADR-0028 pairs with autosave, and the other keys
         // the Editor answers while the paper has focus — all from the command
@@ -400,8 +407,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           return true;
         },
         decorations: () => writing.seams,
-        // The title page is in the document and not on the paper.
-        nodeViews: hiddenTitlePage,
+        // The title page and a forced page break's `===` are in the document
+        // and not on the paper; the break is drawn as the seam to a new sheet.
+        nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         // The webview's own spellcheck is off: spelling is Write-ist's, on
@@ -409,7 +417,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         attributes: { class: "manuscript", spellcheck: "false" },
       });
       panels.attach(view);
-      panels.update(writing.state);
+      shown(writing);
       writing.showCounts();
       writing.showGoal();
 

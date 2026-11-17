@@ -12,14 +12,14 @@
  * design has no full-width status bar** (§1, §2.3): the workspace bar floats
  * over the top, and along the foot three small pills float over the desk — the
  * project's name at the left, the workspace's counts and the save state at the
- * right.
+ * right — with, while spellcheck is on, a spellcheck pill just left of the counts.
  *
  * **Placement and proportion, not contents.** What goes in the counts pill is
  * the workspace's business — the Editor's pages and words (#48) — so the shell
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
  */
-import { createElement, Save, SaveCheck, type IconNode } from "lucide";
+import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
@@ -100,6 +100,14 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const counts = element("button", { className: "pill pill--counts", type: "button", hidden: true });
   const goal = element("button", { className: "pill pill--goal", type: "button", hidden: true });
   const saved = savePill();
+  // Spellcheck is off when a project opens, so its pill starts hidden. It says
+  // only that the pass is on: a status, like the save pill, not a switch.
+  const spelling = element("span", { className: "pill pill--spellcheck", hidden: true });
+  spelling.setAttribute("role", "status");
+  spelling.setAttribute("aria-label", "Spellcheck is on");
+  const spellingIcon = createElement(SpellCheck as IconNode, { class: "pill__icon" });
+  spellingIcon.setAttribute("aria-hidden", "true");
+  spelling.append(spellingIcon);
   const askers = new Set<() => void>();
   const asked = (): void => askers.forEach((act) => act());
   counts.addEventListener("click", asked);
@@ -118,7 +126,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
         element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),
         goal,
       ]),
-      element("div", { className: "pills pills--right" }, [counts, saved.pill]),
+      element("div", { className: "pills pills--right" }, [spelling, counts, saved.pill]),
     ]),
   );
 
@@ -151,6 +159,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       return () => void askers.delete(act);
     },
     setSaved: saved.set,
+    setSpellcheck: (on) => void (spelling.hidden = !on),
     whenSwitchedAway: screen.whenSwitchedAway,
     whenSwitchedBack: screen.whenSwitchedBack,
     leave: { toProjects: screen.onClose, toHome: screen.onHome },
@@ -171,9 +180,16 @@ const SAVE_LABELS: Readonly<Record<SaveState, string>> = {
 
 /**
  * The save pill (the desk design, §2.3, §4): a 32px square holding one icon —
- * `save-check` in the affirm colour when the work is on disk, `save` in the
- * text colour when it is not, and pulsing while a save is under way. The state
- * is told to it; it never decides.
+ * `save-check` in the affirm colour when the work is on disk, `save` dimmed
+ * when it is not, and `save` pulsing while a save is under way. The state is
+ * told to it; it never decides.
+ *
+ * A save on a local disk lands in a few milliseconds, too quick to see. So once
+ * `saving` is shown it stays for the whole saving look (`--duration-saving`,
+ * three seconds: three pulses, one a second), and a save that succeeded turns
+ * green only when that is up. Work changed meanwhile is drawn at once, dimmed:
+ * the green check never stands over unsaved work. Only the pill waits: the save
+ * itself, and the state it reports, do not.
  */
 function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveState) => void } {
   const drawings = {
@@ -182,7 +198,35 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
     saving: createElement(Save as IconNode, { class: "pill__icon" }),
   };
   const pill = element("span", { className: "pill pill--save", role: "status" });
+  // While the saving look runs: its timer, and whether the save has landed.
+  let showing: ReturnType<typeof setTimeout> | undefined;
+  let landed = false;
+  const stop = (): void => {
+    clearTimeout(showing);
+    showing = undefined;
+  };
   const set = (state: SaveState): void => {
+    if (state === "unsaved") {
+      stop();
+      draw("unsaved");
+      return;
+    }
+    if (state === "saving") {
+      landed = false;
+      if (showing === undefined && pill.dataset["state"] !== "saving") {
+        draw("saving");
+        showing = setTimeout(() => {
+          showing = undefined;
+          if (landed) draw("saved");
+        }, savingLook());
+      }
+      return;
+    }
+    // `saved`: shown now if the saving look is over (or never ran), else when it is.
+    landed = true;
+    if (showing === undefined) draw("saved");
+  };
+  const draw = (state: SaveState): void => {
     pill.dataset["state"] = state;
     pill.setAttribute("aria-label", SAVE_LABELS[state]);
     pill.title = SAVE_LABELS[state];
@@ -192,6 +236,18 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
   };
   set("saved");
   return { pill, set };
+}
+
+/**
+ * How long the pill shows `saving`, in milliseconds, read from the token the
+ * animation is built on so the two cannot drift apart. Without the stylesheet
+ * there is no saving look to wait for.
+ */
+function savingLook(): number {
+  const token = getComputedStyle(document.documentElement).getPropertyValue("--duration-saving").trim();
+  const value = Number.parseFloat(token);
+  if (Number.isNaN(value)) return 0;
+  return token.endsWith("ms") ? value : value * 1000;
 }
 
 /**

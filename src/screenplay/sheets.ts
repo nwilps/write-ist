@@ -20,7 +20,7 @@ import { manuscriptIndex, startOfManuscriptElement } from "./numbering.ts";
 
 /** One seam: the foot of one sheet, and the head of the next. */
 export interface SheetBreak {
-  /** The 1-based page that begins after the seam. */
+  /** The 1-based page that begins after the seam; 0 for a sheet of front matter, which has no number. */
   readonly page: number;
   /** The manuscript element the seam falls in, or before. Blank lines are not counted. */
   readonly elementIndex: number;
@@ -34,18 +34,22 @@ export interface SheetBreak {
   readonly contd?: string;
 }
 
-/** The seams of a layout, one before each page after the first. */
+/**
+ * The seams of a layout, one before each sheet after the first: the front
+ * matter's sheets, if there are any, and then the numbered pages.
+ */
 export function sheetBreaks(laid: Layout): SheetBreak[] {
   const breaks: SheetBreak[] = [];
-  for (let n = 1; n < laid.pages.length; n++) {
-    const before = laid.pages[n - 1]!.lines;
-    const after = laid.pages[n]!.lines;
+  const sheets = [...laid.frontMatter, ...laid.pages];
+  for (let n = 1; n < sheets.length; n++) {
+    const before = sheets[n - 1]!.lines;
+    const after = sheets[n]!.lines;
     const first = after.find((line) => line.kind === "text");
     if (first === undefined) continue;
     const contd = after.find((line) => line.kind === "contd");
     const last = before[before.length - 1];
     breaks.push({
-      page: n + 1,
+      page: sheets[n]!.number,
       elementIndex: first.elementIndex,
       offset: first.start ?? 0,
       rowsLeft: Math.max(0, PAGE.linesPerPage - (last === undefined ? 0 : last.row + 1)),

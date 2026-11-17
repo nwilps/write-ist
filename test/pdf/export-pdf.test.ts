@@ -147,13 +147,16 @@ describe("what is left out", () => {
 });
 
 describe("the file", () => {
-  it("has Y + 1 pages with a title page, embeds subset Courier Prime, and prints the manuscript's text", async () => {
+  it("has Y + 2 pages with a title page and an epigraph page, embeds subset Courier Prime, and prints the manuscript's text", async () => {
     const document = bigFish();
     const printed = pdfPagesOf(document);
     expect(printed.titlePage.length).toBeGreaterThan(0);
+    // The epigraph above Big Fish's leading `====` is a sheet of its own,
+    // between the title page and page 1, and is not counted.
+    expect(printed.frontMatter).toHaveLength(1);
     const bytes = await renderPdf(printed, faces);
     const { pages, fontNames } = await extract(bytes);
-    expect(pages).toHaveLength(layout(document).totalPages + 1);
+    expect(pages).toHaveLength(layout(document).totalPages + 2);
     expect(fontNames.length).toBeGreaterThan(0);
     expect(fontNames.every((n) => /CourierPrime/.test(n))).toBe(true);
 
@@ -162,7 +165,7 @@ describe("the file", () => {
     const laid = layout(withoutCommentsAndBoneyard(document));
     laid.pages.forEach((page, at) => {
       const added = page.lines.filter((l) => l.kind !== "text").map((l) => l.text);
-      const got = pages[at + 1]!.filter((i) => Math.abs(i.y - 45) > 1).map((i) => i.text);
+      const got = pages[at + 2]!.filter((i) => Math.abs(i.y - 45) > 1).map((i) => i.text);
       for (const text of added) got.splice(got.indexOf(text), 1);
       const expected = page.lines.filter((l) => l.kind === "text" && l.text !== "").map((l) => l.text);
       expect(got.join("").replace(/\s+/g, "")).toBe(expected.join("").replace(/\s+/g, ""));
