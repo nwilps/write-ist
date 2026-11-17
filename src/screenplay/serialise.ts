@@ -18,7 +18,7 @@ import {
 } from "./document.ts";
 import { gapBetween } from "./geometry.ts";
 import { renderMarks } from "./marks.ts";
-import { looksLikeCharacter } from "./parse.ts";
+import { looksLikeCharacter, readsAsSceneHeading } from "./parse.ts";
 import { SPEECH, continuesSpeech } from "./pairing.ts";
 
 export function serialise(document: ScreenplayDocument): string {
@@ -109,7 +109,11 @@ function renderContent(
   const text = renderMarks(element, comments);
   switch (element.type) {
     case "scene-heading": {
-      const heading = element.forced ? `.${text}` : text;
+      // A heading the parser would not recognise on its own — `LATER`, made a
+      // heading with Tab — is forced, or it reopens as action. The test is on
+      // the line as the parser sees it: marks in, comment delimiters out.
+      const forced = element.forced || !readsAsSceneHeading(renderMarks(element));
+      const heading = forced ? `.${text}` : text;
       // A scene number is only ever lifted out of a heading that wrote it with
       // one space, so one space is what goes back (ADR-0021).
       return element.sceneNumber === undefined ? heading : `${heading} #${element.sceneNumber}#`;

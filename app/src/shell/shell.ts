@@ -174,6 +174,12 @@ const SAVE_LABELS: Readonly<Record<SaveState, string>> = {
  * `save-check` in the affirm colour when the work is on disk, `save` in the
  * text colour when it is not, and pulsing while a save is under way. The state
  * is told to it; it never decides.
+ *
+ * A save on a local disk lands in a few milliseconds, so `saving` used to be
+ * replaced before it was ever drawn and the pulse was never seen. So once
+ * `saving` is shown it stays for one pulse (`--duration-pulse`) at least, and
+ * the state it was told meanwhile is drawn when that is up. Only the pill
+ * waits: the save itself, and the state it reports, do not.
  */
 function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveState) => void } {
   const drawings = {
@@ -182,7 +188,27 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
     saving: createElement(Save as IconNode, { class: "pill__icon" }),
   };
   const pill = element("span", { className: "pill pill--save", role: "status" });
+  let savingSince: number | undefined;
+  let held: ReturnType<typeof setTimeout> | undefined;
   const set = (state: SaveState): void => {
+    clearTimeout(held);
+    held = undefined;
+    if (state === "saving") {
+      if (savingSince === undefined) {
+        savingSince = Date.now();
+        draw(state);
+      }
+      return;
+    }
+    const left = savingSince === undefined ? 0 : savingSince + onePulse() - Date.now();
+    if (left > 0) {
+      held = setTimeout(() => set(state), left);
+      return;
+    }
+    savingSince = undefined;
+    draw(state);
+  };
+  const draw = (state: SaveState): void => {
     pill.dataset["state"] = state;
     pill.setAttribute("aria-label", SAVE_LABELS[state]);
     pill.title = SAVE_LABELS[state];
@@ -192,6 +218,18 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
   };
   set("saved");
   return { pill, set };
+}
+
+/**
+ * One pulse of the saving icon, in milliseconds, read from the token the
+ * animation runs on so the two cannot drift apart. Without the stylesheet
+ * there is no pulse to wait for.
+ */
+function onePulse(): number {
+  const token = getComputedStyle(document.documentElement).getPropertyValue("--duration-pulse").trim();
+  const value = Number.parseFloat(token);
+  if (Number.isNaN(value)) return 0;
+  return token.endsWith("ms") ? value : value * 1000;
 }
 
 /**

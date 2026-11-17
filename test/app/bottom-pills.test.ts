@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext } from "../../app/src/shell/workspace.ts";
 import { countsText, wordsIn } from "../../src/screenplay/counts.ts";
@@ -91,6 +91,60 @@ describe("the bottom pills", () => {
     expect(save.dataset["state"]).toBe("unsaved");
     context().setSaved("saved");
     expect(drawn()).toBe(savedDrawing);
+  });
+
+  describe("hold a save that lands at once on its pulse for one pulse", () => {
+    const tokens = readFileSync(join(style, "tokens.css"), "utf8");
+    const pulse = /--duration-pulse:\s*([^;]+);/.exec(tokens)![1]!.trim();
+    const PULSE = Number.parseFloat(pulse);
+    afterEach(() => {
+      vi.useRealTimers();
+      document.documentElement.style.removeProperty("--duration-pulse");
+    });
+
+    function saving(): { save: HTMLElement; told: WorkspaceContext["setSaved"] } {
+      vi.useFakeTimers();
+      document.documentElement.style.setProperty("--duration-pulse", pulse);
+      const { into, context } = shell();
+      const save = into.querySelector<HTMLElement>(".pill--save")!;
+      return { save, told: context().setSaved };
+    }
+
+    it("so the pulse is seen, and then says what it was told", () => {
+      expect(pulse).toMatch(/^\d+ms$/);
+      const { save, told } = saving();
+      told("saving");
+      told("saved");
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(PULSE - 1);
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(1);
+      expect(save.dataset["state"]).toBe("saved");
+      expect(save.getAttribute("aria-label")).toBe("Saved");
+    });
+
+    it("does not hold a save that took longer than a pulse", () => {
+      const { save, told } = saving();
+      told("saving");
+      vi.advanceTimersByTime(PULSE * 2);
+      told("unsaved");
+      expect(save.dataset["state"]).toBe("unsaved");
+    });
+
+    it("draws only the last state it was told, and keeps pulsing through a second save", () => {
+      const { save, told } = saving();
+      told("saving");
+      told("saved");
+      vi.advanceTimersByTime(PULSE / 2);
+      told("saving");
+      told("unsaved");
+      vi.advanceTimersByTime(PULSE / 2 - 1);
+      expect(save.dataset["state"]).toBe("saving");
+      vi.advanceTimersByTime(1);
+      expect(save.dataset["state"]).toBe("unsaved");
+      vi.advanceTimersByTime(PULSE * 2);
+      expect(save.dataset["state"]).toBe("unsaved");
+    });
   });
 
   it("are the design's: 32px raised pills, 12px from the edge, 12px apart, a green check and a pulse", () => {

@@ -69,6 +69,13 @@ export function typeAfterTab(type: ElementType): ElementType | undefined {
   return TAB_CYCLE[(at + 1) % TAB_CYCLE.length];
 }
 
+/** What Shift-Tab turns an element of this type into: Tab's cycle, backwards. */
+export function typeBeforeTab(type: ElementType): ElementType | undefined {
+  const at = TAB_CYCLE.indexOf(type);
+  if (at === -1) return undefined;
+  return TAB_CYCLE[(at - 1 + TAB_CYCLE.length) % TAB_CYCLE.length];
+}
+
 /**
  * The attributes of an element of a different type, started or changed from
  * `from`'s. Only what is true of any line carries over: whether the line lies
@@ -212,19 +219,26 @@ function restoreGap(state: EditorState, dispatch: ((tr: Transaction) => void) | 
  * It always claims the key, even where it changes nothing: a Tab that fell
  * through would move focus out of the editor mid-sentence.
  */
-export const cycleType: Command = (state, dispatch) => {
-  if (dispatch === undefined) return true;
-  const { from, to } = state.selection;
-  const tr = state.tr;
-  state.doc.nodesBetween(from, to, (node, pos) => {
-    if (node.type.name !== "element") return node.type.name === "doc";
-    const next = typeAfterTab(node.attrs["type"] as ElementType);
-    if (next !== undefined) retype(tr, node, pos, next);
-    return false;
-  });
-  if (tr.docChanged) dispatch(structural(tr));
-  return true;
-};
+export const cycleType: Command = cycleBy(typeAfterTab);
+
+/** Shift-Tab: the same, one step back through the cycle. It claims the key too. */
+export const cycleTypeBack: Command = cycleBy(typeBeforeTab);
+
+function cycleBy(step: (type: ElementType) => ElementType | undefined): Command {
+  return (state, dispatch) => {
+    if (dispatch === undefined) return true;
+    const { from, to } = state.selection;
+    const tr = state.tr;
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (node.type.name !== "element") return node.type.name === "doc";
+      const next = step(node.attrs["type"] as ElementType);
+      if (next !== undefined) retype(tr, node, pos, next);
+      return false;
+    });
+    if (tr.docChanged) dispatch(structural(tr));
+    return true;
+  };
+}
 
 /**
  * The element types a writer can ask for by number, in the order the desk's
@@ -263,9 +277,11 @@ export function setElementType(type: ElementType): Command {
 
 /**
  * Backspace at the very start of an element: join it onto the one above,
- * which keeps its type. Anywhere else the key is left to delete a character.
+ * which keeps its type. With a selection, delete it, as Cut does without the
+ * copy. Anywhere else the key is left to delete a character.
  */
 export const joinBackwards: Command = (state, dispatch) => {
+  if (deleteSelected(state, dispatch)) return true;
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== 0) return false;
   const before = at.index(0) > 0 ? at.doc.child(at.index(0) - 1) : undefined;
@@ -300,9 +316,11 @@ function squishesGap(upper: EditorNode, lower: EditorNode): boolean {
 
 /**
  * Delete at the very end of an element: pull the one below onto it, so the
- * upper keeps its type — the same join, from the other side.
+ * upper keeps its type — the same join, from the other side. A selection is
+ * deleted, as Backspace deletes it.
  */
 export const joinForwards: Command = (state, dispatch) => {
+  if (deleteSelected(state, dispatch)) return true;
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== at.parent.content.size) return false;
   const after = at.index(0) + 1 < at.doc.childCount ? at.doc.child(at.index(0) + 1) : undefined;
@@ -323,6 +341,20 @@ function joinAt(state: EditorState, boundary: number, lower: EditorNode) {
   tr.setMeta(SPELLED, true);
   tr.delete(boundary - 1, boundary + 1);
   return tr.setSelection(TextSelection.create(tr.doc, boundary - 1)).scrollIntoView();
+}
+
+/**
+ * Backspace or Delete with a selection: take it out, the transaction Cut
+ * dispatches. The editor has no other binding for these keys, so a selection
+ * used to be left to the browser's own deletion, which across a line break did
+ * nothing on the paper (WebKitGTK); Cut never was — ProseMirror carries it out
+ * itself. Any join the deletion makes keeps its hidden syntax through
+ * `keepHiddenSyntax`, as Cut's does.
+ */
+function deleteSelected(state: EditorState, dispatch: ((tr: Transaction) => void) | undefined): boolean {
+  if (state.selection.empty) return false;
+  if (dispatch !== undefined) dispatch(state.tr.deleteSelection().scrollIntoView().setMeta("uiEvent", "delete"));
+  return true;
 }
 
 /** The caret, if nothing is selected and it is in an element. */
@@ -390,6 +422,7 @@ export const elementKeys = keymap({
   "Shift-Enter": splitElement,
   "Mod-Enter": splitElement,
   Tab: cycleType,
+  "Shift-Tab": cycleTypeBack,
   Backspace: joinBackwards,
   "Mod-Backspace": joinBackwards,
   Delete: joinForwards,

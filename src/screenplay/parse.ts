@@ -78,6 +78,14 @@ const BONEYARD_CLOSE = "*/";
  */
 const SCENE_HEADING = /^(?:INT\.?\/EXT|EXT\.?\/INT|I\/E|INT|EXT|EST)[.\s]/i;
 
+/**
+ * Whether a line with no forcing marker reads as a scene heading. The
+ * serialiser asks, to know when a heading has to be written forced.
+ */
+export function readsAsSceneHeading(content: string): boolean {
+  return SCENE_HEADING.test(content);
+}
+
 /** An unforced transition: all caps, ending in `TO:`. */
 const TRANSITION = /^[A-Z][A-Z0-9 '\-]*TO:$/;
 
