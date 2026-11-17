@@ -38,7 +38,6 @@ import {
   FileText,
   FolderOpen,
   House,
-  MapPin,
   Save,
   Scissors,
   SpellCheck,
@@ -69,10 +68,13 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
   readonly editGoals: () => void;
-  readonly confirmName: () => void;
-  readonly confirmLocation: () => void;
-  /** Confirm whichever of the two the caret is in. */
-  readonly confirmHere: () => void;
+  /**
+   * Whether the character name or location at a position is one that is not on
+   * its list yet: the only place Add name/location is offered.
+   */
+  readonly canAddName: (at: number) => boolean;
+  /** Add the name or location at a position to its list; nothing anywhere else. */
+  readonly addName: (at: number) => void;
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
@@ -197,11 +199,6 @@ export const COMMANDS: readonly Command[] = [
   // Edit
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
-  // Ctrl+K confirms whichever the caret is in; the two items confirm one kind
-  // each, and show the same key because it is the same key.
-  { id: "confirm-here", label: "Confirm Name or Location", chord: { key: "k", mod: true }, run: (host) => host.confirmHere() },
-  { id: "confirm-name", label: "Confirm This Name", icon: UserCheck, sameKeyAs: "confirm-here", menu: { name: "Edit", group: "confirm" }, run: (host) => host.confirmName() },
-  { id: "confirm-location", label: "Confirm This Location", icon: MapPin, sameKeyAs: "confirm-here", menu: { name: "Edit", group: "confirm" }, run: (host) => host.confirmLocation() },
 
   // View
   { id: "view-title-page", label: "View Title Page", icon: Eye, menu: { name: "View", group: "title-page" }, run: (host) => host.viewTitlePage() },
@@ -242,6 +239,19 @@ export const COMMANDS: readonly Command[] = [
   { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
   { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.paste() },
   { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.selectAll() },
+
+  // Add name/location: on the right-click menu only, and only on a character
+  // name or location not on its list yet; in no application menu. Ctrl+K asks
+  // for it at the caret, and does nothing anywhere else.
+  {
+    id: "add-name",
+    label: "Add name/location",
+    icon: UserCheck,
+    chord: { key: "k", mod: true },
+    context: { group: "names", contextual: true },
+    available: (host, at) => host.canAddName(at),
+    run: (host, at) => host.addName(at),
+  },
 
   // Dual dialogue (ADR-0037), offered on the paper's right-click menu (ADR-0034).
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),

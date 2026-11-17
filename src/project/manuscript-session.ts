@@ -180,13 +180,17 @@ export interface ManuscriptSession {
   readonly leave: () => Promise<boolean>;
   /** Resolves when every confirmation so far has been written (or has failed, and been said). */
   readonly settled: () => Promise<void>;
-  /** Which list the caret's element belongs in. */
-  readonly confirmableKind: () => NameKind;
   /**
-   * The writer says the name or location the caret is in is right. Answers
-   * whether there was one to say it of.
+   * The list the name or location at a position could be added to: there is
+   * one there, it is not on its list yet, and the names file can be written.
+   * Nothing otherwise — action, dialogue, a name already listed.
    */
-  readonly confirm: (kind: NameKind) => boolean;
+  readonly confirmableAt: (at: number) => NameKind | undefined;
+  /**
+   * The writer says the name or location at a position (default: the caret)
+   * is right. Answers whether there was one to say it of.
+   */
+  readonly confirm: (kind: NameKind, at?: number) => boolean;
 }
 
 export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): ManuscriptSession {
@@ -406,9 +410,12 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   // or not at all; the manuscript is not touched. A failed write is said, and
   // the confirmation holds until the project closes.
   let writingNames: Promise<void> = Promise.resolve();
-  const confirm = (kind: NameKind): boolean => {
-    const at = elementUnder(state.doc, state.selection.head);
-    const found = at === undefined ? undefined : nameOf(at);
+  const nameAt = (at: number): ReturnType<typeof nameOf> => {
+    const under = elementUnder(state.doc, at);
+    return under === undefined ? undefined : nameOf(under);
+  };
+  const confirm = (kind: NameKind, at = state.selection.head): boolean => {
+    const found = nameAt(at);
     if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
     if (names.confirm(kind, found.name)) {
       const toWrite = confirmationsOf(names);
@@ -485,9 +492,10 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     },
     leave,
     settled: () => writingNames,
-    confirmableKind: () => {
-      const at = elementUnder(state.doc, state.selection.head);
-      return at?.type === "scene-heading" ? "location" : "character";
+    confirmableAt: (at) => {
+      const found = nameAt(at);
+      if (found === undefined || read.confirmed === undefined) return undefined;
+      return names.isConfirmed(found.kind, found.name) ? undefined : found.kind;
     },
     confirm,
   };

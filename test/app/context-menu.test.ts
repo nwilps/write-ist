@@ -207,7 +207,7 @@ const TWO = "INT. A - DAY\n\nSTEEL\nHi.\n\nBRICK\nYo.\n";
 const PAIR = "INT. A - DAY\n\nSTEEL\nHi.\n\nBRICK ^\nYo.\n";
 const ACTION = "INT. A - DAY\n\nThey wait.\n";
 
-function editing(text: string, wrong?: Misspelling) {
+function editing(text: string, wrong?: Misspelling, unlisted: (at: number) => boolean = () => false) {
   let state: EditorState = editorStateFor(parse(text));
   const view = {
     get state() {
@@ -219,10 +219,10 @@ function editing(text: string, wrong?: Misspelling) {
     focus: () => {},
   } as unknown as EditorView;
   const spies = Object.fromEntries(
-    ["save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "confirmName",
-      "confirmLocation", "confirmHere", "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
+    ["save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "addName",
+      "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
   );
-  const host = { ...spies, spellcheckOn: () => false, misspellingAt: () => wrong, view: () => view } as unknown as CommandHost &
+  const host = { ...spies, canAddName: unlisted, spellcheckOn: () => false, misspellingAt: () => wrong, view: () => view } as unknown as CommandHost &
     Record<string, ReturnType<typeof vi.fn>>;
   return { host, view, state: () => state, saved: () => serialise(manuscriptOf(state.doc)) };
 }
@@ -308,6 +308,36 @@ describe("what the menu holds", () => {
   });
 });
 
+describe("Add name/location", () => {
+  // The host answers whether the name at a position is off its list; the
+  // session's rule for that is checked in manuscript-session.test.ts.
+  it("is offered on a name not on its list yet, with its own wording, and adds it there", async () => {
+    // STEEL's cue, element 1, is the one name off its list.
+    const at = startOfElement(editorStateFor(parse(TWO)), 1);
+    const writing = editing(TWO, undefined, (where) => where === at);
+    const entries = await contextMenuItems(writing.host, at);
+    expect(drawn(entries)).toContain("Add name/location[Ctrl + K]");
+    itemNamed(entries, "Add name/location").act();
+    expect(writing.host["addName"]).toHaveBeenCalledExactlyOnceWith(at);
+  });
+
+  it("is absent everywhere else: action, dialogue, a heading or a name already listed", async () => {
+    const writing = editing(TWO);
+    for (const element of [0, 1, 2, 3, 4]) {
+      const labels = drawn(await contextMenuItems(writing.host, startOfElement(writing.state(), element))).join();
+      expect(labels, `element ${element}`).not.toContain("Add name/location");
+    }
+    const action = editing(ACTION);
+    expect(drawn(await contextMenuItems(action.host, startOfElement(action.state(), 1))).join()).not.toContain("Add name");
+  });
+
+  it("is never greyed: where it could not act it is not drawn at all", async () => {
+    const writing = editing(TWO);
+    const entries = await contextMenuItems(writing.host, startOfElement(writing.state(), 1));
+    expect(drawn(entries).join()).not.toContain("~Add name");
+  });
+});
+
 describe("a misspelt word", () => {
   function misspelt(suggestions: () => Promise<readonly string[]>) {
     const replace = vi.fn();
@@ -383,7 +413,7 @@ describe("adding an item", () => {
 
   it("is for commands only: everything on the menu has a label and a command of its own", () => {
     const ids = COMMANDS.filter((command) => command.context !== undefined).map((command) => command.id);
-    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]);
+    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "add-name", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]);
   });
 });
 

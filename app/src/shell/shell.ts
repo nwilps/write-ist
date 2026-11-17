@@ -145,7 +145,6 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     goal.textContent = pill.text;
     goal.dataset["kind"] = pill.kind;
     goal.dataset["state"] = pill.state;
-    goal.title = "Goals";
   };
 
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
@@ -229,7 +228,6 @@ function savePill(): { readonly pill: HTMLElement; readonly set: (state: SaveSta
   const draw = (state: SaveState): void => {
     pill.dataset["state"] = state;
     pill.setAttribute("aria-label", SAVE_LABELS[state]);
-    pill.title = SAVE_LABELS[state];
     const icon = drawings[state].cloneNode(true) as SVGElement;
     icon.setAttribute("aria-hidden", "true");
     pill.replaceChildren(icon);

@@ -159,7 +159,7 @@ export function sidePanels(
     if (key !== listed) {
       listed = key;
       sceneList.replaceChildren(
-        ...headings.map((text) => element("li", { className: "panel__scene", textContent: text, title: text })),
+        ...headings.map((text) => element("li", { className: "panel__scene", textContent: text })),
       );
     }
 

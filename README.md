@@ -52,8 +52,8 @@ Everything below is in the app now.
   Write-ist won't write over that change.
 - **Autocomplete** for character cues and scene headings, from the names and locations already
   in your script.
-- **Character and location lists**, built from your script. **Confirm** a name or location and
-  autocomplete offers it and spellcheck knows it.
+- **Character and location lists**, built from your script. Right-click a new name or location and
+  choose **Add name/location**, and autocomplete offers it and spellcheck knows it.
 - **Spellcheck, on demand.** Off until you turn it on (View ▸ Spellcheck). Right-click a flagged
   word for suggestions or to add it to your dictionary. It runs entirely on your computer and phones nothing home.
 - **Search** through the script, and jump to any match.

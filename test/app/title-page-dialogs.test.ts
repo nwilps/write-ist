@@ -167,9 +167,9 @@ describe("View Title Page", () => {
 describe("the Edit and View menus", () => {
   const act = {
     save: vi.fn(), saveCopy: vi.fn(), exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
-    editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(), confirmName: vi.fn(), confirmLocation: vi.fn(),
+    editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(), canAddName: vi.fn(() => false), addName: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
-    confirmHere: vi.fn(), search: vi.fn(), view: () => undefined,
+    search: vi.fn(), view: () => undefined,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), misspellingAt: () => undefined,
   };
   function panel() {
@@ -179,19 +179,17 @@ describe("the Edit and View menus", () => {
   }
   afterEach(() => vi.clearAllMocks());
 
-  it("hold only what works: the title page, goals, names and spelling", () => {
+  it("hold only what works: the title page, goals and spelling", () => {
     const menus = editorMenus(act);
     const labels = (name: string) => menus[name]!.map((entry) => ("label" in entry ? entry.label : "—"));
     expect(Object.keys(menus)).toEqual(["File", "Edit", "View"]);
     expect(labels("Edit")).toEqual([
-      "Edit Title Page…", "—", "Edit Goals…", "—", "Confirm This Name", "Confirm This Location",
+      "Edit Title Page…", "—", "Edit Goals…",
     ]);
     expect(labels("View")).toEqual(["View Title Page", "—", "Spellcheck"]);
     // No shortcut is shown that does not exist: only Spellcheck has one here.
     expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + ;]"]);
-    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([
-      "[Ctrl + K]", "[Ctrl + K]",
-    ]);
+    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([]);
   });
 
   it("open from their rows like File, and the items run the actions", () => {

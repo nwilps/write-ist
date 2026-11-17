@@ -56,6 +56,9 @@ describe("the side panels", () => {
     const { panels } = mounted();
     const scenes = [...panels.left.querySelectorAll(".panel__scene")].map((li) => li.textContent);
     expect(scenes).toEqual(["INT. KITCHEN - NIGHT", "EXT. HARBOUR - DAWN"]);
+    // No hover tooltip on a scene, or anywhere else in the panels.
+    expect(panels.left.querySelector("[title]")).toBeNull();
+    expect(panels.right.querySelector("[title]")).toBeNull();
   });
 
   it("keep the scene list up to date when a heading is added", () => {

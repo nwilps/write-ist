@@ -179,7 +179,9 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
         bar.style.setProperty("--bar", String((day.words / top) * 100));
         if (day.met) bar.classList.add("goals-chart__bar--met");
         if (!day.counted) bar.classList.add("goals-chart__bar--idle");
-        bar.title = `${shortDate(day.day)}: ${plural(day.words, "word", "words")}${day.counted ? "" : " (not a counted day)"}`;
+        // Said to a screen reader, never shown on hover.
+        bar.setAttribute("role", "img");
+        bar.setAttribute("aria-label", `${shortDate(day.day)}: ${plural(day.words, "word", "words")}${day.counted ? "" : " (not a counted day)"}`);
         return bar;
       }),
     );

@@ -49,7 +49,6 @@ import {
   readManuscript,
   type ManuscriptSession,
 } from "../../../../src/project/manuscript-session.ts";
-import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
 import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
@@ -187,10 +186,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view.focus();
   };
 
-  // Step 8: the writer says the name or location the caret is in is right.
-  const confirmHere = (kind: NameKind): void => {
+  // Step 8: the writer adds the name or location at a position to its list.
+  // Only one not on its list yet: anywhere else this does nothing.
+  const addName = (at: number): void => {
     if (session === undefined || view === undefined) return;
-    if (!session.confirm(kind)) return;
+    const kind = session.confirmableAt(at);
+    if (kind === undefined || !session.confirm(kind, at)) return;
     // A confirmed name is a known word now, and a near-match of it a typo.
     session.spellcheck.refresh(view);
     view.focus();
@@ -299,12 +300,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editTitlePage,
     viewTitlePage,
     editGoals,
-    confirmName: () => confirmHere("character"),
-    confirmLocation: () => confirmHere("location"),
-    // Ctrl+K: whichever the caret is in.
-    confirmHere: () => {
-      if (session !== undefined) confirmHere(session.confirmableKind());
-    },
+    canAddName: (at) => session?.confirmableAt(at) !== undefined,
+    addName,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     search: startSearch,

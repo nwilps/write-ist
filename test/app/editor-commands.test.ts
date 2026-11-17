@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "confirmName", "confirmLocation", "confirmHere", "toggleSpellcheck", "search",
+    "canAddName", "addName", "toggleSpellcheck", "search",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -62,9 +62,9 @@ describe("the command a key press asks for", () => {
     }
   });
 
-  it("is Ctrl+K for confirming the name or location the caret is in", () => {
-    expect(commandForKey(press("k", { ctrl: true }), "editor")?.id).toBe("confirm-here");
-    expect(commandForKey(press("K", { meta: true }), "editor")?.id).toBe("confirm-here");
+  it("is Ctrl+K for adding the name or location the caret is in", () => {
+    expect(commandForKey(press("k", { ctrl: true }), "editor")?.id).toBe("add-name");
+    expect(commandForKey(press("K", { meta: true }), "editor")?.id).toBe("add-name");
   });
 
   it("is Ctrl+; or Cmd+; for the spelling pass, and not a bare semicolon", () => {
@@ -104,10 +104,6 @@ describe("the hint drawn beside a command", () => {
     expect(hintOf(commandById("element-centered")!)).toBe("[Ctrl + 7]");
   });
 
-  it("is shared by the items that borrow a key: both confirm items show Ctrl+K", () => {
-    expect(hintOf(commandById("confirm-name")!)).toBe("[Ctrl + K]");
-    expect(hintOf(commandById("confirm-location")!)).toBe("[Ctrl + K]");
-  });
 
   it("is absent where there is no key", () => {
     expect(hintOf(commandById("save-copy")!)).toBeUndefined();
@@ -156,7 +152,7 @@ describe("the Editor's menus", () => {
         "---",
         "Home[Esc]",
       ],
-      Edit: ["Edit Title Page…", "---", "Edit Goals…", "---", "Confirm This Name[Ctrl + K]", "Confirm This Location[Ctrl + K]"],
+      Edit: ["Edit Title Page…", "---", "Edit Goals…"],
       View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]"],
     });
   });
@@ -176,8 +172,6 @@ describe("the Editor's menus", () => {
     choose("Home");
     choose("Edit Title Page…");
     choose("View Title Page");
-    choose("Confirm This Name");
-    choose("Confirm This Location");
     choose("Spellcheck");
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["saveCopy"]).toHaveBeenCalledOnce();
@@ -186,8 +180,6 @@ describe("the Editor's menus", () => {
     expect(act["toHome"]).toHaveBeenCalledOnce();
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();
     expect(act["viewTitlePage"]).toHaveBeenCalledOnce();
-    expect(act["confirmName"]).toHaveBeenCalledOnce();
-    expect(act["confirmLocation"]).toHaveBeenCalledOnce();
     expect(act["toggleSpellcheck"]).toHaveBeenCalledOnce();
   });
 
@@ -197,9 +189,10 @@ describe("the Editor's menus", () => {
     expect(item !== undefined && !("divider" in item) && item.checked?.()).toBe(true);
   });
 
-  it("do not hold the commands that are not in a menu yet: the dual-dialogue three", () => {
+  it("do not hold the right-click-only commands: the dual-dialogue three and Add name/location", () => {
     const labels = Object.values(editorMenus(host())).flat().map((entry) => ("divider" in entry ? "" : entry.label));
-    for (const id of ["make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]) {
+    expect(commandById("add-name")?.menu).toBeUndefined();
+    for (const id of ["make-dual-dialogue", "make-normal-dialogue", "swap-speakers", "add-name"]) {
       expect(labels).not.toContain(commandById(id)!.label);
     }
   });

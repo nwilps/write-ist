@@ -166,7 +166,7 @@ describe("a keystroke", () => {
   it("puts the page and the words in the counts", async () => {
     const { session, heard } = await aSession();
     typeInto(session, 3);
-    expect(heard.status.at(-1)).toMatch(/^Pages: ~\d+ \/ \d+ \| Words: [\d,]+$/);
+    expect(heard.status.at(-1)).toMatch(/^p\. ~\d+ \/ \d+ \| w\. [\d,]+$/);
   });
 });
 
@@ -354,7 +354,6 @@ describe("confirming a name", () => {
   it("writes the names file whole, and the lists hold it", async () => {
     const { session, opened } = await aSession();
     caretInFirst(session, "character");
-    expect(session.confirmableKind()).toBe("character");
     expect(session.confirm("character")).toBe(true);
     const name = session.names.explicit("character")[0]!;
     await session.settled();
@@ -365,7 +364,6 @@ describe("confirming a name", () => {
   it("asks the location list for a scene heading", async () => {
     const { session } = await aSession();
     caretInFirst(session, "scene-heading");
-    expect(session.confirmableKind()).toBe("location");
     expect(session.confirm("location")).toBe(true);
     expect(session.names.explicit("location")).toHaveLength(1);
   });
@@ -375,6 +373,25 @@ describe("confirming a name", () => {
     caretInFirst(session, "scene-heading");
     expect(session.confirm("character")).toBe(false);
     expect(session.names.explicit("character")).toEqual([]);
+  });
+
+  it("offers Add name/location only on a name or location not on its list yet", async () => {
+    const { session } = await aSession();
+    session.names.setConfirmAfterUses(1_000_000);
+    const first = (type: string): number => {
+      const index = manuscriptOf(session.state.doc).elements.findIndex((element) => element.type === type);
+      return startOfElement(session.state, index);
+    };
+    expect(session.confirmableAt(first("character"))).toBe("character");
+    expect(session.confirmableAt(first("scene-heading"))).toBe("location");
+    expect(session.confirmableAt(first("action"))).toBeUndefined();
+    expect(session.confirmableAt(first("dialogue"))).toBeUndefined();
+
+    expect(session.confirm("character", first("character"))).toBe(true);
+    expect(session.confirmableAt(first("character"))).toBeUndefined();
+    // Listed by use, without the writer adding it, is listed too.
+    session.names.setConfirmAfterUses(1);
+    expect(session.confirmableAt(first("scene-heading"))).toBeUndefined();
   });
 
   it("keeps a confirmation through a reload from outside, without a second copy to go stale", async () => {
@@ -406,6 +423,7 @@ describe("confirming a name", () => {
     expect(made.heard.reports[0]).toContain("will not change them");
     const session = manuscriptSession(made.ports, read);
     caretInFirst(session, "character");
+    expect(session.confirmableAt(session.state.selection.head)).toBeUndefined();
     expect(session.confirm("character")).toBe(false);
     expect(session.names.explicit("character")).toEqual([]);
   });
