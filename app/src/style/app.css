@@ -8,7 +8,7 @@
  * `open-project.css`, over what is here.) Both screens are a centred composition over the window, which is
  * v1's shape. **The shell and the Editor's page are in `editor.css`**, because
  * they answer to different references — v1 for these screens, the spike and the
- * prototype for those (#37). The workspace bar arrives in a later slice.
+ * prototype for those (#37). The workspace bar is drawn in `editor.css` too.
  */
 
 *,

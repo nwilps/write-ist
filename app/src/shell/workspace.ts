@@ -7,10 +7,11 @@
  * > what it is. […] Get this right and a new workspace is a manifest; get it
  * > wrong and every workspace is surgery in the shell.
  *
- * Slice 1 has exactly one workspace, the Editor, and the workspace bar is not
- * built. The manifest exists anyway, and that is the whole point: the bar and
- * the Notes, Plan and Log workspaces arrive as entries in a registry rather than
- * as changes in here. ADR-0005 records that stating this rule is what failed
+ * The Editor is the one real workspace. The workspace bar is drawn, and beside
+ * the Editor it lists Notes and Plan, which are placeholders for now
+ * (`app/src/workspaces/placeholders.ts`). That is the whole point of the
+ * manifest: those tabs, and the real Notes, Plan and Log workspaces after them,
+ * arrive as entries in a registry rather than as changes in here. ADR-0005 records that stating this rule is what failed
  * last time — v1's architecture document already said modes must never be
  * hard-coded into the shell, and v1 still produced a 3,535-line `Draft.tsx`.
  *
@@ -142,11 +143,11 @@ export interface MountedWorkspace {
 export interface WorkspaceManifest {
   /** Stable, and not shown to the writer. */
   readonly id: string;
-  /** What the workspace bar will call it. */
+  /** What the workspace bar calls it. */
   readonly name: string;
   /**
-   * The letter the workspace bar will show beside it. The bar is not built, so
-   * nothing reads this yet; it is declared here because it is part of what a
+   * The letter for reaching it from the keyboard. The workspace bar shows each
+   * tab's icon and name but does not read this yet; it is declared here because it is part of what a
    * workspace *is*, and adding it later would mean touching every manifest.
    */
   readonly key: string;

@@ -1,5 +1,11 @@
 # Slice 2 — finish the core: write a whole screenplay and send out a PDF
 
+> **Where this stands (2026-11-17):** most of Slice 2 is built and on `main`. What remains is
+> [#92](https://github.com/nwilps/write-ist/issues/92) (the caret at sheet seams, on
+> Linux/WebKitGTK) and [#103](https://github.com/nwilps/write-ist/issues/103) (the full
+> start-to-finish test, and the numbers this spec names). Everything below is the original plan,
+> kept as history; it is not a current status report.
+
 **Status: draft for Noah's review; first decisions recorded 2026-10-31** (Q1, Q-K, the title page and the
 Penpot sequencing — marked *Resolved* where they appear). No issues or tickets exist yet. `/to-tickets` charts them after
 this spec is approved, and the questions in each step and in the list at the end are for Noah to

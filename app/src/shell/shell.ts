@@ -33,9 +33,10 @@ export interface ShellScreen {
   readonly project: Project;
   readonly filesystem: Filesystem;
   /**
-   * The workspaces this project shows, in the order the bar will list them.
-   * The first is the one on screen: slice 1 has one, and the bar that would
-   * choose between them is out of scope.
+   * The workspaces this project shows, in the order the bar lists them. The
+   * first is the one on screen. The bar is drawn, but the Editor is the only
+   * real workspace; Notes and Plan are placeholder tabs, so switching does
+   * nothing yet.
    */
   readonly workspaces: readonly WorkspaceManifest[];
   /** Close the project and go back to where it was chosen. */

@@ -26,7 +26,9 @@ package the writer may not have.
 - **Own engine, Rust side of Tauri.** `spellbook` (MPL-2.0, Hunspell-compatible) is the preferred
   choice; `zspell`, `hunspell-sys` and `nspell` are the alternatives. **The choice is confirmed by the
   evaluation ticket**, which verifies licences, size and speed. This ADR does not bind the crate, only
-  that it is ours, in Rust, and offline.
+  that it is ours, in Rust, and offline. In the event, `spellbook` shipped in #121, and the
+  evaluation ticket (#100) was closed without the four-engine comparison table; Noah was happy
+  with that choice.
 - **Dictionaries ship with the application**, with their notices kept. This restores ADR-0009's
   original sentence that spellcheck dictionaries ship with the app, not inside each project.
 - **On demand.** Off while writing; a hotkey toggles a pass; underlines are drawn on screen only and
