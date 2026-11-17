@@ -4,11 +4,11 @@
 
 Write-ist is for writers who want a calm, fast place to write that they actually own. No account,
 no subscription, no cloud: none of the usual rentware. Your work is bare text sitting in a folder
-on your disk, and it stays readable in any text editor even if Write-ist disappears tomorrow.
+on your disk, and it stays readable in any text editor for centuries from now, even if Write-ist disappears tomorrow.
 
 Screenplay is the only format available right now. Other formats are coming. Write-ist is built and
 tested on **Linux**. It should also run on Windows and macOS, but nobody has tested those yet,
-so expect rough edges.
+so expect VERY rough edges.
 
 ![The Write-ist home screen](docs/images/home.png)
 
@@ -18,7 +18,7 @@ so expect rough edges.
 
 ## Philosophy
 
-Write-ist is meant as the punk rock middle finger to our current cyberpunk tech overlords, who
+Write-ist is the punk rock middle finger to our current cyberpunk tech overlords, who
 use terms like "industry standard" to force us into tools that are out of date, poorly
 maintained, slow, buggy, inflexible, grossly overpriced, and designed to squeeze every bit of
 ownership away from their users, treating us more like data cattle than customers.
@@ -30,12 +30,12 @@ So, in plain terms:
 - **Your files are plain files you own.** A project is an ordinary folder, and a screenplay
   inside it is a [Fountain](https://fountain.io) text file. No proprietary format, no lock-in, no standard tax.
 - **No account.** Nothing to sign up for, nothing to log in to, no profile kept on you.
-- **No cloud.** Nothing you write leaves the machine.
+- **No cloud.** Nothing you write leaves the machine (unless you want it to, any project folder can be saved in the cloud).
 - **It runs gridless:** offline, all of it, all the time.
 
 ## Inventory
 
-Everything below is in the app now. No vaporware.
+Everything below is in the app now.
 
 **Writing**
 
