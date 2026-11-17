@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "canAddName", "addName", "toggleSpellcheck", "search",
+    "toggleSpellcheck", "search",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -62,9 +62,13 @@ describe("the command a key press asks for", () => {
     }
   });
 
-  it("is Ctrl+K for adding the name or location the caret is in", () => {
-    expect(commandForKey(press("k", { ctrl: true }), "editor")?.id).toBe("add-name");
-    expect(commandForKey(press("K", { meta: true }), "editor")?.id).toBe("add-name");
+  it("is nothing for Ctrl+K or Cmd+K: no command has that key", () => {
+    for (const keys of ["editor", "window"] as const) {
+      expect(commandForKey(press("k", { ctrl: true }), keys)).toBeUndefined();
+      expect(commandForKey(press("K", { meta: true }), keys)).toBeUndefined();
+    }
+    expect(COMMANDS.filter((command) => command.chord?.key.toLowerCase() === "k")).toEqual([]);
+    expect(commandById("add-name")).toBeUndefined();
   });
 
   it("is Ctrl+; or Cmd+; for the spelling pass, and not a bare semicolon", () => {
@@ -189,12 +193,12 @@ describe("the Editor's menus", () => {
     expect(item !== undefined && !("divider" in item) && item.checked?.()).toBe(true);
   });
 
-  it("do not hold the right-click-only commands: the dual-dialogue three and Add name/location", () => {
+  it("do not hold the commands that are not in a menu yet: the dual-dialogue three", () => {
     const labels = Object.values(editorMenus(host())).flat().map((entry) => ("divider" in entry ? "" : entry.label));
-    expect(commandById("add-name")?.menu).toBeUndefined();
-    for (const id of ["make-dual-dialogue", "make-normal-dialogue", "swap-speakers", "add-name"]) {
+    for (const id of ["make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]) {
       expect(labels).not.toContain(commandById(id)!.label);
     }
+    expect(labels.join()).not.toMatch(/Add name|Confirm|Remove from list/);
   });
 });
 

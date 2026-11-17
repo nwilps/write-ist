@@ -186,17 +186,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view.focus();
   };
 
-  // Step 8: the writer adds the name or location at a position to its list.
-  // Only one not on its list yet: anywhere else this does nothing.
-  const addName = (at: number): void => {
-    if (session === undefined || view === undefined) return;
-    const kind = session.confirmableAt(at);
-    if (kind === undefined || !session.confirm(kind, at)) return;
-    // A confirmed name is a known word now, and a near-match of it a typo.
-    session.spellcheck.refresh(view);
-    view.focus();
-  };
-
   const saveNow = (): void => {
     void session?.save();
     view?.focus();
@@ -300,8 +289,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editTitlePage,
     viewTitlePage,
     editGoals,
-    canAddName: (at) => session?.confirmableAt(at) !== undefined,
-    addName,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     search: startSearch,
@@ -321,7 +308,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           editing.focus();
         },
         addToDictionary: () => {
-          void writing.spellcheck.addToDictionary(editing, issue.word).then(
+          // On a cue's name or a heading's location, the name joins its list too.
+          void writing.addToDictionary(editing, issue).then(
             () => editing.focus(),
             (error: unknown) =>
               context.report(`Write-ist could not add that word to your dictionary. ${message(error)}`),

@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   locationName,
+  locationRange,
   NameLists,
   nameOf,
   normaliseName,
@@ -114,6 +115,37 @@ describe("where a scene is", () => {
 
   it("reads a heading element as a location", () => {
     expect(nameOf(heading("INT. KITCHEN - DAY"))).toEqual({ kind: "location", name: "KITCHEN" });
+  });
+});
+
+describe("where in a heading the place sits", () => {
+  const placeOf = (text: string): string | undefined => {
+    const range = locationRange(text);
+    return range === undefined ? undefined : text.slice(range.from, range.to);
+  };
+
+  it.each([
+    ["INT. KITCHEN - DAY", "KITCHEN"],
+    ["I/E. CAR - DAY", "CAR"],
+    ["INT. DAY ROOM - DAY", "DAY ROOM"],
+    ["INT. HOUSE - KITCHEN - DAY", "HOUSE - KITCHEN"],
+    ["INT. KITCHEN - DAY #12A#", "KITCHEN"],
+    ["INT. KITCHEN [LATER] - NIGHT", "KITCHEN"],
+    ["INT.   THE  KITCHEN  - DAY", "THE  KITCHEN"],
+    ["SOMEWHERE ELSE", "SOMEWHERE ELSE"],
+  ])("finds %j's place at %j", (text, place) => {
+    expect(placeOf(text)).toBe(place);
+  });
+
+  it("is the span locationName reads, for every heading it names", () => {
+    for (const text of ["INT. KITCHEN - DAY", "EXT. BLOOM HOUSE [MID/LATE '70'S] - NIGHT", "INT. ANTI-MATTER LAB - DAY #4#"]) {
+      expect(normaliseName(placeOf(text)!)).toBe(locationName(text));
+    }
+  });
+
+  it("is nothing where the heading names no place", () => {
+    expect(locationRange("INT. - DAY")).toBeUndefined();
+    expect(locationRange("INT.")).toBeUndefined();
   });
 });
 

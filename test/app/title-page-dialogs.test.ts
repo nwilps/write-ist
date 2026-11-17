@@ -167,7 +167,7 @@ describe("View Title Page", () => {
 describe("the Edit and View menus", () => {
   const act = {
     save: vi.fn(), saveCopy: vi.fn(), exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(),
-    editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(), canAddName: vi.fn(() => false), addName: vi.fn(),
+    editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
     search: vi.fn(), view: () => undefined,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), misspellingAt: () => undefined,

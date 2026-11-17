@@ -42,7 +42,6 @@ import {
   Scissors,
   SpellCheck,
   Target,
-  UserCheck,
   type IconNode,
 } from "lucide";
 import type { EditorView } from "prosemirror-view";
@@ -68,13 +67,6 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
   readonly editGoals: () => void;
-  /**
-   * Whether the character name or location at a position is one that is not on
-   * its list yet: the only place Add name/location is offered.
-   */
-  readonly canAddName: (at: number) => boolean;
-  /** Add the name or location at a position to its list; nothing anywhere else. */
-  readonly addName: (at: number) => void;
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
@@ -94,7 +86,10 @@ export interface Misspelling {
   readonly suggestions: () => Promise<readonly string[]>;
   /** Replace the word: one undo step. */
   readonly replace: (text: string) => void;
-  /** Make the word right from now on (ADR-0032). */
+  /**
+   * Make the word right from now on (ADR-0032). On a cue's character name or a
+   * heading's location, that name joins this project's list too.
+   */
   readonly addToDictionary: () => void;
 }
 
@@ -239,19 +234,6 @@ export const COMMANDS: readonly Command[] = [
   { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
   { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.paste() },
   { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.selectAll() },
-
-  // Add name/location: on the right-click menu only, and only on a character
-  // name or location not on its list yet; in no application menu. Ctrl+K asks
-  // for it at the caret, and does nothing anywhere else.
-  {
-    id: "add-name",
-    label: "Add name/location",
-    icon: UserCheck,
-    chord: { key: "k", mod: true },
-    context: { group: "names", contextual: true },
-    available: (host, at) => host.canAddName(at),
-    run: (host, at) => host.addName(at),
-  },
 
   // Dual dialogue (ADR-0037), offered on the paper's right-click menu (ADR-0034).
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),

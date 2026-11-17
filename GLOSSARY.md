@@ -195,8 +195,9 @@ _Avoid_: field, property, attribute, label, category
 
 **Confirmed name**:
 A character or a scene location the script has settled on: used **three or more times**
-(a preference, `confirmAfterUses`), or confirmed by the writer with **Add name/location** (offered
-on the paper's right-click menu, only on a name or location not confirmed yet). Names used once or twice are in the derived list but unconfirmed —
+(a preference, `confirmAfterUses`), or confirmed by the writer choosing **Add to Dictionary** on a
+flagged word in a character cue or in a scene heading's location (not its INT./EXT. or time of
+day), which adds the word to the dictionary and the name to its list. Names used once or twice are in the derived list but unconfirmed —
 autocomplete does not offer them and spellcheck does not trust them, so one typo cannot seed
 more typos. Use-based confirmation is live; the writer's own confirmation stays, and is the one
 piece of the lists that is stored (`names.txt` in the bundle).

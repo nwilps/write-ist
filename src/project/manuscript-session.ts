@@ -29,7 +29,7 @@
  * view**: ADR-0024 requires the manuscript to be produced by the serialiser from
  * the model, never from ProseMirror's own format and never from the DOM.
  */
-import type { DecorationSet } from "prosemirror-view";
+import type { DecorationSet, EditorView } from "prosemirror-view";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { EditorState, Transaction } from "prosemirror-state";
 import { readGoals, writeGoals } from "../goals/file.ts";
@@ -43,13 +43,13 @@ import { countsText, wordsIn } from "../screenplay/counts.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { editorStateFor, manuscriptOf } from "../screenplay/editing.ts";
 import { layout, type Layout } from "../screenplay/layout.ts";
-import { nameOf, type NameKind, type NameLists } from "../screenplay/names.ts";
+import { locationRange, nameOf, normaliseName, wordsOf, type NameKind, type NameLists } from "../screenplay/names.ts";
 import { namesOf, syncNames } from "../screenplay/names-sync.ts";
 import { pageAtElement } from "../screenplay/paginate.ts";
 import { manuscriptElementAt } from "../screenplay/numbering.ts";
 import { elementUnder } from "../screenplay/place.ts";
 import { paperDecorations, type SheetBreak } from "../screenplay/sheets.ts";
-import { Spellcheck } from "../screenplay/spellcheck.ts";
+import { Spellcheck, type SpellIssue } from "../screenplay/spellcheck.ts";
 import type { SpellEngine } from "../screenplay/spelling.ts";
 import type { Drawing } from "../screenplay/autocomplete.ts";
 import { autosave, type Clock } from "./autosave.ts";
@@ -181,16 +181,24 @@ export interface ManuscriptSession {
   /** Resolves when every confirmation so far has been written (or has failed, and been said). */
   readonly settled: () => Promise<void>;
   /**
-   * The list the name or location at a position could be added to: there is
-   * one there, it is not on its list yet, and the names file can be written.
-   * Nothing otherwise — action, dialogue, a name already listed.
+   * The list a word between two positions belongs to, for Add to Dictionary:
+   * a word of a cue's character name, or a word inside a scene heading's
+   * location (not the INT./EXT., a scene number, an aside or the time of
+   * day). Nothing anywhere else — action, dialogue, a name merely mentioned.
    */
-  readonly confirmableAt: (at: number) => NameKind | undefined;
+  readonly listOfWordAt: (from: number, to: number) => NameKind | undefined;
   /**
    * The writer says the name or location at a position (default: the caret)
    * is right. Answers whether there was one to say it of.
    */
   readonly confirm: (kind: NameKind, at?: number) => boolean;
+  /**
+   * Add to Dictionary on a flagged word: always the writer's dictionary, and
+   * on a cue's name or a heading's location (`listOfWordAt`) that name joins
+   * its list as well. Spellcheck is redrawn after, so the newly confirmed
+   * name is trusted too.
+   */
+  readonly addToDictionary: (view: EditorView, issue: SpellIssue) => Promise<void>;
 }
 
 export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): ManuscriptSession {
@@ -433,6 +441,21 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     return true;
   };
 
+  const listOfWordAt = (from: number, to: number): NameKind | undefined => {
+    const under = elementUnder(state.doc, from);
+    const found = under === undefined ? undefined : nameOf(under);
+    if (under === undefined || found === undefined) return undefined;
+    // A cue: one of the words of the speaker's name, not an extension.
+    if (found.kind === "character") {
+      const word = normaliseName(state.doc.textBetween(from, to));
+      return wordsOf(found.name).includes(word) ? "character" : undefined;
+    }
+    // A heading: inside the place, by the same parse that names it.
+    const place = locationRange(under.text);
+    const end = under.offset + (to - from);
+    return place !== undefined && under.offset >= place.from && end <= place.to ? "location" : undefined;
+  };
+
   return {
     get state() {
       return state;
@@ -492,11 +515,14 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     },
     leave,
     settled: () => writingNames,
-    confirmableAt: (at) => {
-      const found = nameAt(at);
-      if (found === undefined || read.confirmed === undefined) return undefined;
-      return names.isConfirmed(found.kind, found.name) ? undefined : found.kind;
-    },
+    listOfWordAt,
     confirm,
+    addToDictionary: async (view, issue) => {
+      const list = listOfWordAt(issue.from, issue.to);
+      // A names file that could not be read is not changed; the word still
+      // goes in the dictionary.
+      if (list !== undefined) confirm(list, issue.from);
+      await spellcheck.addToDictionary(view, issue.word);
+    },
   };
 }

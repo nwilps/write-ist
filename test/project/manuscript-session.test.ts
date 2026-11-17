@@ -30,6 +30,8 @@ import { startOfElement } from "../support/editor-positions.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { fakeEngine } from "../support/spell-engine.ts";
+import type { EditorView } from "prosemirror-view";
+import type { SpellIssue } from "../../src/screenplay/spellcheck.ts";
 
 let temporary: { path: string; remove: () => void };
 beforeEach(() => {
@@ -375,25 +377,6 @@ describe("confirming a name", () => {
     expect(session.names.explicit("character")).toEqual([]);
   });
 
-  it("offers Add name/location only on a name or location not on its list yet", async () => {
-    const { session } = await aSession();
-    session.names.setConfirmAfterUses(1_000_000);
-    const first = (type: string): number => {
-      const index = manuscriptOf(session.state.doc).elements.findIndex((element) => element.type === type);
-      return startOfElement(session.state, index);
-    };
-    expect(session.confirmableAt(first("character"))).toBe("character");
-    expect(session.confirmableAt(first("scene-heading"))).toBe("location");
-    expect(session.confirmableAt(first("action"))).toBeUndefined();
-    expect(session.confirmableAt(first("dialogue"))).toBeUndefined();
-
-    expect(session.confirm("character", first("character"))).toBe(true);
-    expect(session.confirmableAt(first("character"))).toBeUndefined();
-    // Listed by use, without the writer adding it, is listed too.
-    session.names.setConfirmAfterUses(1);
-    expect(session.confirmableAt(first("scene-heading"))).toBeUndefined();
-  });
-
   it("keeps a confirmation through a reload from outside, without a second copy to go stale", async () => {
     const { session, opened } = await aSession();
     caretInFirst(session, "character");
@@ -423,7 +406,6 @@ describe("confirming a name", () => {
     expect(made.heard.reports[0]).toContain("will not change them");
     const session = manuscriptSession(made.ports, read);
     caretInFirst(session, "character");
-    expect(session.confirmableAt(session.state.selection.head)).toBeUndefined();
     expect(session.confirm("character")).toBe(false);
     expect(session.names.explicit("character")).toEqual([]);
   });
@@ -438,3 +420,126 @@ describe("confirming a name", () => {
     expect(session.names.explicit("character")).toHaveLength(1);
   });
 });
+
+/* --------------------------------------------------- Add to Dictionary */
+
+/** An invented scene: a cue with an extension, a name merely mentioned, two headings. */
+const SAMPLE = `INT. DAY ROOM - DAY
+
+ZELDRA (V.O.)
+Hello, Korvath.
+
+Zeldra waves at QUILLAN.
+
+EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT
+
+QUILLAN
+(to Zeldra)
+Hi.
+`;
+
+async function aSampleSession(names?: Uint8Array) {
+  const source = join(temporary.path, "Sample.fountain");
+  writeFileSync(source, SAMPLE);
+  const imported = await importProject(
+    { filesystem: nodeFilesystem, newProjectId: () => "3f2a1c44-0000-4000-8000-0123456789ac" },
+    { sourcePath: source, projectsDirectory: join(temporary.path, "write-ist") },
+  );
+  const opened = await openProject(nodeFilesystem, imported.project);
+  if (names !== undefined) writeFileSync(join(opened.project.path, NAMES_FILE), names);
+  const engine = fakeEngine();
+  const made = ports(opened, { spellEngine: engine });
+  const read = await readManuscript(nodeFilesystem, made.ports.project, made.ports.report);
+  const session = manuscriptSession(made.ports, read);
+  // Nothing is confirmed by use here, so only Add to Dictionary can list a name.
+  session.names.setConfirmAfterUses(1_000_000);
+  return { session, engine, opened, heard: made.heard };
+}
+
+/** The flagged word `word` in the element whose text is `line`, as spellcheck would hand it over. */
+function flagged(session: ManuscriptSession, line: string, word: string, nth = 0): SpellIssue {
+  let issue: SpellIssue | undefined;
+  session.state.doc.forEach((node, offset) => {
+    if (issue !== undefined || node.textContent !== line) return;
+    let index = -1;
+    for (let seen = 0; seen <= nth; seen++) index = line.indexOf(word, index + 1);
+    expect(index, `${word} in ${line}`).toBeGreaterThanOrEqual(0);
+    const from = offset + 1 + index;
+    issue = { word, from, to: from + word.length, verdict: { kind: "misspelled" } };
+  });
+  if (issue === undefined) throw new Error(`no element reads ${line}`);
+  return issue;
+}
+
+const offPaper = (session: ManuscriptSession): EditorView => ({ state: session.state }) as EditorView;
+
+describe("Add to Dictionary", () => {
+  it("on a word of a cue's name, also adds the character to this project's list", async () => {
+    const { session, engine, opened } = await aSampleSession();
+    await session.addToDictionary(offPaper(session), flagged(session, "ZELDRA (V.O.)", "ZELDRA"));
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+    expect(session.names.explicit("location")).toEqual([]);
+    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual(["ZELDRA"]);
+    await session.settled();
+    expect(readFileSync(join(opened.project.path, NAMES_FILE), "utf8")).toContain("ZELDRA");
+  });
+
+  it("on a word in a heading's location, also adds the location", async () => {
+    const { session, engine } = await aSampleSession();
+    const heading = "EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT";
+    await session.addToDictionary(offPaper(session), flagged(session, heading, "KORVATH"));
+    expect(engine.added).toEqual(["KORVATH"]);
+    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
+    expect(session.names.explicit("character")).toEqual([]);
+  });
+
+  it("knows the place from the time of day by position, not by spelling", async () => {
+    // DAY ROOM's DAY is the place; the DAY after the dash is the time.
+    const { session } = await aSampleSession();
+    expect(session.listOfWordAt(...span(flagged(session, "INT. DAY ROOM - DAY", "DAY", 0)))).toBe("location");
+    expect(session.listOfWordAt(...span(flagged(session, "INT. DAY ROOM - DAY", "DAY", 1)))).toBeUndefined();
+  });
+
+  it("everywhere else adds to the dictionary only, and leaves both lists alone", async () => {
+    const { session, engine } = await aSampleSession();
+    const heading = "EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT";
+    const elsewhere: [string, string][] = [
+      ["Zeldra waves at QUILLAN.", "Zeldra"], // a name mentioned in action
+      ["Zeldra waves at QUILLAN.", "QUILLAN"],
+      ["Hello, Korvath.", "Korvath"], // dialogue
+      ["(to Zeldra)", "Zeldra"], // a parenthetical
+      ["ZELDRA (V.O.)", "V"], // the cue's extension, not the name
+      ["INT. DAY ROOM - DAY", "INT"], // the prefix
+      [heading, "NIGHT"], // the time of day
+      [heading, "FLASHBACK"], // an aside
+    ];
+    for (const [line, word] of elsewhere) {
+      const issue = flagged(session, line, word);
+      expect(session.listOfWordAt(issue.from, issue.to), `${word} in ${line}`).toBeUndefined();
+      await session.addToDictionary(offPaper(session), issue);
+    }
+    expect(engine.added).toEqual(elsewhere.map(([, word]) => word));
+    expect(session.names.explicit("character")).toEqual([]);
+    expect(session.names.explicit("location")).toEqual([]);
+  });
+
+  it("still adds the word when the name is already on the list", async () => {
+    const { session, engine } = await aSampleSession();
+    const cue = flagged(session, "ZELDRA (V.O.)", "ZELDRA");
+    await session.addToDictionary(offPaper(session), cue);
+    await session.addToDictionary(offPaper(session), cue);
+    expect(engine.added).toEqual(["ZELDRA", "ZELDRA"]);
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+  });
+
+  it("still adds the word when the names file could not be read, and leaves the lists alone", async () => {
+    const { session, engine, heard } = await aSampleSession(new Uint8Array([0xff, 0xfe, 0xfd]));
+    expect(heard.reports[0]).toContain("will not change them");
+    await session.addToDictionary(offPaper(session), flagged(session, "ZELDRA (V.O.)", "ZELDRA"));
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(session.names.explicit("character")).toEqual([]);
+  });
+});
+
+const span = (issue: SpellIssue): [number, number] => [issue.from, issue.to];

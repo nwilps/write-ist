@@ -97,17 +97,55 @@ function isTimeOfDay(segment: string): boolean {
  * segment: `INT. HOUSE - KITCHEN - DAY` is `HOUSE - KITCHEN`.
  */
 export function locationName(heading: string): string | undefined {
-  const bare = heading.replace(SCENE_NUMBER, "").replace(ASIDE, " ").replace(PREFIX, "");
-  const segments = bare
-    .replace(/^[\s\-–—]+/, "")
-    .split(SEPARATOR)
-    .map((segment) => segment.trim())
-    .filter((segment) => segment !== "");
-  while (segments.length > 1 && isTimeOfDay(segments[segments.length - 1]!)) segments.pop();
-  // A heading that is only a time of day (`INT. - DAY`) names no place.
-  if (segments.length === 1 && isTimeOfDay(segments[0]!)) return undefined;
-  const name = normaliseName(segments.join(" - "));
+  const segments = locationSegments(heading);
+  if (segments === undefined) return undefined;
+  const name = normaliseName(segments.map((segment) => segment.text).join(" - "));
   return name === "" ? undefined : name;
+}
+
+/**
+ * Where in a scene heading's text the place `locationName` reads sits, as
+ * offsets into that text: `INT. KITCHEN - DAY` gives the span of `KITCHEN`.
+ * Undefined when the heading names no place.
+ */
+export function locationRange(heading: string): { readonly from: number; readonly to: number } | undefined {
+  const segments = locationSegments(heading);
+  if (segments === undefined || segments.length === 0) return undefined;
+  return { from: segments[0]!.from, to: segments[segments.length - 1]!.to };
+}
+
+/** Blank out what a pattern matches, so every offset still points into the heading. */
+function blanked(text: string, pattern: RegExp): string {
+  return text.replace(pattern, (found) => " ".repeat(found.length));
+}
+
+/**
+ * The segments of a heading's place, each with where it sits in the heading:
+ * one parse for both the name and its span.
+ */
+function locationSegments(heading: string): { readonly text: string; readonly from: number; readonly to: number }[] | undefined {
+  const bare = blanked(blanked(blanked(heading, SCENE_NUMBER), ASIDE), PREFIX);
+  const start = /^[\s\-–—]*/.exec(bare)![0].length;
+  const segments: { text: string; from: number; to: number }[] = [];
+  const separators = new RegExp(SEPARATOR.source, "g");
+  let from = start;
+  const take = (to: number): void => {
+    const raw = bare.slice(from, to);
+    const text = raw.trim();
+    if (text === "") return;
+    const lead = raw.length - raw.trimStart().length;
+    segments.push({ text, from: from + lead, to: from + lead + text.length });
+  };
+  separators.lastIndex = start;
+  for (let found = separators.exec(bare); found !== null; found = separators.exec(bare)) {
+    take(found.index);
+    from = found.index + found[0].length;
+  }
+  take(bare.length);
+  while (segments.length > 1 && isTimeOfDay(segments[segments.length - 1]!.text)) segments.pop();
+  // A heading that is only a time of day (`INT. - DAY`) names no place.
+  if (segments.length === 1 && isTimeOfDay(segments[0]!.text)) return undefined;
+  return segments;
 }
 
 /** What one element contributes to the lists, if anything. */
