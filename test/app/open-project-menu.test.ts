@@ -312,15 +312,17 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
           onDelete: async () => void (await deleteProject(nodeFilesystem, folder, chosen)),
           onClose: () => {},
         });
+      const rowNamed = (rows: readonly HTMLButtonElement[], name: string) =>
+        rows.find((row) => row.querySelector(".project__name")?.textContent === name)!;
       let drawn = draw({ listing: real, onDelete });
-      rightClick(drawn.rows[1]!);
+      rightClick(rowNamed(drawn.rows, "Quiet Road"));
       choose("Delete Project");
       const modal = document.querySelector<HTMLDialogElement>("dialog[open]")!;
       modal.querySelector<HTMLButtonElement>(".new-project-dialog__action--confirm")!.click();
       await vi.waitFor(() => expect(modal.isConnected).toBe(false));
 
       real = await listProjects(nodeFilesystem, folder);
-      expect(real.projects.map((p) => p.marker.name)).toEqual(["Paper Boats", "Untitled Short"]);
+      expect(real.projects.map((p) => p.marker.name).sort()).toEqual(["Paper Boats", "Untitled Short"]);
       expect(readdirSync(deletedFolderIn(folder))).toEqual(["Quiet Road"]);
 
       const onRename = (chosen: Project) =>
@@ -330,7 +332,7 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
           onClose: () => {},
         });
       drawn = draw({ listing: real, onRename });
-      rightClick(drawn.rows[1]!);
+      rightClick(rowNamed(drawn.rows, "Untitled Short"));
       choose("Rename Project");
       const rename = document.querySelector<HTMLDialogElement>("dialog[open]")!;
       const input = rename.querySelector("input")!;
@@ -340,8 +342,8 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       await vi.waitFor(() => expect(rename.isConnected).toBe(false));
 
       real = await listProjects(nodeFilesystem, folder);
-      expect(real.projects.map((p) => p.marker.name)).toEqual(["Paper Boats", "Short Story"]);
-      expect(real.projects[1]!.marker.projectId).toBe("id-3");
+      expect(real.projects.map((p) => p.marker.name).sort()).toEqual(["Paper Boats", "Short Story"]);
+      expect(real.projects.find((p) => p.marker.name === "Short Story")!.marker.projectId).toBe("id-3");
     } finally {
       temporary.remove();
     }

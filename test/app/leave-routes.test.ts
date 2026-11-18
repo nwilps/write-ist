@@ -36,6 +36,7 @@ describe("the ways out the shell gives a workspace", () => {
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
       ledger: () => undefined,
+      places: () => undefined,
     });
     given!.leave.toProjects();
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -61,6 +62,7 @@ describe("the ways out the shell gives a workspace", () => {
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
       ledger: () => undefined,
+      places: () => undefined,
     });
     const escape = gestures.find((gesture) => gesture.key === "escape");
     escape!.act();

@@ -5,7 +5,7 @@
  * application *declines* to do: a folder with no readable marker is not a
  * project, is not listed, and is never written into.
  */
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { importProject } from "../../src/project/import.ts";
@@ -93,14 +93,44 @@ describe("listing the default location", () => {
     expect(found[0]?.path).toBe(join(projects, "Big Fish 2"));
   });
 
-  it("sorts by name without case, so the order never depends on the filesystem", async () => {
-    folder("c", { [MARKER_FILE]: markerFor("charlie", "id-3") });
-    folder("a", { [MARKER_FILE]: markerFor("Alpha", "id-1") });
-    folder("b", { [MARKER_FILE]: markerFor("bravo", "id-2") });
+  it("puts the most recently edited first, by when each manuscript was written", async () => {
+    const edited = (name: string, id: string, at: string): void => {
+      const path = folder(name, { [MARKER_FILE]: markerFor(name, id), [MANUSCRIPT_FILE]: "A room.\n" });
+      const when = new Date(at);
+      utimesSync(join(path, MANUSCRIPT_FILE), when, when);
+    };
+    edited("Alpha", "id-1", "2026-03-01T10:00:00Z");
+    edited("bravo", "id-2", "2026-11-16T09:30:00Z");
+    edited("charlie", "id-3", "2026-07-04T18:00:00Z");
+
+    const found = await listed();
+
+    expect(found.map((project) => project.marker.name)).toEqual(["bravo", "charlie", "Alpha"]);
+  });
+
+  it("orders projects edited at the same moment by name without case", async () => {
+    const when = new Date("2026-11-01T12:00:00Z");
+    for (const [name, id] of [["charlie", "id-3"], ["Alpha", "id-1"], ["bravo", "id-2"]] as const) {
+      const path = folder(name, { [MARKER_FILE]: markerFor(name, id), [MANUSCRIPT_FILE]: "A room.\n" });
+      utimesSync(join(path, MANUSCRIPT_FILE), when, when);
+    }
 
     const found = await listed();
 
     expect(found.map((project) => project.marker.name)).toEqual(["Alpha", "bravo", "charlie"]);
+  });
+
+  it("still lists a project whose manuscript has no time to read, after the dated ones", async () => {
+    // No manuscript at all: there is no edit time, and the project is not lost.
+    folder("Zulu", { [MARKER_FILE]: markerFor("Zulu", "id-9") });
+    folder("Echo", { [MARKER_FILE]: markerFor("Echo", "id-5") });
+    const dated = folder("Yankee", { [MARKER_FILE]: markerFor("Yankee", "id-8"), [MANUSCRIPT_FILE]: "A room.\n" });
+    const when = new Date("2020-01-01T00:00:00Z");
+    utimesSync(join(dated, MANUSCRIPT_FILE), when, when);
+
+    const found = await listed();
+
+    expect(found.map((project) => project.marker.name)).toEqual(["Yankee", "Echo", "Zulu"]);
   });
 });
 

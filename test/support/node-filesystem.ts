@@ -7,7 +7,7 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { access, lstat, mkdir, open, readdir, readFile, rename, rm, rmdir } from "node:fs/promises";
+import { access, lstat, mkdir, open, readdir, readFile, rename, rm, rmdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
@@ -87,6 +87,14 @@ export const nodeFilesystem: Filesystem = {
       return true;
     } catch {
       return false;
+    }
+  },
+
+  async modifiedAt(path: string): Promise<Date | undefined> {
+    try {
+      return (await stat(path)).mtime;
+    } catch {
+      return undefined;
     }
   },
 

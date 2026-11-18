@@ -82,6 +82,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
     writeFile: refuse,
     createDirectory: refuse,
     exists: refuse,
+    modifiedAt: refuse,
     appendFile: refuse,
     moveFolder: refuse,
   };

@@ -11,7 +11,7 @@
  * scope for slice 1.
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
-import { DELETED_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
+import { DELETED_FOLDER, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
 import { parseMarker, type ProjectMarker } from "./marker.ts";
 
 // Lenient, and the only lenient decode in the application: nothing downstream
@@ -22,7 +22,12 @@ import { parseMarker, type ProjectMarker } from "./marker.ts";
 const decoder = new TextDecoder("utf-8", { fatal: false });
 
 export interface ProjectsListing {
-  /** Every folder that is a project, sorted by name without case. */
+  /**
+   * Every folder that is a project, **most recently edited first**: by when
+   * its `manuscript.fountain` was last written, newest at the top. Projects
+   * edited at the same moment go by name without case, and a project whose
+   * time cannot be read is still listed, after the dated ones, by name.
+   */
   readonly projects: readonly Project[];
   /**
    * Folders that hold a `project.md` which could not be read.
@@ -48,7 +53,7 @@ export async function listProjects(
   projectsDirectory: string,
 ): Promise<ProjectsListing> {
   const entries = await filesystem.readDirectory(projectsDirectory);
-  const projects: Project[] = [];
+  const projects: { readonly project: Project; readonly edited: number | undefined }[] = [];
   const unreadable: string[] = [];
 
   for (const entry of entries) {
@@ -67,13 +72,21 @@ export async function listProjects(
       unreadable.push(entry.name);
       continue;
     }
-    projects.push({ path, marker });
+    // The manuscript is what the writer writes, so its time is when the
+    // project was last edited; a rename touches only the marker.
+    const edited = await filesystem.modifiedAt(join(path, MANUSCRIPT_FILE));
+    projects.push({ project: { path, marker }, edited: edited?.getTime() });
   }
 
-  projects.sort((one, other) =>
-    one.marker.name.localeCompare(other.marker.name, "en", { sensitivity: "base" }),
-  );
-  return { projects, unreadable: unreadable.sort() };
+  projects.sort((one, other) => {
+    if (one.edited !== other.edited) {
+      if (one.edited === undefined) return 1;
+      if (other.edited === undefined) return -1;
+      return other.edited - one.edited;
+    }
+    return one.project.marker.name.localeCompare(other.project.marker.name, "en", { sensitivity: "base" });
+  });
+  return { projects: projects.map((listed) => listed.project), unreadable: unreadable.sort() };
 }
 
 /**
