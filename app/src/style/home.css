@@ -322,11 +322,42 @@
   cursor: default;
 }
 
-/* The right-click menu's surface, under the field and as wide as it. */
+/*
+ * The right-click menu's surface, under the field and as wide as it. The list
+ * inside does the scrolling, and the room above and below it is the chevrons'
+ * (`scrollWindow`), bounce included, so they never sit over a row.
+ */
 .drop-menu.dialog-select__tray {
   width: calc(var(--menu-width, 0) * var(--size-pixel));
   margin: var(--space-tight) 0;
+  padding-block: calc(var(--size-icon) + var(--distance-hint-bounce));
   max-height: calc(100% - var(--space-tight) * 2);
+  overflow: visible;
+}
+
+.dialog-select__window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Five rows and the gaps between them; a window too short for that shows fewer. */
+.dialog-select__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-row-gap);
+  min-height: 0;
+  max-height: calc(var(--count-dialog-rows) * var(--size-row) + (var(--count-dialog-rows) - 1) * var(--space-row-gap));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.dialog-select__list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .dialog-select__option {
@@ -344,7 +375,7 @@
   color: inherit;
 }
 
-/* Seen but never lit, under the pointer or not. */
+/* Dimmed, under the pointer or not, until the highlight lands on it. */
 .dialog-select__tray .dialog-select__option--unavailable,
 .dialog-select__tray .dialog-select__option--unavailable:hover:not(.dialog-select__option--active) {
   color: var(--colour-faint);
@@ -357,6 +388,15 @@
 
 .dialog-select__option--active .gesture__cursor {
   visibility: visible;
+}
+
+/* The highlight on a row that cannot be picked: plain to see, but no gold. */
+.dialog-select__tray .dialog-select__option--unavailable.dialog-select__option--active {
+  color: var(--colour-muted);
+}
+
+.dialog-select__option--unavailable .gesture__cursor {
+  color: var(--colour-faint);
 }
 
 /* An empty problem line must not add a gap of its own. */

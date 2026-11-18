@@ -11,12 +11,17 @@
  * and leaves the arrows to the dialog (`dialogKeys`). Open, it keeps the arrows,
  * Enter, Space and Escape; Tab closes it and moves on, changing nothing.
  *
+ * The tray shows five rows and the rest scroll (`--count-dialog-rows`), with no
+ * scrollbar: Open Project's chevrons say when there is more (`scrollWindow`).
+ *
  * A choice can be unavailable: drawn dimmed with its tag, so the writer can see
- * it is coming, but passed over by the arrows and deaf to the pointer. It can
+ * it is coming. The arrows and the pointer can rest on it like any row, but
+ * Enter, Space and a click do nothing there and the tray stays open. It can
  * never be the value.
  */
 import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
+import { scrollWindow } from "./scroll-window.ts";
 
 export interface DialogChoice {
   readonly value: string;
@@ -67,15 +72,14 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     className: "new-project-dialog__input dialog-select",
     role: "combobox",
   }, [shown]);
-  const tray = element("div", {
+  const list = element("div", {
     id: `${id}-list`,
-    className: "drop-menu drop-menu--context dialog-select__tray",
+    className: "dialog-select__list",
     role: "listbox",
     ariaLabel: label,
-    hidden: true,
   });
   control.setAttribute("aria-haspopup", "listbox");
-  control.setAttribute("aria-controls", tray.id);
+  control.setAttribute("aria-controls", list.id);
   control.setAttribute("aria-expanded", "false");
 
   const options = choices.map((choice, index) => {
@@ -90,11 +94,12 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     }
     return option;
   });
-  tray.append(...options);
+  list.append(...options);
+  const scrolling = scrollWindow(list, "dialog-select__window");
+  const tray = element("div", { className: "drop-menu drop-menu--context dialog-select__tray", hidden: true }, [scrolling.window]);
 
-  // The rows the arrows, the pointer and the keys can land on.
-  const available = choices.flatMap((choice, index) => (choice.unavailable === undefined ? [index] : []));
-  let chosen = available[0]!;
+  const canChoose = (index: number): boolean => choices[index]!.unavailable === undefined;
+  let chosen = choices.findIndex((_, index) => canChoose(index));
   let active = chosen;
   const isOpen = (): boolean => !tray.hidden;
 
@@ -110,11 +115,12 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     options[active]!.classList.add("dialog-select__option--active");
     control.setAttribute("aria-activedescendant", options[active]!.id);
     options[active]!.scrollIntoView?.({ block: "nearest" });
+    scrolling.hint();
   };
 
   // A scroll anywhere but the tray's own list moves the field out from under it.
   const scrolled = ({ target }: Event): void => {
-    if (target !== tray) close();
+    if (target !== list) close();
   };
 
   const place = (): void => {
@@ -167,10 +173,12 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     }
     if (key === "ArrowDown" || key === "ArrowUp") {
       const step = key === "ArrowDown" ? 1 : -1;
-      highlight(available[(available.indexOf(active) + step + available.length) % available.length]!);
+      highlight((active + step + options.length) % options.length);
     } else if (key === "Enter" || key === " ") {
-      choose(active);
-      close();
+      if (canChoose(active)) {
+        choose(active);
+        close();
+      }
     } else if (key === "Escape") {
       close();
     } else if (key !== "ArrowLeft" && key !== "ArrowRight") {
@@ -181,13 +189,13 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
 
   // Keep focus on the field through a press in the tray, or it would close first.
   tray.addEventListener("mousedown", (event) => event.preventDefault());
-  available.forEach((index) => {
-    const option = options[index]!;
+  options.forEach((option, index) => {
     // Only a pointer that moved: a tray opening or scrolling under a still one
     // must not take the highlight from the keys.
     option.addEventListener("mousemove", ({ movementX, movementY }) => {
       if (index !== active && (movementX !== 0 || movementY !== 0)) highlight(index);
     });
+    if (!canChoose(index)) return;
     option.addEventListener("click", () => {
       choose(index);
       close();

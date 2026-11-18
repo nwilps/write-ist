@@ -15,10 +15,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MOST_ROWS,
   renderOpenProject,
-  edgeTolerance,
   rowsThatFit,
   type OpenProjectScreen,
 } from "../../app/src/screens/open-project.ts";
+import { edgeTolerance } from "../../app/src/screens/scroll-window.ts";
 import { answerKey, type KeyPress } from "../../app/src/screens/shortcuts.ts";
 import { ChevronDown, ChevronUp, createElement } from "lucide";
 import type { Project } from "../../src/project/bundle.ts";
@@ -574,16 +574,18 @@ describe("the chevrons: no scrollbar, and a hint of what is out of view", () => 
     expect(css.indexOf("prefers-reduced-motion")).toBeGreaterThan(css.indexOf(".projects-hint--below"));
   });
 
-  it("stand in for the scrollbar, which the list no longer draws — and only the list", () => {
+  it("stand in for the scrollbar, which the list no longer draws — it and the dialog drop-down only", () => {
     const rule = css.match(/\.projects\s*\{([^}]*)\}/)![1]!;
     expect(rule).toMatch(/scrollbar-width:\s*none/);
     // Still a scroller: the wheel, the trackpad and the keys still move it.
     expect(rule).toMatch(/overflow-y:\s*auto/);
     expect(css).toMatch(/\.projects::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
-    // No other stylesheet hides or styles a scrollbar.
+    // No other stylesheet hides or styles a scrollbar, but for the drop-down's list.
+    const dropDown = /\.dialog-select__list(::-webkit-scrollbar)?\s*\{[^}]*\}/g;
     for (const name of readdirSync(style).filter((f) => f.endsWith(".css") && f !== "open-project.css")) {
-      expect(uncommented(name), name).not.toMatch(/scrollbar/);
+      expect(uncommented(name).replace(dropDown, ""), name).not.toMatch(/scrollbar/);
     }
+    expect(uncommented("home.css").match(/scrollbar/g)).toHaveLength(2);
     expect(css.match(/scrollbar/g)).toHaveLength(2);
   });
 

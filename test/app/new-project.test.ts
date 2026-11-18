@@ -103,7 +103,8 @@ function dialog(onCreate = vi.fn(async () => undefined as string | undefined)) {
   const modal = showNewProject(into, { onCreate, onClose });
   const title = modal.querySelector("#new-project-title") as HTMLInputElement;
   const type = modal.querySelector("#new-project-type") as HTMLButtonElement;
-  const tray = modal.querySelector("[role=listbox]") as HTMLElement;
+  const tray = modal.querySelector(".dialog-select__tray") as HTMLElement;
+  const list = modal.querySelector("[role=listbox]") as HTMLElement;
   const [cancel, create] = modal.querySelectorAll<HTMLButtonElement>(".new-project-dialog__actions button") as unknown as [
     HTMLButtonElement,
     HTMLButtonElement,
@@ -119,13 +120,13 @@ function dialog(onCreate = vi.fn(async () => undefined as string | undefined)) {
     document.activeElement!.dispatchEvent(event);
     return event;
   };
-  return { into, modal, title, type, tray, create, cancel, type_, submit, press, onCreate, onClose };
+  return { into, modal, title, type, tray, list, create, cancel, type_, submit, press, onCreate, onClose };
 }
 
 describe("the New Project dialog", () => {
   it("offers the eight project types in order, with Feature chosen, and a title", () => {
-    const { type, tray, title } = dialog();
-    expect([...tray.querySelectorAll("[role=option]")].map((o) => o.firstElementChild!.nextElementSibling!.textContent)).toEqual([
+    const { type, list, title } = dialog();
+    expect([...list.querySelectorAll("[role=option]")].map((o) => o.firstElementChild!.nextElementSibling!.textContent)).toEqual([
       "Feature",
       "Episode",
       "Short Film",
@@ -417,12 +418,12 @@ describe("the project type drop-down", () => {
   };
 
   it("is a combobox over a listbox, in the right-click menu's look", () => {
-    const { type, tray } = dialog();
+    const { type, tray, list } = dialog();
     expect(type.getAttribute("role")).toBe("combobox");
     expect(type.getAttribute("aria-haspopup")).toBe("listbox");
-    expect(type.getAttribute("aria-controls")).toBe(tray.id);
+    expect(type.getAttribute("aria-controls")).toBe(list.id);
     expect(tray.classList.contains("drop-menu--context")).toBe(true);
-    const option = tray.querySelector("[role=option]")!;
+    const option = list.querySelector("[role=option]")!;
     expect(option.classList.contains("drop-menu__item")).toBe(true);
     expect(option.getAttribute("aria-selected")).toBe("true");
     expect(type.hasAttribute("title")).toBe(false);
@@ -436,7 +437,7 @@ describe("the project type drop-down", () => {
     shown.type.focus();
     shown.press(key);
     expect(isOpen(shown)).toBe(true);
-    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.tray.firstElementChild!.id);
+    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.list.firstElementChild!.id);
   });
 
   it("names the highlighted row every time it opens, and no row while closed", () => {
@@ -444,7 +445,7 @@ describe("the project type drop-down", () => {
     shown.press("Escape");
     expect(shown.type.hasAttribute("aria-activedescendant")).toBe(false);
     shown.press("Enter");
-    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.tray.firstElementChild!.id);
+    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.list.firstElementChild!.id);
   });
 
   it("keeps the arrows in the list while open", () => {
@@ -482,12 +483,12 @@ describe("the project type drop-down", () => {
     const shown = dialog();
     shown.type.click();
     expect(isOpen(shown)).toBe(true);
-    (shown.tray.firstElementChild as HTMLElement).click();
+    (shown.list.firstElementChild as HTMLElement).click();
     expect(isOpen(shown)).toBe(false);
     expect(shown.type.textContent).toBe("Feature");
   });
 
-  const row = ({ tray }: { tray: HTMLElement }, index: number) => tray.children[index] as HTMLElement;
+  const row = ({ list }: { list: HTMLElement }, index: number) => list.children[index] as HTMLElement;
   const highlighted = ({ type }: { type: HTMLElement }) =>
     document.getElementById(type.getAttribute("aria-activedescendant")!)!.children[1]!.textContent;
 
@@ -515,7 +516,7 @@ describe("the project type drop-down", () => {
 
   it("dims and tags only the types that are coming", () => {
     const shown = dialog();
-    const rows = [...shown.tray.children];
+    const rows = [...shown.list.children];
     const coming = rows.slice(3);
     expect(coming).toHaveLength(5);
     for (const option of coming) {
@@ -533,24 +534,173 @@ describe("the project type drop-down", () => {
     expect(css).toMatch(/\.dialog-select__option--unavailable:hover[^{]*\{\s*color: var\(--colour-faint\)/);
   });
 
-  it("wraps the arrows among the available types, skipping the rest", () => {
+  const ALL_TYPES = ["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"];
+  const point = (option: HTMLElement) =>
+    option.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, movementX: 1 } as MouseEventInit));
+
+  it("walks the arrows through the whole list, coming types too, and wraps", () => {
     const shown = opened();
-    const down = [1, 2, 3].map(() => (shown.press("ArrowDown"), highlighted(shown)));
-    expect(down).toEqual(["Episode", "Short Film", "Feature"]);
-    const up = [1, 2, 3].map(() => (shown.press("ArrowUp"), highlighted(shown)));
-    expect(up).toEqual(["Short Film", "Episode", "Feature"]);
+    const down = ALL_TYPES.map(() => (shown.press("ArrowDown"), highlighted(shown)));
+    expect(down).toEqual([...ALL_TYPES.slice(1), "Feature"]);
+    const up = ALL_TYPES.map(() => (shown.press("ArrowUp"), highlighted(shown)));
+    expect(up).toEqual([...ALL_TYPES].reverse());
   });
 
-  it("does nothing when a coming type is clicked or pointed at, and stays open", () => {
+  it("lets the pointer light a coming type, which stays dimmed and tagged", () => {
     const shown = opened();
     const novel = row(shown, 3);
-    novel.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, movementX: 1 } as MouseEventInit));
-    expect(highlighted(shown)).toBe("Feature");
-    expect(novel.classList.contains("dialog-select__option--active")).toBe(false);
+    point(novel);
+    expect(highlighted(shown)).toBe("Novel");
+    expect(novel.classList.contains("dialog-select__option--active")).toBe(true);
+    expect(novel.classList.contains("dialog-select__option--unavailable")).toBe(true);
+    expect(novel.querySelector(".drop-menu__hint")!.textContent).toBe("soon");
+    expect(novel.getAttribute("aria-selected")).toBe("false");
+    expect(row(shown, 0).classList.contains("dialog-select__option--active")).toBe(false);
+  });
+
+  it("draws the highlight on a coming type without the gold of a usable one", () => {
+    const css = readFileSync("app/src/style/home.css", "utf8");
+    expect(css).toMatch(/\.dialog-select__option--unavailable\.dialog-select__option--active\s*\{\s*color: var\(--colour-muted\)/);
+    expect(css).toMatch(/\.dialog-select__option--unavailable \.gesture__cursor\s*\{\s*color: var\(--colour-faint\)/);
+  });
+
+  it("does nothing when a coming type is clicked, and stays open", () => {
+    const shown = opened();
+    const novel = row(shown, 3);
+    point(novel);
     novel.click();
     expect(isOpen(shown)).toBe(true);
     expect(shown.type.textContent).toBe("Feature");
     expect(novel.getAttribute("aria-selected")).toBe("false");
+    expect(highlighted(shown)).toBe("Novel");
+  });
+
+  it.each(["Enter", " "])("does nothing on %j on a coming type, and stays open", async (key) => {
+    const shown = opened();
+    shown.type_("Big Fish");
+    for (let i = 0; i < 3; i++) shown.press("ArrowDown");
+    expect(highlighted(shown)).toBe("Novel");
+    expect(shown.press(key).defaultPrevented).toBe(true);
+    expect(isOpen(shown)).toBe(true);
+    expect(shown.type.textContent).toBe("Feature");
+    expect(shown.onCreate).not.toHaveBeenCalled();
+    shown.press("Escape");
+    shown.submit();
+    await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
+  });
+
+  it("opens on the chosen type again after resting on a coming one", () => {
+    const shown = opened();
+    shown.press("ArrowUp");
+    expect(highlighted(shown)).toBe("Poem");
+    shown.press("Escape");
+    shown.press("Enter");
+    expect(highlighted(shown)).toBe("Feature");
+    expect(row(shown, 7).classList.contains("dialog-select__option--active")).toBe(false);
+  });
+
+  describe("scrolling", () => {
+    // jsdom has no layout: rows 24px tall and 32px apart, five showing, as the tokens draw them.
+    const ROW = 24;
+    const STEP = 32;
+    const TOP = 100;
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, height }) as DOMRect;
+    const laidOut = () => {
+      const shown = dialog();
+      const { list } = shown;
+      list.getBoundingClientRect = () => rect(TOP, 5 * ROW + 4 * (STEP - ROW));
+      [...list.children].forEach((option, index) => {
+        option.getBoundingClientRect = () => rect(TOP + index * STEP - list.scrollTop, ROW);
+      });
+      const scrollTo = (to: number) => {
+        list.scrollTop = to;
+        list.dispatchEvent(new Event("scroll", { bubbles: true }));
+      };
+      const showing = () => ({
+        above: !shown.tray.querySelector<HTMLElement>(".projects-hint--above")!.hidden,
+        below: !shown.tray.querySelector<HTMLElement>(".projects-hint--below")!.hidden,
+      });
+      return { ...shown, scrollTo, showing };
+    };
+    const END = 3 * STEP;
+
+    it("shows five rows, measured from the row and gap tokens, with no scrollbar", () => {
+      const css = readFileSync("app/src/style/home.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      const tokens = readFileSync("app/src/style/tokens.css", "utf8");
+      expect(tokens).toMatch(/--count-dialog-rows:\s*5;/);
+      const rule = css.match(/\.dialog-select__list\s*\{([^}]*)\}/)![1]!;
+      expect(rule).toContain("max-height: calc(var(--count-dialog-rows) * var(--size-row) + (var(--count-dialog-rows) - 1) * var(--space-row-gap));");
+      expect(rule).toMatch(/gap:\s*var\(--space-row-gap\)/);
+      expect(rule).toMatch(/overflow-y:\s*auto/);
+      expect(rule).toMatch(/scrollbar-width:\s*none/);
+      expect(css).toMatch(/\.dialog-select__list::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
+    });
+
+    it("leaves the chevrons room of their own, so they cover no row", () => {
+      const { tray, list } = dialog();
+      const frame = list.parentElement!;
+      expect(frame.parentElement).toBe(tray);
+      expect([...frame.children].map((child) => child.className)).toEqual([
+        "projects-hint projects-hint--above",
+        "dialog-select__list",
+        "projects-hint projects-hint--below",
+      ]);
+      for (const hint of frame.querySelectorAll(".projects-hint")) expect(hint.getAttribute("aria-hidden")).toBe("true");
+      const css = readFileSync("app/src/style/home.css", "utf8");
+      expect(css).toMatch(/\.drop-menu\.dialog-select__tray\s*\{[^}]*padding-block:\s*calc\(var\(--size-icon\) \+ var\(--distance-hint-bounce\)\)/);
+      expect(css).toMatch(/\.dialog-select__window\s*\{[^}]*position:\s*relative/);
+    });
+
+    it("shows each chevron only while there is more that way", () => {
+      const shown = laidOut();
+      shown.type.click();
+      expect(shown.showing()).toEqual({ above: false, below: true });
+      shown.scrollTo(STEP);
+      expect(shown.showing()).toEqual({ above: true, below: true });
+      shown.scrollTo(END);
+      expect(shown.showing()).toEqual({ above: true, below: false });
+      shown.scrollTo(0);
+      expect(shown.showing()).toEqual({ above: false, below: true });
+    });
+
+    it("shows neither chevron when every row fits", () => {
+      const shown = laidOut();
+      shown.list.getBoundingClientRect = () => rect(TOP, 8 * STEP);
+      shown.type.click();
+      expect(shown.showing()).toEqual({ above: false, below: false });
+    });
+
+    it.each(["keys", "pointer"])("brings the row the %s land on into view, and updates the chevrons", (by) => {
+      const shown = laidOut();
+      shown.type.click();
+      const poem = row(shown, 7);
+      // Moves the list as the browser would, and fires no scroll event of its own.
+      poem.scrollIntoView = vi.fn(() => {
+        shown.list.scrollTop = END;
+      });
+      if (by === "keys") shown.press("ArrowUp");
+      else point(poem);
+      expect(poem.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(shown.showing()).toEqual({ above: true, below: false });
+    });
+
+    it("stays open while its own list scrolls, and closes if anything else does", () => {
+      const shown = laidOut();
+      shown.type.click();
+      shown.scrollTo(STEP);
+      expect(isOpen(shown)).toBe(true);
+      shown.modal.dispatchEvent(new Event("scroll"));
+      expect(isOpen(shown)).toBe(false);
+    });
+
+    it("keeps focus on the field through a press on the tray's edge", () => {
+      const shown = laidOut();
+      shown.type.click();
+      const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+      shown.tray.dispatchEvent(press);
+      expect(press.defaultPrevented).toBe(true);
+    });
   });
 
   it.each(["Enter", " "])("picks an available type on %j even after a coming one is clicked", (key) => {
