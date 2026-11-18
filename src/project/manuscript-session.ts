@@ -29,9 +29,9 @@
  * view**: ADR-0024 requires the manuscript to be produced by the serialiser from
  * the model, never from ProseMirror's own format and never from the DOM.
  */
-import type { DecorationSet } from "prosemirror-view";
+import type { DecorationSet, EditorView } from "prosemirror-view";
 import type { Node as EditorNode } from "prosemirror-model";
-import type { EditorState, Transaction } from "prosemirror-state";
+import type { Command, EditorState, Transaction } from "prosemirror-state";
 import { readGoals, writeGoals } from "../goals/file.ts";
 import { NO_GOALS, type Goals } from "../goals/history.ts";
 import { GoalsTracker, type GoalPill, type GoalsView } from "../goals/tracker.ts";
@@ -43,13 +43,14 @@ import { countsText, wordsIn } from "../screenplay/counts.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { editorStateFor, manuscriptOf } from "../screenplay/editing.ts";
 import { layout, type Layout } from "../screenplay/layout.ts";
-import { nameOf, type NameKind, type NameLists } from "../screenplay/names.ts";
+import { locationRange, nameOf, normaliseName, wordsOf, type NameKind, type NameLists } from "../screenplay/names.ts";
 import { namesOf, syncNames } from "../screenplay/names-sync.ts";
+import { OffPaperHistory } from "../screenplay/off-paper-undo.ts";
 import { pageAtElement } from "../screenplay/paginate.ts";
 import { manuscriptElementAt } from "../screenplay/numbering.ts";
 import { elementUnder } from "../screenplay/place.ts";
 import { paperDecorations, type SheetBreak } from "../screenplay/sheets.ts";
-import { Spellcheck } from "../screenplay/spellcheck.ts";
+import { Spellcheck, type SpellIssue } from "../screenplay/spellcheck.ts";
 import type { SpellEngine } from "../screenplay/spelling.ts";
 import type { Drawing } from "../screenplay/autocomplete.ts";
 import { autosave, type Clock } from "./autosave.ts";
@@ -178,15 +179,39 @@ export interface ManuscriptSession {
    * says why — when the save failed, in which case nothing has been let go of.
    */
   readonly leave: () => Promise<boolean>;
-  /** Resolves when every confirmation so far has been written (or has failed, and been said). */
-  readonly settled: () => Promise<void>;
-  /** Which list the caret's element belongs in. */
-  readonly confirmableKind: () => NameKind;
   /**
-   * The writer says the name or location the caret is in is right. Answers
-   * whether there was one to say it of.
+   * Resolves when every confirmation so far has been written, and every
+   * change to the dictionary made (or has failed, and been said).
    */
-  readonly confirm: (kind: NameKind) => boolean;
+  readonly settled: () => Promise<void>;
+  /**
+   * The list a word between two positions belongs to, for Add to Dictionary:
+   * a word of a cue's character name, or a word inside a scene heading's
+   * location (not the INT./EXT., a scene number, an aside or the time of
+   * day). Nothing anywhere else — action, dialogue, a name merely mentioned.
+   */
+  readonly listOfWordAt: (from: number, to: number) => NameKind | undefined;
+  /**
+   * The writer says the name or location at a position (default: the caret)
+   * is right. Answers whether there was one to say it of.
+   */
+  readonly confirm: (kind: NameKind, at?: number) => boolean;
+  /**
+   * Add to Dictionary on a flagged word: always the writer's dictionary, and
+   * on a cue's name or a heading's location (`listOfWordAt`) that name joins
+   * its list as well. Spellcheck is redrawn after, so the newly confirmed
+   * name is trusted too.
+   *
+   * One undo step, in order with the typing around it, that changes no text:
+   * Undo takes back what this call added (the word, if it was new to the
+   * dictionary; the name, if it was not already confirmed by hand) and Redo
+   * puts it back. Resolves once the dictionary has answered.
+   */
+  readonly addToDictionary: (view: EditorView, issue: SpellIssue) => Promise<void>;
+  /** Undo: the last text step or Add to Dictionary, whichever came last. What Ctrl+Z runs. */
+  readonly undo: Command;
+  /** Redo: the reverse of `undo`. What Ctrl+Shift+Z and Ctrl+Y run. */
+  readonly redo: Command;
 }
 
 export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): ManuscriptSession {
@@ -207,6 +232,9 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
   const autocomplete = { names: () => names, draw: ports.drawOffer };
+  // Add to Dictionary's undo steps, which sit among the text's (`off-paper-undo.ts`).
+  const offPaper = new OffPaperHistory();
+  const undo = { undo: offPaper.undo, redo: offPaper.redo };
 
   /** The writer's confirmations, as the lists hold them: the only copy there is. */
   const confirmationsOf = (lists: NameLists): Confirmations => ({
@@ -244,7 +272,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     ports.setStatus(countsText(current, laid.totalPages, words));
   };
 
-  state = editorStateFor(opened.document, { autocomplete, spellcheck });
+  state = editorStateFor(opened.document, { autocomplete, spellcheck, undo });
   words = wordsIn(state.doc);
   settle({ replaced: read.confirmed ?? NO_CONFIRMATIONS });
 
@@ -257,7 +285,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // version that was replaced.
     reload: (imported) => {
       const spellingWasOn = spellcheck.isOn(state);
-      state = editorStateFor(imported.document, { autocomplete, spellcheck });
+      state = editorStateFor(imported.document, { autocomplete, spellcheck, undo });
+      offPaper.clear();
       // Someone else's words are not the writer's: counting starts from them.
       words = wordsIn(state.doc);
       settle({ replaced: confirmationsOf(names) });
@@ -406,24 +435,65 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   // or not at all; the manuscript is not touched. A failed write is said, and
   // the confirmation holds until the project closes.
   let writingNames: Promise<void> = Promise.resolve();
-  const confirm = (kind: NameKind): boolean => {
-    const at = elementUnder(state.doc, state.selection.head);
-    const found = at === undefined ? undefined : nameOf(at);
-    if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
-    if (names.confirm(kind, found.name)) {
-      const toWrite = confirmationsOf(names);
-      writingNames = writingNames.then(async () => {
-        try {
-          await writeConfirmations(ports.filesystem, ports.project, toWrite);
-        } catch (error) {
-          ports.report(
-            `Write-ist could not save the confirmed name. It holds while this project is open. ` +
-              `Your screenplay is unchanged. ${message(error)}`,
-          );
-        }
-      });
-    }
+  const nameAt = (at: number): ReturnType<typeof nameOf> => {
+    const under = elementUnder(state.doc, at);
+    return under === undefined ? undefined : nameOf(under);
+  };
+  /** The lists' confirmations, to the names file: whole, after any write before it. */
+  const writeNames = (): void => {
+    const toWrite = confirmationsOf(names);
+    writingNames = writingNames.then(async () => {
+      try {
+        await writeConfirmations(ports.filesystem, ports.project, toWrite);
+      } catch (error) {
+        ports.report(
+          `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+            `Your screenplay is unchanged. ${message(error)}`,
+        );
+      }
+    });
+  };
+  /** Confirm by hand, or take that back. Never when the names file could not be read. */
+  const confirmName = (kind: NameKind, name: string): boolean => {
+    if (read.confirmed === undefined || !names.confirm(kind, name)) return false;
+    writeNames();
     return true;
+  };
+  const unconfirmName = (kind: NameKind, name: string): void => {
+    if (read.confirmed === undefined || !names.unconfirm(kind, name)) return;
+    writeNames();
+  };
+  const confirm = (kind: NameKind, at = state.selection.head): boolean => {
+    const found = nameAt(at);
+    if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
+    confirmName(kind, found.name);
+    return true;
+  };
+
+  // The dictionary's answers, in the order they were asked for: an undo pressed
+  // before the add it undoes has been answered waits for it.
+  let spelling: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(act: () => Promise<T>): Promise<T> => {
+    const done = spelling.then(act);
+    spelling = done.catch(() => {});
+    return done;
+  };
+  const dictionaryTrouble = (error: unknown): void =>
+    ports.report(`Write-ist could not change your dictionary. Your screenplay is unchanged. ${message(error)}`);
+
+  const listOfWordAt = (from: number, to: number): NameKind | undefined => {
+    const under = elementUnder(state.doc, from);
+    const found = under === undefined ? undefined : nameOf(under);
+    if (under === undefined || found === undefined) return undefined;
+    // A cue: one of the words of the speaker's name, not an extension.
+    if (found.kind === "character") {
+      const word = normaliseName(state.doc.textBetween(from, to));
+      return wordsOf(found.name).includes(word) ? "character" : undefined;
+    }
+    // A heading: inside the place, by the same parse that names it.
+    const place = locationRange(under.text);
+    const end = under.offset + (to - from);
+    return place !== undefined && under.offset >= place.from && end <= place.to ? "location" : undefined;
   };
 
   return {
@@ -442,8 +512,10 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     spellcheck,
     manuscript: () => manuscriptOf(state.doc),
     apply: (transaction) => {
+      const was = state;
       const before = state.doc;
       state = state.apply(transaction);
+      offPaper.applied(transaction, was, state);
       if (transaction.docChanged) {
         session.changed();
         saving.typed();
@@ -484,11 +556,41 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       showGoal();
     },
     leave,
-    settled: () => writingNames,
-    confirmableKind: () => {
-      const at = elementUnder(state.doc, state.selection.head);
-      return at?.type === "scene-heading" ? "location" : "character";
-    },
+    settled: () => Promise.all([writingNames, spelling]).then(() => {}),
+    listOfWordAt,
     confirm,
+    addToDictionary: async (view, issue) => {
+      // Typing before and after stays two undo steps, with this one between.
+      const step = offPaper.begin(view.state);
+      view.dispatch(step.close);
+      const list = listOfWordAt(issue.from, issue.to);
+      const found = list === undefined ? undefined : nameAt(issue.from);
+      // A names file that could not be read is not changed; the word still
+      // goes in the dictionary. A name already confirmed by hand is not this
+      // step's to take back.
+      const listed = found !== undefined && confirmName(found.kind, found.name) ? found : undefined;
+      let added = false;
+      try {
+        added = await inTurn(() => spellcheck.addToDictionary(view, issue.word));
+      } finally {
+        // A word already in the dictionary is not this step's to take out.
+        if (added || listed !== undefined) {
+          step.record({
+            undo: () => {
+              if (listed !== undefined) unconfirmName(listed.kind, listed.name);
+              if (added) void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble);
+              else spellcheck.refresh(view);
+            },
+            redo: () => {
+              if (listed !== undefined) confirmName(listed.kind, listed.name);
+              if (added) void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble);
+              else spellcheck.refresh(view);
+            },
+          });
+        }
+      }
+    },
+    undo: offPaper.undo,
+    redo: offPaper.redo,
   };
 }

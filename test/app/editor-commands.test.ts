@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "confirmName", "confirmLocation", "confirmHere", "toggleSpellcheck", "search",
+    "toggleSpellcheck", "search", "undo", "redo",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -62,9 +62,13 @@ describe("the command a key press asks for", () => {
     }
   });
 
-  it("is Ctrl+K for confirming the name or location the caret is in", () => {
-    expect(commandForKey(press("k", { ctrl: true }), "editor")?.id).toBe("confirm-here");
-    expect(commandForKey(press("K", { meta: true }), "editor")?.id).toBe("confirm-here");
+  it("is nothing for Ctrl+K or Cmd+K: no command has that key", () => {
+    for (const keys of ["editor", "window"] as const) {
+      expect(commandForKey(press("k", { ctrl: true }), keys)).toBeUndefined();
+      expect(commandForKey(press("K", { meta: true }), keys)).toBeUndefined();
+    }
+    expect(COMMANDS.filter((command) => command.chord?.key.toLowerCase() === "k")).toEqual([]);
+    expect(commandById("add-name")).toBeUndefined();
   });
 
   it("is Ctrl+; or Cmd+; for the spelling pass, and not a bare semicolon", () => {
@@ -104,10 +108,6 @@ describe("the hint drawn beside a command", () => {
     expect(hintOf(commandById("element-centered")!)).toBe("[Ctrl + 7]");
   });
 
-  it("is shared by the items that borrow a key: both confirm items show Ctrl+K", () => {
-    expect(hintOf(commandById("confirm-name")!)).toBe("[Ctrl + K]");
-    expect(hintOf(commandById("confirm-location")!)).toBe("[Ctrl + K]");
-  });
 
   it("is absent where there is no key", () => {
     expect(hintOf(commandById("save-copy")!)).toBeUndefined();
@@ -156,7 +156,7 @@ describe("the Editor's menus", () => {
         "---",
         "Home[Esc]",
       ],
-      Edit: ["Edit Title Page…", "---", "Edit Goals…", "---", "Confirm This Name[Ctrl + K]", "Confirm This Location[Ctrl + K]"],
+      Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
       View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]"],
     });
   });
@@ -176,9 +176,9 @@ describe("the Editor's menus", () => {
     choose("Home");
     choose("Edit Title Page…");
     choose("View Title Page");
-    choose("Confirm This Name");
-    choose("Confirm This Location");
     choose("Spellcheck");
+    choose("Undo");
+    choose("Redo");
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["saveCopy"]).toHaveBeenCalledOnce();
     expect(act["exportPdf"]).toHaveBeenCalledOnce();
@@ -186,9 +186,21 @@ describe("the Editor's menus", () => {
     expect(act["toHome"]).toHaveBeenCalledOnce();
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();
     expect(act["viewTitlePage"]).toHaveBeenCalledOnce();
-    expect(act["confirmName"]).toHaveBeenCalledOnce();
-    expect(act["confirmLocation"]).toHaveBeenCalledOnce();
     expect(act["toggleSpellcheck"]).toHaveBeenCalledOnce();
+    expect(act["undo"]).toHaveBeenCalledOnce();
+    expect(act["redo"]).toHaveBeenCalledOnce();
+  });
+
+  // Undo's keys are the screenplay surface's keymap, which runs the session's
+  // undo (Add to Dictionary included): the table only draws them.
+  it("offer Undo and Redo at the top of Edit, with the keys the paper answers", () => {
+    for (const id of ["undo", "redo"]) {
+      expect(commandById(id)?.keys, id).toBe("elsewhere");
+      expect(commandById(id)?.menu, id).toEqual({ name: "Edit", group: "undo" });
+    }
+    expect(commandById("undo")?.chord).toEqual({ key: "z", mod: true });
+    expect(commandById("redo")?.chord).toEqual({ key: "y", mod: true });
+    expect(commandForKey(press("z", { ctrl: true }), "editor")).toBeUndefined();
   });
 
   it("tick the spelling item from whether the pass is on", () => {
@@ -202,6 +214,7 @@ describe("the Editor's menus", () => {
     for (const id of ["make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]) {
       expect(labels).not.toContain(commandById(id)!.label);
     }
+    expect(labels.join()).not.toMatch(/Add name|Confirm|Remove from list/);
   });
 });
 

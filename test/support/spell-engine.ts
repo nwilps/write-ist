@@ -32,11 +32,8 @@ export interface FakeEngine extends SpellEngine {
 export function fakeEngine(known: readonly string[] = ENGLISH, store: string[] = []): FakeEngine {
   const asked: string[][] = [];
   const dictionary = new Set(known.map((word) => word.toLowerCase()));
-  const knows = (word: string): boolean => {
-    const lower = word.toLowerCase();
-    if (dictionary.has(lower)) return true;
-    return store.some((added) => added.toLowerCase() === lower);
-  };
+  const isAdded = (word: string): boolean => store.some((added) => added.toLowerCase() === word.toLowerCase());
+  const knows = (word: string): boolean => dictionary.has(word.toLowerCase()) || isAdded(word);
   return {
     asked,
     added: store,
@@ -51,9 +48,19 @@ export function fakeEngine(known: readonly string[] = ENGLISH, store: string[] =
           .filter((candidate) => editDistance(word.toLowerCase(), candidate, 2) <= 2)
           .sort((a, b) => editDistance(word.toLowerCase(), a, 2) - editDistance(word.toLowerCase(), b, 2)),
       ),
+    // Every call is logged in the store; whether it was new is the file's answer.
     addWord: (word) => {
+      const added = !isAdded(word);
       store.push(word);
-      return Promise.resolve();
+      return Promise.resolve(added);
+    },
+    // Only the writer's words are taken out, never the shipped ones.
+    removeWord: (word) => {
+      if (!isAdded(word)) return Promise.resolve(false);
+      for (let at = store.length - 1; at >= 0; at--) {
+        if (store[at]!.toLowerCase() === word.toLowerCase()) store.splice(at, 1);
+      }
+      return Promise.resolve(true);
     },
   };
 }

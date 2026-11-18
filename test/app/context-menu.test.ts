@@ -219,8 +219,8 @@ function editing(text: string, wrong?: Misspelling) {
     focus: () => {},
   } as unknown as EditorView;
   const spies = Object.fromEntries(
-    ["save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "confirmName",
-      "confirmLocation", "confirmHere", "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
+    ["save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage",
+      "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
   );
   const host = { ...spies, spellcheckOn: () => false, misspellingAt: () => wrong, view: () => view } as unknown as CommandHost &
     Record<string, ReturnType<typeof vi.fn>>;
@@ -304,6 +304,20 @@ describe("what the menu holds", () => {
       entries.forEach((entry, at) => {
         if ("divider" in entry) expect(entries[at + 1]).not.toHaveProperty("divider");
       });
+    }
+  });
+});
+
+describe("the names lists", () => {
+  // Lists stay out of sight while writing: Add to Dictionary is the one way a
+  // name joins them by hand, and nothing on the menu takes one off.
+  it("have no item of their own, on a cue, a heading, action or a misspelt word", async () => {
+    const wrong = { suggestions: async () => ["Steal"], replace: vi.fn(), addToDictionary: vi.fn() } satisfies Misspelling;
+    for (const [writing, elements] of [[editing(TWO), 5], [editing(TWO, wrong), 5], [editing(ACTION), 2]] as const) {
+      for (let element = 0; element < elements; element++) {
+        const labels = drawn(await contextMenuItems(writing.host, startOfElement(writing.state(), element))).join();
+        expect(labels).not.toMatch(/Add name|Confirm|Remove from list|\[Ctrl \+ K\]/);
+      }
     }
   });
 });

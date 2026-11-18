@@ -7,7 +7,7 @@
 //!
 //! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
 //! asks for, and `move_folder` because the plugin's rename replaces an empty
-//! folder without a word (`folders.rs`). The three `spell_*` commands are here
+//! folder without a word (`folders.rs`). The four `spell_*` commands are here
 //! because spellcheck is ours, in Rust, off the thread that draws (ADR-0032):
 //! see `spelling.rs`.
 
@@ -128,10 +128,17 @@ fn spell_suggest(word: String, engine: tauri::State<'_, spelling::Engine>) -> Re
     Ok(engine.get()?.suggest(&word))
 }
 
-/// Add a word to the writer's own dictionary, for good.
+/// Add a word to the writer's own dictionary, for good. Answers whether it was new.
 #[tauri::command(async)]
-fn spell_add_word(word: String, engine: tauri::State<'_, spelling::Engine>) -> Result<(), String> {
+fn spell_add_word(word: String, engine: tauri::State<'_, spelling::Engine>) -> Result<bool, String> {
     engine.get()?.add_word(&word)
+}
+
+/// Take a word back out of the writer's own dictionary (an undone Add to
+/// Dictionary). Answers whether it was there; the shipped words never move.
+#[tauri::command(async)]
+fn spell_remove_word(word: String, engine: tauri::State<'_, spelling::Engine>) -> Result<bool, String> {
+    engine.get()?.remove_word(&word)
 }
 
 /// Linux draws no title bar (ADR-0036). `tauri.linux.conf.json` says so, but a
@@ -185,7 +192,8 @@ pub fn run() {
             move_folder,
             spell_misspelled,
             spell_suggest,
-            spell_add_word
+            spell_add_word,
+            spell_remove_word
         ])
         .run(tauri::generate_context!())
         .expect("Write-ist could not open a window");

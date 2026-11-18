@@ -33,7 +33,8 @@
  *
  * The paper's right-click menu (ADR-0039) offers them: `suggestionsAt` (the
  * "Did you mean" fix first, then the dictionary's), `replaceWord` (one undo
- * step) and `addToDictionary`.
+ * step) and `addToDictionary` (one undo step too: `removeFromDictionary`
+ * takes it back).
  */
 import { closeHistory } from "prosemirror-history";
 import type { Node as EditorNode } from "prosemirror-model";
@@ -241,9 +242,16 @@ export class Spellcheck {
     view.dispatch(closeHistory(view.state.tr.replaceWith(issue.from, issue.to, replacement)));
   }
 
-  /** Make a word right from now on, between sessions, and redraw. */
-  async addToDictionary(view: EditorView, word: string): Promise<void> {
-    await this.spelling.add(word);
+  /** Make a word right from now on, between sessions, and redraw. Answers whether it was new to the dictionary. */
+  async addToDictionary(view: EditorView, word: string): Promise<boolean> {
+    const added = await this.spelling.add(word);
+    this.refresh(view);
+    return added;
+  }
+
+  /** Take back a word `addToDictionary` added, and redraw, so its underline returns. */
+  async removeFromDictionary(view: EditorView, word: string): Promise<void> {
+    await this.spelling.remove(word);
     this.refresh(view);
   }
 

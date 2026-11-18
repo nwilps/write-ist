@@ -1,5 +1,5 @@
 /**
- * What the counts pill says (the desk design, §2.3): `Pages: ~3 / 112 | Words: 18,402`.
+ * What the counts pill says (the desk design, §2.3): `p. ~3 / 112 | w. 18,402`.
  *
  * The page is the one `layout()` placed the caret on, and the tilde is honest —
  * the count is Write-ist's own, measured against Final Draft's, and ADR-0024
@@ -13,7 +13,7 @@ const WITH_COMMAS = new Intl.NumberFormat("en-US");
 
 export function countsText(page: number, totalPages: number, words: number): string {
   const here = totalPages <= 0 ? 0 : page;
-  return `Pages: ~${WITH_COMMAS.format(here)} / ${WITH_COMMAS.format(totalPages)} | Words: ${WITH_COMMAS.format(words)}`;
+  return `p. ~${WITH_COMMAS.format(here)} / ${WITH_COMMAS.format(totalPages)} | w. ${WITH_COMMAS.format(words)}`;
 }
 
 /**

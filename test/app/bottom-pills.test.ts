@@ -67,9 +67,9 @@ describe("the bottom pills", () => {
     const { into, context } = shell();
     const counts = into.querySelector<HTMLElement>(".pills--right .pill--counts")!;
     expect(counts.hidden).toBe(true);
-    context().setStatus("Pages: ~3 / 112 | Words: 18,402");
+    context().setStatus("p. ~3 / 112 | w. 18,402");
     expect(counts.hidden).toBe(false);
-    expect(counts.textContent).toBe("Pages: ~3 / 112 | Words: 18,402");
+    expect(counts.textContent).toBe("p. ~3 / 112 | w. 18,402");
   });
 
   it("put the save pill last, saved and green to begin with, and follow the state it is told", () => {
@@ -92,6 +92,18 @@ describe("the bottom pills", () => {
     expect(save.dataset["state"]).toBe("unsaved");
     context().setSaved("saved");
     expect(drawn()).toBe(savedDrawing);
+  });
+
+  it("show no hover tooltip: the save pill and the Goal pill carry no title", () => {
+    const { into, context } = shell();
+    context().setGoal({ text: "Today: 120 / 500", kind: "daily", state: "under" });
+    context().setStatus("p. ~3 / 112 | w. 18,402");
+    for (const state of ["saving", "unsaved", "saved"] as const) {
+      context().setSaved(state);
+      expect(into.querySelector("[title]"), state).toBeNull();
+    }
+    // The save pill still says what it shows to a screen reader.
+    expect(into.querySelector(".pill--save")?.getAttribute("aria-label")).toBe("Saved");
   });
 
   describe("show a save for three seconds, three pulses, before the green check", () => {
@@ -224,7 +236,7 @@ describe("the bottom pills", () => {
 
     it("appears just left of the counts when spellcheck is turned on, and goes when it is off", () => {
       const { into, context } = shell();
-      context().setStatus("Pages: ~3 / 112 | Words: 18,402");
+      context().setStatus("p. ~3 / 112 | w. 18,402");
       const counts = into.querySelector<HTMLElement>(".pills--right .pill--counts")!;
       const spelling = into.querySelector<HTMLElement>(".pills--right .pill--spellcheck")!;
 
@@ -285,8 +297,8 @@ describe("the bottom pills", () => {
 
 describe("the counts", () => {
   it("read as the design has them, with thousands separated", () => {
-    expect(countsText(3, 112, 18402)).toBe("Pages: ~3 / 112 | Words: 18,402");
-    expect(countsText(0, 0, 0)).toBe("Pages: ~0 / 0 | Words: 0");
+    expect(countsText(3, 112, 18402)).toBe("p. ~3 / 112 | w. 18,402");
+    expect(countsText(0, 0, 0)).toBe("p. ~0 / 0 | w. 0");
   });
 
   it("count the words the ledger counts, from the editor's document", () => {

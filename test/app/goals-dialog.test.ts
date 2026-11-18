@@ -82,7 +82,8 @@ describe("the Goals dialog", () => {
     expect(bars.at(-2)!.style.getPropertyValue("--bar")).toBe("100");
     expect(bars.at(-2)!.classList.contains("goals-chart__bar--met")).toBe(true);
     expect(bars.at(-3)!.classList.contains("goals-chart__bar--idle")).toBe(true); // Sunday, not counted
-    expect(bars.at(-1)!.title).toBe("Nov 3: 250 words");
+    expect(bars.at(-1)!.getAttribute("aria-label")).toBe("Nov 3: 250 words");
+    expect(bars.some((bar) => bar.hasAttribute("title"))).toBe(false);
     expect(q(".goals-chart__goal").hidden).toBe(false);
     expect(q(".goals-chart__goal").style.getPropertyValue("--goal-at")).toBe("100");
     tracker.setDaily(undefined, []);
@@ -211,7 +212,7 @@ describe("the Goal pill", () => {
     const asked = vi.fn();
     const stop = context.whenGoalsAsked(asked);
     context.setGoal({ text: "1 / 500 today", kind: "daily", state: "progress" });
-    context.setStatus("Pages: ~1 / 4 | Words: 445");
+    context.setStatus("p. ~1 / 4 | w. 445");
     into.querySelector<HTMLElement>(".pill--goal")!.click();
     expect(asked).toHaveBeenCalledTimes(1);
     const counts = into.querySelector<HTMLElement>(".pill--counts")!;

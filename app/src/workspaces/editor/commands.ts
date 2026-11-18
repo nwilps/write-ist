@@ -38,12 +38,12 @@ import {
   FileText,
   FolderOpen,
   House,
-  MapPin,
+  Redo2,
   Save,
   Scissors,
   SpellCheck,
   Target,
-  UserCheck,
+  Undo2,
   type IconNode,
 } from "lucide";
 import type { EditorView } from "prosemirror-view";
@@ -60,6 +60,9 @@ import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screen
 
 /** What the window does for the Editor: the parts of a command that need a window. */
 export interface EditorActions {
+  /** Undo and redo: the same commands the keys run, so Add to Dictionary is undone in its turn. */
+  readonly undo: () => void;
+  readonly redo: () => void;
   readonly save: () => void;
   readonly saveCopy: () => void;
   readonly exportPdf: () => void;
@@ -69,10 +72,6 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
   readonly editGoals: () => void;
-  readonly confirmName: () => void;
-  readonly confirmLocation: () => void;
-  /** Confirm whichever of the two the caret is in. */
-  readonly confirmHere: () => void;
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
@@ -92,7 +91,10 @@ export interface Misspelling {
   readonly suggestions: () => Promise<readonly string[]>;
   /** Replace the word: one undo step. */
   readonly replace: (text: string) => void;
-  /** Make the word right from now on (ADR-0032). */
+  /**
+   * Make the word right from now on (ADR-0032). On a cue's character name or a
+   * heading's location, that name joins this project's list too.
+   */
   readonly addToDictionary: () => void;
 }
 
@@ -194,14 +196,12 @@ export const COMMANDS: readonly Command[] = [
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
   { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
 
-  // Edit
+  // Edit. Undo's keys are the screenplay surface's keymap (`editing.ts`), which
+  // runs the same commands; Ctrl+Shift+Z redoes too.
+  { id: "undo", label: "Undo", icon: Undo2, chord: { key: "z", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.undo() },
+  { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
-  // Ctrl+K confirms whichever the caret is in; the two items confirm one kind
-  // each, and show the same key because it is the same key.
-  { id: "confirm-here", label: "Confirm Name or Location", chord: { key: "k", mod: true }, run: (host) => host.confirmHere() },
-  { id: "confirm-name", label: "Confirm This Name", icon: UserCheck, sameKeyAs: "confirm-here", menu: { name: "Edit", group: "confirm" }, run: (host) => host.confirmName() },
-  { id: "confirm-location", label: "Confirm This Location", icon: MapPin, sameKeyAs: "confirm-here", menu: { name: "Edit", group: "confirm" }, run: (host) => host.confirmLocation() },
 
   // View
   { id: "view-title-page", label: "View Title Page", icon: Eye, menu: { name: "View", group: "title-page" }, run: (host) => host.viewTitlePage() },

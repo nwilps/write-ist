@@ -13,5 +13,6 @@ import type { SpellEngine } from "../../src/screenplay/spelling.ts";
 export const tauriSpellEngine: SpellEngine = {
   misspelled: (words) => invoke<string[]>("spell_misspelled", { words }),
   suggest: (word) => invoke<string[]>("spell_suggest", { word }),
-  addWord: (word) => invoke<void>("spell_add_word", { word }),
+  addWord: (word) => invoke<boolean>("spell_add_word", { word }),
+  removeWord: (word) => invoke<boolean>("spell_remove_word", { word }),
 };

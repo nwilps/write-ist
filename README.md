@@ -52,10 +52,11 @@ Everything below is in the app now.
   Write-ist won't write over that change.
 - **Autocomplete** for character cues and scene headings, from the names and locations already
   in your script.
-- **Character and location lists**, built from your script. **Confirm** a name or location and
-  autocomplete offers it and spellcheck knows it.
+- **Character and location lists**, built from your script. Once a name or location has been
+  used a few times, autocomplete offers it and spellcheck knows it.
 - **Spellcheck, on demand.** Off until you turn it on (View ▸ Spellcheck). Right-click a flagged
-  word for suggestions or to add it to your dictionary. It runs entirely on your computer and phones nothing home.
+  word for suggestions or to add it to your dictionary. Adding a word in a character cue, or in a
+  scene heading's location, also adds that name to the project's list. It runs entirely on your computer and phones nothing home.
 - **Search** through the script, and jump to any match.
 - **Page and word counts** along the bottom of the window, kept up to date as you type.
 - **Writing goals.** A daily word goal with a streak, one-off sprints, and a thirty-day chart.

@@ -49,7 +49,6 @@ import {
   readManuscript,
   type ManuscriptSession,
 } from "../../../../src/project/manuscript-session.ts";
-import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
 import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
@@ -130,6 +129,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view.focus();
     document.execCommand(command);
   };
+  // Edit ▸ Undo and Redo run what Ctrl+Z and Ctrl+Y run, Add to Dictionary's steps included.
+  const undoOrRedo = (which: "undo" | "redo"): void => {
+    const writing = session;
+    const editing = view;
+    if (writing === undefined || editing === undefined) return;
+    writing[which](editing.state, editing.dispatch, editing);
+    editing.focus();
+  };
   const pasteFromClipboard = (): void => {
     const target = view;
     if (target === undefined) return;
@@ -184,15 +191,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const toggleSpelling = (): void => {
     if (session === undefined || view === undefined) return;
     session.spellcheck.toggle(view);
-    view.focus();
-  };
-
-  // Step 8: the writer says the name or location the caret is in is right.
-  const confirmHere = (kind: NameKind): void => {
-    if (session === undefined || view === undefined) return;
-    if (!session.confirm(kind)) return;
-    // A confirmed name is a known word now, and a near-match of it a typo.
-    session.spellcheck.refresh(view);
     view.focus();
   };
 
@@ -299,12 +297,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editTitlePage,
     viewTitlePage,
     editGoals,
-    confirmName: () => confirmHere("character"),
-    confirmLocation: () => confirmHere("location"),
-    // Ctrl+K: whichever the caret is in.
-    confirmHere: () => {
-      if (session !== undefined) confirmHere(session.confirmableKind());
-    },
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     search: startSearch,
@@ -312,6 +304,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     copy: () => viaWebview("copy"),
     paste: pasteFromClipboard,
     selectAll: () => viaWebview("selectAll"),
+    undo: () => undoOrRedo("undo"),
+    redo: () => undoOrRedo("redo"),
     misspellingAt: (at) => {
       const writing = session;
       const editing = view;
@@ -324,7 +318,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           editing.focus();
         },
         addToDictionary: () => {
-          void writing.spellcheck.addToDictionary(editing, issue.word).then(
+          // On a cue's name or a heading's location, the name joins its list too.
+          void writing.addToDictionary(editing, issue).then(
             () => editing.focus(),
             (error: unknown) =>
               context.report(`Write-ist could not add that word to your dictionary. ${message(error)}`),
