@@ -344,6 +344,12 @@
   color: inherit;
 }
 
+/* Seen but never lit, under the pointer or not. */
+.dialog-select__tray .dialog-select__option--unavailable,
+.dialog-select__tray .dialog-select__option--unavailable:hover:not(.dialog-select__option--active) {
+  color: var(--colour-faint);
+}
+
 .dialog-select__tray .dialog-select__option--active {
   background: var(--colour-overlay);
   color: var(--colour-accent);

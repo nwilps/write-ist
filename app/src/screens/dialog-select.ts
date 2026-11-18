@@ -10,6 +10,10 @@
  * named by `aria-activedescendant`. Closed, the field answers Enter and Space
  * and leaves the arrows to the dialog (`dialogKeys`). Open, it keeps the arrows,
  * Enter, Space and Escape; Tab closes it and moves on, changing nothing.
+ *
+ * A choice can be unavailable: drawn dimmed with its tag, so the writer can see
+ * it is coming, but passed over by the arrows and deaf to the pointer. It can
+ * never be the value.
  */
 import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
@@ -17,6 +21,8 @@ import { cursor } from "./menu.ts";
 export interface DialogChoice {
   readonly value: string;
   readonly label: string;
+  /** The tag on a choice that cannot be picked yet, such as "soon". */
+  readonly unavailable?: string;
 }
 
 export interface DialogSelectSpec {
@@ -24,7 +30,7 @@ export interface DialogSelectSpec {
   readonly id: string;
   /** What a screen reader calls the list. */
   readonly label: string;
-  /** The first is chosen to begin with. */
+  /** The first available one is chosen to begin with; there must be one. */
   readonly choices: readonly DialogChoice[];
 }
 
@@ -72,16 +78,24 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
   control.setAttribute("aria-controls", tray.id);
   control.setAttribute("aria-expanded", "false");
 
-  const options = choices.map((choice, index) =>
-    element("div", { id: `${id}-option-${index}`, className: "drop-menu__item dialog-select__option", role: "option" }, [
+  const options = choices.map((choice, index) => {
+    const option = element("div", { id: `${id}-option-${index}`, className: "drop-menu__item dialog-select__option", role: "option" }, [
       cursor(),
       element("span", { textContent: choice.label }),
-    ]),
-  );
+    ]);
+    if (choice.unavailable !== undefined) {
+      option.classList.add("dialog-select__option--unavailable");
+      option.setAttribute("aria-disabled", "true");
+      option.append(element("span", { className: "drop-menu__hint", textContent: choice.unavailable }));
+    }
+    return option;
+  });
   tray.append(...options);
 
-  let chosen = 0;
-  let active = 0;
+  // The rows the arrows, the pointer and the keys can land on.
+  const available = choices.flatMap((choice, index) => (choice.unavailable === undefined ? [index] : []));
+  let chosen = available[0]!;
+  let active = chosen;
   const isOpen = (): boolean => !tray.hidden;
 
   const choose = (index: number): void => {
@@ -152,7 +166,8 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
       return;
     }
     if (key === "ArrowDown" || key === "ArrowUp") {
-      highlight((active + (key === "ArrowDown" ? 1 : -1) + options.length) % options.length);
+      const step = key === "ArrowDown" ? 1 : -1;
+      highlight(available[(available.indexOf(active) + step + available.length) % available.length]!);
     } else if (key === "Enter" || key === " ") {
       choose(active);
       close();
@@ -166,7 +181,8 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
 
   // Keep focus on the field through a press in the tray, or it would close first.
   tray.addEventListener("mousedown", (event) => event.preventDefault());
-  options.forEach((option, index) => {
+  available.forEach((index) => {
+    const option = options[index]!;
     // Only a pointer that moved: a tray opening or scrolling under a still one
     // must not take the highlight from the keys.
     option.addEventListener("mousemove", ({ movementX, movementY }) => {
@@ -178,6 +194,6 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     });
   });
 
-  choose(0);
+  choose(chosen);
   return { control, tray, value: () => choices[chosen]!.value };
 }

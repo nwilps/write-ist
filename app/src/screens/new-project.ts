@@ -10,7 +10,8 @@
  * The pattern for the other dialogs: its button, drop-down and keys are the
  * shared `dialogAction`, `dialogSelect` and `dialogKeys`.
  */
-import { PROJECT_TYPES, type ProjectType } from "../../../src/project/create.ts";
+import { COMING_FORMATS } from "../../../src/project/create.ts";
+import { FORMATS, type ProjectFormat } from "../../../src/project/marker.ts";
 import { createElement, ChevronDown } from "lucide";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys } from "./dialog-keys.ts";
@@ -24,7 +25,7 @@ export interface NewProjectScreen {
    * to nothing when it was — the caller opens the project then.
    */
   readonly onCreate: (request: {
-    readonly type: ProjectType;
+    readonly type: ProjectFormat;
     readonly title: string;
   }) => Promise<string | undefined>;
   /** The dialog is gone, however it went. */
@@ -38,7 +39,10 @@ export function showNewProject(
   const type = dialogSelect({
     id: "new-project-type",
     label: "Project type",
-    choices: PROJECT_TYPES.map((name) => ({ value: name, label: name })),
+    choices: [
+      ...FORMATS.map((name) => ({ value: name, label: name })),
+      ...COMING_FORMATS.map((name) => ({ value: name, label: name, unavailable: "soon" })),
+    ],
   });
   const title = element("input", {
     id: "new-project-title",
@@ -82,7 +86,7 @@ export function showNewProject(
     making = true;
     problem.replaceChildren();
     settle();
-    onCreate({ type: type.value() as ProjectType, title: title.value }).then(
+    onCreate({ type: type.value() as ProjectFormat, title: title.value }).then(
       (wrong) => {
         making = false;
         if (wrong === undefined) {

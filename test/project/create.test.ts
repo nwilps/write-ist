@@ -7,10 +7,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MANUSCRIPT_FILE, MARKER_FILE } from "../../src/project/bundle.ts";
-import { CannotCreate, createProject } from "../../src/project/create.ts";
+import { CannotCreate, COMING_FORMATS, createProject } from "../../src/project/create.ts";
 import { openProject } from "../../src/project/open.ts";
 import { listProjects } from "../../src/project/projects.ts";
-import { parseMarker } from "../../src/project/marker.ts";
+import { FORMATS, parseMarker } from "../../src/project/marker.ts";
 import { editingSession } from "../../src/project/save.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import type { Filesystem } from "../../src/project/filesystem.ts";
@@ -31,7 +31,7 @@ let minted = 0;
 const make = (title = "Big Fish", filesystem: Filesystem = nodeFilesystem) =>
   createProject({ filesystem, newProjectId: () => `id-${++minted}` }, projects, {
     title,
-    type: "Screenplay",
+    type: "Feature",
   });
 
 describe("createProject", () => {
@@ -78,6 +78,48 @@ describe("createProject", () => {
       }),
     ).rejects.toBeInstanceOf(CannotCreate);
     expect(await nodeFilesystem.readDirectory(projects)).toEqual([]);
+  });
+
+  it.each(["Feature", "Episode", "Short Film"] as const)(
+    "makes a %s as a screenplay that says so in project.md, and opens it",
+    async (type) => {
+      const project = await createProject(
+        { filesystem: nodeFilesystem, newProjectId: () => "id-format" },
+        projects,
+        { title: "Big Fish", type },
+      );
+
+      const marker = readFileSync(join(project.path, MARKER_FILE), "utf8");
+      expect(marker.split("\n")).toContain(`Format: ${type}`);
+      expect(parseMarker(marker)?.format).toBe(type);
+      expect(readFileSync(join(project.path, MANUSCRIPT_FILE), "utf8")).toBe("Title: Big Fish\n");
+      const listing = await listProjects(nodeFilesystem, projects);
+      expect(listing.projects.map((p) => p.marker.format)).toEqual([type]);
+      expect(listing.unreadable).toEqual([]);
+      const opened = await openProject(nodeFilesystem, project);
+      expect(opened.document.titlePage.map((f) => f.key)).toEqual(["Title"]);
+    },
+  );
+
+  it("still reads a project.md written before there was a choice", () => {
+    expect(parseMarker("# Old Script\n\nFormat version: 1\nProject id: id-old\nFormat: Feature\n")).toEqual({
+      name: "Old Script",
+      formatVersion: "1",
+      projectId: "id-old",
+      format: "Feature",
+    });
+  });
+
+  it.each(COMING_FORMATS)("refuses a %s by name, writing nothing, and it is no format", async (type) => {
+    await expect(
+      createProject({ filesystem: nodeFilesystem, newProjectId: () => "x" }, projects, {
+        title: "Dune",
+        type: type as never,
+      }),
+    ).rejects.toThrow(new CannotCreate(`Write-ist cannot make a ${type} yet.`));
+    expect(await nodeFilesystem.readDirectory(projects)).toEqual([]);
+    expect(FORMATS).not.toContain(type);
+    expect(parseMarker(`# Dune\n\nFormat version: 1\nProject id: x\nFormat: ${type}\n`)).toBeNull();
   });
 
   it("leaves no project behind when the marker cannot be written", async () => {

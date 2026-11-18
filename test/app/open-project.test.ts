@@ -215,7 +215,7 @@ describe("Open Project, the list", () => {
       for (const title of ["Kitchen Draft", "Big Fish", "The Long Winter"]) {
         await createProject({ filesystem: nodeFilesystem, newProjectId: () => `id-${++minted}` }, folder, {
           title,
-          type: "Screenplay",
+          type: "Feature",
         });
       }
       const real = await listProjects(nodeFilesystem, folder);
@@ -276,7 +276,7 @@ describe("Open Project, the New Project dialog over it", () => {
     title.value = "Paper Boats Two";
     title.dispatchEvent(new Event("input"));
     document.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
-    expect(onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Paper Boats Two" });
+    expect(onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Paper Boats Two" });
     await Promise.resolve();
     await Promise.resolve();
     expect(document.querySelector("dialog")).toBeNull();

@@ -27,10 +27,10 @@
 export const FORMAT_VERSION = "1";
 
 /**
- * The formats slice 1 knows. An import is always a Feature (#38) — choosing a
- * format, and the blank New Screenplay that would need one, are out of scope.
+ * The formats a project can be, all on the screenplay surface. An import is
+ * always a Feature (#38); New Project offers each of them.
  */
-export const FORMATS = ["Feature"] as const;
+export const FORMATS = ["Feature", "Episode", "Short Film"] as const;
 export type ProjectFormat = (typeof FORMATS)[number];
 
 export interface ProjectMarker {

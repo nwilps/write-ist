@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
 import { chosenBy } from "../../app/src/screens/shortcuts.ts";
-import { placeTray } from "../../app/src/screens/dialog-select.ts";
+import { dialogSelect, placeTray } from "../../app/src/screens/dialog-select.ts";
 import { showNewProject } from "../../app/src/screens/new-project.ts";
 
 // jsdom has no modal dialog.
@@ -123,10 +123,19 @@ function dialog(onCreate = vi.fn(async () => undefined as string | undefined)) {
 }
 
 describe("the New Project dialog", () => {
-  it("offers Screenplay as the only project type, and a title", () => {
+  it("offers the eight project types in order, with Feature chosen, and a title", () => {
     const { type, tray, title } = dialog();
-    expect([...tray.querySelectorAll("[role=option]")].map((o) => o.textContent)).toEqual([">Screenplay"]);
-    expect(type.textContent).toBe("Screenplay");
+    expect([...tray.querySelectorAll("[role=option]")].map((o) => o.firstElementChild!.nextElementSibling!.textContent)).toEqual([
+      "Feature",
+      "Episode",
+      "Short Film",
+      "Novel",
+      "Short Story",
+      "Novella",
+      "Flash Fiction",
+      "Poem",
+    ]);
+    expect(type.textContent).toBe("Feature");
     expect(title.value).toBe("");
   });
 
@@ -168,7 +177,7 @@ describe("the New Project dialog", () => {
     type_("Big Fish");
     enter();
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+    expect(onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
     expect(modal.hasAttribute("open")).toBe(false);
   });
 
@@ -193,7 +202,7 @@ describe("the New Project dialog", () => {
     type_("Big Fish");
     submit();
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+    expect(onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
     expect(modal.hasAttribute("open")).toBe(false);
   });
 
@@ -379,7 +388,7 @@ describe("walking the New Project dialog from the keyboard", () => {
     type_("Big Fish");
     press("Enter");
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+    expect(onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
   });
 
   it("activates the focused button on Enter", async () => {
@@ -458,7 +467,7 @@ describe("the project type drop-down", () => {
     expect(shown.press("Escape").defaultPrevented).toBe(false);
   });
 
-  it("picks on Enter without confirming, and Screenplay is what gets made", async () => {
+  it("picks on Enter without confirming, and Feature is what gets made", async () => {
     const shown = opened();
     shown.type_("Big Fish");
     shown.press("Enter");
@@ -466,7 +475,7 @@ describe("the project type drop-down", () => {
     expect(shown.onCreate).not.toHaveBeenCalled();
     shown.submit();
     await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
-    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
   });
 
   it("opens and picks with the mouse", () => {
@@ -475,7 +484,109 @@ describe("the project type drop-down", () => {
     expect(isOpen(shown)).toBe(true);
     (shown.tray.firstElementChild as HTMLElement).click();
     expect(isOpen(shown)).toBe(false);
-    expect(shown.type.textContent).toBe("Screenplay");
+    expect(shown.type.textContent).toBe("Feature");
+  });
+
+  const row = ({ tray }: { tray: HTMLElement }, index: number) => tray.children[index] as HTMLElement;
+  const highlighted = ({ type }: { type: HTMLElement }) =>
+    document.getElementById(type.getAttribute("aria-activedescendant")!)!.children[1]!.textContent;
+
+  it("makes the type picked with the keys", async () => {
+    const shown = opened();
+    shown.type_("Big Fish");
+    shown.press("ArrowDown");
+    shown.press("Enter");
+    expect(shown.type.textContent).toBe("Episode");
+    shown.submit();
+    await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Episode", title: "Big Fish" });
+  });
+
+  it("makes the type picked with the mouse", async () => {
+    const shown = dialog();
+    shown.type_("Big Fish");
+    shown.type.click();
+    row(shown, 2).click();
+    expect(shown.type.textContent).toBe("Short Film");
+    shown.submit();
+    await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Short Film", title: "Big Fish" });
+  });
+
+  it("dims and tags only the types that are coming", () => {
+    const shown = dialog();
+    const rows = [...shown.tray.children];
+    const coming = rows.slice(3);
+    expect(coming).toHaveLength(5);
+    for (const option of coming) {
+      expect(option.classList.contains("dialog-select__option--unavailable")).toBe(true);
+      expect(option.getAttribute("aria-disabled")).toBe("true");
+      expect(option.querySelector(".drop-menu__hint")!.textContent).toBe("soon");
+      expect(option.hasAttribute("title")).toBe(false);
+    }
+    for (const option of rows.slice(0, 3)) {
+      expect(option.classList.contains("dialog-select__option--unavailable")).toBe(false);
+      expect(option.hasAttribute("aria-disabled")).toBe(false);
+      expect(option.querySelector(".drop-menu__hint")).toBeNull();
+    }
+    const css = readFileSync("app/src/style/home.css", "utf8");
+    expect(css).toMatch(/\.dialog-select__option--unavailable:hover[^{]*\{\s*color: var\(--colour-faint\)/);
+  });
+
+  it("wraps the arrows among the available types, skipping the rest", () => {
+    const shown = opened();
+    const down = [1, 2, 3].map(() => (shown.press("ArrowDown"), highlighted(shown)));
+    expect(down).toEqual(["Episode", "Short Film", "Feature"]);
+    const up = [1, 2, 3].map(() => (shown.press("ArrowUp"), highlighted(shown)));
+    expect(up).toEqual(["Short Film", "Episode", "Feature"]);
+  });
+
+  it("does nothing when a coming type is clicked or pointed at, and stays open", () => {
+    const shown = opened();
+    const novel = row(shown, 3);
+    novel.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, movementX: 1 } as MouseEventInit));
+    expect(highlighted(shown)).toBe("Feature");
+    expect(novel.classList.contains("dialog-select__option--active")).toBe(false);
+    novel.click();
+    expect(isOpen(shown)).toBe(true);
+    expect(shown.type.textContent).toBe("Feature");
+    expect(novel.getAttribute("aria-selected")).toBe("false");
+  });
+
+  it.each(["Enter", " "])("picks an available type on %j even after a coming one is clicked", (key) => {
+    const shown = opened();
+    row(shown, 7).click();
+    shown.press(key);
+    expect(isOpen(shown)).toBe(false);
+    expect(shown.type.textContent).toBe("Feature");
+  });
+
+  it("cannot confirm a coming type", async () => {
+    const shown = dialog();
+    shown.type_("Big Fish");
+    shown.type.click();
+    for (const index of [3, 4, 5, 6, 7]) row(shown, index).click();
+    shown.press("Escape");
+    shown.submit();
+    await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
+    expect(shown.onCreate).toHaveBeenCalledTimes(1);
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Feature", title: "Big Fish" });
+  });
+
+  it("begins on the first available choice, whatever comes before it", () => {
+    const { control, tray, value } = dialogSelect({
+      id: "pick",
+      label: "Pick",
+      choices: [
+        { value: "later", label: "Later", unavailable: "soon" },
+        { value: "now", label: "Now" },
+      ],
+    });
+    document.body.append(control, tray);
+    expect(value()).toBe("now");
+    expect(control.textContent).toBe("Now");
+    control.click();
+    expect(control.getAttribute("aria-activedescendant")).toBe("pick-option-1");
   });
 
   it("closes on Tab and moves on", () => {
