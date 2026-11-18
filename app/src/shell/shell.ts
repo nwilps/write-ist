@@ -23,6 +23,7 @@ import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucid
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
+import type { Places } from "../../../src/project/places.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
@@ -56,6 +57,8 @@ export interface ShellScreen {
    * is. The shell does not record a day and does not know what is being counted.
    */
   readonly ledger: () => Ledger | undefined;
+  /** Where the writer was in each project. Handed straight on, like the ledger. */
+  readonly places: () => Places | undefined;
   /** Where a copy should go, asked of the writer. Handed straight to the workspace. */
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
   /** Where the PDF should go, asked the same way. */
@@ -163,6 +166,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     whenSwitchedBack: screen.whenSwitchedBack,
     leave: { toProjects: screen.onClose, toHome: screen.onHome },
     ledger: screen.ledger,
+    places: screen.places,
     chooseCopyLocation: screen.chooseCopyLocation,
     choosePdfLocation: screen.choosePdfLocation,
   });

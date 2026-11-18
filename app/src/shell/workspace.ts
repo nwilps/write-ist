@@ -22,6 +22,7 @@ import type { IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
+import type { Places } from "../../../src/project/places.ts";
 
 /** Where a workspace's work stands against the disk. */
 export type SaveState = "saved" | "unsaved" | "saving";
@@ -115,6 +116,12 @@ export interface WorkspaceContext {
    * whichever answer launch arrived at.
    */
   readonly ledger: () => Ledger | undefined;
+  /**
+   * Where the writer was in each project, kept in app data between sessions.
+   * Opened at launch like the ledger, so a function for the same reason; the
+   * shell passes it through and does not read it.
+   */
+  readonly places: () => Places | undefined;
   /**
    * Ask the writer where a copy of their work should go (a save dialog), given
    * the name to offer. Answers the chosen path, or `undefined` if they

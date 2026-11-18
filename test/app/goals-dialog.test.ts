@@ -177,6 +177,7 @@ function shell() {
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
     ledger: () => undefined,
+    places: () => undefined,
   });
   return { into, context: given! };
 }

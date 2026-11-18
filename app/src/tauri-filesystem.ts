@@ -6,7 +6,7 @@
  * in `src/project/`, above the port, where the tests reach it through
  * `node:fs` and real files in a temporary folder.
  */
-import { exists, mkdir, readDir, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readDir, readFile, stat, writeFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { appLocalDataDir, documentDir, join } from "@tauri-apps/api/path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
@@ -61,6 +61,16 @@ export const tauriFilesystem: Filesystem = {
 
   async exists(path: string): Promise<boolean> {
     return exists(path);
+  },
+
+  async modifiedAt(path: string): Promise<Date | undefined> {
+    // Never rejects: an absent file, or a platform that keeps no time, is a
+    // project sorted lower, not one dropped from the list.
+    try {
+      return (await stat(path)).mtime ?? undefined;
+    } catch {
+      return undefined;
+    }
   },
 
   async appendFile(path: string, bytes: Uint8Array): Promise<void> {

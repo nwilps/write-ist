@@ -68,6 +68,15 @@ export interface Filesystem {
   exists(path: string): Promise<boolean>;
 
   /**
+   * When a file was last written, or `undefined` when that cannot be said.
+   *
+   * **Never rejects.** It orders the projects list (most recently edited
+   * first), and a file that is absent or whose time will not read is a
+   * project listed lower down, never a project left off the list.
+   */
+  modifiedAt(path: string): Promise<Date | undefined>;
+
+  /**
    * Append bytes to a file without rewriting what is already there.
    *
    * Creates the file when it is absent. The ledger (ADR-0017) is append-only

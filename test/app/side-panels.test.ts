@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { describe, expect, it } from "vitest";
-import { sidePanels } from "../../app/src/workspaces/editor/panels.ts";
+import { keepWheelIn, listTakesWheel, sidePanels } from "../../app/src/workspaces/editor/panels.ts";
 import { editorStateFor } from "../../src/screenplay/editing.ts";
 import { NUMBERED_TYPES, setElementType } from "../../src/screenplay/element-keys.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -142,3 +142,43 @@ describe("the left column's stacking", () => {
     expect(css).toMatch(/\.panel--scenes \{[^}]*flex: 0 1 auto;[^}]*max-height: var\(--size-panel-scenes\)/);
   });
 });
+
+
+function listBox(scrollTop: number, clientHeight: number, scrollHeight: number): HTMLElement {
+  const list = document.createElement("ul");
+  Object.defineProperty(list, "clientHeight", { value: clientHeight, configurable: true });
+  Object.defineProperty(list, "scrollHeight", { value: scrollHeight, configurable: true });
+  list.scrollTop = scrollTop;
+  return list;
+}
+
+describe("the Scene list's scrolling", () => {
+  it("contains overscroll in the list, so reaching the end does not move the paper", () => {
+    expect(css).toMatch(/\.panel__scenes\s*\{[^}]*overscroll-behavior:\s*contain/);
+  });
+
+  it("takes a wheel only while the list can still move that way", () => {
+    const list = listBox(20, 80, 200);
+    expect(listTakesWheel(list, 0, 10)).toBe(true);
+    expect(listTakesWheel(list, 0, -10)).toBe(true);
+    list.scrollTop = 0;
+    expect(listTakesWheel(list, 0, -10)).toBe(false);
+    expect(listTakesWheel(list, 0, 10)).toBe(true);
+    list.scrollTop = 120;
+    expect(listTakesWheel(list, 0, 10)).toBe(false);
+    expect(listTakesWheel(list, 0, -10)).toBe(true);
+    // A short list, or a sideways swipe, never leaves the paper to move.
+    const short = listBox(0, 80, 80);
+    expect(listTakesWheel(short, 0, 10)).toBe(false);
+    expect(listTakesWheel(list, 4, 10)).toBe(false);
+  });
+
+  it("stops a wheel the list cannot take, and does not hand it to the paper", () => {
+    const list = listBox(0, 80, 80);
+    const event = new WheelEvent("wheel", { deltaX: 0, deltaY: 40, deltaMode: WheelEvent.DOM_DELTA_PIXEL, cancelable: true });
+    keepWheelIn(list, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(list.scrollTop).toBe(40);
+  });
+});
+

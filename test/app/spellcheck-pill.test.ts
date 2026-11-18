@@ -53,6 +53,7 @@ async function editing(): Promise<{ told: boolean[]; paper: HTMLElement; into: H
     whenSwitchedBack: quiet,
     leave: { toProjects: () => {}, toHome: () => {} },
     ledger: () => undefined,
+    places: () => undefined,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
   } as unknown as WorkspaceContext;

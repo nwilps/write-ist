@@ -156,11 +156,17 @@
   color: var(--colour-muted);
 }
 
+/*
+ * The list scrolls, and its scrolling stays in it: reaching the end does not
+ * carry on into the paper (as the Open Project list). Where the list is too
+ * short to scroll, or the wheel is over the heading, `panels.ts` stops it.
+ */
 .panel__scenes {
   list-style: none;
   margin: 0;
   padding: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   min-height: 0;
 }
 

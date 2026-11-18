@@ -52,6 +52,7 @@ import {
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
 import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
+import { caretPlaceOf, selectionAtPlace, type CaretPlace } from "../../../../src/screenplay/caret-place.ts";
 import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
 import { contextMenuItems } from "./context-menu-items.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
@@ -59,6 +60,7 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
+import { caretScrolling, measureCaretRoom } from "./caret-margin.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
@@ -73,6 +75,11 @@ import type {
 } from "../../shell/workspace.ts";
 /** How often the Goal pill looks at the clock, to notice the day has turned over. */
 const GOAL_REFRESH_MS = 60_000;
+/**
+ * How long the caret rests before its place is kept, so a crash costs at most
+ * this much of where the writer was. Leaving the project keeps it too.
+ */
+const PLACE_REST_MS = 5_000;
 
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
@@ -100,6 +107,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let gone = false;
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
+  let stopFittingCaretRoom: (() => void) | undefined;
 
   const startSearch = (): void => {
     if (searching !== undefined || session === undefined || view === undefined) return;
@@ -281,6 +289,33 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
   // The day turns over without a keystroke: the pill is refreshed each minute.
   const goalClock = setInterval(() => session?.showGoal(), GOAL_REFRESH_MS);
+  // Where the caret is, kept in app data so reopening the project puts the
+  // writer back there (`src/project/places.ts`). After a rest, and on leaving.
+  let placeRest: ReturnType<typeof setTimeout> | undefined;
+  let placeKept: string | undefined;
+  const keepPlace = async (): Promise<void> => {
+    clearTimeout(placeRest);
+    placeRest = undefined;
+    const places = context.places();
+    if (places === undefined || session === undefined) return;
+    const place = caretPlaceOf(session.state.doc, session.state.selection.head);
+    if (place === undefined) return;
+    const key = JSON.stringify(place);
+    if (key === placeKept) return;
+    try {
+      await places.remember(context.project.marker.projectId, place);
+      placeKept = key;
+    } catch {
+      // Only where the caret was, never a word: the project opens at the top
+      // of its script next time, and the file that would not read is left as
+      // it was rather than written over.
+    }
+  };
+  const restPlace = (): void => {
+    clearTimeout(placeRest);
+    placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
+  };
+
   const viewTitlePage = (): void => {
     if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
     showTitlePagePreview(into, titlePageOf(session.state.doc), () => view?.focus());
@@ -342,7 +377,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   void (async () => {
     try {
-      const read = await readManuscript(context.filesystem, context.project, context.report);
+      const [read, place] = await Promise.all([
+        readManuscript(context.filesystem, context.project, context.report),
+        recallPlace(context),
+      ]);
       // Closed while the file was being read. A view mounted now would be a
       // view nobody takes down.
       if (gone) return;
@@ -372,6 +410,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       session = writing;
       reading.remove();
 
+      // Back where the writer left the caret, if that place is still in this
+      // script; otherwise the top of the script, where the session started it.
+      const resumed = place === undefined ? undefined : selectionAtPlace(writing.state.doc, place);
+      if (resumed !== undefined) writing.apply(writing.state.tr.setSelection(resumed));
+      placeKept = place === undefined ? undefined : JSON.stringify(place);
+
       // #48 / #49 — page count from the model, never the DOM. Open and reload
       // take a full paginate; each edit re-packs from the affected page onward.
       view = new EditorView(page, {
@@ -380,6 +424,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           writing.apply(transaction);
           view?.updateState(writing.state);
           shown(writing);
+          if (transaction.docChanged || transaction.selectionSet) restPlace();
         },
         // The explicit save ADR-0028 pairs with autosave, and the other keys
         // the Editor answers while the paper has focus — all from the command
@@ -411,6 +456,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // demand, from the dictionaries inside the application (ADR-0032).
         attributes: { class: "manuscript", spellcheck: "false" },
       });
+      // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
+      const editing = view;
+      const fitCaretRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom)));
+      fitCaretRoom();
+      window.addEventListener("resize", fitCaretRoom);
+      stopFittingCaretRoom = () => window.removeEventListener("resize", fitCaretRoom);
+      // And the caret it opened at is on screen, with the same room around it.
+      editing.dispatch(editing.state.tr.scrollIntoView());
       panels.attach(view);
       shown(writing);
       writing.showCounts();
@@ -443,6 +496,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // text to take down. The read's own continuation sees this and stops.
       if (session === undefined) {
         gone = true;
+        clearTimeout(placeRest);
         clearInterval(goalClock);
         stopListeningForGoals();
         page.removeEventListener("contextmenu", onContextMenu);
@@ -453,8 +507,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // The final save first, and it decides: the paper comes down only once
       // the writer's last sentence is on disk.
       if (!(await session.leave())) return false;
+      await keepPlace();
 
       gone = true;
+      clearTimeout(placeRest);
+      stopFittingCaretRoom?.();
       clearInterval(goalClock);
       stopListeningForGoals();
       session = undefined;
@@ -468,6 +525,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return true;
     },
   };
+}
+
+/** Where the caret was left in this project, or `undefined` when nothing is kept or it will not read. */
+async function recallPlace(context: WorkspaceContext): Promise<CaretPlace | undefined> {
+  try {
+    return await context.places()?.recall(context.project.marker.projectId);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

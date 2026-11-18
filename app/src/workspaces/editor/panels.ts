@@ -63,6 +63,38 @@ function row(label: string, hint: string, extra: Partial<HTMLButtonElement> = {}
   ]);
 }
 
+/** A wheel's line, in pixels, for a wheel that counts in lines. */
+const WHEEL_LINE = 16;
+
+/**
+ * Whether the list will move if the wheel is left to the webview: only up or
+ * down, and only while there is list left that way to scroll to.
+ */
+export function listTakesWheel(list: HTMLElement, deltaX: number, deltaY: number): boolean {
+  if (deltaX !== 0 || deltaY === 0) return false;
+  if (deltaY < 0) return list.scrollTop > 0;
+  return list.scrollTop + list.clientHeight < list.scrollHeight;
+}
+
+/**
+ * A wheel over the Scene Selection panel scrolls its list and **never the
+ * paper**. Left to the webview where the list will move; otherwise — a list
+ * too short to scroll, a list already at its end, the heading, a sideways
+ * swipe — the webview is stopped, and any up or down is given to the list.
+ * The CSS `overscroll-behavior` stops a scroll that reaches the end part-way.
+ */
+export function keepWheelIn(list: HTMLElement, event: WheelEvent): void {
+  if (listTakesWheel(list, event.deltaX, event.deltaY)) return;
+  event.preventDefault();
+  const step =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? WHEEL_LINE
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? list.clientHeight
+        : 1;
+  if (event.deltaY !== 0) list.scrollTop += event.deltaY * step;
+}
+
 /**
  * @param menus The items of each menu row, by its name. A row that is not
  *   here has no menu yet.
@@ -118,6 +150,7 @@ export function sidePanels(
     element("h2", { className: "panel__heading", textContent: "Scenes" }),
     sceneList,
   ]);
+  scenes.addEventListener("wheel", (event) => keepWheelIn(sceneList, event), { passive: false });
 
   const typeRows = new Map<ElementType, HTMLButtonElement>();
   const types = element(

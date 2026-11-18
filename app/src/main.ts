@@ -49,6 +49,7 @@ import { mountShell, type MountedShell } from "./shell/shell.ts";
 import { WORKSPACES } from "./workspaces/registry.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { openLedger } from "../../src/project/ledger.ts";
+import { openPlaces, type Places } from "../../src/project/places.ts";
 import {
   defaultLedgerDirectory,
   defaultProjectsDirectory,
@@ -98,6 +99,17 @@ void (async () => {
   }
 })();
 
+/**
+ * Where the writer left the caret in each project, in app data beside the
+ * ledger. Undefined until the folder is known, and if it never is, every
+ * project simply opens at the top of its script.
+ */
+let places: Places | undefined;
+void defaultLedgerDirectory().then(
+  (directory) => void (places = openPlaces(tauriFilesystem, directory)),
+  () => {},
+);
+
 /** What the screen now showing answers to. Replaced every time one is drawn. */
 let gestures: readonly Gesture[] = [];
 /** The arrow keys and Enter of Home and Open Project; undefined on any other screen. */
@@ -123,6 +135,7 @@ function draw(): void {
       whenSwitchedAway,
       whenSwitchedBack,
       ledger: () => ledger,
+      places: () => places,
       // The dialog's answer is the only place a copy may be written outside the
       // home folder: the plugin widens the file scope to that one path.
       chooseCopyLocation: async (suggestedName) =>
