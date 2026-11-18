@@ -35,7 +35,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { newProjectId } from "../../src/project/import.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
-import { CannotDelete, deleteProject, deletedFolderIn } from "../../src/project/delete.ts";
+import { CannotDelete, deleteProject, moveDeletedProjectsToGraveyard } from "../../src/project/delete.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
@@ -76,6 +76,8 @@ let opened: Project | undefined;
 let shell: MountedShell | undefined;
 /** Undefined until the default location has been read. */
 let listing: ProjectsListing | undefined;
+/** Bringing an old `Deleted Projects` folder into the Graveyard: once a launch. */
+let graveyardMove: Promise<string | undefined> | undefined;
 let importing = false;
 /** A project on its way closed: its last save is still running. */
 let closing = false;
@@ -326,8 +328,14 @@ window.addEventListener("keydown", (event) => {
 async function readProjects(): Promise<string | undefined> {
   try {
     const directory = await defaultProjectsDirectory();
+    graveyardMove ??= moveDeletedProjectsToGraveyard(tauriFilesystem, directory).then(
+      () => undefined,
+      (error: unknown) =>
+        `“Deleted Projects” could not be moved into the Graveyard, so it is still in your projects folder. Nothing was lost. ${message(error)}`,
+    );
+    const wrong = await graveyardMove;
     listing = await listProjects(tauriFilesystem, directory);
-    return undefined;
+    return wrong;
   } catch (error) {
     return listing === undefined
       ? `Write-ist could not read its projects folder. ${message(error)}`
@@ -396,7 +404,7 @@ function askToRename(project: Project, route: RenameRoute): void {
 }
 
 /**
- * Move the project that was right-clicked to the deleted folder
+ * Move the project that was right-clicked to the Graveyard
  * (`src/project/delete.ts`), once the writer has been told where it goes and
  * that it is not deleted for good. Nothing is ever erased.
  */
@@ -414,7 +422,6 @@ function askToDelete(project: Project): void {
     if (document.querySelector("dialog[open]") !== null) return;
     showDeleteProject(document.body, {
       project,
-      deletedFolder: deletedFolderIn(directory),
       onDelete: async () => {
         let wrong: string | undefined;
         try {

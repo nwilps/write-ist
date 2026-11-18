@@ -11,7 +11,7 @@
  * scope for slice 1.
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
-import { DELETED_FOLDER, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
+import { MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
 import { parseMarker, type ProjectMarker } from "./marker.ts";
 
 // Lenient, and the only lenient decode in the application: nothing downstream
@@ -136,7 +136,7 @@ export async function confirmProject(
   Refusal: new (message: string) => Error,
 ): Promise<void> {
   const name = basename(project.path);
-  if (project.path !== join(projectsDirectory, name) || name === DELETED_FOLDER) {
+  if (project.path !== join(projectsDirectory, name)) {
     throw new Refusal(`“${project.marker.name}” is not in your projects folder, so it has been left alone.`);
   }
   const marker = await readMarker(filesystem, project.path);

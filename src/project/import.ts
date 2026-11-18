@@ -16,12 +16,13 @@
  *      the report and takes nothing away: the existing importer counts, and this
  *      carries the answer out. The app no longer shows it (2026-11-18).
  *
- * The project is named for the file, not its title page, and is the type the
- * writer chose.
+ * The project is named for the script's title page, or for the file when that
+ * gives no title, and is the type the writer chose.
  */
+import type { TitlePageField } from "../screenplay/document.ts";
 import { exportScreenplay, importScreenplay, type ImportReport } from "../screenplay/import.ts";
 import { join, type Filesystem } from "./filesystem.ts";
-import { folderNameFor, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
+import { cleanFolderName, folderNameFor, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
 import { FORMAT_VERSION, FORMATS, serialiseMarker, type ProjectFormat, type ProjectMarker } from "./marker.ts";
 
 export interface ImportDependencies {
@@ -73,7 +74,7 @@ export async function importProject(
 
   const { document, report } = importScreenplay(bytes);
   const marker: ProjectMarker = {
-    name: projectNameFor(sourcePath),
+    name: titleOf(document.titlePage) ?? projectNameFor(sourcePath),
     formatVersion: FORMAT_VERSION,
     projectId: mintId(),
     format,
@@ -107,8 +108,26 @@ export function sourceFileName(path: string): string {
 }
 
 /**
- * What to call the new project: the file's name, without its extension. One
- * line and never empty, or `project.md` would not read back as a project.
+ * The title page's Title on one line, its lines joined and its marks gone.
+ * Undefined when there is none, or none a project could be called: a title
+ * that leaves no folder name, or one that would hide the folder from the list.
+ */
+function titleOf(titlePage: readonly TitlePageField[]): string | undefined {
+  const field = titlePage.find(({ key }) => key.trim().toLowerCase() === "title");
+  if (field === undefined) return undefined;
+  const title = [field.inline, ...field.continuations]
+    .map((line) => line.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const folder = cleanFolderName(title);
+  return folder === "Untitled" || folder.startsWith(".") ? undefined : title;
+}
+
+/**
+ * What to call a project with no title: the file's name, without its
+ * extension. One line and never empty, or `project.md` would not read back as
+ * a project.
  */
 function projectNameFor(sourcePath: string): string {
   const file = sourceFileName(sourcePath);

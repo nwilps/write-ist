@@ -74,15 +74,15 @@ describe("the bundle an import creates", () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     const folders = await nodeFilesystem.readDirectory(projects);
-    expect(folders).toEqual([{ name: "Big-Fish", isDirectory: true }]);
-    expect(imported.bundlePath).toBe(join(projects, "Big-Fish"));
+    expect(folders).toEqual([{ name: "Big Fish", isDirectory: true }]);
+    expect(imported.bundlePath).toBe(join(projects, "Big Fish"));
   });
 
   it("records the format version, a minted id, Feature, and the name (ADR-0004, ADR-0015)", async () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     expect(imported.project.marker).toEqual({
-      name: "Big-Fish",
+      name: "Big Fish",
       formatVersion: FORMAT_VERSION,
       projectId: A_PROJECT_ID,
       format: "Feature",
@@ -93,7 +93,7 @@ describe("the bundle an import creates", () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     const marker = readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8");
-    expect(marker).toContain("Big-Fish");
+    expect(marker).toContain("Big Fish");
     expect(marker).toContain(A_PROJECT_ID);
     expect(marker).toContain("Feature");
     expect(marker).toContain(FORMAT_VERSION);
@@ -101,17 +101,37 @@ describe("the bundle an import creates", () => {
 });
 
 describe("the name a project gets", () => {
-  it("comes from the file's name, not the title page's Title", async () => {
+  it("comes from the title page's Title, not the file's name", async () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
-    expect(imported.project.marker.name).toBe("Big-Fish");
+    expect(imported.project.marker.name).toBe("Big Fish");
     // The title page itself is the script's, and stays.
     const manuscript = readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE), "utf8");
     expect(manuscript.startsWith("Title: Big Fish\n")).toBe(true);
   });
 
-  it("is the file's name for a title spread over continuation lines too", async () => {
+  it("joins a title spread over continuation lines, without its marks", async () => {
     const imported = await importFrom(fixtureSource("Brick-&-Steel.fountain"));
-    expect(imported.project.marker.name).toBe("Brick-&-Steel");
+    expect(imported.project.marker.name).toBe("BRICK & STEEL FULL RETIRED");
+    expect(imported.bundlePath).toBe(join(projects, "BRICK & STEEL FULL RETIRED"));
+  });
+
+  it("keeps a title's punctuation in the name, and makes only the folder safe", async () => {
+    const source = sourceFile("draft.fountain", new TextEncoder().encode("title: Paper: Boats\n\nINT. ROOM - DAY\n"));
+    const imported = await importFrom(source);
+    expect(imported.project.marker.name).toBe("Paper: Boats");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats"));
+    expect(parseMarker(readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8"))?.name).toBe("Paper: Boats");
+  });
+
+  it.each([
+    ["is empty", "Title:\nAuthor: Someone\n\nINT. ROOM - DAY\n"],
+    ["leaves no folder name", "Title: ///\n\nINT. ROOM - DAY\n"],
+    ["would hide the folder", "Title: .secret\n\nINT. ROOM - DAY\n"],
+    ["is missing from the title page", "Author: Someone\n\nINT. ROOM - DAY\n"],
+  ])("is the file's name when the Title %s", async (_why, script) => {
+    const imported = await importFrom(sourceFile("The Pilot.fountain", new TextEncoder().encode(script)));
+    expect(imported.project.marker.name).toBe("The Pilot");
+    expect(imported.bundlePath).toBe(join(projects, "The Pilot"));
   });
 
   it("is the file's name when there is no title page", async () => {
@@ -241,7 +261,7 @@ describe("importing the same file twice", () => {
     expect(second.project.marker.projectId).toBe(ANOTHER_PROJECT_ID);
 
     const folders = (await nodeFilesystem.readDirectory(projects)).map((entry) => entry.name);
-    expect(folders.sort()).toEqual(["Big-Fish", "Big-Fish 2"]);
+    expect(folders.sort()).toEqual(["Big Fish", "Big Fish 2"]);
   });
 
   it("leaves the first project's manuscript untouched", async () => {
@@ -283,7 +303,7 @@ describe("a screenplay saved in another encoding", () => {
     expect(manuscript).toContain("Café");
     expect(manuscript).toContain("She’s waiting — still.");
     expect(manuscript).not.toContain("�");
-    expect(imported.project.marker.name).toBe("Unicode");
+    expect(imported.project.marker.name).toBe("Café");
   });
 
   it("imports from windows-1252 with every character kept", async () => {

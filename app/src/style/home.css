@@ -370,15 +370,13 @@
   color: var(--colour-muted);
 }
 
-/* The Import dialog's file: a field to look at, with Browse beside it. */
+/* The Import dialog's file: a field to look at, the dialog's full width. */
 .import-project__source {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--space-panel);
+  grid-template-columns: minmax(0, 1fr);
 }
 
-/* A long file name is cut short here, and must not widen the field past Browse. */
+/* A long file name is cut short here, and must not widen the dialog. */
 .import-project__source .new-project-dialog__field,
 .import-project__source .new-project-dialog__box {
   grid-template-columns: minmax(0, 1fr);
@@ -386,7 +384,7 @@
 
 .import-project__file {
   text-align: left;
-  cursor: default;
+  cursor: pointer;
 }
 
 .import-project__file--empty {
@@ -398,11 +396,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.new-project-dialog__action.import-project__browse {
-  width: calc(var(--measure-dialog-slot) / 2);
-  height: var(--size-field);
 }
 
 /* An empty problem line must not add a gap of its own. */

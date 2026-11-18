@@ -4,8 +4,8 @@
  * A project's name is its folder's name (`create.ts`, `import.ts`), so a
  * rename is both: the folder moves to the new name, and the marker's heading
  * is rewritten to match. **The manuscript is not touched** — its title page
- * is the writer's words (ADR-0020), and the project's name was never read from
- * it. The id does not change (ADR-0015): it is the same project, called
+ * is the writer's words (ADR-0020), and an import reads a name from it only
+ * once. The id does not change (ADR-0015): it is the same project, called
  * something else.
  *
  * A name already taken is **refused, never numbered**. Create and import give
@@ -15,7 +15,7 @@
  * `moveFolder`, which fails rather than land on anything.
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
-import { cleanFolderName, DELETED_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
+import { cleanFolderName, GRAVEYARD_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
 import { serialiseMarker } from "./marker.ts";
 import { confirmProject } from "./projects.ts";
 import { message } from "../message.ts";
@@ -43,8 +43,8 @@ export async function renameProject(
   if (folder.startsWith(".")) {
     throw new CannotRename("A name that starts with a dot would hide the project. Choose another name.");
   }
-  if (folder.toLowerCase() === DELETED_FOLDER.toLowerCase()) {
-    throw new CannotRename(`“${DELETED_FOLDER}” is where deleted projects go. Choose another name.`);
+  if (folder.toLowerCase() === GRAVEYARD_FOLDER.toLowerCase()) {
+    throw new CannotRename(`“${GRAVEYARD_FOLDER}” is where deleted projects go. Choose another name.`);
   }
 
   await confirmProject(filesystem, projectsDirectory, project, CannotRename);

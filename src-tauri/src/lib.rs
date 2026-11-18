@@ -6,8 +6,9 @@
 //! reading and writing files and asking the writer to choose one.
 //!
 //! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
-//! asks for, and `move_folder` because the plugin's rename replaces an empty
-//! folder without a word (`folders.rs`). The four `spell_*` commands are here
+//! asks for, `move_folder` because the plugin's rename replaces an empty folder
+//! without a word, and `remove_empty_folder` so that the application is never
+//! given the plugin's recursive remove (`folders.rs`). The four `spell_*` commands are here
 //! because spellcheck is ours, in Rust, off the thread that draws (ADR-0032):
 //! see `spelling.rs`.
 
@@ -89,8 +90,8 @@ fn commit(landed: &Landed, temporary: &Path, path: &Path, sequence: u64) -> std:
 /// `PROJECTS_FOLDER` in `app/src/tauri-filesystem.ts` names it.
 const PROJECTS_FOLDER: &str = "write-ist";
 
-/// Move a project's folder — renaming it, or putting it in `Deleted Projects`
-/// — **without ever replacing, copying or deleting anything**.
+/// Move a project's folder — renaming it, or putting it in the `Graveyard` —
+/// **without ever replacing, copying or deleting anything**.
 ///
 /// The plugin's `rename` is `rename(2)`, which puts a folder over an empty
 /// folder at the destination without a word. This refuses that, refuses to
@@ -98,12 +99,7 @@ const PROJECTS_FOLDER: &str = "write-ist";
 /// rather than copy and delete.
 #[tauri::command(async)]
 fn move_folder(app: tauri::AppHandle, from: String, to: String) -> Result<(), String> {
-    use tauri::Manager;
-    let root = app
-        .path()
-        .document_dir()
-        .map_err(|error| error.to_string())?
-        .join(PROJECTS_FOLDER);
+    let root = projects_folder(&app)?;
     folders::move_within(&root, Path::new(&from), Path::new(&to)).map_err(|error| {
         if folders::crosses_disks(&error) {
             "It would have to be copied to another disk, and Write-ist does not do that.".to_string()
@@ -111,6 +107,22 @@ fn move_folder(app: tauri::AppHandle, from: String, to: String) -> Result<(), St
             error.to_string()
         }
     })
+}
+
+/// Remove a folder in the projects folder, **only if it is empty**.
+#[tauri::command(async)]
+fn remove_empty_folder(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let root = projects_folder(&app)?;
+    folders::remove_empty_within(&root, Path::new(&path)).map_err(|error| error.to_string())
+}
+
+fn projects_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    use tauri::Manager;
+    Ok(app
+        .path()
+        .document_dir()
+        .map_err(|error| error.to_string())?
+        .join(PROJECTS_FOLDER))
 }
 
 /// Which of these words the dictionary does not know.
@@ -190,6 +202,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commit_write,
             move_folder,
+            remove_empty_folder,
             spell_misspelled,
             spell_suggest,
             spell_add_word,

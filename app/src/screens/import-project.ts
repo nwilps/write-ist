@@ -3,9 +3,9 @@
  * title's place taken by the file.
  *
  * The file field is for looking at, not typing in, so it is a button drawn as a
- * field: the keys pass over it like any other stop, and pressing it does what
- * Browse does. Confirm stays disabled until a file is chosen. A failure is said
- * inside the dialog with the dialog left open, and the file imported from is
+ * field: the keys pass over it like any other stop, and pressing it — a click,
+ * Enter or Space — opens the file picker. Confirm stays disabled until a file is
+ * chosen. A failure is said inside the dialog with the dialog left open, and the file imported from is
  * only ever read (`src/project/import.ts`).
  */
 import type { OpenDialogOptions } from "@tauri-apps/plugin-dialog";
@@ -57,20 +57,18 @@ export function showImportProject(
   }, [fileName]);
   // Its label names it, so what it holds is said as well.
   file.setAttribute("aria-describedby", fileName.id);
-  const browse = dialogAction("Browse", undefined, "button");
-  browse.classList.add("import-project__browse");
   const confirm = dialogAction("Confirm", "Enter", "submit");
   const cancel = dialogAction("Cancel", "Esc", "button");
   const problem = element("div", { className: "new-project__problem" });
 
   const form = element("form", { className: "new-project-dialog__form" }, [
     field("Project type", type.control, [chevron(), type.tray]),
-    element("div", { className: "import-project__source" }, [field("Project File", file), browse]),
+    element("div", { className: "import-project__source" }, [field("Project File", file)]),
     problem,
     element("div", { className: "new-project-dialog__actions" }, [cancel, confirm]),
   ]);
   const modal = element("dialog", { className: "new-project-dialog import-project", ariaLabel: "Import" }, [form]);
-  dialogKeys(modal, [[type.control], [file, browse], [cancel, confirm]]);
+  dialogKeys(modal, [[type.control], [file], [cancel, confirm]]);
   enterSubmits(modal, form);
 
   let source: string | undefined;
@@ -102,17 +100,16 @@ export function showImportProject(
     settle();
     // On to Confirm with a file; cancelled, back to where the writer was.
     if (chosen !== undefined) confirm.focus();
-    else (held instanceof HTMLElement && modal.contains(held) && held !== modal ? held : browse).focus();
+    else (held instanceof HTMLElement && modal.contains(held) && held !== modal ? held : file).focus();
   };
   file.addEventListener("click", () => void askForFile());
-  browse.addEventListener("click", () => void askForFile());
 
   const failed = (words: string): void => {
     busy = false;
     problem.replaceChildren(troublePanel(words));
     settle();
     // The likeliest next step, and the buttons being disabled lost the focus.
-    browse.focus();
+    file.focus();
   };
   form.addEventListener("submit", (event) => {
     event.preventDefault();

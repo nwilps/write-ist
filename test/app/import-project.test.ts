@@ -39,7 +39,6 @@ function parts(modal: HTMLDialogElement) {
   return {
     type: modal.querySelector<HTMLButtonElement>("#import-project-type")!,
     file: modal.querySelector<HTMLButtonElement>("#import-project-file")!,
-    browse: named("Browse"),
     cancel: named("Cancel"),
     confirm: named("Confirm"),
     problem: () => modal.querySelector(".new-project__problem")!.textContent,
@@ -58,7 +57,7 @@ function shown(...answer: [chosen?: string]) {
 
 describe("the Import dialog", () => {
   it("is New Project's dialog, with the same types and the file in the title's place", () => {
-    const { modal, type, file, browse, cancel, confirm } = shown();
+    const { modal, type, file, cancel, confirm } = shown();
     expect(document.activeElement).toBe(file);
     const other = showNewProject(document.body, { onCreate: async () => undefined, onClose: () => {} });
     expect(rowsOf(modal)).toEqual(rowsOf(other));
@@ -73,7 +72,8 @@ describe("the Import dialog", () => {
     expect(modal.querySelector("input")).toBeNull();
     expect(file.classList.contains("new-project-dialog__input")).toBe(true);
     expect(file.textContent).toBe("Select a file for import...");
-    expect(browse.textContent).toBe(">Browse");
+    expect(modal.querySelectorAll(".dialog-action")).toHaveLength(2);
+    expect(modal.textContent).not.toContain("Browse");
     expect(cancel.textContent).toBe(">Cancel[Esc]");
     expect(confirm.textContent).toBe(">Confirm[Enter]");
   });
@@ -89,26 +89,31 @@ describe("the Import dialog", () => {
     expect(confirm.disabled).toBe(true);
   });
 
-  it.each(["file", "browse"] as const)("asks for a file by Enter and by a press on %s", async (which) => {
-    const view = shown(undefined);
-    view[which].focus();
+  it("asks for a file by Enter and by a press on the field", async () => {
+    const { file, chooseSource } = shown(undefined);
+    file.focus();
     press("Enter");
     await settled();
-    expect(view.chooseSource).toHaveBeenCalledTimes(1);
-    view[which].click();
+    expect(chooseSource).toHaveBeenCalledTimes(1);
+    file.click();
     await settled();
-    expect(view.chooseSource).toHaveBeenCalledTimes(2);
+    expect(chooseSource).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves Space to the field, a button, which presses itself with it", () => {
+    const { file } = shown(undefined);
+    expect(file.tagName).toBe("BUTTON");
+    expect(file.type).toBe("button");
+    expect(press(" ").defaultPrevented).toBe(false);
   });
 
   it("never treats the file field as a field being typed in: the arrows move on", async () => {
-    const { file, browse, type, cancel } = shown(undefined);
+    const { file, type, cancel } = shown(undefined);
     press("Enter");
     await settled();
     expect(file.classList.contains("dialog-keys__editing")).toBe(false);
     expect(document.activeElement).toBe(file);
     press("ArrowRight");
-    expect(document.activeElement).toBe(browse);
-    press("ArrowLeft");
     expect(document.activeElement).toBe(file);
     press("ArrowUp");
     expect(document.activeElement).toBe(type);
@@ -117,19 +122,19 @@ describe("the Import dialog", () => {
   });
 
   it("wraps Tab through everything usable", async () => {
-    const { type, file, browse, cancel, confirm } = shown();
+    const { type, file, cancel, confirm } = shown();
     const walk = (count: number, init = {}) => Array.from({ length: count }, () => (press("Tab", init), document.activeElement));
-    expect(walk(4)).toEqual([browse, cancel, type, file]);
-    browse.click();
+    expect(walk(3)).toEqual([cancel, type, file]);
+    file.click();
     await settled();
     expect(document.activeElement).toBe(confirm);
-    expect(walk(5)).toEqual([type, file, browse, cancel, confirm]);
+    expect(walk(4)).toEqual([type, file, cancel, confirm]);
     expect(walk(1, { shiftKey: true })).toEqual([cancel]);
   });
 
   it("shows the chosen file's name, not its path, and goes on to Confirm", async () => {
-    const { file, browse, confirm } = shown("/home/writer/scripts/The Pilot.fountain");
-    browse.click();
+    const { file, confirm } = shown("/home/writer/scripts/The Pilot.fountain");
+    file.click();
     await settled();
     expect(file.textContent).toBe("The Pilot.fountain");
     expect(file.classList.contains("import-project__file--empty")).toBe(false);
@@ -138,8 +143,8 @@ describe("the Import dialog", () => {
   });
 
   it("shows only the name of a Windows path too", async () => {
-    const { file, browse } = shown("C:\\Users\\writer\\The Pilot.fountain");
-    browse.click();
+    const { file } = shown("C:\\Users\\writer\\The Pilot.fountain");
+    file.click();
     await settled();
     expect(file.textContent).toBe("The Pilot.fountain");
   });
@@ -149,15 +154,15 @@ describe("the Import dialog", () => {
     const chooseSource = vi.fn(async () => answers.shift());
     const onImport = vi.fn(async () => undefined);
     const modal = showImportProject(document.body, { chooseSource, onImport, onClose: () => {} });
-    const { file, browse, confirm } = parts(modal);
-    browse.click();
+    const { file, confirm } = parts(modal);
+    file.click();
     await settled();
-    browse.focus();
-    browse.click();
+    file.focus();
+    file.click();
     await settled();
     expect(file.textContent).toBe("First.fountain");
     expect(confirm.disabled).toBe(false);
-    expect(document.activeElement).toBe(browse);
+    expect(document.activeElement).toBe(file);
     expect(modal.open).toBe(true);
   });
 
@@ -165,8 +170,8 @@ describe("the Import dialog", () => {
     let answer: (path: string | undefined) => void = () => {};
     const chooseSource = vi.fn(() => new Promise<string | undefined>((resolve) => (answer = resolve)));
     const modal = showImportProject(document.body, { chooseSource, onImport: vi.fn(), onClose: () => {} });
-    const { browse, file, cancel } = parts(modal);
-    browse.click();
+    const { file, cancel } = parts(modal);
+    file.click();
     file.click();
     expect(chooseSource).toHaveBeenCalledOnce();
     expect(cancel.disabled).toBe(true);
@@ -181,16 +186,16 @@ describe("the Import dialog", () => {
       throw new Error("No portal.");
     });
     const modal = showImportProject(document.body, { chooseSource, onImport: vi.fn(), onClose: () => {} });
-    const { browse, problem } = parts(modal);
-    browse.click();
+    const { file, problem } = parts(modal);
+    file.click();
     await settled();
     expect(problem()).toBe("The file picker could not be opened. No portal.");
     expect(modal.open).toBe(true);
   });
 
   it("does not take Enter from Cancel", async () => {
-    const { browse, cancel, onImport, onClose } = shown();
-    browse.click();
+    const { file, cancel, onImport, onClose } = shown();
+    file.click();
     await settled();
     cancel.focus();
     press("Enter");
@@ -199,8 +204,8 @@ describe("the Import dialog", () => {
   });
 
   it("confirms on Enter on Confirm, with the type chosen, and ignores a held key", async () => {
-    const { modal, type, browse, onImport, onClose } = shown();
-    browse.click();
+    const { modal, type, file, onImport, onClose } = shown();
+    file.click();
     await settled();
     press("Enter", { repeat: true });
     expect(onImport).not.toHaveBeenCalled();
@@ -263,25 +268,25 @@ describe("importing through the dialog", () => {
   }
 
   async function chooseAndConfirm(modal: HTMLDialogElement, type?: string) {
-    const { browse, confirm, type: control } = parts(modal);
+    const { file, confirm, type: control } = parts(modal);
     if (type !== undefined) {
       control.click();
       [...modal.querySelectorAll<HTMLElement>("[role=option]")].find((row) => row.textContent === type)!.click();
     }
-    browse.click();
+    file.click();
     await settled();
     confirm.click();
   }
 
-  it("makes a project named from the file, of the chosen type, and shows no report", async () => {
+  it("makes a project named from the title page, of the chosen type, and shows no report", async () => {
     const { modal, reread, seen } = ask();
     await chooseAndConfirm(modal!, "Short Film");
     await vi.waitFor(() => expect(modal!.isConnected).toBe(false));
 
     const { projects: listed } = await listProjects(nodeFilesystem, projects);
-    expect(listed.map((project) => project.marker.name)).toEqual(["The Pilot"]);
+    expect(listed.map((project) => project.marker.name)).toEqual(["Another Name"]);
     expect(listed[0]!.marker.format).toBe("Short Film");
-    expect(readFileSync(join(projects, "The Pilot", MARKER_FILE), "utf8")).toContain("Format: Short Film\n");
+    expect(readFileSync(join(projects, "Another Name", MARKER_FILE), "utf8")).toContain("Format: Short Film\n");
     // The list was read again before the dialog went, and the guard was let go.
     expect(reread).toHaveBeenCalledOnce();
     expect(seen).toEqual([true, false]);
@@ -300,7 +305,7 @@ describe("importing through the dialog", () => {
     expect(modal!.open).toBe(true);
     expect(modal!.querySelector("[role=alert]")).not.toBeNull();
     expect(parts(modal!).confirm.disabled).toBe(false);
-    expect(document.activeElement).toBe(parts(modal!).browse);
+    expect(document.activeElement).toBe(parts(modal!).file);
     expect(readFileSync(source, "utf8")).toBe(script);
     expect(readFileSync(blocked, "utf8")).toBe("");
     expect(existsSync(projects)).toBe(false);
@@ -310,8 +315,8 @@ describe("importing through the dialog", () => {
 
   it("stays open when the chosen file has gone, making no project", async () => {
     const { modal } = ask();
-    const { browse, confirm, problem } = parts(modal!);
-    browse.click();
+    const { file, confirm, problem } = parts(modal!);
+    file.click();
     await settled();
     rmSync(source);
     confirm.click();
@@ -329,13 +334,13 @@ describe("importing through the dialog", () => {
 
   it("will not run a second import on top of one in flight", async () => {
     const { modal } = ask();
-    const { browse, confirm } = parts(modal!);
-    browse.click();
+    const { file, confirm } = parts(modal!);
+    file.click();
     await settled();
     confirm.click();
     modal!.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
     await vi.waitFor(() => expect(modal!.isConnected).toBe(false));
-    expect(readdirSync(projects)).toEqual(["The Pilot"]);
+    expect(readdirSync(projects)).toEqual(["Another Name"]);
   });
 });
 
@@ -358,9 +363,11 @@ describe("the way in", () => {
 });
 
 describe("the file field's look", () => {
-  it("cuts a long name short instead of pushing past Browse", () => {
+  it("fills the dialog's width, and cuts a long name short instead of widening it", () => {
     const css = readFileSync("app/src/style/home.css", "utf8");
+    expect(css).toMatch(/\.import-project__source \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\);\s*\}/);
     expect(css).toMatch(/\.import-project__source \.new-project-dialog__box \{\s*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(css).not.toContain("import-project__browse");
     expect(css).toMatch(/\.import-project__file-name \{[^}]*text-overflow: ellipsis/);
   });
 });

@@ -48,8 +48,8 @@ _Avoid_: save, checkpoint, snapshot, backup
 
 **Import**:
 Bringing a script Write-ist has never seen into a new project, from the Import dialog on Open
-Project. The script is copied into a new bundle named for its file and saved at once, with the
-enumerated normalisations of ADR-0020 applied; the file it came from is never touched. Opening a
+Project. The script is copied into a new bundle named for its title page's Title, or for its file when
+there is none, and saved at once, with the enumerated normalisations of ADR-0020 applied; the file it came from is never touched. Opening a
 project Write-ist already holds is not an import.
 _Avoid_: open (that is a project Write-ist already holds), convert, load
 
@@ -117,12 +117,15 @@ bundle never records its own location. Duplicating a project in the app mints a 
 the copy is a new project from that moment.
 _Avoid_: project identity, uuid, key, path
 
-**Deleted Projects**:
-The folder a deleted project is moved into, `Deleted Projects` inside the default location
+**Graveyard**:
+Where deleted projects go: the folder `Graveyard` inside the default location
 (`~/Documents/write-ist/`). Deleting a project moves its bundle there whole and unchanged; it is
 never erased, and the writer brings it back by moving the folder back out. It is not a project and
-is never listed as one, and no project may take its name (ADR-0044).
-_Avoid_: trash, bin, recycle bin, archive (nothing here is emptied or packed)
+is never listed as one, and no project may take its name (ADR-0044). A future **Exile** action will
+be what deletes a project permanently; it is not built. The names come from Magic: The Gathering.
+A `Deleted Projects` folder, the Graveyard's former name, is moved into it.
+_Avoid_: Deleted Projects, deleted folder, trash, bin, recycle bin, archive (nothing here is
+emptied or packed)
 
 **Registry**:
 The record Write-ist keeps outside every bundle, holding pointers to the bundles the writer

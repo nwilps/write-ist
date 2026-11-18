@@ -1,13 +1,14 @@
-# Deleting a project moves it to Deleted Projects
+# Deleting a project moves it to the Graveyard
 
 **Deleting a project never erases it. Its bundle is moved, whole and unchanged, into
-`Deleted Projects` in the default location — `~/Documents/write-ist/Deleted Projects/` — and leaves
+the `Graveyard` in the default location — `~/Documents/write-ist/Graveyard/` — and leaves
 the projects list. To bring it back, move its folder back into `~/Documents/write-ist/`.** Renaming a
 project renames its folder and the name in its `project.md` together. Both are reached by
 right-clicking a project row on the Open Project screen, and both move folders only through one
 command that never replaces anything.
 
-**Status: built, 2026-11-06 (Noah's request, on PR #133).**
+**Status: built, 2026-11-06 (Noah's request, on PR #133). The folder was `Deleted Projects` until
+2026-11-18 (PR #145), when it became the Graveyard.**
 
 ## The forcing reason
 
@@ -21,18 +22,25 @@ moves is a folder the writer can see and move back.
 
 ## What it decides
 
-- **The folder is `Deleted Projects`, inside the default location** (`DELETED_FOLDER`,
+- **The folder is `Graveyard`, inside the default location** (`GRAVEYARD_FOLDER`,
   `src/project/bundle.ts`). Inside, so it is on the same disk as the projects and a move is one
   rename; visible, not dot-hidden, so a writer browsing `Documents/write-ist` finds it, and because
   Write-ist does not make hidden folders (`projects.ts`). It has no `project.md`, so the projects
   list passes over it, and the bundles in it are not listed because the list reads only the top
   level. **The name is reserved**: `folderNameFor` never gives it to a new or imported project, and
   rename refuses it. A project already called that, from before, makes delete refuse rather than
-  move bundles inside it.
+  move bundles inside it; that project can still be renamed out of the way.
+- **A `Deleted Projects` folder is brought in, once a launch** (`moveDeletedProjectsToGraveyard`,
+  `src/project/delete.ts`). With no Graveyard it is renamed. With one, each folder in it moves across,
+  numbered on a clash, and the emptied folder is removed by `removeEmptyFolder`, which cannot remove
+  anything that is not empty. Loose files, which `moveFolder` cannot carry, stay in the old folder,
+  and it moves into the Graveyard whole. A `project.md` at the top of either folder makes it a
+  project, and nothing is moved. A move that fails is said on Open Project and tried again next launch.
 - **Delete is a move, and nothing else** (`src/project/delete.ts`). The bundle keeps its folder name
   there; a name already there — the same title deleted twice — makes it `Title 2`, as two imports
-  would. Nothing already in `Deleted Projects` is replaced, merged into or touched. Nothing is ever
-  emptied: there is no "empty the deleted folder", and no code path deletes a project's files.
+  would. Nothing already in the Graveyard is replaced, merged into or touched. Nothing is ever
+  emptied: there is no "empty the Graveyard", and no code path deletes a project's files. A future
+  **Exile** action will be the permanent delete; it is not built.
 - **Every move is `moveFolder`, one atomic rename that never replaces anything** — the port's
   promise (`src/project/filesystem.ts`), kept in the application by the `move_folder` command
   (`src-tauri/src/folders.rs`). The plugin's own `rename` was not used, because a rename of a folder
@@ -52,9 +60,9 @@ moves is a folder the writer can see and move back.
   giving them another is not what they asked. A name starting with a dot is refused, because the
   folder would be hidden and the list would never show it. If the folder moves and the marker then
   cannot be written, the folder is moved back, so a failed rename changes nothing.
-- **Delete asks first, and says what it does.** The dialog names the project, says it is *not
-  deleted for good*, gives the full path of the deleted folder, and says how to bring it back. It is
-  the New Project dialog's look (ADR-0042): Cancel [Esc], Delete [Enter]. Rename is the same dialog
+- **Delete asks first, and says what it does.** The dialog names the project and says it is not
+  permanently deleted but moved to the Graveyard. It is the New Project dialog's look (ADR-0042):
+  Cancel [Esc], Move to Graveyard [Enter]. Rename is the same dialog
   with one field, the name, starting from the current one.
 - **The menu is the shared context menu (ADR-0034), only on a project row.** Right-click on a row —
   or the Menu key or Shift+F10 on the lit row — opens it with exactly **Rename Project** and
@@ -65,7 +73,7 @@ moves is a folder the writer can see and move back.
 
 ## Recovering a project
 
-Move its folder from `~/Documents/write-ist/Deleted Projects/` back into `~/Documents/write-ist/`
+Move its folder from `~/Documents/write-ist/Graveyard/` back into `~/Documents/write-ist/`
 with the file manager (or `mv`). It is listed again next time Open Project is shown, with its id,
 manuscript and everything beside it as they were. If a project of that name has been made since,
 give the folder another name first; the name the list shows is the one in its `project.md`.
@@ -80,14 +88,14 @@ give the folder another name first; the name the list shows is the one in its `p
 - **A folder outside the default location** (`appLocalDataDir()`, say). Rejected: ADR-0016 keeps
   that layer free of work, and it may be on another disk, which turns a rename into a copy.
 - **Copy, verify, then delete the source, when a rename crosses disks.** Rejected for now: the
-  deleted folder is inside the projects folder, so this only happens if the writer mounted something
+  Graveyard is inside the projects folder, so this only happens if the writer mounted something
   there. Refusing with an error is enough, and it has no path that deletes.
 - **A restore screen.** Not built: moving the folder back is the recovery, and this ADR documents
   it. It can be added later without changing anything here.
 
 ## Consequences
 
-- `Deleted Projects` grows until the writer empties it themselves. That is deliberate.
+- The Graveyard grows until the writer empties it themselves. That is deliberate.
 - The ledger keeps a deleted project's days, as it always said it would (ADR-0017).
 - Relocated projects (the registry, ADR-0015) are not handled: delete and rename refuse a project
   not directly inside the default location.

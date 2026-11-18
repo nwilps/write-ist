@@ -70,7 +70,7 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   does, the Editor's chord for its own search.
 
 - **A project row has a right-click menu: Rename Project and Delete Project** — recorded in
-  [ADR-0044](0044-deleting-a-project-moves-it-to-deleted-projects.md), with what deleting does.
+  [ADR-0044](0044-deleting-a-project-moves-it-to-the-graveyard.md), with what deleting does.
 
 ## What it does not decide
 

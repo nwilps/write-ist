@@ -97,6 +97,12 @@ export interface Filesystem {
    * both this (`rename.ts`, `delete.ts`).
    */
   moveFolder(from: string, to: string): Promise<void>;
+
+  /**
+   * Remove a folder **only if nothing is in it**. Rejects, leaving it as it
+   * was, when anything is, and when it is not a folder.
+   */
+  removeEmptyFolder(path: string): Promise<void>;
 }
 
 /**

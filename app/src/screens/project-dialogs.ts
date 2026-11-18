@@ -113,19 +113,14 @@ export function askToRenameProject(ports: RenamePorts, project: Project, route: 
 
 export interface DeleteProjectDialog {
   readonly project: Project;
-  /** Where it will go: `~/Documents/write-ist/Deleted Projects`, as a full path. */
-  readonly deletedFolder: string;
   readonly onDelete: () => Promise<string | undefined>;
   readonly onClose: () => void;
 }
 
-/**
- * Ask before a project is moved to the deleted folder — and say plainly that
- * it is moved, where to, and that it is not deleted for good.
- */
+/** Ask before a project is moved to the Graveyard, and say that is all it is. */
 export function showDeleteProject(
   into: HTMLElement,
-  { project, deletedFolder, onDelete, onClose }: DeleteProjectDialog,
+  { project, onDelete, onClose }: DeleteProjectDialog,
 ): HTMLDialogElement {
   const shown = dialog(into, {
     label: "Delete Project",
@@ -133,28 +128,25 @@ export function showDeleteProject(
       element("div", { className: "project-dialog__message" }, [
         element("p", {
           className: "project-dialog__line project-dialog__line--lead",
-          textContent: `Delete “${project.marker.name}”?`,
+          textContent: `Delete "${project.marker.name}"?`,
         }),
         element("p", {
           className: "project-dialog__line",
           textContent:
-            "It is not deleted for good. The whole project folder is moved, unchanged, to the deleted folder:",
-        }),
-        element("p", { className: "project-dialog__path", textContent: deletedFolder }),
-        element("p", {
-          className: "project-dialog__line",
-          textContent: "To bring it back, move its folder from there back into the write-ist folder.",
+            "This will NOT permanently delete your project, but move it to the Graveyard. You may access your Graveyard in Settings.",
         }),
       ]),
     ],
     stops: [],
-    confirm: "Delete",
+    confirm: "Move to Graveyard",
     ready: () => true,
     attempt: onDelete,
     failed: `“${project.marker.name}” could not be moved, so it is where it was.`,
     resume: () => shown.confirm.focus(),
     onClose,
   });
+  // Its label is longer than the shared width.
+  shown.confirm.classList.add("project-dialog__action--long");
   // Focus on the action whose key the label shows, as New Project's title does.
   shown.confirm.focus();
   return shown.modal;
