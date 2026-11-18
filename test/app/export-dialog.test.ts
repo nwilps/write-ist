@@ -50,60 +50,109 @@ function opened(write: (id: string, range: unknown) => Promise<boolean> = async 
     closed,
   });
   const q = <T extends HTMLElement>(selector: string): T => modal.querySelector<T>(selector)!;
-  const choose = (id: string): void => {
-    q<HTMLInputElement>(`#${id}`).checked = true;
-    q(`#${id}`).dispatchEvent(new Event("change", { bubbles: true }));
+  const choose = (id: string, value: string): void => {
+    const box = q<HTMLSelectElement>(`#${id}`);
+    box.value = value;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
   };
+  const pagesShown = (): boolean => !q("#export-pages").closest<HTMLElement>(".new-project-dialog__field")!.hidden;
+  const rangeShown = (): boolean => !q(".export-as__range").hidden;
   const enterIn = (selector: string): KeyboardEvent => {
     const press = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
     q(selector).dispatchEvent(press);
     return press;
   };
   const range = (from: string, to: string): void => {
-    choose("export-pages-range");
+    choose("export-pages", "range");
     q<HTMLInputElement>("#export-from").value = from;
     q<HTMLInputElement>("#export-to").value = to;
   };
   const button = (label: string): HTMLButtonElement =>
-    [...modal.querySelectorAll("button")].find((b) => b.textContent === label)!;
+    [...modal.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
   const problem = (): string => q(".new-project__problem").textContent ?? "";
-  return { modal, written, closed, report, q, choose, enterIn, range, button, problem };
+  return { modal, written, closed, report, q, choose, pagesShown, rangeShown, enterIn, range, button, problem };
 }
 
 describe("the Export As dialog", () => {
-  it("lists every format in the table, with PDF chosen and Export leading", () => {
+  it("offers every format in the table in a drop-down, with PDF chosen and Export confirming", () => {
     const { modal, q, button } = opened();
-    const labels = [...modal.querySelectorAll(".export-as__choices")][0]!.textContent;
-    expect(labels).toBe("PDFFountain");
-    expect(EXPORT_FORMATS.map((format) => format.id)).toEqual(["pdf", "fountain"]);
-    expect(q<HTMLInputElement>("#export-format-pdf").checked).toBe(true);
-    expect(q<HTMLInputElement>("#export-pages-all").checked).toBe(true);
+    const format = q<HTMLSelectElement>("#export-format");
+    expect(format.tagName).toBe("SELECT");
+    expect([...format.options].map((option) => option.textContent)).toEqual(["PDF", "Fountain"]);
+    expect([...format.options].map((option) => option.value)).toEqual(EXPORT_FORMATS.map((each) => each.id));
+    expect(format.value).toBe("pdf");
+    expect(document.activeElement).toBe(format);
+    expect(q<HTMLSelectElement>("#export-pages").value).toBe("all");
+    expect(modal.querySelector('input[type="radio"]')).toBeNull();
     expect(button("Export").type).toBe("submit");
-    expect(button("Export").classList.contains("button--leading")).toBe(true);
     expect(modal.querySelector("[title]")).toBeNull();
   });
 
-  it("offers a page range for PDF and not for Fountain", () => {
-    const { q, choose } = opened();
-    expect(q(".export-as__pages").hidden).toBe(false);
-    choose("export-format-fountain");
-    expect(q(".export-as__pages").hidden).toBe(true);
-    choose("export-format-pdf");
-    expect(q(".export-as__pages").hidden).toBe(false);
+  it("is built from New Project's pieces", () => {
+    const { modal, q, button } = opened();
+    expect(modal.classList.contains("new-project-dialog")).toBe(true);
+    expect(modal.getAttribute("aria-label") ?? modal.ariaLabel).toBe("Export As");
+    expect(modal.querySelector("h2, .report__heading, .field, .button")).toBeNull();
+    for (const id of ["export-format", "export-pages", "export-from", "export-to"]) {
+      expect(q(`#${id}`).className, id).toBe("new-project-dialog__input");
+      expect(q(`#${id}`).closest(".new-project-dialog__box"), id).not.toBeNull();
+      expect(modal.querySelector(`label[for="${id}"].new-project-dialog__label`), id).not.toBeNull();
+    }
+    for (const id of ["export-format", "export-pages"]) {
+      expect(q(`#${id}`).parentElement!.querySelector(".new-project-dialog__chevron"), id).not.toBeNull();
+    }
+    // Cancel on the left, Export on the right, each saying its key.
+    expect([...q(".new-project-dialog__actions").children]).toEqual([button("Cancel"), button("Export")]);
+    expect(button("Cancel").textContent).toBe(">Cancel[Esc]");
+    expect(button("Export").textContent).toBe(">Export[Enter]");
+    expect(button("Export").classList.contains("new-project-dialog__action--confirm")).toBe(true);
   });
 
-  it("fills in the whole script when the writer switches to a range", () => {
-    const { q, choose } = opened();
-    expect(q<HTMLInputElement>("#export-from").disabled).toBe(true);
-    choose("export-pages-range");
-    expect(q<HTMLInputElement>("#export-from").disabled).toBe(false);
+  it("offers a page range for PDF and not for Fountain", () => {
+    const { choose, pagesShown, rangeShown } = opened();
+    expect(pagesShown()).toBe(true);
+    choose("export-pages", "range");
+    expect(rangeShown()).toBe(true);
+    choose("export-format", "fountain");
+    expect(pagesShown()).toBe(false);
+    expect(rangeShown()).toBe(false);
+    choose("export-format", "pdf");
+    expect(pagesShown()).toBe(true);
+    expect(rangeShown()).toBe(true);
+  });
+
+  it("shows From and To only for a range, filled with the whole script", () => {
+    const { q, choose, rangeShown } = opened();
+    expect(rangeShown()).toBe(false);
+    choose("export-pages", "range");
+    expect(rangeShown()).toBe(true);
     expect(q<HTMLInputElement>("#export-from").value).toBe("1");
     expect(q<HTMLInputElement>("#export-to").value).toBe("12");
+    choose("export-pages", "all");
+    expect(rangeShown()).toBe(false);
   });
 
-  it("exports all pages on Enter from a choice, then closes without a word", async () => {
+  it("keeps what was typed when the writer steps away from a range and back", () => {
+    const { q, choose, range } = opened();
+    range("2", "3");
+    choose("export-pages", "all");
+    choose("export-pages", "range");
+    expect(q<HTMLInputElement>("#export-from").value).toBe("2");
+    expect(q<HTMLInputElement>("#export-to").value).toBe("3");
+  });
+
+  it("exports all pages when a range was typed and then All pages chosen", async () => {
+    const { written, range, choose, enterIn } = opened();
+    range("9", "2");
+    choose("export-pages", "all");
+    enterIn("#export-pages");
+    await settled();
+    expect(written).toHaveBeenCalledExactlyOnceWith("pdf", undefined);
+  });
+
+  it("exports all pages on Enter from the drop-down, then closes without a word", async () => {
     const { modal, written, closed, enterIn, problem } = opened();
-    expect(enterIn("#export-format-pdf").defaultPrevented).toBe(true);
+    expect(enterIn("#export-format").defaultPrevented).toBe(true);
     await settled();
     expect(written).toHaveBeenCalledExactlyOnceWith("pdf", undefined);
     expect(modal.isConnected).toBe(false);
@@ -124,7 +173,7 @@ describe("the Export As dialog", () => {
     const press = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
     button("Cancel").dispatchEvent(press);
     expect(press.defaultPrevented).toBe(false);
-    q("#export-format-pdf").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true }));
+    q("#export-format").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true }));
     await settled();
     expect(written).not.toHaveBeenCalled();
   });
@@ -167,8 +216,8 @@ describe("the Export As dialog", () => {
   it("hands Fountain no range, whatever was left in the boxes", async () => {
     const { written, range, choose, enterIn, problem } = opened();
     range("9", "2");
-    choose("export-format-fountain");
-    enterIn("#export-format-fountain");
+    choose("export-format", "fountain");
+    enterIn("#export-format");
     await settled();
     expect(problem()).toBe("");
     expect(written).toHaveBeenCalledExactlyOnceWith("fountain", undefined);
@@ -181,6 +230,8 @@ describe("the Export As dialog", () => {
     await settled();
     expect(modal.open).toBe(true);
     expect(closed).not.toHaveBeenCalled();
+    expect(q<HTMLSelectElement>("#export-format").value).toBe("pdf");
+    expect(q<HTMLSelectElement>("#export-pages").value).toBe("range");
     expect(q<HTMLInputElement>("#export-from").value).toBe("2");
     expect(problem()).toBe("");
   });
@@ -189,7 +240,7 @@ describe("the Export As dialog", () => {
     const { modal, enterIn, problem, report } = opened(async () => {
       throw new Error("The disk is full.");
     });
-    enterIn("#export-format-pdf");
+    enterIn("#export-format");
     await settled();
     expect(modal.open).toBe(true);
     expect(problem()).toBe("Write-ist could not export the PDF. Your screenplay is unchanged. The disk is full.");
@@ -199,8 +250,8 @@ describe("the Export As dialog", () => {
   it("will not start twice or be dismissed while a file is on its way", async () => {
     let finish: (done: boolean) => void = () => {};
     const { modal, written, enterIn, button } = opened(() => new Promise((resolve) => (finish = resolve)));
-    enterIn("#export-format-pdf");
-    enterIn("#export-format-pdf");
+    enterIn("#export-format");
+    enterIn("#export-format");
     expect(written).toHaveBeenCalledOnce();
     button("Cancel").click();
     expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(false);
@@ -326,9 +377,9 @@ describe("Export As… in the Editor", () => {
     pressFileExportAs(into);
     const modal = into.querySelector<HTMLDialogElement>("dialog.export-as")!;
     expect(modal.open).toBe(true);
-    const fountain = modal.querySelector<HTMLInputElement>("#export-format-fountain")!;
-    fountain.checked = true;
-    fountain.dispatchEvent(new Event("change", { bubbles: true }));
+    const format = modal.querySelector<HTMLSelectElement>("#export-format")!;
+    format.value = "fountain";
+    format.dispatchEvent(new Event("change", { bubbles: true }));
     modal.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
     await vi.waitFor(() => expect(modal.isConnected).toBe(false));
     expect([...writes.keys()]).toEqual(["/out/copy.fountain"]);

@@ -1,38 +1,20 @@
 /*
- * The Export As dialog. It is the title page dialog's kind of dialog, so
- * `.report` and `.new-project` give it its frame; this is what is its own.
+ * The Export As dialog. `.new-project-dialog` and its parts dress it; this is
+ * what New Project has no need of: two number boxes side by side.
  */
 
-.export-as__form {
-  width: var(--measure-new-project);
-}
-
-.export-as__choices {
-  display: grid;
-  gap: var(--space-tight);
-}
-
-.export-as__choice,
 .export-as__range {
-  display: flex;
-  align-items: center;
-  gap: var(--space-snug);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-panel);
 }
 
-.export-as__radio {
-  margin: 0;
-  accent-color: var(--colour-accent);
+/* The webview's white stepper is no part of this look; the arrow keys still step. */
+.export-as__range input::-webkit-inner-spin-button {
+  appearance: none;
 }
 
-.export-as__number {
-  width: var(--size-goals-number);
-}
-
-.export-as__number:disabled {
-  color: var(--colour-faint);
-}
-
-/* `.field` sets a display of its own, which would otherwise outrank `hidden`. */
-.export-as__pages[hidden] {
+/* A field and the row set a display of their own, which would outrank `hidden`. */
+.export-as [hidden] {
   display: none;
 }
