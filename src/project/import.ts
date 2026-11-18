@@ -12,15 +12,17 @@
  *   2. **The project is saved the moment the import completes** (ADR-0028).
  *      A writer who imports a script and leaves finds it there when they come
  *      back.
- *   3. **What was adjusted is named**, with its count, in the import report
- *      (ADR-0020). This module adds nothing to the report and takes nothing
- *      away: the existing importer counts, and this carries the answer out.
+ *   3. **What was adjusted is counted** (ADR-0020). This module adds nothing to
+ *      the report and takes nothing away: the existing importer counts, and this
+ *      carries the answer out. The app no longer shows it (2026-11-18).
+ *
+ * The project is named for the file, not its title page, and is the type the
+ * writer chose.
  */
 import { exportScreenplay, importScreenplay, type ImportReport } from "../screenplay/import.ts";
-import type { ScreenplayDocument } from "../screenplay/document.ts";
-import { basename, join, type Filesystem } from "./filesystem.ts";
+import { join, type Filesystem } from "./filesystem.ts";
 import { folderNameFor, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
-import { FORMAT_VERSION, serialiseMarker, type ProjectMarker } from "./marker.ts";
+import { FORMAT_VERSION, FORMATS, serialiseMarker, type ProjectFormat, type ProjectMarker } from "./marker.ts";
 
 export interface ImportDependencies {
   readonly filesystem: Filesystem;
@@ -38,14 +40,19 @@ export interface ImportRequest {
   readonly sourcePath: string;
   /** The default location, `~/Documents/write-ist/` (ADR-0016). */
   readonly projectsDirectory: string;
+  /** What the project is, written as `Format:` in `project.md`. A Feature if not said. */
+  readonly format?: ProjectFormat;
 }
 
 export interface ImportedProject {
   readonly bundlePath: string;
   readonly project: Project;
-  /** Shown at once, and dismissed by the writer (ADR-0028). */
+  /** What was adjusted, counted. Not shown to the writer. */
   readonly report: ImportReport;
 }
+
+/** Thrown for a request that cannot be made; its message is for the writer. */
+export class CannotImport extends Error {}
 
 /** The default way to mint a project id: a UUID4 (ADR-0015). */
 export function newProjectId(): string {
@@ -54,17 +61,22 @@ export function newProjectId(): string {
 
 export async function importProject(
   { filesystem, newProjectId: mintId }: ImportDependencies,
-  { sourcePath, projectsDirectory }: ImportRequest,
+  { sourcePath, projectsDirectory, format = "Feature" }: ImportRequest,
 ): Promise<ImportedProject> {
+  // Only screenplays exist; a type that is not one must not quietly become one.
+  if (!FORMATS.includes(format)) {
+    throw new CannotImport(`Write-ist cannot import a ${String(format)} yet.`);
+  }
+
   // The one and only touch of the writer's file.
   const bytes = await filesystem.readFile(sourcePath);
 
   const { document, report } = importScreenplay(bytes);
   const marker: ProjectMarker = {
-    name: projectNameFor(document, sourcePath),
+    name: projectNameFor(sourcePath),
     formatVersion: FORMAT_VERSION,
     projectId: mintId(),
-    format: "Feature",
+    format,
   };
 
   await filesystem.createDirectory(projectsDirectory);
@@ -89,30 +101,18 @@ export async function importProject(
   return { bundlePath, project: { path: bundlePath, marker }, report };
 }
 
-/**
- * What to call the new project: the title page's `Title`, or else the file
- * name (#38).
- *
- * The title is taken the way a writer would read it aloud — its marks are
- * already lifted out of the model (ADR-0027), and a title spread over
- * continuation lines is one name, not three. *Brick & Steel* writes its title
- * `_**BRICK & STEEL**_` over two indented lines, and the writer's name for it
- * is "BRICK & STEEL FULL RETIRED".
- */
-function projectNameFor(document: ScreenplayDocument, sourcePath: string): string {
-  const title = document.titlePage.find((field) => field.key.toLowerCase() === "title");
-  if (title !== undefined) {
-    const name = [title.inline, ...title.continuations]
-      .map((value) => value.text.trim())
-      .filter((line) => line !== "")
-      .join(" ");
-    if (name !== "") return name;
-  }
-  return fileNameWithoutExtension(sourcePath);
+/** A chosen file's own name. The native picker answers in the platform's separators. */
+export function sourceFileName(path: string): string {
+  return path.split(/[\\/]/).filter((part) => part !== "").pop() ?? "";
 }
 
-function fileNameWithoutExtension(path: string): string {
-  const name = basename(path);
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name;
+/**
+ * What to call the new project: the file's name, without its extension. One
+ * line and never empty, or `project.md` would not read back as a project.
+ */
+function projectNameFor(sourcePath: string): string {
+  const file = sourceFileName(sourcePath);
+  const dot = file.lastIndexOf(".");
+  const name = dot > 0 ? file.slice(0, dot) : file;
+  return name.replace(/\s+/g, " ").trim() || "Untitled";
 }

@@ -50,39 +50,53 @@ function opened(write: (id: string, range: unknown) => Promise<boolean> = async 
     closed,
   });
   const q = <T extends HTMLElement>(selector: string): T => modal.querySelector<T>(selector)!;
-  const choose = (id: string, value: string): void => {
-    const box = q<HTMLSelectElement>(`#${id}`);
-    box.value = value;
-    box.dispatchEvent(new Event("change", { bubbles: true }));
+  /** Open the drop-down and click the row with this label. */
+  const choose = (id: string, label: string): void => {
+    q(`#${id}`).click();
+    [...modal.querySelectorAll<HTMLElement>(`#${id}-list [role="option"]`)].find((row) => row.textContent === label)!.click();
+  };
+  const press = (key: string, init: KeyboardEventInit = {}): KeyboardEvent => {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    document.activeElement!.dispatchEvent(event);
+    return event;
   };
   const pagesShown = (): boolean => !q("#export-pages").closest<HTMLElement>(".new-project-dialog__field")!.hidden;
   const rangeShown = (): boolean => !q(".export-as__range").hidden;
-  const enterIn = (selector: string): KeyboardEvent => {
-    const press = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
-    q(selector).dispatchEvent(press);
-    return press;
+  /** Enter from a page box being typed in. */
+  const enterIn = (selector: string): void => {
+    q(selector).focus();
+    q(selector).dispatchEvent(new Event("input", { bubbles: true }));
+    press("Enter");
+  };
+  /** Enter on Export itself. */
+  const exportNow = (): void => {
+    button("Export").focus();
+    press("Enter");
   };
   const range = (from: string, to: string): void => {
-    choose("export-pages", "range");
+    choose("export-pages", "From / to");
     q<HTMLInputElement>("#export-from").value = from;
     q<HTMLInputElement>("#export-to").value = to;
   };
   const button = (label: string): HTMLButtonElement =>
     [...modal.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
   const problem = (): string => q(".new-project__problem").textContent ?? "";
-  return { modal, written, closed, report, q, choose, pagesShown, rangeShown, enterIn, range, button, problem };
+  return { modal, written, closed, report, q, choose, press, pagesShown, rangeShown, enterIn, exportNow, range, button, problem };
 }
 
 describe("the Export As dialog", () => {
-  it("offers every format in the table in a drop-down, with PDF chosen and Export confirming", () => {
+  it("offers every format in the table in the shared drop-down, with PDF chosen and Export confirming", () => {
     const { modal, q, button } = opened();
-    const format = q<HTMLSelectElement>("#export-format");
-    expect(format.tagName).toBe("SELECT");
-    expect([...format.options].map((option) => option.textContent)).toEqual(["PDF", "Fountain"]);
-    expect([...format.options].map((option) => option.value)).toEqual(EXPORT_FORMATS.map((each) => each.id));
-    expect(format.value).toBe("pdf");
+    const format = q<HTMLButtonElement>("#export-format");
+    expect(modal.querySelector("select")).toBeNull();
+    expect(format.classList.contains("dialog-select")).toBe(true);
+    expect([...modal.querySelectorAll("#export-format-list [role=option]")].map((row) => row.textContent)).toEqual(
+      EXPORT_FORMATS.map((each) => each.label),
+    );
+    expect(EXPORT_FORMATS.map((each) => each.label)).toEqual(["PDF", "Fountain"]);
+    expect(format.textContent).toBe("PDF");
     expect(document.activeElement).toBe(format);
-    expect(q<HTMLSelectElement>("#export-pages").value).toBe("all");
+    expect(q("#export-pages").textContent).toBe("All pages");
     expect(modal.querySelector('input[type="radio"]')).toBeNull();
     expect(button("Export").type).toBe("submit");
     expect(modal.querySelector("[title]")).toBeNull();
@@ -94,29 +108,83 @@ describe("the Export As dialog", () => {
     expect(modal.getAttribute("aria-label") ?? modal.ariaLabel).toBe("Export As");
     expect(modal.querySelector("h2, .report__heading, .field, .button")).toBeNull();
     for (const id of ["export-format", "export-pages", "export-from", "export-to"]) {
-      expect(q(`#${id}`).className, id).toBe("new-project-dialog__input");
+      expect(q(`#${id}`).classList.contains("new-project-dialog__input"), id).toBe(true);
       expect(q(`#${id}`).closest(".new-project-dialog__box"), id).not.toBeNull();
       expect(modal.querySelector(`label[for="${id}"].new-project-dialog__label`), id).not.toBeNull();
     }
     for (const id of ["export-format", "export-pages"]) {
       expect(q(`#${id}`).parentElement!.querySelector(".new-project-dialog__chevron"), id).not.toBeNull();
+      expect(q(`#${id}`).parentElement!.querySelector(".dialog-select__tray"), id).not.toBeNull();
     }
     // Cancel on the left, Export on the right, each saying its key.
     expect([...q(".new-project-dialog__actions").children]).toEqual([button("Cancel"), button("Export")]);
     expect(button("Cancel").textContent).toBe(">Cancel[Esc]");
     expect(button("Export").textContent).toBe(">Export[Enter]");
-    expect(button("Export").classList.contains("new-project-dialog__action--confirm")).toBe(true);
+    for (const label of ["Cancel", "Export"]) expect(button(label).classList.contains("dialog-action")).toBe(true);
+  });
+
+  it("walks every control that is showing, wrapping, and skips what is hidden", () => {
+    const { q, choose, press, button } = opened();
+    const walk = (count: number) => Array.from({ length: count }, () => (press("Tab"), document.activeElement));
+    expect(walk(4)).toEqual([q("#export-pages"), button("Cancel"), button("Export"), q("#export-format")]);
+    choose("export-pages", "From / to");
+    q("#export-format").focus();
+    expect(walk(6)).toEqual([q("#export-pages"), q("#export-from"), q("#export-to"), button("Cancel"), button("Export"), q("#export-format")]);
+    choose("export-format", "Fountain");
+    expect(walk(3)).toEqual([button("Cancel"), button("Export"), q("#export-format")]);
+  });
+
+  it("opens a drop-down on Enter and picks with the arrows, exporting nothing", async () => {
+    const { q, press, written, rangeShown } = opened();
+    q("#export-pages").focus();
+    press("Enter");
+    expect(q("#export-pages").getAttribute("aria-expanded")).toBe("true");
+    press("ArrowDown");
+    press("Enter");
+    expect(q("#export-pages").getAttribute("aria-expanded")).toBe("false");
+    expect(q("#export-pages").textContent).toBe("From / to");
+    expect(rangeShown()).toBe(true);
+    await settled();
+    expect(written).not.toHaveBeenCalled();
+  });
+
+  it("closes an open drop-down on Escape and only then lets Escape cancel", () => {
+    const { modal, q, press } = opened();
+    press("Enter");
+    expect(press("Escape").defaultPrevented).toBe(true);
+    expect(q("#export-format").getAttribute("aria-expanded")).toBe("false");
+    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(false);
+    expect(press("Escape").defaultPrevented).toBe(false);
+    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(true);
+  });
+
+  it("treats From and To as fields to enter and leave, like New Project's title", () => {
+    const { q, choose, press } = opened();
+    choose("export-pages", "From / to");
+    const from = q("#export-from");
+    from.focus();
+    expect(from.classList.contains("dialog-keys__editing")).toBe(false);
+    press("ArrowRight");
+    expect(document.activeElement).toBe(q("#export-to"));
+    press("ArrowLeft");
+    press("Enter");
+    expect(from.classList.contains("dialog-keys__editing")).toBe(true);
+    // Being edited, the arrows are the box's own.
+    expect(press("ArrowUp").defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(from);
+    expect(press("Escape").defaultPrevented).toBe(true);
+    expect(from.classList.contains("dialog-keys__editing")).toBe(false);
   });
 
   it("offers a page range for PDF and not for Fountain", () => {
     const { choose, pagesShown, rangeShown } = opened();
     expect(pagesShown()).toBe(true);
-    choose("export-pages", "range");
+    choose("export-pages", "From / to");
     expect(rangeShown()).toBe(true);
-    choose("export-format", "fountain");
+    choose("export-format", "Fountain");
     expect(pagesShown()).toBe(false);
     expect(rangeShown()).toBe(false);
-    choose("export-format", "pdf");
+    choose("export-format", "PDF");
     expect(pagesShown()).toBe(true);
     expect(rangeShown()).toBe(true);
   });
@@ -124,35 +192,35 @@ describe("the Export As dialog", () => {
   it("shows From and To only for a range, filled with the whole script", () => {
     const { q, choose, rangeShown } = opened();
     expect(rangeShown()).toBe(false);
-    choose("export-pages", "range");
+    choose("export-pages", "From / to");
     expect(rangeShown()).toBe(true);
     expect(q<HTMLInputElement>("#export-from").value).toBe("1");
     expect(q<HTMLInputElement>("#export-to").value).toBe("12");
-    choose("export-pages", "all");
+    choose("export-pages", "All pages");
     expect(rangeShown()).toBe(false);
   });
 
   it("keeps what was typed when the writer steps away from a range and back", () => {
     const { q, choose, range } = opened();
     range("2", "3");
-    choose("export-pages", "all");
-    choose("export-pages", "range");
+    choose("export-pages", "All pages");
+    choose("export-pages", "From / to");
     expect(q<HTMLInputElement>("#export-from").value).toBe("2");
     expect(q<HTMLInputElement>("#export-to").value).toBe("3");
   });
 
   it("exports all pages when a range was typed and then All pages chosen", async () => {
-    const { written, range, choose, enterIn } = opened();
+    const { written, range, choose, exportNow } = opened();
     range("9", "2");
-    choose("export-pages", "all");
-    enterIn("#export-pages");
+    choose("export-pages", "All pages");
+    exportNow();
     await settled();
     expect(written).toHaveBeenCalledExactlyOnceWith("pdf", undefined);
   });
 
-  it("exports all pages on Enter from the drop-down, then closes without a word", async () => {
-    const { modal, written, closed, enterIn, problem } = opened();
-    expect(enterIn("#export-format").defaultPrevented).toBe(true);
+  it("exports all pages on Enter on Export, then closes without a word", async () => {
+    const { modal, written, closed, exportNow, problem } = opened();
+    exportNow();
     await settled();
     expect(written).toHaveBeenCalledExactlyOnceWith("pdf", undefined);
     expect(modal.isConnected).toBe(false);
@@ -169,13 +237,17 @@ describe("the Export As dialog", () => {
   });
 
   it("leaves Enter on Cancel to Cancel, and Alt+Enter to the window", async () => {
-    const { written, q, button } = opened();
-    const press = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
-    button("Cancel").dispatchEvent(press);
-    expect(press.defaultPrevented).toBe(false);
-    q("#export-format").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true }));
+    const { modal, written, button, press } = opened();
+    button("Cancel").focus();
+    press("Enter");
+    expect(modal.isConnected).toBe(false);
+    const again = opened();
+    again.q("#export-format").focus();
+    expect(again.press("Enter", { altKey: true }).defaultPrevented).toBe(false);
+    expect(again.q("#export-format").getAttribute("aria-expanded")).toBe("false");
     await settled();
     expect(written).not.toHaveBeenCalled();
+    expect(again.written).not.toHaveBeenCalled();
   });
 
   it("is cancelled by Escape and by Cancel, writing nothing", () => {
@@ -214,10 +286,10 @@ describe("the Export As dialog", () => {
   });
 
   it("hands Fountain no range, whatever was left in the boxes", async () => {
-    const { written, range, choose, enterIn, problem } = opened();
+    const { written, range, choose, exportNow, problem } = opened();
     range("9", "2");
-    choose("export-format", "fountain");
-    enterIn("#export-format");
+    choose("export-format", "Fountain");
+    exportNow();
     await settled();
     expect(problem()).toBe("");
     expect(written).toHaveBeenCalledExactlyOnceWith("fountain", undefined);
@@ -230,17 +302,17 @@ describe("the Export As dialog", () => {
     await settled();
     expect(modal.open).toBe(true);
     expect(closed).not.toHaveBeenCalled();
-    expect(q<HTMLSelectElement>("#export-format").value).toBe("pdf");
-    expect(q<HTMLSelectElement>("#export-pages").value).toBe("range");
+    expect(q("#export-format").textContent).toBe("PDF");
+    expect(q("#export-pages").textContent).toBe("From / to");
     expect(q<HTMLInputElement>("#export-from").value).toBe("2");
     expect(problem()).toBe("");
   });
 
   it("says a failure in the dialog, and the screenplay is unchanged", async () => {
-    const { modal, enterIn, problem, report } = opened(async () => {
+    const { modal, exportNow, problem, report } = opened(async () => {
       throw new Error("The disk is full.");
     });
-    enterIn("#export-format");
+    exportNow();
     await settled();
     expect(modal.open).toBe(true);
     expect(problem()).toBe("Write-ist could not export the PDF. Your screenplay is unchanged. The disk is full.");
@@ -249,9 +321,9 @@ describe("the Export As dialog", () => {
 
   it("will not start twice or be dismissed while a file is on its way", async () => {
     let finish: (done: boolean) => void = () => {};
-    const { modal, written, enterIn, button } = opened(() => new Promise((resolve) => (finish = resolve)));
-    enterIn("#export-format");
-    enterIn("#export-format");
+    const { modal, written, exportNow, button } = opened(() => new Promise((resolve) => (finish = resolve)));
+    exportNow();
+    exportNow();
     expect(written).toHaveBeenCalledOnce();
     button("Cancel").click();
     expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(false);
@@ -378,9 +450,8 @@ describe("Export As… in the Editor", () => {
     pressFileExportAs(into);
     const modal = into.querySelector<HTMLDialogElement>("dialog.export-as")!;
     expect(modal.open).toBe(true);
-    const format = modal.querySelector<HTMLSelectElement>("#export-format")!;
-    format.value = "fountain";
-    format.dispatchEvent(new Event("change", { bubbles: true }));
+    modal.querySelector<HTMLElement>("#export-format")!.click();
+    modal.querySelector<HTMLElement>("#export-format-option-1")!.click();
     modal.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
     await vi.waitFor(() => expect(modal.isConnected).toBe(false));
     expect([...writes.keys()]).toEqual(["/out/copy.fountain"]);

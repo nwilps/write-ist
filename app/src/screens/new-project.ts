@@ -1,21 +1,22 @@
 /**
  * The New Project dialog: a type and a title, and nothing else.
  *
- * A modal `<dialog>`, like the import report, so Escape cancels it natively and
- * the window behind hears nothing while it is open. Enter in the title
+ * A modal `<dialog>`, so Escape cancels it natively and the window behind hears
+ * nothing while it is open. Enter in the title
  * confirms, as the label says. Confirm stays disabled until there is a title, and a failure is
  * said inside the dialog — in the writer's words — with the dialog left open
  * so they can change the title and try again.
  *
- * The pattern for the other dialogs: its button, drop-down and keys are the
- * shared `dialogAction`, `dialogSelect` and `dialogKeys`.
+ * The pattern for the other simple dialogs (Rename, Delete, Export As, Import):
+ * its button, drop-down and keys are the shared `dialogAction`, `dialogSelect`
+ * and `dialogKeys`.
  */
 import { COMING_FORMATS } from "../../../src/project/create.ts";
 import { FORMATS, type ProjectFormat } from "../../../src/project/marker.ts";
 import { createElement, ChevronDown } from "lucide";
 import { dialogAction } from "./dialog-action.ts";
-import { dialogKeys } from "./dialog-keys.ts";
-import { dialogSelect } from "./dialog-select.ts";
+import { dialogKeys, enterSubmits } from "./dialog-keys.ts";
+import { dialogSelect, type DialogSelect } from "./dialog-select.ts";
 import { element } from "./element.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
@@ -36,14 +37,7 @@ export function showNewProject(
   into: HTMLElement,
   { onCreate, onClose }: NewProjectScreen,
 ): HTMLDialogElement {
-  const type = dialogSelect({
-    id: "new-project-type",
-    label: "Project type",
-    choices: [
-      ...FORMATS.map((name) => ({ value: name, label: name })),
-      ...COMING_FORMATS.map((name) => ({ value: name, label: name, unavailable: "soon" })),
-    ],
-  });
+  const type = projectTypeSelect("new-project-type");
   const title = element("input", {
     id: "new-project-title",
     className: "new-project-dialog__input",
@@ -107,13 +101,7 @@ export function showNewProject(
       },
     );
   });
-  // Enter confirms from the title being edited. Everywhere else it has already
-  // been used: to start editing, to press a button, or by the drop-down.
-  modal.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.defaultPrevented) return;
-    event.preventDefault();
-    form.requestSubmit();
-  });
+  enterSubmits(modal, form);
   cancel.addEventListener("click", () => modal.close());
   // Escape closes a dialog natively; it must not while a project is being made.
   modal.addEventListener("cancel", (event) => {
@@ -130,20 +118,23 @@ export function showNewProject(
   return modal;
 }
 
+/** The project types, the same wherever a project is begun: New Project and Import. */
+export function projectTypeSelect(id: string): DialogSelect {
+  return dialogSelect({
+    id,
+    label: "Project type",
+    choices: [
+      ...FORMATS.map((name) => ({ value: name, label: name })),
+      ...COMING_FORMATS.map((name) => ({ value: name, label: name, unavailable: "soon" })),
+    ],
+  });
+}
+
 /** A labelled box; `extra` is what sits in the box with the input, as a drop-down's arrow does. */
 export function field(label: string, input: HTMLElement, extra: readonly Node[] = []): HTMLDivElement {
   return element("div", { className: "new-project-dialog__field" }, [
     element("label", { htmlFor: input.id, className: "new-project-dialog__label", textContent: label }),
     element("div", { className: "new-project-dialog__box" }, [input, ...extra]),
-  ]);
-}
-
-/** A button drawn as the home screen's selected row is: `> Label [Key]`. */
-export function action(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
-  return element("button", { className: "new-project-dialog__action", type: kind }, [
-    element("span", { className: "new-project-dialog__cursor", ariaHidden: "true", textContent: ">" }),
-    element("span", { textContent: label }),
-    element("span", { ariaHidden: "true", textContent: `[${key}]` }),
   ]);
 }
 

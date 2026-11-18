@@ -7,12 +7,12 @@
  * marker says, and — the one that matters most — that the file the writer
  * imported from is byte-identical afterwards.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { importProject } from "../../src/project/import.ts";
+import { CannotImport, importProject } from "../../src/project/import.ts";
 import { MANUSCRIPT_FILE, MARKER_FILE } from "../../src/project/bundle.ts";
-import { FORMAT_VERSION } from "../../src/project/marker.ts";
+import { FORMAT_VERSION, parseMarker, type ProjectFormat } from "../../src/project/marker.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { CORPUS_PATH, describeCorpus, readCorpusBytes } from "../support/corpus.ts";
@@ -74,15 +74,15 @@ describe("the bundle an import creates", () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     const folders = await nodeFilesystem.readDirectory(projects);
-    expect(folders).toEqual([{ name: "Big Fish", isDirectory: true }]);
-    expect(imported.bundlePath).toBe(join(projects, "Big Fish"));
+    expect(folders).toEqual([{ name: "Big-Fish", isDirectory: true }]);
+    expect(imported.bundlePath).toBe(join(projects, "Big-Fish"));
   });
 
   it("records the format version, a minted id, Feature, and the name (ADR-0004, ADR-0015)", async () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     expect(imported.project.marker).toEqual({
-      name: "Big Fish",
+      name: "Big-Fish",
       formatVersion: FORMAT_VERSION,
       projectId: A_PROJECT_ID,
       format: "Feature",
@@ -93,7 +93,7 @@ describe("the bundle an import creates", () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
 
     const marker = readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8");
-    expect(marker).toContain("Big Fish");
+    expect(marker).toContain("Big-Fish");
     expect(marker).toContain(A_PROJECT_ID);
     expect(marker).toContain("Feature");
     expect(marker).toContain(FORMAT_VERSION);
@@ -101,19 +101,20 @@ describe("the bundle an import creates", () => {
 });
 
 describe("the name a project gets", () => {
-  it("comes from the title page's Title", async () => {
+  it("comes from the file's name, not the title page's Title", async () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
-    expect(imported.project.marker.name).toBe("Big Fish");
+    expect(imported.project.marker.name).toBe("Big-Fish");
+    // The title page itself is the script's, and stays.
+    const manuscript = readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE), "utf8");
+    expect(manuscript.startsWith("Title: Big Fish\n")).toBe(true);
   });
 
-  it("gathers a Title spread over continuation lines, without its marks", async () => {
-    // Brick & Steel writes its title `_**BRICK & STEEL**_` over two indented
-    // lines. The writer's name for it is neither the underscores nor one line.
+  it("is the file's name for a title spread over continuation lines too", async () => {
     const imported = await importFrom(fixtureSource("Brick-&-Steel.fountain"));
-    expect(imported.project.marker.name).toBe("BRICK & STEEL FULL RETIRED");
+    expect(imported.project.marker.name).toBe("Brick-&-Steel");
   });
 
-  it("falls back to the file name when there is no title page", async () => {
+  it("is the file's name when there is no title page", async () => {
     const source = sourceFile(
       "The Pilot.fountain",
       new TextEncoder().encode("INT. ROOM - DAY\n\nShe waits.\n"),
@@ -123,14 +124,36 @@ describe("the name a project gets", () => {
     expect(imported.project.marker.name).toBe("The Pilot");
   });
 
-  it("falls back to the file name when the title page has no Title", async () => {
-    const source = sourceFile(
-      "Untitled Draft.fountain",
-      new TextEncoder().encode("Author: Someone\n\nINT. ROOM - DAY\n\nShe waits.\n"),
+  it("loses only the last extension", async () => {
+    const source = sourceFile("Draft.v2.spmd", new TextEncoder().encode("INT. ROOM - DAY\n"));
+    expect((await importFrom(source)).project.marker.name).toBe("Draft.v2");
+  });
+
+  it("reads back from project.md even when the file's name is only spaces", async () => {
+    const imported = await importFrom(sourceFile("   .txt", new TextEncoder().encode("INT. ROOM - DAY\n")));
+    expect(imported.project.marker.name).toBe("Untitled");
+    const marker = readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8");
+    expect(parseMarker(marker)?.name).toBe("Untitled");
+  });
+});
+
+describe("the type a project gets", () => {
+  const script = () => sourceFile("Pilot.fountain", new TextEncoder().encode("INT. ROOM - DAY\n"));
+  const importAs = (format: ProjectFormat) =>
+    importProject(
+      { filesystem: nodeFilesystem, newProjectId: idsInOrder(A_PROJECT_ID) },
+      { sourcePath: script(), projectsDirectory: projects, format },
     );
 
-    const imported = await importFrom(source);
-    expect(imported.project.marker.name).toBe("Untitled Draft");
+  it.each(["Feature", "Episode", "Short Film"] as const)("is written as Format: %s", async (format) => {
+    const imported = await importAs(format);
+    expect(imported.project.marker.format).toBe(format);
+    expect(readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8")).toContain(`Format: ${format}\n`);
+  });
+
+  it("refuses a type that is only coming, writing nothing", async () => {
+    await expect(importAs("Novel" as ProjectFormat)).rejects.toThrow(CannotImport);
+    expect(existsSync(projects)).toBe(false);
   });
 });
 
@@ -218,7 +241,7 @@ describe("importing the same file twice", () => {
     expect(second.project.marker.projectId).toBe(ANOTHER_PROJECT_ID);
 
     const folders = (await nodeFilesystem.readDirectory(projects)).map((entry) => entry.name);
-    expect(folders.sort()).toEqual(["Big Fish", "Big Fish 2"]);
+    expect(folders.sort()).toEqual(["Big-Fish", "Big-Fish 2"]);
   });
 
   it("leaves the first project's manuscript untouched", async () => {
@@ -260,7 +283,7 @@ describe("a screenplay saved in another encoding", () => {
     expect(manuscript).toContain("Café");
     expect(manuscript).toContain("She’s waiting — still.");
     expect(manuscript).not.toContain("�");
-    expect(imported.project.marker.name).toBe("Café");
+    expect(imported.project.marker.name).toBe("Unicode");
   });
 
   it("imports from windows-1252 with every character kept", async () => {

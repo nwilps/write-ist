@@ -77,8 +77,8 @@ afterEach(async () => {
 });
 
 const reread = vi.fn(async () => {});
-/** What the fixture's title page names it, and so the project. */
-const TITLE = "BRICK & STEEL FULL RETIRED";
+/** The fixture's file name, and so the project's. */
+const TITLE = "Brick-&-Steel";
 
 async function editing() {
   const into = document.createElement("div");

@@ -278,8 +278,9 @@ describe("the New Project buttons, lit like Home's selected row", () => {
     expect(document.activeElement).toBe(create);
   });
 
-  it("leaves the permanently lit Confirm to the dialogs not yet moved over", () => {
-    expect(ruleWith(".new-project-dialog__action--confirm")).toContain("color: var(--colour-accent)");
+  it("has no permanently lit Confirm left, now every simple dialog is moved over", () => {
+    expect(home).not.toContain("new-project-dialog__action--confirm");
+    expect(home).not.toContain("new-project-dialog__cursor");
   });
 });
 

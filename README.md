@@ -68,7 +68,8 @@ Everything below is in the app now.
 
 **Getting scripts in and out**
 
-- **Import a Fountain file** to start a project from a script you already have.
+- **Import a Fountain file** from Open Project to start a project from a script you already
+  have. Pick its type and file, and the project takes the file's name.
 - **File ▸ Export As** puts every way out in one dialog:
   - **PDF**, laid out to industry format, with your title page in front. Export all pages or
     a range. A range keeps its printed page numbers, and the title page comes along when the

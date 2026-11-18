@@ -16,6 +16,10 @@ This ADR draws the line and makes it testable.
 3. **The import report** names every normalisation applied, once, at import. After that the
    application is silent and the writer writes.
 
+> **Amended 2026-11-18.** The app no longer shows the import report: Noah decided the pop-up after
+> an import was unnecessary. The normalisations still apply and the importer still counts them
+> (`src/project/report.ts`), but the writer is not shown the list.
+
 **Every count in the report is the number of occurrences changed** — 38 trailing spaces trimmed,
 201 continuations added, 15 lines that gained a mark delimiter. Not the number of *findings* that
 caused them: a mark running across four lines is one finding and four changed lines, and four is

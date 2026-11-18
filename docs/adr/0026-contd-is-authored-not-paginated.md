@@ -107,8 +107,8 @@ looks wrong to every reader and every other tool.
   control is **one switch that turns the behaviour off**, for the writer or house style that
   does not use `CONT'D` — not per-instance deletion. This is the line between derived and
   authored doing real work: the app maintains `(CONT'D)` and never touches `(V.O.)`.
-- **Missing ones are added at import**, as the sixth entry on ADR-0020's enumerated list and
-  named in the import report. A script without them is out of date rather than different, and
+- **Missing ones are added at import**, as the sixth entry on ADR-0020's enumerated list (the
+  report that named them is no longer shown, ADR-0020's 2026-11-18 note). A script without them is out of date rather than different, and
   the evidence is that even a reference production draft cannot keep it straight by hand.
 - **It is never *added* across a scene heading, and never *removed* from one.** A new scene
   starts the speaker fresh, which keeps the rule computable from the element sequence alone.

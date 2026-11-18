@@ -266,27 +266,6 @@
   outline: none;
 }
 
-.new-project-dialog__cursor {
-  display: none;
-}
-
-/* Confirm looks like the home screen's selected row. */
-.new-project-dialog__action--confirm {
-  background: var(--colour-overlay);
-  color: var(--colour-accent);
-}
-
-.new-project-dialog__action--confirm:hover,
-.new-project-dialog__action--confirm:focus-visible {
-  color: var(--colour-accent);
-}
-
-.new-project-dialog__action--confirm .new-project-dialog__cursor {
-  display: inline;
-  position: absolute;
-  left: var(--space-tight);
-}
-
 .new-project-dialog__action:disabled {
   color: var(--colour-faint);
   cursor: default;
@@ -300,12 +279,12 @@
 }
 
 /* The keys moved focus while the pointer rests on the other button: one is lit. */
-.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) {
+.new-project-dialog__form:has(.dialog-action:focus:not(:disabled)) .dialog-action:hover:not(:focus, :disabled) {
   background: transparent;
   color: var(--colour-muted);
 }
 
-.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) .gesture__cursor {
+.new-project-dialog__form:has(.dialog-action:focus:not(:disabled)) .dialog-action:hover:not(:focus, :disabled) .gesture__cursor {
   visibility: hidden;
 }
 
@@ -389,6 +368,41 @@
 /* The highlight on a row that cannot be picked: plain to see, but no gold. */
 .dialog-select__tray .dialog-select__option--unavailable.dialog-select__option--active {
   color: var(--colour-muted);
+}
+
+/* The Import dialog's file: a field to look at, with Browse beside it. */
+.import-project__source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-panel);
+}
+
+/* A long file name is cut short here, and must not widen the field past Browse. */
+.import-project__source .new-project-dialog__field,
+.import-project__source .new-project-dialog__box {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.import-project__file {
+  text-align: left;
+  cursor: default;
+}
+
+.import-project__file--empty {
+  color: var(--colour-faint);
+}
+
+.import-project__file-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-project-dialog__action.import-project__browse {
+  width: calc(var(--measure-dialog-slot) / 2);
+  height: var(--size-field);
 }
 
 /* An empty problem line must not add a gap of its own. */

@@ -47,10 +47,10 @@ both (ADR-0028).
 _Avoid_: save, checkpoint, snapshot, backup
 
 **Import**:
-Bringing a script Write-ist has never seen into a new project. The script is copied into a new
-bundle and saved at once, with the enumerated normalisations of ADR-0020 applied and named in the
-import report; the file it came from is never touched. Opening a project Write-ist already holds is
-not an import.
+Bringing a script Write-ist has never seen into a new project, from the Import dialog on Open
+Project. The script is copied into a new bundle named for its file and saved at once, with the
+enumerated normalisations of ADR-0020 applied; the file it came from is never touched. Opening a
+project Write-ist already holds is not an import.
 _Avoid_: open (that is a project Write-ist already holds), convert, load
 
 **Chain**:

@@ -33,8 +33,7 @@ import "./style/open-project.css";
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CannotCreate, createProject } from "../../src/project/create.ts";
-import { importProject, newProjectId } from "../../src/project/import.ts";
-import { describeImportReport } from "../../src/project/report.ts";
+import { newProjectId } from "../../src/project/import.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import { CannotDelete, deleteProject, deletedFolderIn } from "../../src/project/delete.ts";
 import { renderHome } from "./screens/home.ts";
@@ -42,7 +41,7 @@ import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
 import { askToRenameProject, showDeleteProject, type RenameRoute } from "./screens/project-dialogs.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
-import { showImportReport } from "./screens/import-report.ts";
+import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
 import { mountShell, type MountedShell } from "./shell/shell.ts";
@@ -181,7 +180,7 @@ function draw(): void {
     listing,
     importing,
     trouble,
-    onImport: () => void importOne(),
+    onImport: askToImport,
     onOpen: goToProject,
     onNewProject: askForNewProject,
     onRename: (project) =>
@@ -305,9 +304,8 @@ function show(next: Screen): void {
 /**
  * The letters beside the gestures, answered in one place.
  *
- * While the import report is open it is the writer's whole attention — a modal
- * `<dialog>`, dismissed by Escape or Done (ADR-0028) — so the screen behind it
- * hears nothing.
+ * While a modal `<dialog>` is open it is the writer's whole attention, so the
+ * screen behind it hears nothing.
  */
 window.addEventListener("keydown", (event) => {
   const used = answerKey(event, {
@@ -435,48 +433,28 @@ function askToDelete(project: Project): void {
   })();
 }
 
-async function importOne(): Promise<void> {
-  if (importing) return;
-
-  const chosen = await chooseFile({
-    multiple: false,
-    directory: false,
-    title: "Import a screenplay",
-    filters: [{ name: "Fountain screenplay", extensions: ["fountain", "spmd", "txt"] }],
+/**
+ * Bring a screenplay in, from the Import dialog over Open Project. The screen
+ * says an import is running and refuses a second; the new project is in its list
+ * by the time the dialog closes.
+ */
+function askToImport(): void {
+  askToImportProject({
+    filesystem: tauriFilesystem,
+    newProjectId,
+    projectsDirectory: defaultProjectsDirectory,
+    chooseSource: async () => {
+      const chosen = await chooseFile(IMPORT_PICKER);
+      return typeof chosen === "string" ? chosen : undefined;
+    },
+    isImporting: () => importing,
+    setImporting: (now) => {
+      importing = now;
+      if (now) trouble = undefined;
+      if (screen === "open-project") draw();
+    },
+    reread: rereadProjects,
   });
-  if (typeof chosen !== "string") return;
-
-  importing = true;
-  trouble = undefined;
-  draw();
-
-  try {
-    const directory = await defaultProjectsDirectory();
-    const imported = await importProject(
-      { filesystem: tauriFilesystem, newProjectId },
-      { sourcePath: chosen, projectsDirectory: directory },
-    );
-
-    // The new project is in the list before the report is dismissed, so the
-    // screen behind it is already true.
-    trouble = await readProjects();
-    importing = false;
-    draw();
-
-    // Shown at the moment the import completes, and dismissed by the writer
-    // (ADR-0028).
-    showImportReport(into, {
-      projectName: imported.project.marker.name,
-      lines: describeImportReport(imported.report),
-      onDismiss: draw,
-    });
-  } catch (error) {
-    importing = false;
-    // Never a stack trace: the writer is told what did not happen, in words
-    // about their file. Nothing was written, because the failure was a read.
-    trouble = `That screenplay could not be imported, so nothing was changed. ${message(error)}`;
-    draw();
-  }
 }
 
 /**

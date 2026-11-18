@@ -262,7 +262,7 @@ describe("Open Project, the New Project dialog over it", () => {
 
   it("Cancel closes it and leaves the writer on Open Project", () => {
     screen.key(press("n"));
-    document.querySelector<HTMLButtonElement>(".new-project-dialog__action:not(.new-project-dialog__action--confirm)")!.click();
+    document.querySelector<HTMLButtonElement>(".new-project-dialog__action")!.click();
     expect(document.querySelector("dialog")).toBeNull();
     expect(screen.into.querySelector(".projects")).not.toBeNull();
     expect(screen.calls.onBack).not.toHaveBeenCalled();

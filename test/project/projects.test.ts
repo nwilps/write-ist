@@ -252,7 +252,7 @@ describe("importing where a folder of that name already sits", () => {
     });
     const before = contentsOf(existing);
 
-    const source = join(temporary.path, "Big-Fish.fountain");
+    const source = join(temporary.path, "Big Fish.fountain");
     writeFileSync(source, readFixtureBytes("Big-Fish.fountain"));
     const imported = await importProject(
       { filesystem: nodeFilesystem, newProjectId: () => "minted-id" },

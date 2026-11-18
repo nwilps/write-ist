@@ -11,12 +11,12 @@ import { cursor } from "./menu.ts";
 
 const ACTION = "dialog-action";
 
-/** `> Label [Key]`, for the row of buttons at the foot of a dialog. */
-export function dialogAction(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
+/** `> Label [Key]`, or `> Label` for a button no single key stands for. */
+export function dialogAction(label: string, key: string | undefined, kind: "submit" | "button"): HTMLButtonElement {
   const button = element("button", { className: `new-project-dialog__action ${ACTION}`, type: kind }, [
     cursor(),
     element("span", { textContent: label }),
-    element("span", { ariaHidden: "true", textContent: `[${key}]` }),
+    ...(key === undefined ? [] : [element("span", { ariaHidden: "true", textContent: `[${key}]` })]),
   ]);
   // As on Home: hover takes focus from the button the keys left it on, so only
   // one is ever lit. A field keeps its focus, or the pointer would stop the typing.
