@@ -31,7 +31,7 @@ let minted = 0;
 const make = (title: string) =>
   createProject({ filesystem: nodeFilesystem, newProjectId: () => `id-${++minted}` }, projects, {
     title,
-    type: "Screenplay",
+    type: "Feature",
   });
 
 /** Every file under a folder, with its text, so a move can be checked byte for byte. */

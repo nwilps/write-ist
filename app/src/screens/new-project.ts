@@ -6,9 +6,16 @@
  * confirms, as the label says. Confirm stays disabled until there is a title, and a failure is
  * said inside the dialog — in the writer's words — with the dialog left open
  * so they can change the title and try again.
+ *
+ * The pattern for the other dialogs: its button, drop-down and keys are the
+ * shared `dialogAction`, `dialogSelect` and `dialogKeys`.
  */
-import { PROJECT_TYPES, type ProjectType } from "../../../src/project/create.ts";
+import { COMING_FORMATS } from "../../../src/project/create.ts";
+import { FORMATS, type ProjectFormat } from "../../../src/project/marker.ts";
 import { createElement, ChevronDown } from "lucide";
+import { dialogAction } from "./dialog-action.ts";
+import { dialogKeys } from "./dialog-keys.ts";
+import { dialogSelect } from "./dialog-select.ts";
 import { element } from "./element.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
@@ -18,7 +25,7 @@ export interface NewProjectScreen {
    * to nothing when it was — the caller opens the project then.
    */
   readonly onCreate: (request: {
-    readonly type: ProjectType;
+    readonly type: ProjectFormat;
     readonly title: string;
   }) => Promise<string | undefined>;
   /** The dialog is gone, however it went. */
@@ -29,11 +36,14 @@ export function showNewProject(
   into: HTMLElement,
   { onCreate, onClose }: NewProjectScreen,
 ): HTMLDialogElement {
-  const type = element(
-    "select",
-    { id: "new-project-type", className: "new-project-dialog__input" },
-    PROJECT_TYPES.map((name) => element("option", { value: name, textContent: name })),
-  );
+  const type = dialogSelect({
+    id: "new-project-type",
+    label: "Project type",
+    choices: [
+      ...FORMATS.map((name) => ({ value: name, label: name })),
+      ...COMING_FORMATS.map((name) => ({ value: name, label: name, unavailable: "soon" })),
+    ],
+  });
   const title = element("input", {
     id: "new-project-title",
     className: "new-project-dialog__input",
@@ -43,21 +53,21 @@ export function showNewProject(
     autocomplete: "off",
     spellcheck: false,
   });
-  const create = action("Confirm", "Enter", "submit");
-  create.classList.add("new-project-dialog__action--confirm");
+  const create = dialogAction("Confirm", "Enter", "submit");
   create.disabled = true;
-  const cancel = action("Cancel", "Esc", "button");
+  const cancel = dialogAction("Cancel", "Esc", "button");
   const problem = element("div", { className: "new-project__problem" });
 
   // Cancel on the left, Confirm on the right: the keys the labels promise.
   const form = element("form", { className: "new-project-dialog__form" }, [
-    field("Project type", type, [chevron()]),
+    field("Project type", type.control, [chevron(), type.tray]),
     field("Project title", title),
     problem,
     element("div", { className: "new-project-dialog__actions" }, [cancel, create]),
   ]);
   // No heading (the home design); the dialog is still named for a screen reader.
   const modal = element("dialog", { className: "new-project-dialog", ariaLabel: "New Project" }, [form]);
+  const keys = dialogKeys(modal, [[type.control], [title], [cancel, create]]);
 
   let making = false;
   const settle = () => {
@@ -76,7 +86,7 @@ export function showNewProject(
     making = true;
     problem.replaceChildren();
     settle();
-    onCreate({ type: type.value as ProjectType, title: title.value }).then(
+    onCreate({ type: type.value() as ProjectFormat, title: title.value }).then(
       (wrong) => {
         making = false;
         if (wrong === undefined) {
@@ -85,7 +95,7 @@ export function showNewProject(
         }
         problem.replaceChildren(troublePanel(wrong));
         settle();
-        title.focus();
+        keys.edit(title);
       },
       (error: unknown) => {
         making = false;
@@ -93,13 +103,14 @@ export function showNewProject(
           troublePanel(`A new project could not be made. ${message(error)}`),
         );
         settle();
+        keys.edit(title);
       },
     );
   });
-  // Enter confirms from anywhere in the dialog but a button, which acts on its
-  // own: a select does not submit a form by itself.
+  // Enter confirms from the title being edited. Everywhere else it has already
+  // been used: to start editing, to press a button, or by the drop-down.
   modal.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.target instanceof HTMLButtonElement) return;
+    if (event.key !== "Enter" || event.defaultPrevented) return;
     event.preventDefault();
     form.requestSubmit();
   });
@@ -115,7 +126,7 @@ export function showNewProject(
 
   into.append(modal);
   modal.showModal();
-  title.focus();
+  keys.edit(title);
   return modal;
 }
 

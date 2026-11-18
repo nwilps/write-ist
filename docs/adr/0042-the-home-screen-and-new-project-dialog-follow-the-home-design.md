@@ -7,6 +7,11 @@ answer to.** Nothing about what the screens do changes.
 
 **Status: built, 2026-11-03.**
 
+**Amended 2026-11-18 (Noah):** New Project's drop-down is now drawn by Write-ist, its tray in the
+right-click menu's look, not a native `<select>`. Its Cancel and Confirm are quiet until hovered or
+focused, then lit as Home's selected row is, and Enter on the drop-down opens it rather than
+confirming. Every other dialog keeps the look and keys described below until it moves over.
+
 ## What it decides
 
 - **The typeface is the one already bundled.** The handoff says JetBrains Mono "is not in the repo

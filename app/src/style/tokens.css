@@ -405,6 +405,8 @@
    * `open-project.ts`). Kept equal to `MOST_ROWS`.
    */
   --count-project-rows: 8;
+  /** The most rows a dialog's drop-down shows at once; the rest scroll. */
+  --count-dialog-rows: 5;
   /**
    * The chevrons that say the list scrolls: how far each nudges the way the
    * rows are, and how long one nudge takes. Two pixels keeps it inside the
@@ -412,6 +414,8 @@
    */
   --distance-hint-bounce: 2px;
   --duration-hint-bounce: 1600ms;
+  /** In a dialog's drop-down, the air on each side of a chevron: rows, tray edge. */
+  --space-hint-clear: 4px;
   /**
    * The name column, right-aligned, and the room between it and the format:
    * the format starts 256.5px into the row, 24px after the names end.

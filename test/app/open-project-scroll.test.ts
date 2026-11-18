@@ -15,10 +15,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MOST_ROWS,
   renderOpenProject,
-  edgeTolerance,
   rowsThatFit,
   type OpenProjectScreen,
 } from "../../app/src/screens/open-project.ts";
+import { edgeTolerance } from "../../app/src/screens/scroll-window.ts";
 import { answerKey, type KeyPress } from "../../app/src/screens/shortcuts.ts";
 import { ChevronDown, ChevronUp, createElement } from "lucide";
 import type { Project } from "../../src/project/bundle.ts";
@@ -421,6 +421,24 @@ describe("the chevrons: no scrollbar, and a hint of what is out of view", () => 
     expect(showing(into)).toEqual({ above: true, below: false });
   });
 
+  it("as far down as the list goes: no down chevron, though the last row's box still sits past the edge", () => {
+    const { into, list } = draw(Array.from({ length: 13 }, (_, i) => `Made-Up Project ${i + 1}`));
+    // A whole pixel the counters promise and the list never gives, the row 1.5px out.
+    webkitAtScale(list, { scrollTop: 160, scrollHeight: 409, clientHeight: 248 }, { top: 100, height: 248 }, 1.5);
+    expect(showing(into)).toEqual({ above: true, below: false });
+    // A fraction left, the row further out still.
+    webkitAtScale(list, { scrollTop: 160.5, scrollHeight: 409, clientHeight: 248 }, { top: 100, height: 248 }, 3);
+    expect(showing(into)).toEqual({ above: true, below: false });
+  });
+
+  it("as far up as the list goes: no up chevron, though the first row's box still sits past the edge", () => {
+    const { into, list } = draw(Array.from({ length: 13 }, (_, i) => `Made-Up Project ${i + 1}`));
+    webkitAtScale(list, { scrollTop: 0.5, scrollHeight: 408, clientHeight: 248 }, { top: 100, height: 248 }, 160);
+    list.firstElementChild!.getBoundingClientRect = () => new DOMRect(0, 98.5, 480, ROW);
+    list.dispatchEvent(new Event("scroll"));
+    expect(showing(into)).toEqual({ above: false, below: true });
+  });
+
   it("a little more than a pixel left to scroll still shows the chevron: rounding is not more rows", () => {
     const { into, list } = draw();
     webkitAtScale(list, { scrollTop: 158, scrollHeight: 408, clientHeight: 248 }, { top: 100, height: 248 }, 1.5);
@@ -574,16 +592,18 @@ describe("the chevrons: no scrollbar, and a hint of what is out of view", () => 
     expect(css.indexOf("prefers-reduced-motion")).toBeGreaterThan(css.indexOf(".projects-hint--below"));
   });
 
-  it("stand in for the scrollbar, which the list no longer draws — and only the list", () => {
+  it("stand in for the scrollbar, which the list no longer draws — it and the dialog drop-down only", () => {
     const rule = css.match(/\.projects\s*\{([^}]*)\}/)![1]!;
     expect(rule).toMatch(/scrollbar-width:\s*none/);
     // Still a scroller: the wheel, the trackpad and the keys still move it.
     expect(rule).toMatch(/overflow-y:\s*auto/);
     expect(css).toMatch(/\.projects::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
-    // No other stylesheet hides or styles a scrollbar.
+    // No other stylesheet hides or styles a scrollbar, but for the drop-down's list.
+    const dropDown = /\.dialog-select__list(::-webkit-scrollbar)?\s*\{[^}]*\}/g;
     for (const name of readdirSync(style).filter((f) => f.endsWith(".css") && f !== "open-project.css")) {
-      expect(uncommented(name), name).not.toMatch(/scrollbar/);
+      expect(uncommented(name).replace(dropDown, ""), name).not.toMatch(/scrollbar/);
     }
+    expect(uncommented("home.css").match(/scrollbar/g)).toHaveLength(2);
     expect(css.match(/scrollbar/g)).toHaveLength(2);
   });
 

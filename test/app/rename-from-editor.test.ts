@@ -66,7 +66,7 @@ beforeEach(async () => {
   opened = imported.project;
   await createProject({ filesystem: nodeFilesystem, newProjectId: () => "id-quiet" }, projects, {
     title: "Quiet Road",
-    type: "Screenplay",
+    type: "Feature",
   });
 });
 afterEach(async () => {

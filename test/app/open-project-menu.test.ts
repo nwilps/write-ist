@@ -299,7 +299,7 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       for (const title of ["Paper Boats", "Quiet Road", "Untitled Short"]) {
         await createProject({ filesystem: nodeFilesystem, newProjectId: () => `id-${++minted}` }, folder, {
           title,
-          type: "Screenplay",
+          type: "Feature",
         });
       }
       let real = await listProjects(nodeFilesystem, folder);

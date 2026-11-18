@@ -25,17 +25,21 @@ import {
 import type { ImportDependencies } from "./import.ts";
 import {
   FORMAT_VERSION,
+  FORMATS,
   serialiseMarker,
+  type ProjectFormat,
   type ProjectMarker,
 } from "./marker.ts";
 
-/** What kinds of project can be made. Novels arrive with the prose surface. */
-export const PROJECT_TYPES = ["Screenplay"] as const;
-export type ProjectType = (typeof PROJECT_TYPES)[number];
+/**
+ * What New Project shows but cannot make: these have no surface to run on yet,
+ * so they are not `FORMATS` and never reach a `project.md`.
+ */
+export const COMING_FORMATS = ["Novel", "Short Story", "Novella", "Flash Fiction", "Poem"] as const;
 
 export interface NewProject {
   readonly title: string;
-  readonly type: ProjectType;
+  readonly type: ProjectFormat;
 }
 
 /** Thrown for a request that cannot be made; its message is for the writer. */
@@ -57,7 +61,7 @@ export async function createProject(
   const typed = title.replace(/\s+/g, " ").trim();
   if (typed === "") throw new CannotCreate("A project needs a title.");
   // Only screenplays exist; a type that is not one must not quietly become one.
-  if (!PROJECT_TYPES.includes(type)) {
+  if (!FORMATS.includes(type)) {
     throw new CannotCreate(`Write-ist cannot make a ${String(type)} yet.`);
   }
 
@@ -72,7 +76,7 @@ export async function createProject(
     name: folder,
     formatVersion: FORMAT_VERSION,
     projectId: newProjectId(),
-    format: "Feature",
+    format: type,
   };
 
   // A newline would end the title early and turn the rest into another field,
