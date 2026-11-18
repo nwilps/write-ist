@@ -36,12 +36,11 @@ import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { importProject, newProjectId } from "../../src/project/import.ts";
 import { describeImportReport } from "../../src/project/report.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
-import { CannotRename, renameProject } from "../../src/project/rename.ts";
 import { CannotDelete, deleteProject, deletedFolderIn } from "../../src/project/delete.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
-import { showDeleteProject, showRenameProject } from "./screens/project-dialogs.ts";
+import { askToRenameProject, showDeleteProject, type RenameRoute } from "./screens/project-dialogs.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
 import { showImportReport } from "./screens/import-report.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
@@ -151,6 +150,15 @@ function draw(): void {
           defaultPath: suggestedName,
           filters: [{ name: "PDF", extensions: ["pdf"] }],
         })) ?? undefined,
+      askToRename: (route) =>
+        askToRename(projectOnScreen(), {
+          ...route,
+          renamed: (now) => {
+            // Still this project: the writer may have closed it meanwhile.
+            if (opened?.marker.projectId === now.marker.projectId) opened = now;
+            route.renamed(now);
+          },
+        }),
     });
     gestures = shell.gestures;
     return;
@@ -176,7 +184,13 @@ function draw(): void {
     onImport: () => void importOne(),
     onOpen: goToProject,
     onNewProject: askForNewProject,
-    onRename: askToRename,
+    onRename: (project) =>
+      askToRename(project, {
+        into: document.body,
+        carryOut: (move) => move(),
+        renamed: () => {},
+        closed: () => {},
+      }),
     onDelete: askToDelete,
     onSearch: searchProjects,
     onBack: () => go("home"),
@@ -371,29 +385,16 @@ async function rereadProjects(): Promise<void> {
 }
 
 /**
- * Rename the project that was right-clicked (`src/project/rename.ts`), in a
- * dialog over the screen. Refused or failed, the dialog stays up with the
- * reason and the project keeps its name.
+ * Rename a project: the one right-clicked on Open Project, or the one open in
+ * the Editor. The list is read again either way, so that it is true when the
+ * writer next sees it.
  */
-function askToRename(project: Project): void {
-  if (document.querySelector("dialog[open]") !== null) return;
-  showRenameProject(document.body, {
+function askToRename(project: Project, route: RenameRoute): void {
+  askToRenameProject(
+    { filesystem: tauriFilesystem, projectsDirectory: defaultProjectsDirectory, reread: rereadProjects },
     project,
-    onRename: async (name) => {
-      let wrong: string | undefined;
-      try {
-        await renameProject(tauriFilesystem, await defaultProjectsDirectory(), project, name);
-      } catch (error) {
-        wrong =
-          error instanceof CannotRename
-            ? error.message
-            : `The project could not be renamed, so nothing was changed. ${message(error)}`;
-      }
-      await rereadProjects();
-      return wrong;
-    },
-    onClose: () => {},
-  });
+    route,
+  );
 }
 
 /**

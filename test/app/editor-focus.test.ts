@@ -42,6 +42,7 @@ async function opening(into: HTMLElement): Promise<MountedWorkspace> {
     setStatus: () => {},
     setGoal: () => {},
     whenGoalsAsked: quiet,
+    whenRenameAsked: quiet,
     setSaved: () => {},
     setSpellcheck: () => {},
     whenSwitchedAway: quiet,

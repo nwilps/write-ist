@@ -157,6 +157,7 @@
   border: var(--rule-thin) solid var(--colour-border-strong);
   border-radius: var(--radius-float);
   background: var(--colour-raised);
+  box-shadow: var(--shadow-float);
   color: var(--colour-text);
 }
 

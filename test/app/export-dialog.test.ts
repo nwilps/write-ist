@@ -346,6 +346,7 @@ describe("Export As… in the Editor", () => {
       setStatus: () => {},
       setGoal: () => {},
       whenGoalsAsked: quiet,
+      whenRenameAsked: quiet,
       setSaved: () => {},
       setSpellcheck: () => {},
       whenSwitchedAway: quiet,

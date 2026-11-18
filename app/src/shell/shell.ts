@@ -19,15 +19,17 @@
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
  */
-import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
+import { createElement, Pencil, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
+import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
-import type { MountedWorkspace, SaveState, WorkspaceManifest } from "./workspace.ts";
+import type { RenameRoute } from "../screens/project-dialogs.ts";
+import type { MountedWorkspace, RenameRequest, SaveState, WorkspaceManifest } from "./workspace.ts";
 
 export interface ShellScreen {
   /** Which project is open — a path and what its marker says (ADR-0015). */
@@ -63,6 +65,8 @@ export interface ShellScreen {
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
   /** Where the PDF should go, asked the same way. */
   readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
+  /** Ask for a new name for the open project, and rename it. */
+  readonly askToRename: (route: RenameRoute) => void;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -116,6 +120,41 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   counts.addEventListener("click", asked);
   goal.addEventListener("click", asked);
 
+  // The project as it is now: a rename replaces it with the workspace still up.
+  let project = screen.project;
+  // The project's name is which work they are in. Focusable so that the Menu
+  // key can open its menu, as it does on a row of Open Project.
+  const projectName = element("span", {
+    className: "pill pill--project",
+    textContent: project.marker.name,
+    tabIndex: 0,
+  });
+  const renameAskers = new Set<() => void>();
+  let nameMenu: ContextMenu | undefined;
+  const openNameMenu = (x: number, y: number, fromKeyboard: boolean): void => {
+    nameMenu = openContextMenu({
+      label: project.marker.name,
+      items: [{ label: "Rename Project", icon: Pencil, act: () => renameAskers.forEach((act) => act()) }],
+      x,
+      y,
+      fromKeyboard,
+      restoreFocus: () => (fromKeyboard ? projectName.focus() : mounted.focus?.()),
+    });
+  };
+  projectName.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openNameMenu(event.clientX, event.clientY, false);
+  });
+  // The Menu key and Shift+F10, as a native menu opens (ADR-0034): at the pill.
+  projectName.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const box = projectName.getBoundingClientRect();
+    openNameMenu(box.left, box.top, true);
+  });
+
   into.replaceChildren(
     element("div", { className: "shell" }, [
       workspaceBar(screen.workspaces),
@@ -125,8 +164,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       element("div", { className: "paper-fade paper-fade--top", ariaHidden: "true" }),
       element("div", { className: "paper-fade paper-fade--bottom", ariaHidden: "true" }),
       element("div", { className: "pills pills--left" }, [
-        // The project's name is which work they are in.
-        element("span", { className: "pill pill--project", textContent: screen.project.marker.name }),
+        projectName,
         goal,
       ]),
       element("div", { className: "pills pills--right" }, [spelling, counts, saved.pill]),
@@ -151,7 +189,9 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   };
 
   const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
-    project: screen.project,
+    get project() {
+      return project;
+    },
     filesystem: screen.filesystem,
     report,
     setStatus,
@@ -160,6 +200,18 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       askers.add(act);
       return () => void askers.delete(act);
     },
+    whenRenameAsked: (act) => {
+      renameAskers.add(act);
+      return () => void renameAskers.delete(act);
+    },
+    renameProject: (request: RenameRequest) =>
+      screen.askToRename({
+        ...request,
+        renamed: (now) => {
+          project = now;
+          projectName.textContent = now.marker.name;
+        },
+      }),
     setSaved: saved.set,
     setSpellcheck: (on) => void (spelling.hidden = !on),
     whenSwitchedAway: screen.whenSwitchedAway,
@@ -171,7 +223,13 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     choosePdfLocation: screen.choosePdfLocation,
   });
 
-  return { gestures, unmount: mounted.unmount, report };
+  const unmount = async (): Promise<boolean> => {
+    const down = await mounted.unmount();
+    // The menu is on the body, so it would outlive the frame it belongs to.
+    if (down) nameMenu?.close(false);
+    return down;
+  };
+  return { gestures, unmount, report };
 }
 
 /** What the save pill says, in words, for a screen reader. */

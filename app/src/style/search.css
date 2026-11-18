@@ -24,6 +24,7 @@
   background: var(--colour-raised);
   border: var(--rule-thin) solid var(--colour-border-strong);
   border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
 }
 
 .search__field {

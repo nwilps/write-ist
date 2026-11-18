@@ -50,6 +50,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
+    askToRename: () => {},
     ledger: () => undefined,
     places: () => undefined,
   });

@@ -31,6 +31,7 @@
   background: var(--colour-raised);
   border: var(--rule-menu) solid var(--colour-border-strong);
   border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
   font-family: var(--face-interface);
   font-size: var(--size-label);
   line-height: var(--leading-label);

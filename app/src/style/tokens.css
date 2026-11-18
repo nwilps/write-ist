@@ -237,7 +237,11 @@
    */
   --size-paper-fade: 72px;
   --opacity-paper-fade: 1;
-  --shadow-float: 0 6px 18px color-mix(in srgb, var(--colour-base) 90%, transparent);
+  /**
+   * The one shadow, on everything that floats: the workspace bar, the menus,
+   * the dialogs. Darker than the desk, or it would vanish against it.
+   */
+  --shadow-float: 0 4px 14px color-mix(in srgb, color-mix(in srgb, var(--colour-base) 30%, black) 65%, transparent);
 
   /*
    * The side panels (the desk design, §2.2): columns 240px wide, 12px off the

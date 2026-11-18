@@ -282,7 +282,8 @@ The menu that opens where the writer right-clicks the paper (or at the caret, fr
 is Write-ist's own, drawn from the same list as File, Edit and View, and its items are the command
 table's entries that carry a `context` (ADR-0039). The webview's own right-click menu is never shown on
 the paper. On the Open Project screen a project row has one too — Rename Project and Delete Project,
-for the row right-clicked (ADR-0044).
+for the row right-clicked (ADR-0044). In the Editor the project name pill has one with the single item
+Rename Project.
 _Avoid_: popup
 
 **Spacing table**:

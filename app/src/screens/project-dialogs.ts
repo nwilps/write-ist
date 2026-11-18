@@ -1,6 +1,7 @@
 /**
  * Rename Project and Delete Project: the two dialogs the Open Project screen's
- * right-click menu opens, for the project that was right-clicked.
+ * right-click menu opens, for the project that was right-clicked. Rename Project
+ * is opened for the open project from the Editor too (`askToRenameProject`).
  *
  * Both are the New Project dialog's look (ADR-0042) and its manners: a modal
  * `<dialog>`, so Escape cancels and the screen behind hears nothing; Cancel
@@ -10,6 +11,8 @@
  * project layer's (`src/project/rename.ts`, `src/project/delete.ts`).
  */
 import type { Project } from "../../../src/project/bundle.ts";
+import type { Filesystem } from "../../../src/project/filesystem.ts";
+import { CannotRename, renameProject } from "../../../src/project/rename.ts";
 import { element } from "./element.ts";
 import { action } from "./new-project.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
@@ -59,6 +62,53 @@ export function showRenameProject(
   name.focus();
   name.select();
   return shown.modal;
+}
+
+/** What a rename needs of the application, wherever it was asked for. */
+export interface RenamePorts {
+  readonly filesystem: Filesystem;
+  readonly projectsDirectory: () => Promise<string>;
+  /** Read the list of projects again, so that it is true when next shown. */
+  readonly reread: () => Promise<void>;
+}
+
+/** What differs between renaming from Open Project and from the open project. */
+export interface RenameRoute {
+  /** Where the dialog goes. */
+  readonly into: HTMLElement;
+  /** Run the move, at a moment that is safe for whatever has the project open. */
+  readonly carryOut: (move: () => Promise<Project>) => Promise<Project>;
+  /** The project was renamed, and this is the project as it now is. */
+  readonly renamed: (project: Project) => void;
+  /** The dialog is gone, however it went. */
+  readonly closed: () => void;
+}
+
+/**
+ * The one way a project is renamed (`src/project/rename.ts`), in a dialog.
+ * Refused or failed, the dialog stays up with the reason and the project keeps
+ * its name. Nothing opens over another dialog.
+ */
+export function askToRenameProject(ports: RenamePorts, project: Project, route: RenameRoute): void {
+  if (document.querySelector("dialog[open]") !== null) return;
+  showRenameProject(route.into, {
+    project,
+    onRename: async (name) => {
+      let wrong: string | undefined;
+      try {
+        const directory = await ports.projectsDirectory();
+        route.renamed(await route.carryOut(() => renameProject(ports.filesystem, directory, project, name)));
+      } catch (error) {
+        wrong =
+          error instanceof CannotRename
+            ? error.message
+            : `The project could not be renamed, so nothing was changed. ${message(error)}`;
+      }
+      await ports.reread();
+      return wrong;
+    },
+    onClose: route.closed,
+  });
 }
 
 export interface DeleteProjectDialog {

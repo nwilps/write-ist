@@ -176,6 +176,7 @@ function shell() {
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
+    askToRename: () => {},
     ledger: () => undefined,
     places: () => undefined,
   });

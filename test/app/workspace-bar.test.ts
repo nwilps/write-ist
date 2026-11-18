@@ -34,6 +34,7 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
+    askToRename: () => {},
     ledger: () => undefined,
     places: () => undefined,
   });

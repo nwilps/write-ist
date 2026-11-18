@@ -227,6 +227,7 @@ body {
   border: var(--rule-thin) solid var(--colour-border);
   border-radius: var(--radius-round);
   background: var(--colour-raised);
+  box-shadow: var(--shadow-float);
   color: var(--colour-text);
 }
 
