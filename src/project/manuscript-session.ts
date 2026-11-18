@@ -31,7 +31,7 @@
  */
 import type { DecorationSet, EditorView } from "prosemirror-view";
 import type { Node as EditorNode } from "prosemirror-model";
-import type { EditorState, Transaction } from "prosemirror-state";
+import type { Command, EditorState, Transaction } from "prosemirror-state";
 import { readGoals, writeGoals } from "../goals/file.ts";
 import { NO_GOALS, type Goals } from "../goals/history.ts";
 import { GoalsTracker, type GoalPill, type GoalsView } from "../goals/tracker.ts";
@@ -45,6 +45,7 @@ import { editorStateFor, manuscriptOf } from "../screenplay/editing.ts";
 import { layout, type Layout } from "../screenplay/layout.ts";
 import { locationRange, nameOf, normaliseName, wordsOf, type NameKind, type NameLists } from "../screenplay/names.ts";
 import { namesOf, syncNames } from "../screenplay/names-sync.ts";
+import { OffPaperHistory } from "../screenplay/off-paper-undo.ts";
 import { pageAtElement } from "../screenplay/paginate.ts";
 import { manuscriptElementAt } from "../screenplay/numbering.ts";
 import { elementUnder } from "../screenplay/place.ts";
@@ -178,7 +179,10 @@ export interface ManuscriptSession {
    * says why — when the save failed, in which case nothing has been let go of.
    */
   readonly leave: () => Promise<boolean>;
-  /** Resolves when every confirmation so far has been written (or has failed, and been said). */
+  /**
+   * Resolves when every confirmation so far has been written, and every
+   * change to the dictionary made (or has failed, and been said).
+   */
   readonly settled: () => Promise<void>;
   /**
    * The list a word between two positions belongs to, for Add to Dictionary:
@@ -197,8 +201,17 @@ export interface ManuscriptSession {
    * on a cue's name or a heading's location (`listOfWordAt`) that name joins
    * its list as well. Spellcheck is redrawn after, so the newly confirmed
    * name is trusted too.
+   *
+   * One undo step, in order with the typing around it, that changes no text:
+   * Undo takes back what this call added (the word, if it was new to the
+   * dictionary; the name, if it was not already confirmed by hand) and Redo
+   * puts it back. Resolves once the dictionary has answered.
    */
   readonly addToDictionary: (view: EditorView, issue: SpellIssue) => Promise<void>;
+  /** Undo: the last text step or Add to Dictionary, whichever came last. What Ctrl+Z runs. */
+  readonly undo: Command;
+  /** Redo: the reverse of `undo`. What Ctrl+Shift+Z and Ctrl+Y run. */
+  readonly redo: Command;
 }
 
 export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): ManuscriptSession {
@@ -219,6 +232,9 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
   const autocomplete = { names: () => names, draw: ports.drawOffer };
+  // Add to Dictionary's undo steps, which sit among the text's (`off-paper-undo.ts`).
+  const offPaper = new OffPaperHistory();
+  const undo = { undo: offPaper.undo, redo: offPaper.redo };
 
   /** The writer's confirmations, as the lists hold them: the only copy there is. */
   const confirmationsOf = (lists: NameLists): Confirmations => ({
@@ -256,7 +272,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     ports.setStatus(countsText(current, laid.totalPages, words));
   };
 
-  state = editorStateFor(opened.document, { autocomplete, spellcheck });
+  state = editorStateFor(opened.document, { autocomplete, spellcheck, undo });
   words = wordsIn(state.doc);
   settle({ replaced: read.confirmed ?? NO_CONFIRMATIONS });
 
@@ -269,7 +285,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // version that was replaced.
     reload: (imported) => {
       const spellingWasOn = spellcheck.isOn(state);
-      state = editorStateFor(imported.document, { autocomplete, spellcheck });
+      state = editorStateFor(imported.document, { autocomplete, spellcheck, undo });
+      offPaper.clear();
       // Someone else's words are not the writer's: counting starts from them.
       words = wordsIn(state.doc);
       settle({ replaced: confirmationsOf(names) });
@@ -422,24 +439,47 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     const under = elementUnder(state.doc, at);
     return under === undefined ? undefined : nameOf(under);
   };
+  /** The lists' confirmations, to the names file: whole, after any write before it. */
+  const writeNames = (): void => {
+    const toWrite = confirmationsOf(names);
+    writingNames = writingNames.then(async () => {
+      try {
+        await writeConfirmations(ports.filesystem, ports.project, toWrite);
+      } catch (error) {
+        ports.report(
+          `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+            `Your screenplay is unchanged. ${message(error)}`,
+        );
+      }
+    });
+  };
+  /** Confirm by hand, or take that back. Never when the names file could not be read. */
+  const confirmName = (kind: NameKind, name: string): boolean => {
+    if (read.confirmed === undefined || !names.confirm(kind, name)) return false;
+    writeNames();
+    return true;
+  };
+  const unconfirmName = (kind: NameKind, name: string): void => {
+    if (read.confirmed === undefined || !names.unconfirm(kind, name)) return;
+    writeNames();
+  };
   const confirm = (kind: NameKind, at = state.selection.head): boolean => {
     const found = nameAt(at);
     if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
-    if (names.confirm(kind, found.name)) {
-      const toWrite = confirmationsOf(names);
-      writingNames = writingNames.then(async () => {
-        try {
-          await writeConfirmations(ports.filesystem, ports.project, toWrite);
-        } catch (error) {
-          ports.report(
-            `Write-ist could not save the confirmed name. It holds while this project is open. ` +
-              `Your screenplay is unchanged. ${message(error)}`,
-          );
-        }
-      });
-    }
+    confirmName(kind, found.name);
     return true;
   };
+
+  // The dictionary's answers, in the order they were asked for: an undo pressed
+  // before the add it undoes has been answered waits for it.
+  let spelling: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(act: () => Promise<T>): Promise<T> => {
+    const done = spelling.then(act);
+    spelling = done.catch(() => {});
+    return done;
+  };
+  const dictionaryTrouble = (error: unknown): void =>
+    ports.report(`Write-ist could not change your dictionary. Your screenplay is unchanged. ${message(error)}`);
 
   const listOfWordAt = (from: number, to: number): NameKind | undefined => {
     const under = elementUnder(state.doc, from);
@@ -472,8 +512,10 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     spellcheck,
     manuscript: () => manuscriptOf(state.doc),
     apply: (transaction) => {
+      const was = state;
       const before = state.doc;
       state = state.apply(transaction);
+      offPaper.applied(transaction, was, state);
       if (transaction.docChanged) {
         session.changed();
         saving.typed();
@@ -514,15 +556,41 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       showGoal();
     },
     leave,
-    settled: () => writingNames,
+    settled: () => Promise.all([writingNames, spelling]).then(() => {}),
     listOfWordAt,
     confirm,
     addToDictionary: async (view, issue) => {
+      // Typing before and after stays two undo steps, with this one between.
+      const step = offPaper.begin(view.state);
+      view.dispatch(step.close);
       const list = listOfWordAt(issue.from, issue.to);
+      const found = list === undefined ? undefined : nameAt(issue.from);
       // A names file that could not be read is not changed; the word still
-      // goes in the dictionary.
-      if (list !== undefined) confirm(list, issue.from);
-      await spellcheck.addToDictionary(view, issue.word);
+      // goes in the dictionary. A name already confirmed by hand is not this
+      // step's to take back.
+      const listed = found !== undefined && confirmName(found.kind, found.name) ? found : undefined;
+      let added = false;
+      try {
+        added = await inTurn(() => spellcheck.addToDictionary(view, issue.word));
+      } finally {
+        // A word already in the dictionary is not this step's to take out.
+        if (added || listed !== undefined) {
+          step.record({
+            undo: () => {
+              if (listed !== undefined) unconfirmName(listed.kind, listed.name);
+              if (added) void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble);
+              else spellcheck.refresh(view);
+            },
+            redo: () => {
+              if (listed !== undefined) confirmName(listed.kind, listed.name);
+              if (added) void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble);
+              else spellcheck.refresh(view);
+            },
+          });
+        }
+      }
     },
+    undo: offPaper.undo,
+    redo: offPaper.redo,
   };
 }

@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "toggleSpellcheck", "search",
+    "toggleSpellcheck", "search", "undo", "redo",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -156,7 +156,7 @@ describe("the Editor's menus", () => {
         "---",
         "Home[Esc]",
       ],
-      Edit: ["Edit Title Page…", "---", "Edit Goals…"],
+      Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
       View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]"],
     });
   });
@@ -177,6 +177,8 @@ describe("the Editor's menus", () => {
     choose("Edit Title Page…");
     choose("View Title Page");
     choose("Spellcheck");
+    choose("Undo");
+    choose("Redo");
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["saveCopy"]).toHaveBeenCalledOnce();
     expect(act["exportPdf"]).toHaveBeenCalledOnce();
@@ -185,6 +187,20 @@ describe("the Editor's menus", () => {
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();
     expect(act["viewTitlePage"]).toHaveBeenCalledOnce();
     expect(act["toggleSpellcheck"]).toHaveBeenCalledOnce();
+    expect(act["undo"]).toHaveBeenCalledOnce();
+    expect(act["redo"]).toHaveBeenCalledOnce();
+  });
+
+  // Undo's keys are the screenplay surface's keymap, which runs the session's
+  // undo (Add to Dictionary included): the table only draws them.
+  it("offer Undo and Redo at the top of Edit, with the keys the paper answers", () => {
+    for (const id of ["undo", "redo"]) {
+      expect(commandById(id)?.keys, id).toBe("elsewhere");
+      expect(commandById(id)?.menu, id).toEqual({ name: "Edit", group: "undo" });
+    }
+    expect(commandById("undo")?.chord).toEqual({ key: "z", mod: true });
+    expect(commandById("redo")?.chord).toEqual({ key: "y", mod: true });
+    expect(commandForKey(press("z", { ctrl: true }), "editor")).toBeUndefined();
   });
 
   it("tick the spelling item from whether the pass is on", () => {

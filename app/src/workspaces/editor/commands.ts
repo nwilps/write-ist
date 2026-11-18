@@ -38,10 +38,12 @@ import {
   FileText,
   FolderOpen,
   House,
+  Redo2,
   Save,
   Scissors,
   SpellCheck,
   Target,
+  Undo2,
   type IconNode,
 } from "lucide";
 import type { EditorView } from "prosemirror-view";
@@ -58,6 +60,9 @@ import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screen
 
 /** What the window does for the Editor: the parts of a command that need a window. */
 export interface EditorActions {
+  /** Undo and redo: the same commands the keys run, so Add to Dictionary is undone in its turn. */
+  readonly undo: () => void;
+  readonly redo: () => void;
   readonly save: () => void;
   readonly saveCopy: () => void;
   readonly exportPdf: () => void;
@@ -191,7 +196,10 @@ export const COMMANDS: readonly Command[] = [
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
   { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
 
-  // Edit
+  // Edit. Undo's keys are the screenplay surface's keymap (`editing.ts`), which
+  // runs the same commands; Ctrl+Shift+Z redoes too.
+  { id: "undo", label: "Undo", icon: Undo2, chord: { key: "z", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.undo() },
+  { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
 

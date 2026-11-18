@@ -129,6 +129,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view.focus();
     document.execCommand(command);
   };
+  // Edit ▸ Undo and Redo run what Ctrl+Z and Ctrl+Y run, Add to Dictionary's steps included.
+  const undoOrRedo = (which: "undo" | "redo"): void => {
+    const writing = session;
+    const editing = view;
+    if (writing === undefined || editing === undefined) return;
+    writing[which](editing.state, editing.dispatch, editing);
+    editing.focus();
+  };
   const pasteFromClipboard = (): void => {
     const target = view;
     if (target === undefined) return;
@@ -296,6 +304,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     copy: () => viaWebview("copy"),
     paste: pasteFromClipboard,
     selectAll: () => viaWebview("selectAll"),
+    undo: () => undoOrRedo("undo"),
+    redo: () => undoOrRedo("redo"),
     misspellingAt: (at) => {
       const writing = session;
       const editing = view;

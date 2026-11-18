@@ -33,7 +33,9 @@ _Avoid_: publish, finalise, freeze, commit, save
 **Undo/redo**:
 A session-level stack of edits the writer can walk backwards and forwards. It is not durable
 and not history: closing the project ends it. Distinct from a draft, which is durable and
-deliberate, and from autosave, which is neither.
+deliberate, and from autosave, which is neither. **Add to Dictionary** is a step in it too, in
+order with the typing around it, though it changes no text: undoing it takes back the word and
+any name it put on a list.
 _Avoid_: history, versions, rollback
 
 **Autosave**:

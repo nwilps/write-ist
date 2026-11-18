@@ -51,7 +51,7 @@
  * pointing at a seam. *"Deleting all the text a comment covers removes the
  * comment with it."*
  */
-import { Plugin, PluginKey, type EditorState as State } from "prosemirror-state";
+import { Plugin, PluginKey, type Command, type EditorState as State } from "prosemirror-state";
 import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -140,11 +140,19 @@ export const maintainComments = new Plugin<readonly PlacedComment[]>({
  */
 const undoStack = history({ newGroupDelay: 500 });
 
-const undoKeys = keymap({
-  "Mod-z": undo,
-  "Mod-Shift-z": redo,
-  "Mod-y": redo,
-});
+/** The undo keys, bound to `prosemirror-history`'s commands unless the window brings its own. */
+const undoKeys = (commands: UndoCommands = { undo, redo }) =>
+  keymap({
+    "Mod-z": commands.undo,
+    "Mod-Shift-z": commands.redo,
+    "Mod-y": commands.redo,
+  });
+
+/** What Undo and Redo run. */
+export interface UndoCommands {
+  readonly undo: Command;
+  readonly redo: Command;
+}
 
 /**
  * Bold, italic and underline from the keyboard (#46).
@@ -168,6 +176,11 @@ export interface EditorOptions {
   readonly autocomplete?: AutocompleteOptions;
   /** Underline misspelt words while a pass is on (step 10). Off until toggled. */
   readonly spellcheck?: Spellcheck;
+  /**
+   * Undo and redo that also take back steps off the paper, such as Add to
+   * Dictionary (`./off-paper-undo.ts`). Default: the text history alone.
+   */
+  readonly undo?: UndoCommands;
 }
 
 /**
@@ -190,7 +203,7 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
     selection: outsidePageBreak(doc, startOfScript(doc)),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys, markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
+    plugins: [undoStack, undoKeys(options.undo), markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
   });
 }
 

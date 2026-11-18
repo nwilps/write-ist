@@ -39,8 +39,17 @@ export interface SpellEngine {
   misspelled(words: readonly string[]): Promise<readonly string[]>;
   /** What `word` might have been, best first. */
   suggest(word: string): Promise<readonly string[]>;
-  /** Make `word` right from now on, and remember it between sessions. */
-  addWord(word: string): Promise<void>;
+  /**
+   * Make `word` right from now on, and remember it between sessions. Answers
+   * whether it was new to the writer's own words (false when already there).
+   */
+  addWord(word: string): Promise<boolean>;
+  /**
+   * Forget a word the writer added (an undone Add to Dictionary), between
+   * sessions too. The shipped dictionary is never changed. Answers whether
+   * the word was among the writer's own words.
+   */
+  removeWord(word: string): Promise<boolean>;
 }
 
 /** The tunable values, named (`preferences.ts` carries the defaults). */
@@ -209,7 +218,7 @@ export class Spelling {
     return this.lookups;
   }
 
-  /** Bumps when a word is added, which changes what earlier verdicts mean. */
+  /** Bumps when a word is added or removed, which changes what earlier verdicts mean. */
   get epoch(): number {
     return this.changes;
   }
@@ -280,9 +289,21 @@ export class Spelling {
     return [...new Set(found.map((suggestion) => matchCase(suggestion, word)))];
   }
 
-  /** Make `word` right, and forget every verdict that was about it in any case. */
-  async add(word: string): Promise<void> {
-    await this.engine.addWord(forEngine(word));
+  /** Make `word` right, and forget every verdict that was about it in any case. Answers whether it was new. */
+  async add(word: string): Promise<boolean> {
+    const added = await this.engine.addWord(forEngine(word));
+    this.forget(word);
+    return added;
+  }
+
+  /** Take back a word `add` added, and forget every verdict that was about it. */
+  async remove(word: string): Promise<boolean> {
+    const removed = await this.engine.removeWord(forEngine(word));
+    this.forget(word);
+    return removed;
+  }
+
+  private forget(word: string): void {
     this.changes += 1;
     const lower = forEngine(word).toLowerCase();
     for (const kept of [...this.verdicts.keys()]) {

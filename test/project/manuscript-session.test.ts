@@ -21,10 +21,12 @@ import {
   type SessionPorts,
 } from "../../src/project/manuscript-session.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
+import { readConfirmations } from "../../src/project/names-file.ts";
+import { serialise } from "../../src/screenplay/serialise.ts";
 import { manuscriptOf } from "../../src/screenplay/editing.ts";
 import { layout } from "../../src/screenplay/layout.ts";
 import { paperDecorations } from "../../src/screenplay/sheets.ts";
-import { TextSelection } from "prosemirror-state";
+import { TextSelection, type Transaction } from "prosemirror-state";
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { startOfElement } from "../support/editor-positions.ts";
 import { readFixtureBytes } from "../support/files.ts";
@@ -471,7 +473,14 @@ function flagged(session: ManuscriptSession, line: string, word: string, nth = 0
   return issue;
 }
 
-const offPaper = (session: ManuscriptSession): EditorView => ({ state: session.state }) as EditorView;
+/** The view as the Editor wires it: its state is the session's, and it dispatches into the session. */
+const offPaper = (session: ManuscriptSession): EditorView =>
+  ({
+    get state() {
+      return session.state;
+    },
+    dispatch: (transaction: Transaction) => session.apply(transaction),
+  }) as EditorView;
 
 describe("Add to Dictionary", () => {
   it("on a word of a cue's name, also adds the character to this project's list", async () => {
@@ -543,3 +552,207 @@ describe("Add to Dictionary", () => {
 });
 
 const span = (issue: SpellIssue): [number, number] => [issue.from, issue.to];
+
+/* ------------------------------------------ Undo of Add to Dictionary */
+
+describe("Undo and Redo of Add to Dictionary", () => {
+  /** A sample session with spellcheck on, through the view the Editor wires. */
+  async function checking(names?: Uint8Array) {
+    const made = await aSampleSession(names);
+    const view = offPaper(made.session);
+    made.session.spellcheck.setOn(view, true);
+    await made.session.spellcheck.flush(view);
+    /** What Ctrl+Z (or Ctrl+Y) does, once everything it set going has finished. */
+    const press = async (which: "undo" | "redo"): Promise<boolean> => {
+      const ran = made.session[which](made.session.state, view.dispatch, view);
+      await made.session.settled();
+      await made.session.spellcheck.flush(view);
+      return ran;
+    };
+    const add = async (line: string, word: string): Promise<void> => {
+      await made.session.addToDictionary(view, flagged(made.session, line, word));
+      await made.session.settled();
+      await made.session.spellcheck.flush(view);
+    };
+    const underlined = (): string[] => made.session.spellcheck.issues(made.session.state).map((issue) => issue.word);
+    /** The names file says what the lists hold. */
+    const namesOnDisk = async (): Promise<void> => {
+      expect(await readConfirmations(nodeFilesystem, made.opened.project)).toEqual({
+        character: made.session.names.explicit("character"),
+        location: made.session.names.explicit("location"),
+      });
+    };
+    const text = (): string => serialise(made.session.manuscript());
+    return { ...made, view, press, add, underlined, namesOnDisk, text };
+  }
+
+  it("takes back a cue's name: out of the dictionary and off the list, underlined again; Redo puts it back", async () => {
+    const { session, engine, heard, press, add, underlined, namesOnDisk, text } = await checking();
+    const before = text();
+    expect(underlined()).toContain("ZELDRA");
+
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+    expect(underlined()).not.toContain("ZELDRA");
+    await namesOnDisk();
+
+    expect(await press("undo")).toBe(true);
+    expect(engine.added).toEqual([]);
+    expect(session.names.explicit("character")).toEqual([]);
+    expect(session.names.isConfirmed("character", "ZELDRA")).toBe(false);
+    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual([]);
+    expect(underlined()).toContain("ZELDRA");
+    await namesOnDisk();
+
+    expect(await press("redo")).toBe(true);
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual(["ZELDRA"]);
+    expect(underlined()).not.toContain("ZELDRA");
+    await namesOnDisk();
+
+    // None of it touched the screenplay, or marked it unsaved.
+    expect(text()).toBe(before);
+    expect(session.unsaved()).toBe(false);
+    expect(heard.saved).not.toContain("unsaved");
+    expect(heard.reports).toEqual([]);
+  });
+
+  it("takes back a heading's location the same way", async () => {
+    const { session, engine, press, add, underlined, namesOnDisk } = await checking();
+    await add("EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT", "KORVATH");
+    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
+    expect(underlined()).not.toContain("KORVATH");
+
+    await press("undo");
+    expect(engine.added).toEqual([]);
+    expect(session.names.explicit("location")).toEqual([]);
+    expect(underlined()).toContain("KORVATH");
+    await namesOnDisk();
+
+    await press("redo");
+    expect(engine.added).toEqual(["KORVATH"]);
+    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
+    expect(underlined()).not.toContain("KORVATH");
+    await namesOnDisk();
+  });
+
+  it("sits in the undo history in order with typing, and changes no text itself", async () => {
+    const { session, engine, press, add, text } = await checking();
+    const opened = text();
+    const dialogue = elementIndexOf(session, "Hello, Korvath.");
+    typeInto(session, dialogue, "Oh. ");
+    const typedOnce = text();
+    await add("Zeldra waves at QUILLAN.", "QUILLAN");
+    expect(text()).toBe(typedOnce);
+    typeInto(session, dialogue, "Well. ");
+    const typedTwice = text();
+    expect(engine.added).toEqual(["QUILLAN"]);
+
+    // Back: the later typing, then the dictionary (text unchanged), then the earlier typing.
+    await press("undo");
+    expect(text()).toBe(typedOnce);
+    expect(engine.added).toEqual(["QUILLAN"]);
+    await press("undo");
+    expect(text()).toBe(typedOnce);
+    expect(engine.added).toEqual([]);
+    await press("undo");
+    expect(text()).toBe(opened);
+    expect(engine.added).toEqual([]);
+
+    // Forward, the same steps the other way.
+    await press("redo");
+    expect(text()).toBe(typedOnce);
+    expect(engine.added).toEqual([]);
+    await press("redo");
+    expect(text()).toBe(typedOnce);
+    expect(engine.added).toEqual(["QUILLAN"]);
+    await press("redo");
+    expect(text()).toBe(typedTwice);
+    expect(await press("redo")).toBe(false);
+  });
+
+  it("cannot be redone once something new is typed", async () => {
+    const { session, engine, press, add } = await checking();
+    await add("Zeldra waves at QUILLAN.", "QUILLAN");
+    await press("undo");
+    typeInto(session, elementIndexOf(session, "Hello, Korvath."), "Oh. ");
+    expect(await press("redo")).toBe(false);
+    expect(engine.added).toEqual([]);
+  });
+
+  it("leaves a word that was already in the dictionary, and takes back only the name it listed", async () => {
+    const { session, engine, press, add, underlined, namesOnDisk } = await checking();
+    // Added before, as on another day: in the custom dictionary, not on the list.
+    await engine.addWord("ZELDRA");
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+
+    await press("undo");
+    expect(engine.added).toContain("ZELDRA");
+    expect(session.names.explicit("character")).toEqual([]);
+    expect(underlined()).not.toContain("ZELDRA");
+    await namesOnDisk();
+  });
+
+  it("is no step at all when it added nothing: the word was known and the name already listed", async () => {
+    const { session, engine, press, add, text } = await checking();
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    const before = text();
+    // The one undo step is the first add's.
+    await press("undo");
+    expect(engine.added).toEqual([]);
+    expect(session.names.explicit("character")).toEqual([]);
+    expect(await press("undo")).toBe(false);
+    expect(text()).toBe(before);
+  });
+
+  it("leaves a name the writer had already confirmed on its list", async () => {
+    const { session, engine, press, add, underlined, namesOnDisk } = await checking(
+      new TextEncoder().encode("characters\n  ZELDRA\n"),
+    );
+    // Confirmed already, so not underlined and not offered: the session is asked
+    // directly, as for a second Add to Dictionary on the same name.
+    expect(underlined()).not.toContain("ZELDRA");
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    expect(engine.added).toEqual(["ZELDRA"]);
+
+    await press("undo");
+    expect(engine.added).toEqual([]);
+    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
+    await namesOnDisk();
+  });
+
+  it("leaves a name that its uses have confirmed since on the list, and trusted", async () => {
+    const { session, press, add, underlined } = await checking();
+    await add("QUILLAN", "QUILLAN");
+    // QUILLAN is a cue once: with the threshold at one, its use confirms it.
+    session.names.setConfirmAfterUses(1);
+    await press("undo");
+    expect(session.names.explicit("character")).toEqual([]);
+    expect(session.names.isConfirmed("character", "QUILLAN")).toBe(true);
+    expect(session.names.confirmedStartingWith("character", "QUI")).toEqual(["QUILLAN"]);
+    expect(underlined()).not.toContain("QUILLAN");
+  });
+
+  it("still takes the word back when the names file could not be read, and writes no names file", async () => {
+    const unreadable = new Uint8Array([0xff, 0xfe, 0xfd]);
+    const { session, engine, opened, press, add } = await checking(unreadable);
+    await add("ZELDRA (V.O.)", "ZELDRA");
+    expect(session.names.explicit("character")).toEqual([]);
+    await press("undo");
+    expect(engine.added).toEqual([]);
+    await press("redo");
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(new Uint8Array(readFileSync(join(opened.project.path, NAMES_FILE)))).toEqual(unreadable);
+  });
+});
+
+/** Which manuscript element reads `line`. */
+function elementIndexOf(session: ManuscriptSession, line: string): number {
+  const index = session.manuscript().elements.findIndex((element) => element.text === line);
+  expect(index, line).toBeGreaterThanOrEqual(0);
+  return index;
+}

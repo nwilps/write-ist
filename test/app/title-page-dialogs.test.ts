@@ -170,7 +170,7 @@ describe("the Edit and View menus", () => {
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
     search: vi.fn(), view: () => undefined,
-      cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), misspellingAt: () => undefined,
+      cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
   };
   function panel() {
     const panels = sidePanels(undefined, editorMenus(act));
@@ -179,17 +179,17 @@ describe("the Edit and View menus", () => {
   }
   afterEach(() => vi.clearAllMocks());
 
-  it("hold only what works: the title page, goals and spelling", () => {
+  it("hold only what works: undo, the title page, goals and spelling", () => {
     const menus = editorMenus(act);
     const labels = (name: string) => menus[name]!.map((entry) => ("label" in entry ? entry.label : "—"));
     expect(Object.keys(menus)).toEqual(["File", "Edit", "View"]);
     expect(labels("Edit")).toEqual([
-      "Edit Title Page…", "—", "Edit Goals…",
+      "Undo", "Redo", "—", "Edit Title Page…", "—", "Edit Goals…",
     ]);
     expect(labels("View")).toEqual(["View Title Page", "—", "Spellcheck"]);
-    // No shortcut is shown that does not exist: only Spellcheck has one here.
+    // No shortcut is shown that does not exist: only Undo, Redo and Spellcheck have one here.
     expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + ;]"]);
-    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([]);
+    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + Z]", "[Ctrl + Y]"]);
   });
 
   it("open from their rows like File, and the items run the actions", () => {
@@ -197,7 +197,8 @@ describe("the Edit and View menus", () => {
     const rows = [...panels.left.querySelectorAll<HTMLButtonElement>(".panel__row")];
     expect(rows.map((r) => r.getAttribute("aria-haspopup"))).toEqual(["menu", "menu", "menu"]);
     rows[1]!.click();
-    const edit = panels.left.querySelector<HTMLButtonElement>('[aria-label="Edit"] [role="menuitem"]')!;
+    const items = [...panels.left.querySelectorAll<HTMLButtonElement>('[aria-label="Edit"] [role="menuitem"]')];
+    const edit = items.find((item) => item.textContent?.startsWith("Edit Title Page…"))!;
     expect(edit.textContent).toBe("Edit Title Page…");
     edit.click();
     expect(act.editTitlePage).toHaveBeenCalledTimes(1);
@@ -214,7 +215,8 @@ describe("the Edit and View menus", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "e", altKey: true, bubbles: true, cancelable: true }));
     const edit = panels.left.querySelector<HTMLElement>('[aria-label="Edit"]')!;
     expect(edit.hidden).toBe(false);
-    expect(document.activeElement?.textContent).toBe("Edit Title Page…");
+    // The first item is Undo, with its key beside it.
+    expect(document.activeElement?.textContent).toBe("Undo[Ctrl + Z]");
     document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     expect(edit.hidden).toBe(true);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "v", altKey: true, bubbles: true, cancelable: true }));

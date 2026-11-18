@@ -286,6 +286,17 @@ export class NameLists {
     return true;
   }
 
+  /**
+   * Take back a confirmation by hand (an undone Add to Dictionary). Uses are
+   * not touched, so a name used often enough stays confirmed. Answers whether
+   * there was one to take back.
+   */
+  unconfirm(kind: NameKind, name: string): boolean {
+    if (!this.confirmedByHand[kind].delete(normaliseName(name))) return false;
+    this.changes += 1;
+    return true;
+  }
+
   /** The names the writer confirmed by hand, for the names file. */
   explicit(kind: NameKind): readonly string[] {
     return [...this.confirmedByHand[kind]].sort(compareNames);

@@ -20,6 +20,11 @@
 //! word list is not the writer's work, and losing it costs re-adding words).
 //! It is written whole to a temporary file and renamed, and a file that exists
 //! and cannot be read is never written over (ADR-0008 rule 3).
+//!
+//! A word can be taken out again, only by undoing the Add to Dictionary that
+//! put it there. `spellbook` cannot forget a word, so the dictionary is built
+//! again from the shipped one and the words that are left; the shipped
+//! dictionary itself is never changed.
 
 use std::fs;
 use std::io;
@@ -35,7 +40,11 @@ pub trait SpellEngine: Send + Sync {
     /// What `word` might have been, best first.
     fn suggest(&self, word: &str) -> Vec<String>;
     /// Make `word` right from now on, and remember it between sessions.
-    fn add_word(&self, word: &str) -> Result<(), String>;
+    /// Answers whether it was new to the writer's words.
+    fn add_word(&self, word: &str) -> Result<bool, String>;
+    /// Forget a word the writer added, between sessions too. Answers whether
+    /// it was among the writer's words; a word that was not is left alone.
+    fn remove_word(&self, word: &str) -> Result<bool, String>;
 }
 
 /// One dictionary that ships with the application.
@@ -66,48 +75,90 @@ const MOST_SUGGESTIONS: usize = 8;
 
 /// `spellbook` behind [`SpellEngine`], with the writer's own words kept in a file.
 pub struct SpellbookEngine {
-    dictionary: RwLock<Dictionary>,
+    shipped: &'static Shipped,
+    /// The dictionary and the writer's words, changed together.
+    held: RwLock<Held>,
     custom: Custom,
+}
+
+struct Held {
+    dictionary: Dictionary,
+    /// The writer's words, as the file holds them.
+    words: Vec<String>,
 }
 
 impl SpellbookEngine {
     /// Parse `shipped`, then add the words in `custom_file` (if any).
-    pub fn new(shipped: &Shipped, custom_file: Option<PathBuf>) -> Result<Self, String> {
-        let mut dictionary = Dictionary::new(shipped.aff, shipped.dic)
-            .map_err(|error| format!("the {} dictionary could not be read: {error}", shipped.language))?;
-        let custom = Custom::open(custom_file)?;
-        for word in &custom.words {
-            // A line the dictionary cannot take is a line it skips; the file
-            // is not the place to complain about it.
-            let _ = dictionary.add(word);
-        }
-        Ok(SpellbookEngine { dictionary: RwLock::new(dictionary), custom })
+    pub fn new(shipped: &'static Shipped, custom_file: Option<PathBuf>) -> Result<Self, String> {
+        let (custom, words) = Custom::open(custom_file)?;
+        let dictionary = built(shipped, &words)?;
+        Ok(SpellbookEngine { shipped, held: RwLock::new(Held { dictionary, words }), custom })
     }
+}
+
+/// The shipped dictionary with the writer's words added.
+fn built(shipped: &Shipped, words: &[String]) -> Result<Dictionary, String> {
+    let mut dictionary = Dictionary::new(shipped.aff, shipped.dic)
+        .map_err(|error| format!("the {} dictionary could not be read: {error}", shipped.language))?;
+    for word in words {
+        // A line the dictionary cannot take is a line it skips; the file
+        // is not the place to complain about it.
+        let _ = dictionary.add(word);
+    }
+    Ok(dictionary)
+}
+
+/// The entry for `word`, or why it cannot be one.
+fn checked_entry(word: &str) -> Result<String, String> {
+    let entry = entry_for(word);
+    if entry.is_empty() || entry.contains(char::is_whitespace) || entry.contains('/') {
+        return Err(format!("{word:?} is not a word that can be added"));
+    }
+    Ok(entry)
 }
 
 impl SpellEngine for SpellbookEngine {
     fn misspelled(&self, words: &[String]) -> Vec<String> {
-        let dictionary = self.dictionary.read().unwrap_or_else(|poisoned| poisoned.into_inner());
-        words.iter().filter(|word| !dictionary.check(word)).cloned().collect()
+        let held = self.held.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+        words.iter().filter(|word| !held.dictionary.check(word)).cloned().collect()
     }
 
     fn suggest(&self, word: &str) -> Vec<String> {
-        let dictionary = self.dictionary.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let held = self.held.read().unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut found = Vec::new();
-        dictionary.suggest(word, &mut found);
+        held.dictionary.suggest(word, &mut found);
         found.truncate(MOST_SUGGESTIONS);
         found
     }
 
-    fn add_word(&self, word: &str) -> Result<(), String> {
-        let entry = entry_for(word);
-        if entry.is_empty() || entry.contains(char::is_whitespace) || entry.contains('/') {
-            return Err(format!("{word:?} is not a word that can be added"));
+    fn add_word(&self, word: &str) -> Result<bool, String> {
+        let entry = checked_entry(word)?;
+        // Held across the write so two changes cannot lose each other.
+        let mut held = self.held.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut words = self.custom.current(&held.words).map_err(|error| error.to_string())?;
+        let added = !words.contains(&entry);
+        if added {
+            words.push(entry.clone());
+            words.sort();
+            self.custom.write(&words).map_err(|error| error.to_string())?;
         }
-        // Held across the write so two additions cannot lose each other.
-        let mut dictionary = self.dictionary.write().unwrap_or_else(|poisoned| poisoned.into_inner());
-        self.custom.add(&entry).map_err(|error| error.to_string())?;
-        dictionary.add(&entry).map_err(|error| error.to_string())
+        held.words = words;
+        held.dictionary.add(&entry).map_err(|error| error.to_string())?;
+        Ok(added)
+    }
+
+    fn remove_word(&self, word: &str) -> Result<bool, String> {
+        let entry = checked_entry(word)?;
+        let mut held = self.held.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut words = self.custom.current(&held.words).map_err(|error| error.to_string())?;
+        if !words.contains(&entry) {
+            return Ok(false);
+        }
+        words.retain(|kept| kept != &entry);
+        self.custom.write(&words).map_err(|error| error.to_string())?;
+        held.dictionary = built(self.shipped, &words)?;
+        held.words = words;
+        Ok(true)
     }
 }
 
@@ -127,56 +178,59 @@ fn entry_for(word: &str) -> String {
 /// The writer's words, as a file.
 struct Custom {
     file: Option<PathBuf>,
-    words: Vec<String>,
     /// The file was there and could not be read: never written over.
     unreadable: Option<String>,
 }
 
 impl Custom {
-    fn open(file: Option<PathBuf>) -> Result<Self, String> {
+    /// The file, and the words it held.
+    fn open(file: Option<PathBuf>) -> Result<(Self, Vec<String>), String> {
         let Some(path) = file else {
-            return Ok(Custom { file: None, words: Vec::new(), unreadable: None });
+            return Ok((Custom { file: None, unreadable: None }, Vec::new()));
         };
         match fs::read_to_string(&path) {
-            Ok(text) => {
-                let words = text.lines().map(str::trim).filter(|line| !line.is_empty()).map(String::from).collect();
-                Ok(Custom { file: Some(path), words, unreadable: None })
-            }
+            Ok(text) => Ok((Custom { file: Some(path), unreadable: None }, lines_of(&text))),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                Ok(Custom { file: Some(path), words: Vec::new(), unreadable: None })
+                Ok((Custom { file: Some(path), unreadable: None }, Vec::new()))
             }
-            // Spellcheck still works; adding a word is refused rather than
+            // Spellcheck still works; changing a word is refused rather than
             // writing over a file that might hold hundreds.
-            Err(error) => Ok(Custom {
-                unreadable: Some(format!("{} could not be read: {error}", path.display())),
-                file: Some(path),
-                words: Vec::new(),
-            }),
+            Err(error) => Ok((
+                Custom { unreadable: Some(format!("{} could not be read: {error}", path.display())), file: Some(path) },
+                Vec::new(),
+            )),
         }
     }
 
-    /// Add one entry and write the file whole: temporary, flush, rename.
-    fn add(&self, entry: &str) -> io::Result<()> {
+    /// The words held, with any the file has gained since (it is read back,
+    /// so it changes by one line whatever was written before). Refused for a
+    /// file that could not be read.
+    fn current(&self, held: &[String]) -> io::Result<Vec<String>> {
         if let Some(reason) = &self.unreadable {
             return Err(io::Error::other(format!("the custom dictionary is left alone: {reason}")));
         }
-        let Some(path) = &self.file else { return Ok(()) };
-        let mut words = self.words.clone();
-        // What an earlier call in this session wrote is read back, so the
-        // file grows by one line however many words were added before.
-        if let Ok(text) = fs::read_to_string(path) {
-            for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
-                if !words.iter().any(|word| word == line) {
-                    words.push(line.to_string());
+        let mut words = held.to_vec();
+        if let Some(Ok(text)) = self.file.as_ref().map(fs::read_to_string) {
+            for line in lines_of(&text) {
+                if !words.contains(&line) {
+                    words.push(line);
                 }
             }
         }
-        if !words.iter().any(|word| word == entry) {
-            words.push(entry.to_string());
-        }
         words.sort();
-        write_whole(path, &(words.join("\n") + "\n"))
+        Ok(words)
     }
+
+    /// Write the file whole: temporary, flush, rename.
+    fn write(&self, words: &[String]) -> io::Result<()> {
+        let Some(path) = &self.file else { return Ok(()) };
+        let text = words.iter().map(|word| format!("{word}\n")).collect::<String>();
+        write_whole(path, &text)
+    }
+}
+
+fn lines_of(text: &str) -> Vec<String> {
+    text.lines().map(str::trim).filter(|line| !line.is_empty()).map(String::from).collect()
 }
 
 fn write_whole(path: &Path, text: &str) -> io::Result<()> {
@@ -317,6 +371,68 @@ mod tests {
         assert!(file.is_dir());
     }
 
+    #[test]
+    fn adding_answers_whether_the_word_was_new() {
+        let engine = engine();
+        assert!(engine.add_word("Zorblax").unwrap());
+        assert!(!engine.add_word("ZORBLAX").unwrap());
+    }
+
+    /// Undoing Add to Dictionary: the word is underlined again.
+    #[test]
+    fn a_removed_word_is_wrong_again() {
+        let engine = engine();
+        engine.add_word("QUIMBY").unwrap();
+        assert!(engine.remove_word("QUIMBY").unwrap());
+        assert_eq!(engine.misspelled(&words(&["QUIMBY", "Quimby"])), words(&["QUIMBY", "Quimby"]));
+        // Ordinary words are still known after the dictionary is built again.
+        assert!(engine.misspelled(&words(&["kitchen", "KITCHEN"])).is_empty());
+    }
+
+    /// Only the writer's words come out: a shipped word stays right.
+    #[test]
+    fn a_word_that_was_not_added_is_left_alone() {
+        let folder = Folder::new("not-added");
+        let file = folder.0.join("custom-words.txt");
+        let engine = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        engine.add_word("Quimby").unwrap();
+        assert!(!engine.remove_word("kitchen").unwrap());
+        assert!(!engine.remove_word("Zorblax").unwrap());
+        assert!(engine.misspelled(&words(&["kitchen", "Quimby"])).is_empty());
+        assert_eq!(fs::read_to_string(&file).unwrap(), "Quimby\n");
+    }
+
+    #[test]
+    fn a_removed_word_stays_removed_after_a_restart() {
+        let folder = Folder::new("remove-restart");
+        let file = folder.0.join("dictionary").join("custom-words.txt");
+
+        let first = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        first.add_word("Zorblax").unwrap();
+        first.add_word("Quimby").unwrap();
+        assert!(first.remove_word("ZORBLAX").unwrap());
+        assert_eq!(fs::read_to_string(&file).unwrap(), "Quimby\n");
+        assert!(!folder.0.join("dictionary").join("custom-words.txt.writing").exists());
+
+        let second = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        assert_eq!(second.misspelled(&words(&["Zorblax", "Quimby"])), words(&["Zorblax"]));
+        // And put back (a redo), for good too.
+        assert!(second.add_word("Zorblax").unwrap());
+        let third = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        assert!(third.misspelled(&words(&["Zorblax", "Quimby"])).is_empty());
+    }
+
+    #[test]
+    fn a_custom_dictionary_that_cannot_be_read_is_not_written_over_by_a_removal() {
+        let folder = Folder::new("unreadable-remove");
+        let file = folder.0.join("custom-words.txt");
+        fs::create_dir_all(&file).unwrap();
+
+        let engine = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        assert!(engine.remove_word("Zorblax").is_err());
+        assert!(file.is_dir());
+    }
+
     /// ADR-0032: dictionaries ship "with their notices kept", and a shipped
     /// dictionary with none is a licence breach nobody would notice.
     #[test]
@@ -355,7 +471,13 @@ mod tests {
         let started = Instant::now();
         let _ = engine.suggest("kitchne");
         let suggesting = started.elapsed();
-        eprintln!("load {loading:?}, 25,000 lookups {checking:?}, one suggestion {suggesting:?}");
-        assert!(loading.as_secs() < 20 && checking.as_secs() < 20 && suggesting.as_secs() < 20);
+
+        // Taking a word out builds the dictionary again: an undo waits this long.
+        engine.add_word("Zorblax").unwrap();
+        let started = Instant::now();
+        engine.remove_word("Zorblax").unwrap();
+        let removing = started.elapsed();
+        eprintln!("load {loading:?}, 25,000 lookups {checking:?}, one suggestion {suggesting:?}, one removal {removing:?}");
+        assert!(loading.as_secs() < 20 && checking.as_secs() < 20 && suggesting.as_secs() < 20 && removing.as_secs() < 20);
     }
 }
