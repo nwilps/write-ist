@@ -1,6 +1,11 @@
 /**
- * The Import dialog: a project type and a file, New Project's dialog with the
- * title's place taken by the file.
+ * The Import dialog: a project type, an optional name and a file, New Project's
+ * dialog with a file added.
+ *
+ * The name is New Project's title field, except that it may stay blank: the
+ * project is then named for the title page, or the file. It opens with focus on
+ * the file, the one thing the dialog needs, and nothing being edited, so one
+ * Escape cancels.
  *
  * The file field is for looking at, not typing in, so it is a button drawn as a
  * field: the keys pass over it like any other stop, and pressing it — a click,
@@ -9,7 +14,13 @@
  * only ever read (`src/project/import.ts`).
  */
 import type { OpenDialogOptions } from "@tauri-apps/plugin-dialog";
-import { CannotImport, importProject, sourceFileName, type ImportDependencies } from "../../../src/project/import.ts";
+import {
+  CannotImport,
+  importProject,
+  refusedImportName,
+  sourceFileName,
+  type ImportDependencies,
+} from "../../../src/project/import.ts";
 import type { ProjectFormat } from "../../../src/project/marker.ts";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys, enterSubmits } from "./dialog-keys.ts";
@@ -35,6 +46,8 @@ export interface ImportProjectScreen {
   readonly onImport: (request: {
     readonly sourcePath: string;
     readonly type: ProjectFormat;
+    /** As typed; blank leaves the naming to the script. */
+    readonly name: string;
   }) => Promise<string | undefined>;
   /** The dialog is gone, however it went. */
   readonly onClose: () => void;
@@ -45,6 +58,14 @@ export function showImportProject(
   { chooseSource, onImport, onClose }: ImportProjectScreen,
 ): HTMLDialogElement {
   const type = projectTypeSelect("import-project-type");
+  const name = element("input", {
+    id: "import-project-name",
+    className: "new-project-dialog__input",
+    type: "text",
+    placeholder: "Optional; title page or file name",
+    autocomplete: "off",
+    spellcheck: false,
+  });
   const fileName = element("span", {
     id: "import-project-file-name",
     className: "import-project__file-name",
@@ -63,13 +84,15 @@ export function showImportProject(
 
   const form = element("form", { className: "new-project-dialog__form" }, [
     field("Project type", type.control, [chevron(), type.tray]),
+    field("Project Name", name),
     element("div", { className: "import-project__source" }, [field("Project File", file)]),
     problem,
     element("div", { className: "new-project-dialog__actions" }, [cancel, confirm]),
   ]);
   const modal = element("dialog", { className: "new-project-dialog import-project", ariaLabel: "Import" }, [form]);
-  dialogKeys(modal, [[type.control], [file], [cancel, confirm]]);
+  const keys = dialogKeys(modal, [[type.control], [name], [file], [cancel, confirm]]);
   enterSubmits(modal, form);
+  name.addEventListener("input", () => problem.replaceChildren());
 
   let source: string | undefined;
   // The picker is up, or the import is running: one thing at a time.
@@ -114,10 +137,16 @@ export function showImportProject(
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (busy || source === undefined) return;
+    const refused = refusedImportName(name.value);
+    if (refused !== undefined) {
+      problem.replaceChildren(troublePanel(refused));
+      keys.edit(name);
+      return;
+    }
     busy = true;
     problem.replaceChildren();
     settle();
-    onImport({ sourcePath: source, type: type.value() as ProjectFormat }).then(
+    onImport({ sourcePath: source, type: type.value() as ProjectFormat, name: name.value }).then(
       (wrong) => {
         if (wrong !== undefined) {
           failed(wrong);
@@ -165,7 +194,7 @@ export function askToImportProject(ports: ImportPorts): void {
   if (ports.isImporting() || document.querySelector("dialog[open]") !== null) return;
   showImportProject(document.body, {
     chooseSource: ports.chooseSource,
-    onImport: async ({ sourcePath, type }) => {
+    onImport: async ({ sourcePath, type, name }) => {
       ports.setImporting(true);
       let wrong: string | undefined;
       try {
@@ -173,6 +202,7 @@ export function askToImportProject(ports: ImportPorts): void {
           sourcePath,
           projectsDirectory: await ports.projectsDirectory(),
           format: type,
+          name,
         });
       } catch (error) {
         wrong = error instanceof CannotImport ? error.message : `${COULD_NOT_IMPORT} ${message(error)}`;

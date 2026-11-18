@@ -16,13 +16,21 @@
  *      the report and takes nothing away: the existing importer counts, and this
  *      carries the answer out. The app no longer shows it (2026-11-18).
  *
- * The project is named for the script's title page, or for the file when that
- * gives no title, and is the type the writer chose.
+ * The project takes the name the writer typed. With none it is named for the
+ * script's title page, or for the file when that gives no title. It is the type
+ * the writer chose.
  */
 import type { TitlePageField } from "../screenplay/document.ts";
 import { exportScreenplay, importScreenplay, type ImportReport } from "../screenplay/import.ts";
 import { join, type Filesystem } from "./filesystem.ts";
-import { cleanFolderName, folderNameFor, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "./bundle.ts";
+import {
+  cleanFolderName,
+  folderNameFor,
+  MANUSCRIPT_FILE,
+  MARKER_FILE,
+  refusedProjectName,
+  type Project,
+} from "./bundle.ts";
 import { FORMAT_VERSION, FORMATS, serialiseMarker, type ProjectFormat, type ProjectMarker } from "./marker.ts";
 
 export interface ImportDependencies {
@@ -43,6 +51,8 @@ export interface ImportRequest {
   readonly projectsDirectory: string;
   /** What the project is, written as `Format:` in `project.md`. A Feature if not said. */
   readonly format?: ProjectFormat;
+  /** What the writer typed to call it. Blank: the title page's Title, or the file's name. */
+  readonly name?: string;
 }
 
 export interface ImportedProject {
@@ -62,23 +72,21 @@ export function newProjectId(): string {
 
 export async function importProject(
   { filesystem, newProjectId: mintId }: ImportDependencies,
-  { sourcePath, projectsDirectory, format = "Feature" }: ImportRequest,
+  { sourcePath, projectsDirectory, format = "Feature", name }: ImportRequest,
 ): Promise<ImportedProject> {
   // Only screenplays exist; a type that is not one must not quietly become one.
   if (!FORMATS.includes(format)) {
     throw new CannotImport(`Write-ist cannot import a ${String(format)} yet.`);
   }
+  const refused = refusedImportName(name);
+  if (refused !== undefined) throw new CannotImport(refused);
 
   // The one and only touch of the writer's file.
   const bytes = await filesystem.readFile(sourcePath);
 
   const { document, report } = importScreenplay(bytes);
-  const marker: ProjectMarker = {
-    name: titleOf(document.titlePage) ?? projectNameFor(sourcePath),
-    formatVersion: FORMAT_VERSION,
-    projectId: mintId(),
-    format,
-  };
+  const typed = typedName(name);
+  const found = titleOf(document.titlePage) ?? projectNameFor(sourcePath);
 
   await filesystem.createDirectory(projectsDirectory);
   const taken = new Set(
@@ -86,7 +94,15 @@ export async function importProject(
       .filter((entry) => entry.isDirectory)
       .map((entry) => entry.name),
   );
-  const bundlePath = join(projectsDirectory, folderNameFor(marker.name, taken));
+  const folder = folderNameFor(typed ?? found, taken);
+  const marker: ProjectMarker = {
+    // A typed name is the folder's, as a new project's title is, "Title 2" included.
+    name: typed === undefined ? found : folder,
+    formatVersion: FORMAT_VERSION,
+    projectId: mintId(),
+    format,
+  };
+  const bundlePath = join(projectsDirectory, folder);
   await filesystem.createDirectory(bundlePath);
 
   // The manuscript first, the marker last. A crash between the two then leaves
@@ -100,6 +116,18 @@ export async function importProject(
   );
 
   return { bundlePath, project: { path: bundlePath, marker }, report };
+}
+
+/** Why a typed name will not do, in the writer's words. Blank is fine: it is optional. */
+export function refusedImportName(name: string | undefined): string | undefined {
+  const typed = typedName(name);
+  if (typed === undefined) return undefined;
+  return refusedProjectName(typed) ?? refusedProjectName(cleanFolderName(typed));
+}
+
+/** The typed name on one line; undefined when nothing was typed but space. */
+function typedName(name: string | undefined): string | undefined {
+  return name?.replace(/\s+/g, " ").trim() || undefined;
 }
 
 /** A chosen file's own name. The native picker answers in the platform's separators. */

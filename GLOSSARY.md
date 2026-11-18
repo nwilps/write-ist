@@ -48,8 +48,8 @@ _Avoid_: save, checkpoint, snapshot, backup
 
 **Import**:
 Bringing a script Write-ist has never seen into a new project, from the Import dialog on Open
-Project. The script is copied into a new bundle named for its title page's Title, or for its file when
-there is none, and saved at once, with the enumerated normalisations of ADR-0020 applied; the file it came from is never touched. Opening a
+Project. The script is copied into a new bundle with the name the writer typed, or, left blank, named
+for its title page's Title, or for its file when there is none, and saved at once, with the enumerated normalisations of ADR-0020 applied; the file it came from is never touched. Opening a
 project Write-ist already holds is not an import.
 _Avoid_: open (that is a project Write-ist already holds), convert, load
 

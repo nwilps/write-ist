@@ -157,6 +157,42 @@ describe("the name a project gets", () => {
   });
 });
 
+describe("a name the writer typed", () => {
+  const importNamed = (name: string, source = fixtureSource("Big-Fish.fountain")) =>
+    importProject(
+      { filesystem: nodeFilesystem, newProjectId: idsInOrder(A_PROJECT_ID) },
+      { sourcePath: source, projectsDirectory: projects, name },
+    );
+
+  it("names the project and its folder, and leaves the title page alone", async () => {
+    const imported = await importNamed("  Paper \t Boats ");
+    expect(imported.project.marker.name).toBe("Paper Boats");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats"));
+    expect(readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE), "utf8").startsWith("Title: Big Fish\n")).toBe(true);
+  });
+
+  it("is made safe for the disk and numbered when taken, as a new project's title is", async () => {
+    mkdirSync(join(projects, "Paper Boats"), { recursive: true });
+    const imported = await importNamed("Paper/Boats");
+    expect(imported.project.marker.name).toBe("Paper Boats 2");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats 2"));
+  });
+
+  it.each(["", "   ", "\t\n"])("falls back to the title page when it is %j", async (blank) => {
+    expect((await importNamed(blank)).project.marker.name).toBe("Big Fish");
+  });
+
+  it("falls back to the file's name when it is blank and the script has no title", async () => {
+    const source = sourceFile("The Pilot.fountain", new TextEncoder().encode("INT. ROOM - DAY\n"));
+    expect((await importNamed(" ", source)).project.marker.name).toBe("The Pilot");
+  });
+
+  it.each([".hidden", "...", "/.hidden", "Graveyard", " graveyard. "])("refuses %j, writing nothing", async (name) => {
+    await expect(importNamed(name)).rejects.toThrow(CannotImport);
+    expect(existsSync(projects)).toBe(false);
+  });
+});
+
 describe("the type a project gets", () => {
   const script = () => sourceFile("Pilot.fountain", new TextEncoder().encode("INT. ROOM - DAY\n"));
   const importAs = (format: ProjectFormat) =>

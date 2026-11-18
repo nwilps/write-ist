@@ -313,6 +313,8 @@ describe("the Delete Project dialog", () => {
     expect(modal.querySelector(".project-dialog__path")).toBeNull();
     expect(cancel.textContent).toBe(">Cancel[Esc]");
     expect(confirm.textContent).toBe(">Move to Graveyard[Enter]");
+    // The shared button makes room for a long label and its arrow; no sizing of its own.
+    expect(confirm.className).toBe(cancel.className);
   });
 
   it("uses the shared buttons, starts on Move to Graveyard, and walks them with the arrows and Tab", async () => {

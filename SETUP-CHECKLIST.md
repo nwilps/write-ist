@@ -235,9 +235,10 @@ offers **Feature, Episode and Short Film**, all screenplays, and records the cho
 `project.md`. Novel, Short Story, Novella, Flash Fiction and Poem are shown dimmed and tagged *soon*;
 they cannot be picked or created.
 
-**Import** is a dialog on Open Project (Import [I]; Home has no Import row): the same type list, and
-a display-only file field the dialog's full width, which opens the system file picker when pressed.
-The project is named for its title page's Title, or for the file when there is none. A failure stays in the dialog. The report that used to follow an
+**Import** is a dialog on Open Project (Import [I]; Home has no Import row): the same type list, an
+optional Project Name, and a display-only file field the dialog's full width, which opens the system
+file picker when pressed. The project takes the typed name; left blank, it is named for its title
+page's Title, or for the file when there is none. A failure stays in the dialog. The report that used to follow an
 import is gone; the normalisations still apply.
 
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)

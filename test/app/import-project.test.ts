@@ -38,6 +38,7 @@ function parts(modal: HTMLDialogElement) {
   const named = (label: string) => buttons.find((button) => button.textContent!.includes(label))!;
   return {
     type: modal.querySelector<HTMLButtonElement>("#import-project-type")!,
+    name: modal.querySelector<HTMLInputElement>("#import-project-name")!,
     file: modal.querySelector<HTMLButtonElement>("#import-project-file")!,
     cancel: named("Cancel"),
     confirm: named("Confirm"),
@@ -56,8 +57,8 @@ function shown(...answer: [chosen?: string]) {
 }
 
 describe("the Import dialog", () => {
-  it("is New Project's dialog, with the same types and the file in the title's place", () => {
-    const { modal, type, file, cancel, confirm } = shown();
+  it("is New Project's dialog, with the same types, a blank optional name and the file under it", () => {
+    const { modal, type, name, file, cancel, confirm } = shown();
     expect(document.activeElement).toBe(file);
     const other = showNewProject(document.body, { onCreate: async () => undefined, onClose: () => {} });
     expect(rowsOf(modal)).toEqual(rowsOf(other));
@@ -67,9 +68,16 @@ describe("the Import dialog", () => {
     expect(modal.classList.contains("new-project-dialog")).toBe(true);
     expect(modal.getAttribute("aria-label")).toBe("Import");
     expect(modal.querySelector("h1, h2, h3, [title]")).toBeNull();
-    expect([...modal.querySelectorAll("label")].map((label) => label.textContent)).toEqual(["Project type", "Project File"]);
+    expect([...modal.querySelectorAll("label")].map((label) => label.textContent)).toEqual([
+      "Project type",
+      "Project Name",
+      "Project File",
+    ]);
     expect(type.textContent).toBe("Feature");
-    expect(modal.querySelector("input")).toBeNull();
+    expect([...modal.querySelectorAll("input")]).toEqual([name]);
+    expect(name.value).toBe("");
+    expect(name.placeholder).toBe("Optional; title page or file name");
+    expect(name.classList.contains("new-project-dialog__input")).toBe(true);
     expect(file.classList.contains("new-project-dialog__input")).toBe(true);
     expect(file.textContent).toBe("Select a file for import...");
     expect(modal.querySelectorAll(".dialog-action")).toHaveLength(2);
@@ -108,7 +116,7 @@ describe("the Import dialog", () => {
   });
 
   it("never treats the file field as a field being typed in: the arrows move on", async () => {
-    const { file, type, cancel } = shown(undefined);
+    const { file, name, type, cancel } = shown(undefined);
     press("Enter");
     await settled();
     expect(file.classList.contains("dialog-keys__editing")).toBe(false);
@@ -116,20 +124,91 @@ describe("the Import dialog", () => {
     press("ArrowRight");
     expect(document.activeElement).toBe(file);
     press("ArrowUp");
+    expect(document.activeElement).toBe(name);
+    press("ArrowUp");
     expect(document.activeElement).toBe(type);
     press("ArrowUp");
     expect(document.activeElement).toBe(cancel);
   });
 
-  it("wraps Tab through everything usable", async () => {
-    const { type, file, cancel, confirm } = shown();
+  it("treats the name as New Project treats its title: focused, then edited", () => {
+    const { modal, name, file, type } = shown();
+    const editing = () => name.classList.contains("dialog-keys__editing");
+    // Nothing is being edited at the start, so one Escape is the dialog's.
+    expect(modal.querySelector(".dialog-keys__editing")).toBeNull();
+    expect(press("Escape").defaultPrevented).toBe(false);
+
+    press("ArrowUp");
+    expect(document.activeElement).toBe(name);
+    expect(editing()).toBe(false);
+    press("ArrowUp");
+    expect(document.activeElement).toBe(type);
+    press("ArrowDown");
+    press("Enter");
+    expect(document.activeElement).toBe(name);
+    expect(editing()).toBe(true);
+    expect(press("ArrowDown").defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(name);
+
+    expect(press("Escape").defaultPrevented).toBe(true);
+    expect(editing()).toBe(false);
+    expect(modal.open).toBe(true);
+    press("ArrowDown");
+    expect(document.activeElement).toBe(file);
+
+    name.focus();
+    name.value = "P";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(editing()).toBe(true);
+    name.blur();
+    name.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(editing()).toBe(true);
+  });
+
+  it("wraps Tab through everything usable: type, name, file, then the buttons", async () => {
+    const { type, name, file, cancel, confirm } = shown();
     const walk = (count: number, init = {}) => Array.from({ length: count }, () => (press("Tab", init), document.activeElement));
-    expect(walk(3)).toEqual([cancel, type, file]);
+    expect(walk(4)).toEqual([cancel, type, name, file]);
     file.click();
     await settled();
     expect(document.activeElement).toBe(confirm);
-    expect(walk(4)).toEqual([type, file, cancel, confirm]);
+    expect(walk(5)).toEqual([type, name, file, cancel, confirm]);
     expect(walk(1, { shiftKey: true })).toEqual([cancel]);
+  });
+
+  it("needs a file for Confirm, and a name is neither needed nor enough", async () => {
+    const { name, file, confirm, onImport, modal } = shown();
+    name.value = "Paper Boats";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(confirm.disabled).toBe(true);
+    modal.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    expect(onImport).not.toHaveBeenCalled();
+    name.value = "";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    file.click();
+    await settled();
+    expect(confirm.disabled).toBe(false);
+  });
+
+  it.each([
+    [".hidden", "A name that starts with a dot would hide the project. Choose another name."],
+    ["...", "A name that starts with a dot would hide the project. Choose another name."],
+    ["  graveyard ", "“Graveyard” is where deleted projects go. Choose another name."],
+  ])("refuses the name %j in the dialog, ready to change it", async (typed, words) => {
+    const { modal, name, file, confirm, onImport, problem } = shown();
+    file.click();
+    await settled();
+    name.value = typed;
+    confirm.click();
+    expect(problem()).toBe(words);
+    expect(onImport).not.toHaveBeenCalled();
+    expect(modal.open).toBe(true);
+    expect(confirm.disabled).toBe(false);
+    expect(document.activeElement).toBe(name);
+    expect(name.classList.contains("dialog-keys__editing")).toBe(true);
+
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(problem()).toBe("");
   });
 
   it("shows the chosen file's name, not its path, and goes on to Confirm", async () => {
@@ -217,7 +296,7 @@ describe("the Import dialog", () => {
     parts(modal).confirm.focus();
     press("Enter");
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(onImport).toHaveBeenCalledExactlyOnceWith({ sourcePath: "/scripts/The Pilot.fountain", type: "Episode" });
+    expect(onImport).toHaveBeenCalledExactlyOnceWith({ sourcePath: "/scripts/The Pilot.fountain", type: "Episode", name: "" });
   });
 
   it("will not choose a type that is only coming", () => {
@@ -292,6 +371,25 @@ describe("importing through the dialog", () => {
     expect(seen).toEqual([true, false]);
     expect(document.querySelector("dialog, .report, .report__changes")).toBeNull();
     expect(readFileSync(source, "utf8")).toBe(script);
+  });
+
+  it("uses a typed name, in place of the title page's", async () => {
+    const { modal } = ask();
+    parts(modal!).name.value = "  Paper   Boats ";
+    await chooseAndConfirm(modal!);
+    await vi.waitFor(() => expect(modal!.isConnected).toBe(false));
+    const { projects: listed } = await listProjects(nodeFilesystem, projects);
+    expect(listed.map((project) => project.marker.name)).toEqual(["Paper Boats"]);
+    expect(readdirSync(projects)).toEqual(["Paper Boats"]);
+  });
+
+  it("falls back to the file's name when the name is blank and there is no title", async () => {
+    writeFileSync(source, "INT. ROOM - DAY\n");
+    const { modal } = ask();
+    parts(modal!).name.value = "   ";
+    await chooseAndConfirm(modal!);
+    await vi.waitFor(() => expect(modal!.isConnected).toBe(false));
+    expect(readdirSync(projects)).toEqual(["The Pilot"]);
   });
 
   it("stays open with the reason when it fails, writing nothing and leaving the file alone", async () => {

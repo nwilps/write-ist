@@ -145,8 +145,6 @@ export function showDeleteProject(
     resume: () => shown.confirm.focus(),
     onClose,
   });
-  // Its label is longer than the shared width.
-  shown.confirm.classList.add("project-dialog__action--long");
   // Focus on the action whose key the label shows, as New Project's title does.
   shown.confirm.focus();
   return shown.modal;

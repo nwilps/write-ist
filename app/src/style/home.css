@@ -245,9 +245,11 @@
   justify-content: center;
   align-items: center;
   gap: var(--space-tight);
-  width: var(--measure-dialog-slot);
+  /* The slot, or wider for a long label. The `>` is out of flow, so the padding keeps the words off it. */
+  width: max-content;
+  min-width: var(--measure-dialog-slot);
   height: var(--size-row);
-  padding: 0;
+  padding: 0 var(--space-dialog-arrow);
   font-family: inherit;
   font-size: var(--size-label);
   line-height: var(--leading-tight);

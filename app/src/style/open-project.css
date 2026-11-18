@@ -329,7 +329,3 @@
 .project-dialog__line--lead {
   color: var(--colour-text);
 }
-
-.new-project-dialog__action.project-dialog__action--long {
-  width: max-content;
-}

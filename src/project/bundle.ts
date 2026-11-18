@@ -89,6 +89,16 @@ export function folderNameFor(projectName: string, taken: ReadonlySet<string>): 
   }
 }
 
+/** Why the writer may not call a project this, in their words; undefined when they may. */
+export function refusedProjectName(name: string): string | undefined {
+  // A folder whose name starts with a dot is hidden, and the list never shows one.
+  if (name.startsWith(".")) return "A name that starts with a dot would hide the project. Choose another name.";
+  if (name.toLowerCase() === GRAVEYARD_FOLDER.toLowerCase()) {
+    return `“${GRAVEYARD_FOLDER}” is where deleted projects go. Choose another name.`;
+  }
+  return undefined;
+}
+
 /**
  * A project name made safe for the disk, before any number is added: the
  * characters no folder may carry become spaces, runs of space become one, and

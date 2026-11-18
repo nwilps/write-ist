@@ -15,7 +15,7 @@
  * `moveFolder`, which fails rather than land on anything.
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
-import { cleanFolderName, GRAVEYARD_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
+import { cleanFolderName, MARKER_FILE, refusedProjectName, type Project } from "./bundle.ts";
 import { serialiseMarker } from "./marker.ts";
 import { confirmProject } from "./projects.ts";
 import { message } from "../message.ts";
@@ -39,13 +39,8 @@ export async function renameProject(
   const typed = newName.replace(/\s+/g, " ").trim();
   if (typed === "") throw new CannotRename("A project needs a name.");
   const folder = cleanFolderName(typed);
-  // A folder whose name starts with a dot is hidden, and the list never shows one.
-  if (folder.startsWith(".")) {
-    throw new CannotRename("A name that starts with a dot would hide the project. Choose another name.");
-  }
-  if (folder.toLowerCase() === GRAVEYARD_FOLDER.toLowerCase()) {
-    throw new CannotRename(`“${GRAVEYARD_FOLDER}” is where deleted projects go. Choose another name.`);
-  }
+  const refused = refusedProjectName(folder);
+  if (refused !== undefined) throw new CannotRename(refused);
 
   await confirmProject(filesystem, projectsDirectory, project, CannotRename);
   const current = basename(project.path);
