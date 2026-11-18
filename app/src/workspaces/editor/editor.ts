@@ -60,7 +60,7 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
-import { caretScrolling, measureCaretRoom } from "./caret-margin.ts";
+import { caretScrolling, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
@@ -447,6 +447,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           return true;
         },
         decorations: () => writing.seams,
+        handleScrollToSelection: scrollCaretIntoView,
         // The title page and a forced page break's `===` are in the document
         // and not on the paper; the break is drawn as the seam to a new sheet.
         nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
@@ -462,8 +463,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       fitCaretRoom();
       window.addEventListener("resize", fitCaretRoom);
       stopFittingCaretRoom = () => window.removeEventListener("resize", fitCaretRoom);
+      // The writer can start typing at once, unless a menu opened while the
+      // script was being read has the keys.
+      const active = document.activeElement;
+      if (active === null || active === document.body) editing.focus();
       // And the caret it opened at is on screen, with the same room around it.
-      editing.dispatch(editing.state.tr.scrollIntoView());
+      // Asked for directly: ProseMirror's `scrollIntoView` does nothing for a
+      // view without focus.
+      scrollCaretIntoView(editing);
       panels.attach(view);
       shown(writing);
       writing.showCounts();
