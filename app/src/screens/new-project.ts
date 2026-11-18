@@ -49,12 +49,6 @@ export function showNewProject(
   const cancel = action("Cancel", "Esc", "button");
   const problem = element("div", { className: "new-project__problem" });
 
-  const field = (label: string, input: HTMLElement, extra: readonly Node[] = []) =>
-    element("div", { className: "new-project-dialog__field" }, [
-      element("label", { htmlFor: input.id, className: "new-project-dialog__label", textContent: label }),
-      element("div", { className: "new-project-dialog__box" }, [input, ...extra]),
-    ]);
-
   // Cancel on the left, Confirm on the right: the keys the labels promise.
   const form = element("form", { className: "new-project-dialog__form" }, [
     field("Project type", type, [chevron()]),
@@ -125,6 +119,14 @@ export function showNewProject(
   return modal;
 }
 
+/** A labelled box; `extra` is what sits in the box with the input, as a drop-down's arrow does. */
+export function field(label: string, input: HTMLElement, extra: readonly Node[] = []): HTMLDivElement {
+  return element("div", { className: "new-project-dialog__field" }, [
+    element("label", { htmlFor: input.id, className: "new-project-dialog__label", textContent: label }),
+    element("div", { className: "new-project-dialog__box" }, [input, ...extra]),
+  ]);
+}
+
 /** A button drawn as the home screen's selected row is: `> Label [Key]`. */
 export function action(label: string, key: string, kind: "submit" | "button"): HTMLButtonElement {
   return element("button", { className: "new-project-dialog__action", type: kind }, [
@@ -135,6 +137,6 @@ export function action(label: string, key: string, kind: "submit" | "button"): H
 }
 
 /** The drop-down's arrow: Lucide's own drawing, at the icon size (ADR-0035). */
-function chevron(): SVGElement {
+export function chevron(): SVGElement {
   return createElement(ChevronDown, { class: "new-project-dialog__chevron", "aria-hidden": "true" });
 }

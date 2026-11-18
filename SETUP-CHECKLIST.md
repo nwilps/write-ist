@@ -415,7 +415,7 @@ Nothing reads it yet; it exists so the history exists.
 
 ### Done: Save a Copy as Fountain (#116, slice 2 step 7)
 
-**File ▸ Save a Copy as Fountain…** writes the script as it is now, unsaved typing included, to a
+**File ▸ Export As…, Fountain** (first shipped as its own File item) writes the script as it is now, unsaved typing included, to a
 `.fountain` file wherever the writer chooses — with comments and the boneyard left out (a speech
 whose every line was cut loses its cue too). The project's own manuscript is never touched and
 cannot be chosen as the destination. Temp, flush, rename; cancel writes nothing.
@@ -430,8 +430,8 @@ the document and the file but is no longer drawn on the paper, and the caret can
 
 ### Done: Export as PDF (#118, slice 2 step 5)
 
-**File ▸ Export as PDF…** exports what is on screen, unsaved typing included, through a save
-dialog. Pages come from `layout()` — the same page rule as the paper — with comments and the
+**File ▸ Export As…, PDF** (first shipped as its own File item) exports what is on screen, unsaved
+typing included, through a save dialog, as all pages or a range of the numbered pages. Pages come from `layout()` — the same page rule as the paper — with comments and the
 boneyard stripped as in the Fountain copy; `(MORE)` and `CHARACTER (CONT'D)` printed; page numbers
 from page 2; the title page as page 1 when it has anything on it. Courier Prime is embedded as a
 subset; nothing is fetched. `pdf-lib` and `@pdf-lib/fontkit` (MIT) in `src/pdf/render.ts`, the

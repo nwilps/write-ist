@@ -41,7 +41,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 /** A host whose every action is a spy, and whose editor is the one given. */
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
-    "save", "saveCopy", "exportPdf", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
+    "save", "exportAs", "toProjects", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
     "toggleSpellcheck", "search", "undo", "redo",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
@@ -110,7 +110,7 @@ describe("the hint drawn beside a command", () => {
 
 
   it("is absent where there is no key", () => {
-    expect(hintOf(commandById("save-copy")!)).toBeUndefined();
+    expect(hintOf(commandById("export-as")!)).toBeUndefined();
     expect(hintOf(commandById("edit-title-page")!)).toBeUndefined();
   });
 
@@ -149,8 +149,7 @@ describe("the Editor's menus", () => {
     expect(drawn()).toEqual({
       File: [
         "Save Project[Ctrl + S]",
-        "Save a Copy as Fountain…",
-        "Export as PDF…",
+        "Export As…",
         "---",
         "Open Project",
         "---",
@@ -170,8 +169,7 @@ describe("the Editor's menus", () => {
       item.act();
     };
     choose("Save Project");
-    choose("Save a Copy as Fountain…");
-    choose("Export as PDF…");
+    choose("Export As…");
     choose("Open Project");
     choose("Home");
     choose("Edit Title Page…");
@@ -180,8 +178,7 @@ describe("the Editor's menus", () => {
     choose("Undo");
     choose("Redo");
     expect(act["save"]).toHaveBeenCalledOnce();
-    expect(act["saveCopy"]).toHaveBeenCalledOnce();
-    expect(act["exportPdf"]).toHaveBeenCalledOnce();
+    expect(act["exportAs"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
     expect(act["toHome"]).toHaveBeenCalledOnce();
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();

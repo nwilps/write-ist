@@ -33,7 +33,6 @@ import {
   ClipboardPaste,
   Copy,
   Eye,
-  FileDown,
   FileOutput,
   FileText,
   FolderOpen,
@@ -64,8 +63,8 @@ export interface EditorActions {
   readonly undo: () => void;
   readonly redo: () => void;
   readonly save: () => void;
-  readonly saveCopy: () => void;
-  readonly exportPdf: () => void;
+  /** Open the Export As dialog, which offers every format the script can leave in. */
+  readonly exportAs: () => void;
   readonly toProjects: () => void;
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
@@ -190,8 +189,7 @@ function atPlace(
 export const COMMANDS: readonly Command[] = [
   // File
   { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, menu: { name: "File", group: "save" }, run: (host) => host.save() },
-  { id: "save-copy", label: "Save a Copy as Fountain…", icon: FileDown, menu: { name: "File", group: "save" }, run: (host) => host.saveCopy() },
-  { id: "export-pdf", label: "Export as PDF…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportPdf() },
+  { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
   { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "navigate" }, run: (host) => host.toProjects() },
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
   { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
