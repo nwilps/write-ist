@@ -54,6 +54,8 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
   pixels, `scrollHeight` rounds up a pixel `scrollTop` can never reach (at 1.1: 160 + 248 of 409),
   and the down chevron stayed at the very bottom (Noah, after testing it, 2026-11-06). A row past
   the list's edge by a CSS pixel or less (a device pixel, where that is more) counts as in view.
+  Amended 2026-11-18 (Noah, the drop-down tray): a chevron also goes when the counters say the list
+  has no more than that same tolerance left to scroll that way, so neither reading can hold one up.
   They are kept right by the list's own scroll event — whatever moved it — by the list resizing or
   its rows changing, and on every refit. Each is laid over the room between the list
   and its rule, never over a row, so showing one moves nothing; it is in the faint colour, hidden

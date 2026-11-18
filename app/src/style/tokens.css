@@ -414,6 +414,8 @@
    */
   --distance-hint-bounce: 2px;
   --duration-hint-bounce: 1600ms;
+  /** In a dialog's drop-down, the air on each side of a chevron: rows, tray edge. */
+  --space-hint-clear: 4px;
   /**
    * The name column, right-aligned, and the room between it and the format:
    * the format starts 256.5px into the row, 24px after the names end.

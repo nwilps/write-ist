@@ -325,12 +325,13 @@
 /*
  * The right-click menu's surface, under the field and as wide as it. The list
  * inside does the scrolling, and the room above and below it is the chevrons'
- * (`scrollWindow`), bounce included, so they never sit over a row.
+ * (`scrollWindow`), bounce included, so they never sit over a row: clear of the
+ * rows on one side and of the tray's edge on the other.
  */
 .drop-menu.dialog-select__tray {
   width: calc(var(--menu-width, 0) * var(--size-pixel));
   margin: var(--space-tight) 0;
-  padding-block: calc(var(--size-icon) + var(--distance-hint-bounce));
+  padding-block: calc(var(--size-icon) + var(--distance-hint-bounce) + var(--space-hint-clear) * 2);
   max-height: calc(100% - var(--space-tight) * 2);
   overflow: visible;
 }
@@ -340,6 +341,14 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.dialog-select__window .projects-hint--above {
+  bottom: calc(100% + var(--space-hint-clear));
+}
+
+.dialog-select__window .projects-hint--below {
+  top: calc(100% + var(--space-hint-clear));
 }
 
 /* Five rows and the gaps between them; a window too short for that shows fewer. */
@@ -360,15 +369,6 @@
   height: 0;
 }
 
-.dialog-select__option {
-  position: relative;
-}
-
-.dialog-select__option .gesture__cursor {
-  position: absolute;
-  left: var(--space-hair);
-}
-
 /* One row is lit: the keys' or the pointer's, whichever moved last. */
 .dialog-select__tray .dialog-select__option:hover:not(.dialog-select__option--active) {
   background: none;
@@ -386,17 +386,9 @@
   color: var(--colour-accent);
 }
 
-.dialog-select__option--active .gesture__cursor {
-  visibility: visible;
-}
-
 /* The highlight on a row that cannot be picked: plain to see, but no gold. */
 .dialog-select__tray .dialog-select__option--unavailable.dialog-select__option--active {
   color: var(--colour-muted);
-}
-
-.dialog-select__option--unavailable .gesture__cursor {
-  color: var(--colour-faint);
 }
 
 /* An empty problem line must not add a gap of its own. */

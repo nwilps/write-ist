@@ -421,6 +421,24 @@ describe("the chevrons: no scrollbar, and a hint of what is out of view", () => 
     expect(showing(into)).toEqual({ above: true, below: false });
   });
 
+  it("as far down as the list goes: no down chevron, though the last row's box still sits past the edge", () => {
+    const { into, list } = draw(Array.from({ length: 13 }, (_, i) => `Made-Up Project ${i + 1}`));
+    // A whole pixel the counters promise and the list never gives, the row 1.5px out.
+    webkitAtScale(list, { scrollTop: 160, scrollHeight: 409, clientHeight: 248 }, { top: 100, height: 248 }, 1.5);
+    expect(showing(into)).toEqual({ above: true, below: false });
+    // A fraction left, the row further out still.
+    webkitAtScale(list, { scrollTop: 160.5, scrollHeight: 409, clientHeight: 248 }, { top: 100, height: 248 }, 3);
+    expect(showing(into)).toEqual({ above: true, below: false });
+  });
+
+  it("as far up as the list goes: no up chevron, though the first row's box still sits past the edge", () => {
+    const { into, list } = draw(Array.from({ length: 13 }, (_, i) => `Made-Up Project ${i + 1}`));
+    webkitAtScale(list, { scrollTop: 0.5, scrollHeight: 408, clientHeight: 248 }, { top: 100, height: 248 }, 160);
+    list.firstElementChild!.getBoundingClientRect = () => new DOMRect(0, 98.5, 480, ROW);
+    list.dispatchEvent(new Event("scroll"));
+    expect(showing(into)).toEqual({ above: false, below: true });
+  });
+
   it("a little more than a pixel left to scroll still shows the chevron: rounding is not more rows", () => {
     const { into, list } = draw();
     webkitAtScale(list, { scrollTop: 158, scrollHeight: 408, clientHeight: 248 }, { top: 100, height: 248 }, 1.5);

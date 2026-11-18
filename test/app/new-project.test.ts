@@ -126,7 +126,7 @@ function dialog(onCreate = vi.fn(async () => undefined as string | undefined)) {
 describe("the New Project dialog", () => {
   it("offers the eight project types in order, with Feature chosen, and a title", () => {
     const { type, list, title } = dialog();
-    expect([...list.querySelectorAll("[role=option]")].map((o) => o.firstElementChild!.nextElementSibling!.textContent)).toEqual([
+    expect([...list.querySelectorAll("[role=option]")].map((o) => o.firstElementChild!.textContent)).toEqual([
       "Feature",
       "Episode",
       "Short Film",
@@ -490,7 +490,7 @@ describe("the project type drop-down", () => {
 
   const row = ({ list }: { list: HTMLElement }, index: number) => list.children[index] as HTMLElement;
   const highlighted = ({ type }: { type: HTMLElement }) =>
-    document.getElementById(type.getAttribute("aria-activedescendant")!)!.children[1]!.textContent;
+    document.getElementById(type.getAttribute("aria-activedescendant")!)!.firstElementChild!.textContent;
 
   it("makes the type picked with the keys", async () => {
     const shown = opened();
@@ -561,7 +561,16 @@ describe("the project type drop-down", () => {
   it("draws the highlight on a coming type without the gold of a usable one", () => {
     const css = readFileSync("app/src/style/home.css", "utf8");
     expect(css).toMatch(/\.dialog-select__option--unavailable\.dialog-select__option--active\s*\{\s*color: var\(--colour-muted\)/);
-    expect(css).toMatch(/\.dialog-select__option--unavailable \.gesture__cursor\s*\{\s*color: var\(--colour-faint\)/);
+  });
+
+  it("draws no `>` on any row of the tray, lit or not, and keeps the bar and the gold", () => {
+    const shown = opened();
+    const coming = row(shown, 3);
+    point(coming);
+    expect(shown.list.querySelector(".gesture__cursor")).toBeNull();
+    const css = readFileSync("app/src/style/home.css", "utf8");
+    expect(css).not.toMatch(/\.dialog-select__[^{}]*\.gesture__cursor/);
+    expect(css).toMatch(/\.dialog-select__tray \.dialog-select__option--active\s*\{\s*background: var\(--colour-overlay\);\s*color: var\(--colour-accent\)/);
   });
 
   it("does nothing when a coming type is clicked, and stays open", () => {
@@ -609,7 +618,10 @@ describe("the project type drop-down", () => {
     const laidOut = () => {
       const shown = dialog();
       const { list } = shown;
-      list.getBoundingClientRect = () => rect(TOP, 5 * ROW + 4 * (STEP - ROW));
+      const height = 5 * ROW + 4 * (STEP - ROW);
+      list.getBoundingClientRect = () => rect(TOP, height);
+      Object.defineProperty(list, "clientHeight", { get: () => height, configurable: true });
+      Object.defineProperty(list, "scrollHeight", { get: () => height + END, configurable: true });
       [...list.children].forEach((option, index) => {
         option.getBoundingClientRect = () => rect(TOP + index * STEP - list.scrollTop, ROW);
       });
@@ -648,7 +660,9 @@ describe("the project type drop-down", () => {
       ]);
       for (const hint of frame.querySelectorAll(".projects-hint")) expect(hint.getAttribute("aria-hidden")).toBe("true");
       const css = readFileSync("app/src/style/home.css", "utf8");
-      expect(css).toMatch(/\.drop-menu\.dialog-select__tray\s*\{[^}]*padding-block:\s*calc\(var\(--size-icon\) \+ var\(--distance-hint-bounce\)\)/);
+      expect(css).toMatch(/\.drop-menu\.dialog-select__tray\s*\{[^}]*padding-block:\s*calc\(var\(--size-icon\) \+ var\(--distance-hint-bounce\) \+ var\(--space-hint-clear\) \* 2\)/);
+      expect(css).toMatch(/\.dialog-select__window \.projects-hint--above\s*\{\s*bottom:\s*calc\(100% \+ var\(--space-hint-clear\)\)/);
+      expect(css).toMatch(/\.dialog-select__window \.projects-hint--below\s*\{\s*top:\s*calc\(100% \+ var\(--space-hint-clear\)\)/);
       expect(css).toMatch(/\.dialog-select__window\s*\{[^}]*position:\s*relative/);
     });
 
@@ -662,6 +676,15 @@ describe("the project type drop-down", () => {
       expect(shown.showing()).toEqual({ above: true, below: false });
       shown.scrollTo(0);
       expect(shown.showing()).toEqual({ above: false, below: true });
+    });
+
+    it("hides the down chevron at the end of the list, though the last row's box sits past the edge", () => {
+      const shown = laidOut();
+      shown.type.click();
+      const last = row(shown, 7);
+      last.getBoundingClientRect = () => rect(TOP + 7 * STEP - shown.list.scrollTop + 1.5, ROW);
+      shown.scrollTo(END - 0.5);
+      expect(shown.showing()).toEqual({ above: true, below: false });
     });
 
     it("shows neither chevron when every row fits", () => {

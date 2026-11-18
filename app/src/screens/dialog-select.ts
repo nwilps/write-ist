@@ -2,9 +2,8 @@
  * A dialog's drop-down: a field that opens a tray of choices.
  *
  * Drawn rather than native so the tray can be Write-ist's: the right-click
- * menu's surface and rows (`.drop-menu--context`), and Home's `>` on the row the
- * eye is on. It is fixed to the window, as that menu is, so the dialog's edge
- * cannot clip it.
+ * menu's surface and rows (`.drop-menu--context`). It is fixed to the window, as
+ * that menu is, so the dialog's edge cannot clip it.
  *
  * The ARIA combobox pattern: focus stays on the field and the highlighted row is
  * named by `aria-activedescendant`. Closed, the field answers Enter and Space
@@ -20,7 +19,6 @@
  * never be the value.
  */
 import { element } from "./element.ts";
-import { cursor } from "./menu.ts";
 import { scrollWindow } from "./scroll-window.ts";
 
 export interface DialogChoice {
@@ -84,7 +82,6 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
 
   const options = choices.map((choice, index) => {
     const option = element("div", { id: `${id}-option-${index}`, className: "drop-menu__item dialog-select__option", role: "option" }, [
-      cursor(),
       element("span", { textContent: choice.label }),
     ]);
     if (choice.unavailable !== undefined) {

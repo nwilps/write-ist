@@ -20,6 +20,12 @@
  * after testing; ADR-0043). A row's box is not rounded, so at the bottom the
  * last row's sits within a fraction of a pixel of the list's.
  *
+ * **But a chevron also goes when the list cannot move that way.** A row's box
+ * alone can leave one stuck: if the last row still sits past the list's bottom
+ * at the end of the scroll, no scroll will ever bring it in (Noah, the drop-down
+ * tray). So each end asks both, and either answer hides its chevron, the
+ * counters allowed the same tolerance so their stray pixel cannot hold one up.
+ *
  * The list's own scroll event keeps them right however it moved — the wheel,
  * a trackpad, the arrows bringing a row into view — and so does the list
  * changing size or rows. `hint` is for the caller who has changed something
@@ -46,8 +52,9 @@ export function scrollWindow(list: HTMLElement, className: string): ScrollWindow
     }
     const view = list.getBoundingClientRect();
     const edge = edgeTolerance();
-    above.hidden = !(view.top - first.getBoundingClientRect().top > edge);
-    below.hidden = !(last.getBoundingClientRect().bottom - view.bottom > edge);
+    const leftBelow = list.scrollHeight - list.clientHeight - list.scrollTop;
+    above.hidden = view.top - first.getBoundingClientRect().top <= edge || list.scrollTop <= edge;
+    below.hidden = last.getBoundingClientRect().bottom - view.bottom <= edge || leftBelow <= edge;
   };
   list.addEventListener("scroll", hint, { passive: true });
   list.addEventListener("scrollend", hint, { passive: true });
@@ -59,8 +66,9 @@ export function scrollWindow(list: HTMLElement, className: string): ScrollWindow
 }
 
 /**
- * How far a row may sit past the list's edge and still count as in view: a CSS
- * pixel, or one device pixel where that is more (a display scaled below 1).
+ * How far a row may sit past the list's edge and still count as in view, and
+ * how little scroll may be left and still count as none: a CSS pixel, or one
+ * device pixel where that is more (a display scaled below 1).
  * Anything less is rounding — no scroll the writer could make would show it —
  * and a single row is 24px, so nothing worth scrolling to hides inside it.
  */
