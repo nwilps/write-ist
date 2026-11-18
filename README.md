@@ -69,9 +69,12 @@ Everything below is in the app now.
 **Getting scripts in and out**
 
 - **Import a Fountain file** to start a project from a script you already have.
-- **Export as PDF**, laid out to industry format, with your title page in front.
-- **Save a Copy as Fountain**: a clean copy to hand to someone else, with your private notes
-  and cut material left out.
+- **File ▸ Export As** puts every way out in one dialog:
+  - **PDF**, laid out to industry format, with your title page in front. Export all pages or
+    a range. A range keeps its printed page numbers, and the title page comes along when the
+    range starts at page 1.
+  - **Fountain**: a clean copy of the whole script to hand to someone else, with your private
+    notes and cut material left out.
 
 **Projects**
 
@@ -83,7 +86,8 @@ Everything below is in the app now.
 
 - **Write a screenplay from scratch.** Create a project and start typing.
 - **Bring in a script you already have.** Import a Fountain file and keep going.
-- **Hand your script to someone else.** Export a PDF, or save a clean Fountain copy.
+- **Hand your script to someone else.** Use File ▸ Export As for a PDF of all or some of its
+  pages, or a clean Fountain copy.
 
 None of it needs a network.
 

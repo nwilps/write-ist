@@ -6,7 +6,12 @@
  * (ADR-0009). It goes through the filesystem port's `writeFile`, so the PDF
  * lands whole or not at all (ADR-0008 rule 5).
  */
-import { pdfPagesOf } from "../screenplay/pdf-pages.ts";
+import {
+  pageRangeProblem,
+  pdfPagesInRange,
+  pdfPagesOf,
+  type PageRange,
+} from "../screenplay/pdf-pages.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { renderPdf, type CourierPrimeFaces } from "../pdf/render.ts";
 import { MANUSCRIPT_FILE, type Project } from "./bundle.ts";
@@ -18,15 +23,25 @@ export function suggestedPdfName(project: Project): string {
   return `${name === "" ? "Untitled" : name}.pdf`;
 }
 
+/**
+ * Write the PDF to `destination`: the whole script, or only `range`. The range
+ * is checked against the pages being printed now, since the script can change
+ * while the writer is choosing where the file goes.
+ */
 export async function exportPdf(
   filesystem: Filesystem,
   project: Project,
   document: ScreenplayDocument,
   faces: CourierPrimeFaces,
   destination: string,
+  range?: PageRange,
 ): Promise<void> {
   if (destination === join(project.path, MANUSCRIPT_FILE)) {
     throw new Error("That is the project's own manuscript. Choose another place for the PDF.");
   }
-  await filesystem.writeFile(destination, await renderPdf(pdfPagesOf(document), faces));
+  const all = pdfPagesOf(document);
+  const problem = range === undefined ? undefined : pageRangeProblem(range, all.pages.length);
+  if (problem !== undefined) throw new Error(problem);
+  const pages = range === undefined ? all : pdfPagesInRange(all, range);
+  await filesystem.writeFile(destination, await renderPdf(pages, faces));
 }

@@ -1,6 +1,6 @@
 /**
- * Step 7's wiring: the File menu offers the copy, the window may ask where it
- * goes, and the offline rule still holds.
+ * The Fountain copy's wiring: File ▸ Export As… reaches it, the window may ask
+ * where it goes, and the offline rule still holds.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,33 +11,21 @@ import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (...path: string[]): string => readFileSync(join(root, ...path), "utf8");
 
-describe("Save a Copy as Fountain…", () => {
-  it("is in the File menu, beside the other things done with the project", () => {
-    const saveCopy = vi.fn();
+describe("the Fountain copy, through Export As…", () => {
+  it("is reached from the File menu, which no longer has an item of its own for it", () => {
+    const exportAs = vi.fn();
     const file = editorMenus({
-      save: vi.fn(), saveCopy, exportPdf: vi.fn(), toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
+      save: vi.fn(), exportAs, toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
       viewTitlePage: vi.fn(), editGoals: vi.fn(),
       toggleSpellcheck: vi.fn(), spellcheckOn: () => false, search: vi.fn(), view: () => undefined,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
     })["File"]!;
-    const item = file.find((entry) => "label" in entry && entry.label === "Save a Copy as Fountain…");
+    const labels = file.map((entry) => ("label" in entry ? entry.label : "—"));
+    expect(labels).not.toContain("Save a Copy as Fountain…");
+    const item = file.find((entry) => "label" in entry && entry.label === "Export As…");
     expect(item).toBeDefined();
     if (item !== undefined && "act" in item) item.act();
-    expect(saveCopy).toHaveBeenCalledOnce();
-  });
-
-  it("asks the writer where, and writes nothing when they cancel", () => {
-    const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    expect(editor).toMatch(/destination === undefined\) return;/);
-    expect(editor).toContain("context.chooseCopyLocation(");
-  });
-
-  it("copies the model as it is now, never through the save routine", () => {
-    const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    const start = editor.indexOf("const saveCopy = (): void =>");
-    const body = editor.slice(start, editor.indexOf("Step 5:"));
-    expect(body).toContain("writing.manuscript()");
-    expect(body).not.toMatch(/\.save\(|saving\.now|saveAndShow/);
+    expect(exportAs).toHaveBeenCalledOnce();
   });
 
   it("is granted the save dialog, and no wider write scope than the project already had", () => {
@@ -59,6 +47,7 @@ describe("Save a Copy as Fountain…", () => {
   it("makes no network request", () => {
     for (const file of [
       ["src", "project", "copy.ts"],
+      ["src", "project", "export-formats.ts"],
       ["src", "screenplay", "fountain-copy.ts"],
     ]) {
       expect(read(...file)).not.toMatch(/\bfetch\(|XMLHttpRequest|WebSocket|https?:\/\//);

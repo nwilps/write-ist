@@ -15,7 +15,12 @@ import { CHARACTER_INCHES, ELEMENT_GEOMETRY, PAGE } from "../../src/screenplay/g
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
 import { layout, MORE_TEXT } from "../../src/screenplay/layout.ts";
 import { withoutCommentsAndBoneyard } from "../../src/screenplay/fountain-copy.ts";
-import { pdfPagesOf } from "../../src/screenplay/pdf-pages.ts";
+import {
+  pageRangeProblem,
+  pdfPagesInRange,
+  pdfPagesOf,
+  printedPageCount,
+} from "../../src/screenplay/pdf-pages.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { titlePageRuns } from "../../src/screenplay/title-page-layout.ts";
 import { readFixtureBytes } from "../support/files.ts";
@@ -192,27 +197,73 @@ describe("the file", () => {
   });
 });
 
-describe("the menu and the window", () => {
-  const read = (...p: string[]) => readFileSync(join(root, ...p), "utf8");
-  it("offers Export as PDF… beside the Fountain copy, and exports the live model, not a save", () => {
-    const exportPdf = vi.fn();
-    const saveCopy = vi.fn();
-    const file = editorMenus({
-      save: vi.fn(), saveCopy, exportPdf, toProjects: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
-      viewTitlePage: vi.fn(), editGoals: vi.fn(),
-      toggleSpellcheck: vi.fn(), spellcheckOn: () => false, search: vi.fn(), view: () => undefined,
-      cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
-    })["File"]!;
-    const labels = file.map((entry) => ("label" in entry ? entry.label : "—"));
-    expect(labels.indexOf("Export as PDF…")).toBe(labels.indexOf("Save a Copy as Fountain…") + 1);
-    const item = file[labels.indexOf("Export as PDF…")]!;
-    if ("act" in item) item.act();
-    expect(exportPdf).toHaveBeenCalledOnce();
-    expect(saveCopy).not.toHaveBeenCalled();
-    const editor = read("app", "src", "workspaces", "editor", "editor.ts");
-    const body = editor.slice(editor.indexOf("const exportAsPdf = (): void =>"), editor.indexOf("Step 4 and 6"));
-    expect(body).toContain("writing.manuscript()");
-    expect(body).toMatch(/destination === undefined\) return;/);
-    expect(body).not.toMatch(/\.save\(|saving\.now|saveAndShow/);
+describe("a page range", () => {
+  // An unnumbered sheet, then four numbered pages, each a word of its own.
+  const script = parse(
+    "Title: Small Script\nAuthor: Someone\n\nEpigraph.\n\n===\n\nOne.\n\n===\n\nTwo.\n\n===\n\nThree.\n\n===\n\nFour.\n",
+  );
+  const project = { path: "/p", marker: { name: "Small" } } as never;
+  /** What `exportPdf` wrote, as the text of each sheet of the file. */
+  async function exported(range?: { from: number; to: number }) {
+    let written: Uint8Array | undefined;
+    const filesystem = { writeFile: async (_path: string, bytes: Uint8Array) => void (written = bytes) };
+    await exportPdf(filesystem as never, project, script, faces, "/out/a.pdf", range);
+    return (await extract(written!)).pages.map((sheet) => sheet.map((item) => item.text).join(" "));
+  }
+
+  it("leaves All pages as it was: title page, front matter, then every numbered page", async () => {
+    const sheets = await exported();
+    expect(sheets).toHaveLength(6);
+    expect(sheets[0]).toContain("Small Script");
+    expect(sheets[1]).toBe("Epigraph.");
+    expect(sheets.slice(2)).toEqual(["One.", "2. Two.", "3. Three.", "4. Four."]);
+  }, 60_000);
+
+  it("writes only the pages asked for, keeping their printed numbers and nothing from the front", async () => {
+    expect(await exported({ from: 2, to: 3 })).toEqual(["2. Two.", "3. Three."]);
+    expect(await exported({ from: 4, to: 4 })).toEqual(["4. Four."]);
+  }, 60_000);
+
+  it("keeps the title page and front matter when the range starts at page 1", async () => {
+    const sheets = await exported({ from: 1, to: 2 });
+    expect(sheets).toHaveLength(4);
+    expect(sheets[0]).toContain("Small Script");
+    expect(sheets.slice(1)).toEqual(["Epigraph.", "One.", "2. Two."]);
+  }, 60_000);
+
+  it("does the same on Big Fish, whose epigraph is a sheet of its own", () => {
+    const all = pdfPagesOf(bigFish());
+    const opening = pdfPagesInRange(all, { from: 1, to: 3 });
+    expect(opening.titlePage).toEqual(all.titlePage);
+    expect(opening.frontMatter).toHaveLength(1);
+    expect(opening.pages).toEqual(all.pages.slice(0, 3));
+    const later = pdfPagesInRange(all, { from: 10, to: 12 });
+    expect(later.titlePage).toEqual([]);
+    expect(later.frontMatter).toEqual([]);
+    expect(later.pages.map((page) => page.find((run) => run.y === 45)!.text)).toEqual(["10.", "11.", "12."]);
+  });
+
+  it("refuses what the script does not have, and writes nothing", async () => {
+    expect(pageRangeProblem({ from: 1, to: 4 }, 4)).toBeUndefined();
+    expect(pageRangeProblem({ from: 3, to: 3 }, 4)).toBeUndefined();
+    expect(pageRangeProblem({ from: 0, to: 2 }, 4)).toBe("This script has pages 1 to 4.");
+    expect(pageRangeProblem({ from: 1, to: 5 }, 4)).toBe("This script has pages 1 to 4.");
+    expect(pageRangeProblem({ from: 3, to: 2 }, 4)).toMatch(/cannot come after/);
+    expect(pageRangeProblem({ from: 1.5, to: 2 }, 4)).toMatch(/whole numbers/);
+    expect(pageRangeProblem({ from: NaN, to: 2 }, 4)).toMatch(/whole numbers/);
+    expect(pageRangeProblem({ from: 1, to: 1 }, 0)).toMatch(/no numbered pages/);
+    const writeFile = vi.fn();
+    await expect(
+      exportPdf({ writeFile } as never, project, script, faces, "/out/a.pdf", { from: 2, to: 9 }),
+    ).rejects.toThrow("This script has pages 1 to 4.");
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("counts the pages the PDF prints, not ones that only cut material holds up", () => {
+    // Every speech is in the boneyard, so its cue is on the paper and not in the PDF.
+    const document = parse(`Hi.\n\n${"BOB\n/*\ngone\n*/\n\n".repeat(120)}`);
+    expect(layout(document).totalPages).toBeGreaterThan(1);
+    expect(printedPageCount(document)).toBe(1);
+    expect(pdfPagesOf(document).pages).toHaveLength(1);
   });
 });

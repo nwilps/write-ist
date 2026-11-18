@@ -41,14 +41,14 @@
 import { PenLine } from "lucide";
 import { Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { saveFountainCopy, suggestedCopyName } from "../../../../src/project/copy.ts";
-import { exportPdf, suggestedPdfName } from "../../../../src/project/export-pdf.ts";
+import { EXPORT_FORMATS, exportScript } from "../../../../src/project/export-formats.ts";
 import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
 import {
   manuscriptSession,
   readManuscript,
   type ManuscriptSession,
 } from "../../../../src/project/manuscript-session.ts";
+import { printedPageCount } from "../../../../src/screenplay/pdf-pages.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
 import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
@@ -61,6 +61,7 @@ import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretScrolling, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
+import { openExportDialog } from "./export-dialog.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { showTitlePagePreview } from "./title-page-preview.ts";
@@ -111,6 +112,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   const startSearch = (): void => {
     if (searching !== undefined || session === undefined || view === undefined) return;
+    // The window hears Alt+Enter first, and the screen behind a dialog hears nothing.
+    if (into.querySelector("dialog[open]") !== null) return;
     const writing = session;
     // Alt+Enter asks to search (the desk design, §2.5), wherever focus is.
     searching = openSearch(into, {
@@ -207,58 +210,28 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view?.focus();
   };
 
-  // Step 7: a finished-product copy, outside the bundle. It reads the model
-  // as it is *now* and goes nowhere near the save routine, so an unsaved
-  // edit is in the copy and nothing is saved as a side effect. Cancelling
-  // writes nothing; success is silent (ADR-0031).
-  const saveCopy = (): void => {
+  // Every export, in one dialog. Each is a finished-product file outside the
+  // bundle, read from the model as it is *now* and nowhere near the save
+  // routine, so an unsaved edit is in the file and nothing is saved as a side
+  // effect. Cancelling writes nothing; success is silent (ADR-0031).
+  const exportAs = (): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
     const writing = session;
-    if (writing === undefined) return;
-    void (async () => {
-      try {
-        const destination = await context.chooseCopyLocation(suggestedCopyName(context.project));
-        if (destination === undefined) return;
-        await saveFountainCopy(
-          context.filesystem,
-          context.project,
-          writing.manuscript(),
-          destination,
-        );
-      } catch (error) {
-        context.report(
-          `Write-ist could not save the copy. Your screenplay is unchanged. ${message(error)}`,
-        );
-      } finally {
-        view?.focus();
-      }
-    })();
-  };
-
-  // Step 5: the PDF, built from the layout of the model as it is *now* and
-  // written outside the bundle. Like the copy it never goes near the save
-  // routine. The fonts are the bundled files, read from the application.
-  const exportAsPdf = (): void => {
-    const writing = session;
-    if (writing === undefined) return;
-    void (async () => {
-      try {
-        const destination = await context.choosePdfLocation(suggestedPdfName(context.project));
-        if (destination === undefined) return;
-        await exportPdf(
-          context.filesystem,
-          context.project,
-          writing.manuscript(),
-          await courierPrimeFaces(),
-          destination,
-        );
-      } catch (error) {
-        context.report(
-          `Write-ist could not export the PDF. Your screenplay is unchanged. ${message(error)}`,
-        );
-      } finally {
-        view?.focus();
-      }
-    })();
+    openExportDialog(into, {
+      formats: EXPORT_FORMATS,
+      pageCount: () => printedPageCount(writing.manuscript()),
+      write: (format, range) =>
+        exportScript(format, {
+          filesystem: context.filesystem,
+          project: context.project,
+          places: context,
+          document: writing.manuscript,
+          faces: courierPrimeFaces,
+          range,
+        }),
+      report: context.report,
+      closed: () => view?.focus(),
+    });
   };
 
   // Step 4 and 6: the title page is edited in a form and viewed as it
@@ -325,8 +298,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // and the panels all go through it.
   const host: CommandHost = {
     save: saveNow,
-    saveCopy,
-    exportPdf: exportAsPdf,
+    exportAs,
     toProjects: context.leave.toProjects,
     toHome: context.leave.toHome,
     editTitlePage,

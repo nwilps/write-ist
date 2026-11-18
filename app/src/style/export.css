@@ -1,0 +1,38 @@
+/*
+ * The Export As dialog. It is the title page dialog's kind of dialog, so
+ * `.report` and `.new-project` give it its frame; this is what is its own.
+ */
+
+.export-as__form {
+  width: var(--measure-new-project);
+}
+
+.export-as__choices {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.export-as__choice,
+.export-as__range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+}
+
+.export-as__radio {
+  margin: 0;
+  accent-color: var(--colour-accent);
+}
+
+.export-as__number {
+  width: var(--size-goals-number);
+}
+
+.export-as__number:disabled {
+  color: var(--colour-faint);
+}
+
+/* `.field` sets a display of its own, which would otherwise outrank `hidden`. */
+.export-as__pages[hidden] {
+  display: none;
+}

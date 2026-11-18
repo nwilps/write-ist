@@ -39,6 +39,12 @@ export interface PdfPages {
   readonly pages: readonly (readonly TitlePageRun[])[];
 }
 
+/** Numbered pages, inclusive, counted as they are printed: page 1 is the first numbered page. */
+export interface PageRange {
+  readonly from: number;
+  readonly to: number;
+}
+
 const round = (points: number): number => Math.round(points * 100) / 100;
 
 export function pdfPagesOf(document: ScreenplayDocument): PdfPages {
@@ -55,6 +61,38 @@ export function pdfPagesOf(document: ScreenplayDocument): PdfPages {
   });
   const frontMatter = laid.frontMatter.map((sheet) => sheet.lines.flatMap((line) => lineRuns(reduced, line)));
   return { titlePage: titlePageRuns(reduced.titlePage), frontMatter, pages };
+}
+
+/**
+ * How many numbered pages the PDF has. Counted with comments and the boneyard
+ * out, as the PDF is: a cue whose whole speech was cut prints nothing, so this
+ * can be fewer than the paper's count.
+ */
+export function printedPageCount(document: ScreenplayDocument): number {
+  return layout(withoutCommentsAndBoneyard(document)).totalPages;
+}
+
+/** What is wrong with a range for a script of `total` numbered pages, in the writer's words. */
+export function pageRangeProblem({ from, to }: PageRange, total: number): string | undefined {
+  if (total === 0) return "This script has no numbered pages yet. Choose All pages.";
+  const pages = total === 1 ? "This script has only page 1." : `This script has pages 1 to ${total}.`;
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return `Page numbers are whole numbers. ${pages}`;
+  if (from < 1 || to > total) return pages;
+  if (from > to) return "The From page cannot come after the To page.";
+  return undefined;
+}
+
+/**
+ * The sheets of a valid range. The pages keep the numbers already printed on
+ * them, and the unnumbered sheets in front go with page 1, so a range from
+ * later in the script is only those pages.
+ */
+export function pdfPagesInRange(all: PdfPages, { from, to }: PageRange): PdfPages {
+  return {
+    titlePage: from === 1 ? all.titlePage : [],
+    frontMatter: from === 1 ? all.frontMatter : [],
+    pages: all.pages.slice(from - 1, to),
+  };
 }
 
 function run(
