@@ -39,6 +39,7 @@
   background: var(--colour-raised);
   border: var(--rule-menu) solid var(--colour-base);
   border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
   font-size: var(--size-label);
   line-height: var(--leading-label);
   color: var(--colour-muted);
