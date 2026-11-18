@@ -223,6 +223,10 @@ erases nothing**; to recover a project, move its folder back into `write-ist`. E
 `move_folder` command (`src-tauri/src/folders.rs`): one rename, never over anything, never across
 disks, only inside the projects folder. Not built: a restore screen, and emptying the folder.
 
+The open project can be renamed too, from **File ▸ Rename Project…** or the right-click menu on the
+project name pill: the same dialog and the same rename. The move waits its turn between saves, and
+the Editor stays up and writes to the new folder from then on.
+
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared

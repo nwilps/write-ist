@@ -224,7 +224,8 @@ button.pill {
 }
 
 button.pill:hover,
-button.pill:focus-visible {
+button.pill:focus-visible,
+.pill--project:focus-visible {
   color: var(--colour-text);
 }
 

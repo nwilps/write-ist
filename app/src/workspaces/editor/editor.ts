@@ -260,6 +260,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     });
   };
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
+  // File ▸ Rename Project… and the name pill's menu. The session fits the move
+  // between its writes; the paper, the caret and the undo history stay as they are.
+  const renameProject = (): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    context.renameProject({ into, carryOut: session.moveProject, closed: () => view?.focus() });
+  };
+  const stopListeningForRename = context.whenRenameAsked(renameProject);
   // The day turns over without a keystroke: the pill is refreshed each minute.
   const goalClock = setInterval(() => session?.showGoal(), GOAL_REFRESH_MS);
   // Where the caret is, kept in app data so reopening the project puts the
@@ -300,6 +307,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     save: saveNow,
     exportAs,
     toProjects: context.leave.toProjects,
+    renameProject,
     toHome: context.leave.toHome,
     editTitlePage,
     viewTitlePage,
@@ -470,6 +478,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   })();
 
   return {
+    focus: () => view?.focus(),
     unmount: async () => {
       // Still reading, so there is nothing to save and nothing but a line of
       // text to take down. The read's own continuation sees this and stops.
@@ -478,6 +487,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         clearTimeout(placeRest);
         clearInterval(goalClock);
         stopListeningForGoals();
+        stopListeningForRename();
         page.removeEventListener("contextmenu", onContextMenu);
         contextMenu?.close(false);
         panels.dispose();
@@ -493,6 +503,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       stopFittingCaretRoom?.();
       clearInterval(goalClock);
       stopListeningForGoals();
+      stopListeningForRename();
       session = undefined;
       page.removeEventListener("contextmenu", onContextMenu);
       contextMenu?.close(false);

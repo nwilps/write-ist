@@ -47,6 +47,7 @@ async function editing(): Promise<{ told: boolean[]; paper: HTMLElement; into: H
     setStatus: () => {},
     setGoal: () => {},
     whenGoalsAsked: quiet,
+    whenRenameAsked: quiet,
     setSaved: () => {},
     setSpellcheck: (on: boolean) => void told.push(on),
     whenSwitchedAway: quiet,

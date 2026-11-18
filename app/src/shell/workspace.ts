@@ -23,13 +23,24 @@ import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
+import type { RenameRoute } from "../screens/project-dialogs.ts";
+
+/**
+ * How a workspace has the open project renamed: where the dialog goes, how the
+ * move fits around the workspace's own writing, and what to do when it closes.
+ */
+export type RenameRequest = Omit<RenameRoute, "renamed">;
 
 /** Where a workspace's work stands against the disk. */
 export type SaveState = "saved" | "unsaved" | "saving";
 
 /** Everything a workspace is given. Nothing in it names a surface. */
 export interface WorkspaceContext {
-  /** Which project is open — a path and what its marker says (ADR-0015). */
+  /**
+   * Which project is open — a path and what its marker says (ADR-0015). **As it
+   * is now**: a rename moves the folder while the workspace stays up, so read
+   * this when it is needed rather than keeping it.
+   */
   readonly project: Project;
   readonly filesystem: Filesystem;
   /**
@@ -82,6 +93,17 @@ export interface WorkspaceContext {
    * Answers how to stop listening.
    */
   readonly whenGoalsAsked: (act: () => void) => () => void;
+  /**
+   * Hear the writer choose Rename Project on the project name pill. The shell
+   * owns the pill; the workspace decides whether it can be renamed just now.
+   * Answers how to stop listening.
+   */
+  readonly whenRenameAsked: (act: () => void) => () => void;
+  /**
+   * Ask the writer for a new name for this project, and rename it. The shell's
+   * name pill and `project` follow; the workspace stays mounted.
+   */
+  readonly renameProject: (request: RenameRequest) => void;
   /**
    * Say whether the workspace's work is on disk, in the save pill beside the
    * counts. `saving` is a save that has started and not yet landed; `unsaved`
@@ -151,6 +173,8 @@ export interface MountedWorkspace {
    * exists to end.
    */
   readonly unmount: () => Promise<boolean>;
+  /** Give the keys back to the workspace, when a menu of the shell's closes. */
+  readonly focus?: () => void;
 }
 
 export interface WorkspaceManifest {

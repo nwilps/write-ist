@@ -79,8 +79,10 @@ Everything below is in the app now.
 **Projects**
 
 - A **Home** screen and an **Open Project** screen listing your projects.
-- **Rename** or **delete** a project from its right-click menu. Deleting is recoverable: the
-  project is moved to a `Deleted Projects` folder, never erased, and moving it back restores it.
+- **Rename** or **delete** a project from its right-click menu on Open Project. You can also rename
+  the project you have open, with File ▸ Rename Project or by right-clicking its name at the bottom
+  left of the Editor. Deleting is recoverable: the project is moved to a `Deleted Projects` folder,
+  never erased, and moving it back restores it.
 
 ## Use cases
 

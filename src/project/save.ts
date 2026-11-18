@@ -134,6 +134,7 @@ export interface ChangedElsewhere {
  * disk still holds what Write-ist left there (#42).
  */
 export interface EditingSession {
+  /** The project as it is now: `relocate` replaces it. */
   readonly project: Project;
   /** The writer changed the manuscript. */
   readonly changed: () => void;
@@ -146,6 +147,16 @@ export interface EditingSession {
    * typed more often than not.
    */
   readonly save: () => Promise<SaveOutcome>;
+  /**
+   * Move the project's folder **between saves**, and go on saving where it went.
+   *
+   * `move` takes its turn in the line saves stand in: it starts once the save
+   * under way has finished, and a save asked for meanwhile waits and then writes
+   * to the new place, so nothing is written to a folder that has gone. What the
+   * writer has typed stays unsaved until that save. A move that fails leaves the
+   * session where it was.
+   */
+  readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
 }
 
 /**
@@ -163,7 +174,7 @@ export function editingSession(
   manuscript: () => ScreenplayDocument,
   { reload, keptBoth, now = () => new Date(), clock = windowClock }: ChangedElsewhere,
 ): EditingSession {
-  const path = join(opened.project.path, MANUSCRIPT_FILE);
+  let project = opened.project;
   /**
    * Every version the manuscript on disk may hold **because of Write-ist** —
    * what it last read, what it last wrote. Anything else on disk was put there
@@ -198,6 +209,8 @@ export function editingSession(
   let running: Promise<SaveOutcome> = Promise.resolve({ written: false });
 
   const write = async (): Promise<SaveOutcome> => {
+    // Asked here rather than once: a rename moves the folder between saves.
+    const path = join(project.path, MANUSCRIPT_FILE);
     // Read first, every time: the comparison ADR-0028 asks for before each
     // save. A read that fails rejects here, before anything is written.
     const found = await withinLimit(filesystem.readFile(path), clock);
@@ -213,7 +226,7 @@ export function editingSession(
       // Typed as well. The other version goes beside the manuscript first,
       // exactly as found; if that fails, this rejects with the manuscript
       // still holding it.
-      const copy = join(opened.project.path, await freeCopyName());
+      const copy = join(project.path, await freeCopyName());
       await withinLimit(filesystem.writeFile(copy, found), clock);
       // It is kept, so it is safe to replace — and a retry after the
       // manuscript's own write fails must not keep it a second time.
@@ -275,13 +288,15 @@ export function editingSession(
     // Within the limit like every other question a save asks of the disk: a
     // listing that never answered would hold up this save and every one
     // queued behind it (#64).
-    const entries = await withinLimit(filesystem.readDirectory(opened.project.path), clock);
+    const entries = await withinLimit(filesystem.readDirectory(project.path), clock);
     const taken = new Set(entries.map((entry) => entry.name));
     return copyNameFor(now(), taken);
   };
 
   return {
-    project: opened.project,
+    get project() {
+      return project;
+    },
     changed: () => {
       dirty = true;
     },
@@ -289,6 +304,20 @@ export function editingSession(
     save: () => {
       running = running.then(write, write);
       return running;
+    },
+    relocate: (move) => {
+      // Within the limit like a save, so a disk that never answers cannot hold
+      // up every save behind it, or closing. If the move lands after that, the
+      // saves still follow it.
+      const moving = (): Promise<Project> =>
+        withinLimit(
+          move().then((moved) => (project = moved)),
+          clock,
+        );
+      const moved = running.then(moving, moving);
+      const nothingWritten = (): SaveOutcome => ({ written: false });
+      running = moved.then(nothingWritten, nothingWritten);
+      return moved;
     },
   };
 }

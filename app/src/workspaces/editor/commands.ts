@@ -37,6 +37,7 @@ import {
   FileText,
   FolderOpen,
   House,
+  Pencil,
   Redo2,
   Save,
   Scissors,
@@ -66,6 +67,8 @@ export interface EditorActions {
   /** Open the Export As dialog, which offers every format the script can leave in. */
   readonly exportAs: () => void;
   readonly toProjects: () => void;
+  /** Open the Rename Project dialog, the one Open Project's row menu opens. */
+  readonly renameProject: () => void;
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
   readonly viewTitlePage: () => void;
@@ -190,7 +193,8 @@ export const COMMANDS: readonly Command[] = [
   // File
   { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, menu: { name: "File", group: "save" }, run: (host) => host.save() },
   { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
-  { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "navigate" }, run: (host) => host.toProjects() },
+  { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "project" }, run: (host) => host.toProjects() },
+  { id: "rename-project", label: "Rename Project…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.renameProject() },
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
   { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
 

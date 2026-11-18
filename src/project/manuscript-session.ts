@@ -72,6 +72,7 @@ export type SavedState = "saved" | "unsaved" | "saving";
 /** What a session needs of the world. The Editor's `WorkspaceContext` carries most of it. */
 export interface SessionPorts {
   readonly filesystem: Filesystem;
+  /** The project as it was opened; `moveProject` is how it changes after that. */
   readonly project: Project;
   /** Trouble the writer must see, in words about their file. */
   readonly report: (trouble: string) => void;
@@ -179,6 +180,14 @@ export interface ManuscriptSession {
    * says why — when the save failed, in which case nothing has been let go of.
    */
   readonly leave: () => Promise<boolean>;
+  /**
+   * Rename the project under the open manuscript: run `move`, which moves its
+   * folder, once nothing is being written into that folder, and write there
+   * from then on. Answers the project as it now is. The manuscript, the caret
+   * and the undo history are not touched, and unsaved typing stays unsaved
+   * until the next save puts it in the new place.
+   */
+  readonly moveProject: (move: () => Promise<Project>) => Promise<Project>;
   /**
    * Resolves when every confirmation so far has been written, and every
    * change to the dictionary made (or has failed, and been said).
@@ -317,22 +326,32 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     }
   };
 
+  // The goals and names files sit beside the manuscript, so they take turns
+  // with a rename too: neither is written while the folder is on the move.
+  let besideManuscript: Promise<unknown> = Promise.resolve();
+  const inFolderTurn = <T>(act: () => Promise<T>): Promise<T> => {
+    const done = besideManuscript.then(act);
+    besideManuscript = done.catch(() => {});
+    return done;
+  };
+
   // The goals file (ADR-0040): written a pause after a change, like the
   // manuscript, and once more on the way out. Never over a file that could not
   // be read (`read.goals` is then undefined).
   let goalsTrouble = false;
-  const writeGoalsNow = async (): Promise<void> => {
-    if (read.goals === undefined || !tracker.dirty) return;
-    // Cleared before the write, so a change during it is still to be written.
-    tracker.clean();
-    try {
-      await writeGoals(ports.filesystem, ports.project, tracker.data());
-      goalsTrouble = false;
-    } catch (error) {
-      tracker.unclean();
-      throw error;
-    }
-  };
+  const writeGoalsNow = (): Promise<void> =>
+    inFolderTurn(async () => {
+      if (read.goals === undefined || !tracker.dirty) return;
+      // Cleared before the write, so a change during it is still to be written.
+      tracker.clean();
+      try {
+        await writeGoals(ports.filesystem, session.project, tracker.data());
+        goalsTrouble = false;
+      } catch (error) {
+        tracker.unclean();
+        throw error;
+      }
+    });
   const savingGoals = autosave({
     save: writeGoalsNow,
     trouble: (error) => {
@@ -412,7 +431,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     } else {
       try {
         await ledger.recordDay(
-          { id: ports.project.marker.projectId, name: ports.project.marker.name },
+          { id: session.project.marker.projectId, name: session.project.marker.name },
           manuscriptOf(state.doc),
         );
       } catch (error) {
@@ -442,16 +461,18 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   /** The lists' confirmations, to the names file: whole, after any write before it. */
   const writeNames = (): void => {
     const toWrite = confirmationsOf(names);
-    writingNames = writingNames.then(async () => {
-      try {
-        await writeConfirmations(ports.filesystem, ports.project, toWrite);
-      } catch (error) {
-        ports.report(
-          `Write-ist could not save the confirmed name. It holds while this project is open. ` +
-            `Your screenplay is unchanged. ${message(error)}`,
-        );
-      }
-    });
+    writingNames = writingNames.then(() =>
+      inFolderTurn(async () => {
+        try {
+          await writeConfirmations(ports.filesystem, session.project, toWrite);
+        } catch (error) {
+          ports.report(
+            `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+              `Your screenplay is unchanged. ${message(error)}`,
+          );
+        }
+      }),
+    );
   };
   /** Confirm by hand, or take that back. Never when the names file could not be read. */
   const confirmName = (kind: NameKind, name: string): boolean => {
@@ -556,6 +577,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       showGoal();
     },
     leave,
+    moveProject: (move) => inFolderTurn(() => session.relocate(move)),
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
     listOfWordAt,
     confirm,
