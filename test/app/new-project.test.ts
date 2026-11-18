@@ -4,9 +4,10 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
 import { chosenBy } from "../../app/src/screens/shortcuts.ts";
+import { placeTray } from "../../app/src/screens/dialog-select.ts";
 import { showNewProject } from "../../app/src/screens/new-project.ts";
 
 // jsdom has no modal dialog.
@@ -91,26 +92,41 @@ describe("Home, Metrics and Settings", () => {
   });
 });
 
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
 function dialog(onCreate = vi.fn(async () => undefined as string | undefined)) {
-  const into = document.createElement("div");
+  // In the document, so that focus is real.
+  const into = document.body.appendChild(document.createElement("div"));
   const onClose = vi.fn();
   const modal = showNewProject(into, { onCreate, onClose });
   const title = modal.querySelector("#new-project-title") as HTMLInputElement;
-  const type = modal.querySelector("#new-project-type") as HTMLSelectElement;
-  const create = modal.querySelector(".new-project-dialog__action--confirm") as HTMLButtonElement;
-  const cancel = modal.querySelector(".new-project-dialog__action:not(.new-project-dialog__action--confirm)") as HTMLButtonElement;
+  const type = modal.querySelector("#new-project-type") as HTMLButtonElement;
+  const tray = modal.querySelector("[role=listbox]") as HTMLElement;
+  const [cancel, create] = modal.querySelectorAll<HTMLButtonElement>(".new-project-dialog__actions button") as unknown as [
+    HTMLButtonElement,
+    HTMLButtonElement,
+  ];
   const type_ = (text: string) => {
     title.value = text;
     title.dispatchEvent(new Event("input"));
   };
   const submit = () => modal.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
-  return { into, modal, title, type, create, cancel, type_, submit, onCreate, onClose };
+  /** A key, as the focused control gets it. The answer is the event: was it used? */
+  const press = (key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    document.activeElement!.dispatchEvent(event);
+    return event;
+  };
+  return { into, modal, title, type, tray, create, cancel, type_, submit, press, onCreate, onClose };
 }
 
 describe("the New Project dialog", () => {
   it("offers Screenplay as the only project type, and a title", () => {
-    const { type, title } = dialog();
-    expect([...type.options].map((o) => o.value)).toEqual(["Screenplay"]);
+    const { type, tray, title } = dialog();
+    expect([...tray.querySelectorAll("[role=option]")].map((o) => o.textContent)).toEqual([">Screenplay"]);
+    expect(type.textContent).toBe("Screenplay");
     expect(title.value).toBe("");
   });
 
@@ -133,7 +149,7 @@ describe("the New Project dialog", () => {
     ]);
     expect(cancel.textContent).toBe(">Cancel[Esc]");
     expect(create.textContent).toBe(">Confirm[Enter]");
-    const buttons = [...modal.querySelectorAll("button")];
+    const buttons = [...modal.querySelectorAll(".new-project-dialog__actions button")];
     expect(buttons).toEqual([cancel, create]);
   });
 
@@ -203,6 +219,277 @@ describe("the New Project dialog", () => {
     const { modal, into } = dialog();
     expect(modal.tagName).toBe("DIALOG");
     expect(into.contains(modal)).toBe(true);
+  });
+});
+
+describe("the New Project buttons, lit like Home's selected row", () => {
+  const home = readFileSync("app/src/style/home.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  /** The declarations of the rule whose selector list has this selector in it. */
+  const ruleWith = (selector: string): string => {
+    const found = [...home.matchAll(/([^{}]+)\{([^}]*)\}/g)].find(([, selectors]) =>
+      selectors!.split(",").map((s) => s.trim()).includes(selector),
+    );
+    expect(found, selector).toBeDefined();
+    return found![2]!;
+  };
+
+  it("carries Home's own arrow on both, and neither is permanently lit", () => {
+    const { cancel, create } = dialog();
+    for (const button of [cancel, create]) {
+      expect(button.querySelector(".gesture__cursor")!.textContent).toBe(">");
+      expect(button.classList.contains("dialog-action")).toBe(true);
+      expect(button.classList.contains("new-project-dialog__action--confirm")).toBe(false);
+    }
+    const rest = ruleWith(".new-project-dialog__action");
+    expect(rest).toContain("background: transparent");
+    expect(rest).toContain("color: var(--colour-muted)");
+  });
+
+  it("lights hover and focus with the very rule that lights Home's selected row", () => {
+    const lit = ruleWith(".menu--home .gesture--selected");
+    expect(lit).toContain("background: var(--colour-overlay)");
+    expect(lit).toContain("color: var(--colour-accent)");
+    expect(ruleWith(".dialog-action:hover:not(:disabled)")).toBe(lit);
+    expect(ruleWith(".dialog-action:focus:not(:disabled)")).toBe(lit);
+    const arrow = ruleWith(".menu--home .gesture--selected .gesture__cursor");
+    expect(arrow).toContain("visibility: visible");
+    expect(ruleWith(".dialog-action:hover:not(:disabled) .gesture__cursor")).toBe(arrow);
+    expect(ruleWith(".dialog-action:focus:not(:disabled) .gesture__cursor")).toBe(arrow);
+    expect(ruleWith(".dialog-action:focus")).toContain("outline: none");
+  });
+
+  it("moves focus to a hovered button only from another button, never from the title", () => {
+    const { title, cancel, create, type_ } = dialog();
+    type_("Big Fish");
+    create.dispatchEvent(new MouseEvent("mouseenter"));
+    expect(document.activeElement).toBe(title);
+    cancel.focus();
+    create.dispatchEvent(new MouseEvent("mouseenter"));
+    expect(document.activeElement).toBe(create);
+  });
+
+  it("leaves the permanently lit Confirm to the dialogs not yet moved over", () => {
+    expect(ruleWith(".new-project-dialog__action--confirm")).toContain("color: var(--colour-accent)");
+  });
+});
+
+describe("walking the New Project dialog from the keyboard", () => {
+  const named = () => {
+    const shown = dialog();
+    shown.type_("Big Fish");
+    return shown;
+  };
+
+  it("opens in the title, being edited", () => {
+    const { title } = dialog();
+    expect(document.activeElement).toBe(title);
+    expect(title.classList.contains("dialog-keys__editing")).toBe(true);
+  });
+
+  it("wraps Tab and Shift+Tab through every control", () => {
+    const { type, title, cancel, create, press } = named();
+    const seen = [1, 2, 3, 4].map(() => (press("Tab"), document.activeElement));
+    expect(seen).toEqual([cancel, create, type, title]);
+    const back = [1, 2, 3, 4].map(() => (press("Tab", { shiftKey: true }), document.activeElement));
+    expect(back).toEqual([type, create, cancel, title]);
+  });
+
+  it("skips a disabled Confirm with Tab and with the arrows", () => {
+    const { type, cancel, create, press } = dialog();
+    press("Tab");
+    expect(document.activeElement).toBe(cancel);
+    press("ArrowRight");
+    expect(document.activeElement).toBe(cancel);
+    press("Tab");
+    expect(document.activeElement).toBe(type);
+    expect(create.disabled).toBe(true);
+  });
+
+  it("moves between rows and along the buttons with the arrows, once out of the field", () => {
+    const { type, title, cancel, create, press } = named();
+    press("Escape");
+    press("ArrowDown");
+    expect(document.activeElement).toBe(cancel);
+    press("ArrowRight");
+    expect(document.activeElement).toBe(create);
+    press("ArrowLeft");
+    expect(document.activeElement).toBe(cancel);
+    press("ArrowDown");
+    expect(document.activeElement).toBe(type);
+    press("ArrowDown");
+    expect(document.activeElement).toBe(title);
+    press("ArrowUp");
+    expect(document.activeElement).toBe(type);
+    press("ArrowUp");
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it("leaves the arrows to the caret while the title is being edited", () => {
+    const { title, press } = named();
+    for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]) {
+      expect(press(key).defaultPrevented, key).toBe(false);
+      expect(document.activeElement).toBe(title);
+    }
+  });
+
+  it("starts editing on Enter, on typing and on a click, and Tab ends it", () => {
+    const { title, press } = named();
+    const editing = () => title.classList.contains("dialog-keys__editing");
+    press("Tab");
+    expect(editing()).toBe(false);
+    press("Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(title);
+    expect(editing()).toBe(false);
+    press("Enter");
+    expect(editing()).toBe(true);
+    press("Escape");
+    title.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(editing()).toBe(true);
+    press("Escape");
+    title.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(editing()).toBe(true);
+  });
+
+  it("does not confirm on the Enter that starts editing", () => {
+    const { press, onCreate } = named();
+    press("Escape");
+    press("Enter");
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses Escape to end editing first, and only then lets it cancel", () => {
+    const { modal, title, press } = dialog();
+    const first = press("Escape");
+    expect(first.defaultPrevented).toBe(true);
+    expect(title.classList.contains("dialog-keys__editing")).toBe(false);
+    // Even a webview that fires `cancel` anyway does not close the dialog.
+    const stray = new Event("cancel", { cancelable: true });
+    modal.dispatchEvent(stray);
+    expect(stray.defaultPrevented).toBe(true);
+    expect(press("Escape").defaultPrevented).toBe(false);
+    const cancel = new Event("cancel", { cancelable: true });
+    modal.dispatchEvent(cancel);
+    expect(cancel.defaultPrevented).toBe(false);
+  });
+
+  it("confirms from the title being edited, and only with a name", async () => {
+    const { press, type_, onCreate, onClose } = dialog();
+    press("Enter");
+    expect(onCreate).not.toHaveBeenCalled();
+    type_("Big Fish");
+    press("Enter");
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+  });
+
+  it("activates the focused button on Enter", async () => {
+    const first = named();
+    first.create.focus();
+    first.press("Enter");
+    await vi.waitFor(() => expect(first.onCreate).toHaveBeenCalledTimes(1));
+    const second = named();
+    second.cancel.focus();
+    second.press("Enter");
+    expect(second.onClose).toHaveBeenCalled();
+    expect(second.onCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("the project type drop-down", () => {
+  const opened = () => {
+    const shown = dialog();
+    shown.type.focus();
+    shown.press("Enter");
+    return shown;
+  };
+  const isOpen = ({ type, tray }: { type: HTMLElement; tray: HTMLElement }) => {
+    expect(type.getAttribute("aria-expanded")).toBe(String(!tray.hidden));
+    return !tray.hidden;
+  };
+
+  it("is a combobox over a listbox, in the right-click menu's look", () => {
+    const { type, tray } = dialog();
+    expect(type.getAttribute("role")).toBe("combobox");
+    expect(type.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(type.getAttribute("aria-controls")).toBe(tray.id);
+    expect(tray.classList.contains("drop-menu--context")).toBe(true);
+    const option = tray.querySelector("[role=option]")!;
+    expect(option.classList.contains("drop-menu__item")).toBe(true);
+    expect(option.getAttribute("aria-selected")).toBe("true");
+    expect(type.hasAttribute("title")).toBe(false);
+  });
+
+  it.each(["Enter", " "])("opens on %j, and the arrows pass over it while it is closed", (key) => {
+    const shown = dialog();
+    shown.type.focus();
+    shown.press("ArrowDown");
+    expect(document.activeElement).toBe(shown.title);
+    shown.type.focus();
+    shown.press(key);
+    expect(isOpen(shown)).toBe(true);
+    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.tray.firstElementChild!.id);
+  });
+
+  it("names the highlighted row every time it opens, and no row while closed", () => {
+    const shown = opened();
+    shown.press("Escape");
+    expect(shown.type.hasAttribute("aria-activedescendant")).toBe(false);
+    shown.press("Enter");
+    expect(shown.type.getAttribute("aria-activedescendant")).toBe(shown.tray.firstElementChild!.id);
+  });
+
+  it("keeps the arrows in the list while open", () => {
+    const shown = opened();
+    for (const key of ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"]) {
+      expect(shown.press(key).defaultPrevented, key).toBe(true);
+      expect(document.activeElement).toBe(shown.type);
+    }
+    expect(isOpen(shown)).toBe(true);
+  });
+
+  it("closes on Escape, keeping focus and keeping the dialog", () => {
+    const shown = opened();
+    expect(shown.press("Escape").defaultPrevented).toBe(true);
+    expect(isOpen(shown)).toBe(false);
+    expect(document.activeElement).toBe(shown.type);
+    const stray = new Event("cancel", { cancelable: true });
+    shown.modal.dispatchEvent(stray);
+    expect(stray.defaultPrevented).toBe(true);
+    expect(shown.press("Escape").defaultPrevented).toBe(false);
+  });
+
+  it("picks on Enter without confirming, and Screenplay is what gets made", async () => {
+    const shown = opened();
+    shown.type_("Big Fish");
+    shown.press("Enter");
+    expect(isOpen(shown)).toBe(false);
+    expect(shown.onCreate).not.toHaveBeenCalled();
+    shown.submit();
+    await vi.waitFor(() => expect(shown.onClose).toHaveBeenCalled());
+    expect(shown.onCreate).toHaveBeenCalledWith({ type: "Screenplay", title: "Big Fish" });
+  });
+
+  it("opens and picks with the mouse", () => {
+    const shown = dialog();
+    shown.type.click();
+    expect(isOpen(shown)).toBe(true);
+    (shown.tray.firstElementChild as HTMLElement).click();
+    expect(isOpen(shown)).toBe(false);
+    expect(shown.type.textContent).toBe("Screenplay");
+  });
+
+  it("closes on Tab and moves on", () => {
+    const shown = opened();
+    shown.press("Tab");
+    expect(isOpen(shown)).toBe(false);
+    expect(document.activeElement).toBe(shown.title);
+  });
+
+  it("hangs below the field, or above it when there is no room, inside the window", () => {
+    const field = { top: 100, bottom: 136 };
+    expect(placeTray(field, 40, 6, 600)).toBe(136);
+    expect(placeTray({ top: 500, bottom: 536 }, 100, 6, 600)).toBe(388);
+    expect(placeTray({ top: 20, bottom: 56 }, 580, 6, 600)).toBe(8);
   });
 });
 

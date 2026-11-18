@@ -104,7 +104,8 @@
   color: inherit;
 }
 
-.menu--home .gesture__cursor {
+.menu--home .gesture__cursor,
+.dialog-action .gesture__cursor {
   position: absolute;
   left: var(--space-tight);
 }
@@ -125,10 +126,15 @@
   visibility: hidden;
 }
 
-/* The selected row: the first, until the eye or the keyboard is on another. */
+/*
+ * The selected row: the first, until the eye or the keyboard is on another. A
+ * dialog's button under the pointer or holding focus is lit by the same rule.
+ */
 .menu--home .gesture--selected,
 .menu--home .gesture--selected:hover,
-.menu--home .gesture--selected:focus-visible {
+.menu--home .gesture--selected:focus-visible,
+.dialog-action:hover:not(:disabled),
+.dialog-action:focus:not(:disabled) {
   background: var(--colour-overlay);
   color: var(--colour-accent);
 }
@@ -139,7 +145,9 @@
 
 .menu--home .gesture--selected .gesture__cursor,
 .menu--home .gesture--selected:hover .gesture__cursor,
-.menu--home .gesture--selected:focus-visible .gesture__cursor {
+.menu--home .gesture--selected:focus-visible .gesture__cursor,
+.dialog-action:hover:not(:disabled) .gesture__cursor,
+.dialog-action:focus:not(:disabled) .gesture__cursor {
   visibility: visible;
 }
 
@@ -282,6 +290,67 @@
 .new-project-dialog__action:disabled {
   color: var(--colour-faint);
   cursor: default;
+}
+
+/* --- The shared dialog pieces (`dialog-action.ts`, `dialog-select.ts`, `dialog-keys.ts`) --- */
+
+.dialog-action:focus,
+.dialog-keys:focus {
+  outline: none;
+}
+
+/* The keys moved focus while the pointer rests on the other button: one is lit. */
+.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) {
+  background: transparent;
+  color: var(--colour-muted);
+}
+
+.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) .gesture__cursor {
+  visibility: hidden;
+}
+
+/* A field the keys are on but that is not being typed in: gold edge, no caret. */
+.dialog-keys .new-project-dialog__input:focus:not(.dialog-keys__editing) {
+  border-color: var(--colour-accent);
+  caret-color: transparent;
+}
+
+.dialog-select {
+  /* The box's right end is the chevron's. */
+  padding-right: calc(var(--space-panel) * 2 + var(--size-icon));
+  text-align: left;
+  cursor: default;
+}
+
+/* The right-click menu's surface, under the field and as wide as it. */
+.drop-menu.dialog-select__tray {
+  width: calc(var(--menu-width, 0) * var(--size-pixel));
+  margin: var(--space-tight) 0;
+  max-height: calc(100% - var(--space-tight) * 2);
+}
+
+.dialog-select__option {
+  position: relative;
+}
+
+.dialog-select__option .gesture__cursor {
+  position: absolute;
+  left: var(--space-hair);
+}
+
+/* One row is lit: the keys' or the pointer's, whichever moved last. */
+.dialog-select__tray .dialog-select__option:hover:not(.dialog-select__option--active) {
+  background: none;
+  color: inherit;
+}
+
+.dialog-select__tray .dialog-select__option--active {
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
+
+.dialog-select__option--active .gesture__cursor {
+  visibility: visible;
 }
 
 /* An empty problem line must not add a gap of its own. */

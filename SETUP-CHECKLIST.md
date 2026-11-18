@@ -227,6 +227,10 @@ The open project can be renamed too, from **File ▸ Rename Project…** or the 
 project name pill: the same dialog and the same rename. The move waits its turn between saves, and
 the Editor stays up and writes to the new folder from then on.
 
+**New Project** is the pattern for the other dialogs: buttons lit as Home's selected row is, a
+drawn drop-down with a right-click-menu tray, and the whole dialog walkable by keyboard, from three
+shared pieces (`dialogAction`, `dialogSelect`, `dialogKeys`). No other dialog uses them yet.
+
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 
 Opening a project from the list shows its manuscript. The **Editor** is a workspace declared
