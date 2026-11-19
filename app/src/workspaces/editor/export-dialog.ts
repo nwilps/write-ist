@@ -89,7 +89,10 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
     element("div", { className: "drop-menu__divider", role: "separator" }),
     field("Pages", pageChoice.control, [chevron(), pageChoice.tray]),
     range,
+    // Empty, it is not drawn, so nothing opens up under the range.
     problem,
+    // The same separator again, closing the range off from the buttons.
+    element("div", { className: "drop-menu__divider", role: "separator" }),
     element("div", { className: "new-project-dialog__actions" }, [cancel, confirm]),
   ]);
   // No heading, as New Project has none; the dialog is still named for a screen reader.

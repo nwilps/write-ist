@@ -1,6 +1,7 @@
 /*
  * The Export As dialog. `.new-project-dialog` and its parts dress it, the
- * right-click menu's `.drop-menu__divider` sits under File Type, and Goals'
+ * right-click menu's `.drop-menu__divider` sits under File Type and again over
+ * the buttons, and Goals'
  * dim arrow joins From and To. This is what New Project has no need of: the
  * From → To row, and the controls dimmed when they do not apply.
  */
@@ -15,6 +16,11 @@
 .export-as__range .new-project-dialog__box {
   flex: 1;
   min-width: 0;
+}
+
+/* The divider over the buttons is spaced as the one under File Type: the form's gap either side, no more. */
+.export-as .drop-menu__divider + .new-project-dialog__actions {
+  margin-block-start: 0;
 }
 
 /* The webview's white stepper is no part of this look; the arrow keys still step. */

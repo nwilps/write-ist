@@ -142,6 +142,13 @@ describe("the Export As dialog", () => {
     expect(divider.className).toBe("drop-menu__divider");
     expect(divider.getAttribute("role")).toBe("separator");
     expect(divider.nextElementSibling).toBe(q("#export-pages").closest(".new-project-dialog__field"));
+    // The same separator again, below From → To and straight above Cancel and Export.
+    const actions = q(".new-project-dialog__actions");
+    const closing = actions.previousElementSibling!;
+    expect(closing.outerHTML).toBe(divider.outerHTML);
+    expect(closing.previousElementSibling!.className).toBe("new-project__problem");
+    expect(closing.previousElementSibling!.previousElementSibling).toBe(q(".export-as__range"));
+    expect(q(".new-project-dialog__form").querySelectorAll(".drop-menu__divider")).toHaveLength(2);
     const row = q(".export-as__range");
     expect([...row.children].map((child) => child.textContent)).toEqual(["From", "", "→", "To", ""]);
     expect(row.children[1]!.contains(q("#export-from"))).toBe(true);
