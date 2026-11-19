@@ -14,8 +14,8 @@
 
 .desk {
   display: grid;
-  /* The paper as drawn, zoomed or not (`--paper-zoom`), so the window scrolls
-     sideways exactly as far as the sheet reaches. */
+  /* The paper as drawn, zoomed or not (`--paper-zoom`), centred in the window,
+     which never scrolls sideways (`.shell__view`). */
   grid-template-columns: 0 calc(var(--page-width) * var(--paper-zoom)) 0;
   justify-content: center;
   /* Fills the workspace, so the paper runs to the foot of the window. */

@@ -187,14 +187,14 @@ describe("in the Editor", () => {
     temporary.remove();
   });
 
-  /** The Editor on Brick & Steel, inside a scroller the size of the first window. */
-  async function editor(statuses: string[] = []) {
+  /** The Editor on Brick & Steel, inside a scroller the size of the first window, scrolling as `.shell__view` does. */
+  async function editor(statuses: string[] = [], caret = { x: 400, y: 1000 }) {
     const scroller = document.createElement("main");
-    scroller.style.overflow = "auto";
+    scroller.style.overflowX = "hidden";
     scroller.style.overflowY = "auto";
     const window = modelWindow(scroller, size);
     // jsdom measures no text: the caret is put somewhere on the paper, and a test may move it.
-    vi.spyOn(EditorView.prototype, "coordsAtPos").mockImplementation(window.caretAt(400, 1000) as never);
+    vi.spyOn(EditorView.prototype, "coordsAtPos").mockImplementation(window.caretAt(caret.x, caret.y) as never);
     const into = document.createElement("div");
     scroller.append(into);
     document.body.append(scroller);
@@ -372,6 +372,43 @@ describe("in the Editor", () => {
     await mounted.unmount();
   });
 
+  it("never scrolls the paper sideways, at 100% or the largest level, and still scrolls it up and down", async () => {
+    const { mounted, scroller, window } = await editor();
+    const centred = (): number => window.paper().left + window.paper().width / 2 - size.width / 2;
+    /** Something moves the window (a wheel, a key, the webview showing the caret), and says so. */
+    const moved = (to: { left?: number; top?: number }): void => {
+      window.scroll(to);
+      scroller.dispatchEvent(new Event("scroll"));
+    };
+    for (const [level, scale] of [[2, "1.0000"], [4, "1.3186"]] as const) {
+      while (paperZoomLevel() < level) press("=", { ctrlKey: true });
+      expect(drawn()).toBe(scale);
+      for (const left of [240, -240, 1]) {
+        moved({ left });
+        expect(scroller.scrollLeft, `${left} at ${scale}`).toBeCloseTo(0);
+        expect(centred(), `${left} at ${scale}`).toBeCloseTo(0);
+      }
+      moved({ top: 900 });
+      expect(scroller.scrollTop, `down at ${scale}`).toBe(900);
+      moved({ top: 300, left: 120 });
+      expect([scroller.scrollTop, Math.abs(centred()) < 0.01], `up and across at ${scale}`).toEqual([300, true]);
+    }
+    await mounted.unmount();
+    // Gone, the Editor no longer holds a window it is not in.
+    moved({ left: 50 });
+    expect(scroller.scrollLeft).toBe(50);
+  });
+
+  it("does not scroll across to a caret past the window's side on a window narrower than the paper", async () => {
+    // The smallest window, 560px, and the caret 780px across the 816px sheet: past the window's right edge.
+    size.width = 560;
+    const { mounted, scroller, window } = await editor([], { x: 780, y: 300 });
+    expect(drawn()).toBe("1.0000");
+    expect(scroller.scrollLeft).toBe(0);
+    expect(window.paper().left + window.paper().width / 2).toBeCloseTo(280);
+    await mounted.unmount();
+  });
+
   it("keeps the caret's line where it was in the window as the paper grows and shrinks", async () => {
     const { mounted, window } = await editor();
     const caret = window.caretAt(500, 1800);
@@ -386,7 +423,7 @@ describe("in the Editor", () => {
   });
 
   it("at the largest level leaves the panels on the desk, past the window's edges, and Alt+F still opens File", async () => {
-    const { into, mounted } = await editor();
+    const { into, mounted, scroller, window } = await editor();
     press("=", { ctrlKey: true });
     press("=", { ctrlKey: true });
     expect(paperZoomLevel()).toBe(4);
@@ -399,6 +436,10 @@ describe("in the Editor", () => {
     const file = into.querySelector<HTMLElement>('[role="menu"][aria-label="File"]')!;
     expect(file.hidden).toBe(false);
     expect(into.querySelector(".desk__column--left")!.contains(file)).toBe(true);
+    // The webview scrolling across to show the focused item is put back, and the menu stays open.
+    window.scroll({ left: -300 });
+    scroller.dispatchEvent(new Event("scroll"));
+    expect([scroller.scrollLeft, file.hidden]).toEqual([0, false]);
     press("Escape");
     press("0", { ctrlKey: true });
     expect(into.querySelectorAll(".desk > .desk__column")).toHaveLength(2);

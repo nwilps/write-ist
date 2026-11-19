@@ -407,6 +407,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
   drawZoom();
   window.addEventListener("resize", redrawZoom);
+  // The paper never scrolls sideways (`centrePaper`): whatever moved the window
+  // across, it goes straight back. A scroll does not bubble, so it is heard on
+  // the way down, from whichever window the paper is in.
+  const holdCentred = (event: Event): void => {
+    const scroller = scrollerOf(page);
+    if (scroller !== undefined && event.target === scroller) centrePaper(page, scroller);
+  };
+  document.addEventListener("scroll", holdCentred, true);
 
   void (async () => {
     try {
@@ -546,6 +554,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         contextMenu?.close(false);
         panels.dispose();
         window.removeEventListener("resize", redrawZoom);
+        document.removeEventListener("scroll", holdCentred, true);
         drawPaperZoom(root, 1);
         return true;
       }
@@ -557,6 +566,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       gone = true;
       clearTimeout(placeRest);
       window.removeEventListener("resize", redrawZoom);
+      document.removeEventListener("scroll", holdCentred, true);
       clearInterval(goalClock);
       stopListeningForGoals();
       stopListeningForRename();

@@ -110,14 +110,8 @@ export function scrollCaretIntoView(view: EditorView): boolean {
     threshold.top,
     margin.top,
   );
-  const across = scrollFor(
-    { start: caret.left, end: caret.right },
-    { start: box.left, end: box.left + scroller.clientWidth },
-    threshold.left,
-    margin.left,
-  );
+  // Up and down only: the paper never scrolls sideways (`centrePaper`).
   if (down !== 0) scroller.scrollTop += down;
-  if (across !== 0) scroller.scrollLeft += across;
   return true;
 }
 
@@ -172,6 +166,12 @@ export function holdCaretWhile(view: EditorView, change: () => void): void {
  * window cannot scroll that far, it scrolls as far as it can, which is the
  * same thing: the desk centres the paper itself, so this undoes any sideways
  * scroll there was.
+ *
+ * **This is the only sideways scroll there is.** The writer cannot scroll the
+ * paper across at any zoom (Noah, #157): the stylesheet gives the wheel, the
+ * trackpad and the keys nothing to move, and the Editor calls this again on
+ * every scroll, so whatever else moves it across (the webview showing the
+ * caret or a focused menu item) is put straight back.
  */
 export function centrePaper(paper: HTMLElement, scroller: HTMLElement): void {
   const sheet = paper.getBoundingClientRect();
