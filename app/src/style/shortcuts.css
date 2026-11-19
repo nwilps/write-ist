@@ -3,7 +3,7 @@
  * with a wider margin than the other dialogs, since it is read rather than
  * filled in. This is what New Project has no need of: two columns of rows, each
  * a name and its key, split by the right-click menu's divider stood on end, and
- * Tab Order drawn as a loop under Writing. One page, nothing scrolled, in the
+ * the Tab order drawn as a loop under Writing. One page, nothing scrolled, in the
  * app's own window.
  */
 
@@ -92,16 +92,15 @@
 
 /* --- Tab Order: its own section, to keep or drop whole --- */
 
-/* Spaced from the rows above as one group is from the next, its label over its rows as a group's is. */
+/*
+ * Spaced from Writing's rows by one blank row: the group's own gap and this
+ * margin make 24px. No heading: Next and Previous are rows like the rest, one
+ * straight after the other, and the loop is one blank row below them.
+ */
 .shortcuts-tab-order {
   display: grid;
-  gap: var(--space-tight);
+  gap: var(--space-loose);
   margin-block-start: calc(var(--space-loose) - var(--space-tight));
-}
-
-/* Next and Previous: one pair, with a little air between, less than between one group and the next. */
-.shortcuts-tab-order__keys .shortcuts__row + .shortcuts__row {
-  margin-block-start: var(--space-shortcuts-pair);
 }
 
 /* Previous's "(reverse)": a quiet aside, in the dim of the keys. */
@@ -109,13 +108,9 @@
   color: var(--colour-faint);
 }
 
-/*
- * The loop: as wide as its longest name, with room either side for the
- * arrows, and set off from the keys above as one group is from the next.
- */
+/* The loop: as wide as its longest name, with room either side for the arrows. */
 .shortcuts-loop {
   position: relative;
-  margin-block-start: calc(var(--space-loose) - var(--space-tight));
   width: max-content;
   padding-inline: var(--space-roomy);
 }

@@ -7,10 +7,10 @@
  * nothing is listed that the table does not answer, so this list and the keys
  * cannot drift apart.
  *
- * Under Writing, Tab Order: a row each for Tab and Shift+Tab, then the loop they
- * step a line's element type round, read from the screenplay surface's own
- * `TAB_CYCLE`. It is its own
- * section and its own helper, so it can be taken out whole.
+ * Under Writing, with no heading of its own, the Tab order: a row each for Tab
+ * and Shift+Tab, then the loop they step a line's element type round, read from
+ * the screenplay surface's own `TAB_CYCLE`. It is its own section and its own
+ * helper, so it can be taken out whole.
  *
  * New Project's dialog, built from its pieces, its shared button and keys among
  * them: a modal `<dialog>` with no heading, Escape closes it natively, and it
@@ -96,7 +96,7 @@ const arrow = (className: string, head: string): HTMLElement =>
   element("span", { className, ariaHidden: "true" }, [drawn(head)]);
 
 /**
- * Tab Order: the element types top to bottom, drawn as a loop. On the right, a
+ * The Tab order: the element types top to bottom, drawn as a loop. On the right, a
  * short arrow of its own for each step, out of one name and into the next,
  * with a gap before the next arrow starts. On the left, one long arrow out of
  * the last and back into the first. A section of its own, so dropping it is
@@ -112,8 +112,7 @@ function drawTabOrder(): HTMLElement {
     ]),
   );
   return element("section", { className: "shortcuts-tab-order" }, [
-    element("h3", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab Order" }),
-    // The two keys first, as rows like the rest, a pair with a little air between them. Not commands: Tab and
+    // The two keys first, as rows like the rest, one straight after the other. Not commands: Tab and
     // Shift+Tab are the surface's own, so they are written here and not in the table.
     element("ul", { className: "shortcuts__rows shortcuts-tab-order__keys" }, [
       element("li", { className: "shortcuts__row" }, [element("span", { textContent: "Next element" }), keyHint("[Tab]")]),
