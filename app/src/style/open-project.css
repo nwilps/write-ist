@@ -75,8 +75,10 @@
  * standard property for Chromium (WebView2) and current WebKit, the
  * `::-webkit-scrollbar` one for the WebKit that predates it (Noah, after
  * testing). The wheel, the trackpad and the arrows scroll it as before; the
- * chevrons below say when there is more. Only this list and a dialog's
- * drop-down (`.dialog-select__list`) go without a scrollbar.
+ * chevrons below say when there is more. No scroller in the application draws
+ * a bar now (`app.css` hides them all); this list and a dialog's drop-down
+ * (`.dialog-select__list`) keep their own rules too, and are the two with
+ * chevrons.
  */
 .projects-window {
   position: relative;
