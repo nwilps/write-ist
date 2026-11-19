@@ -27,6 +27,9 @@ immediately**, applying [ADR-0020](0020-what-write-ist-may-change-in-a-writers-f
 normalisations, at the moment the import report is shown. The report is the writer being told:
 *this is imported; here is what was adjusted so it can be edited here; dismiss when satisfied.*
 
+> **Amended 2026-11-18.** No report is shown after an import any more (see ADR-0020's note). The
+> Import dialog closes when the project is saved, and says any failure inside itself.
+
 **The forcing reason is the writer who imports and leaves.** Someone may bring a script into
 Write-ist to have it there, without time to edit it yet. If they come back and find it was never
 saved, the import was broken as far as they are concerned — whatever the reasoning behind the

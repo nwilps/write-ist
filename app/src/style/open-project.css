@@ -231,9 +231,11 @@
 
 /* --- The foot ------------------------------------------------------------ */
 
+/* Each button keeps room for the `>` at both ends; the gap gives it back, so the labels stay as far apart. */
 .menu--foot {
   flex-wrap: nowrap;
-  gap: var(--space-foot-gap);
+  gap: calc(var(--space-foot-gap) - var(--space-dialog-arrow) * 2);
+  font-size: var(--size-label);
   margin-top: var(--space-open-project-foot);
   padding-top: 0;
   border-top: none;
@@ -241,8 +243,10 @@
 
 .menu--foot .gesture {
   position: relative;
+  align-items: center;
   gap: var(--space-tight);
-  padding: 0;
+  height: var(--size-row);
+  padding: 0 var(--space-dialog-arrow);
   border: none;
   border-radius: 0;
   background: transparent;
@@ -250,15 +254,6 @@
   line-height: var(--leading-tight);
   color: var(--colour-muted);
   white-space: nowrap;
-}
-
-/*
- * Home's `>`, just before the label, in the room between the labels: laid
- * over it, so showing it moves nothing.
- */
-.menu--foot .gesture__cursor {
-  position: absolute;
-  right: calc(100% + var(--space-tight));
 }
 
 .menu--foot .gesture__label {
@@ -274,7 +269,8 @@
  * One highlight on the screen, as on Home: the generic hover and focus looks
  * in app.css would light a second thing (the foot button the pointer is on as
  * well as the lit row), so they are reset here, and the foot button lit is
- * the one `oneHighlight` gives the highlight to — never also a row.
+ * the one `oneHighlight` gives the highlight to — never also a row. Its gold,
+ * highlight and `>` are Home's, from the shared rules in `home.css`.
  */
 .menu--foot .gesture:hover,
 .menu--foot .gesture:focus-visible {
@@ -287,20 +283,8 @@
   visibility: hidden;
 }
 
-.menu--foot .gesture--selected,
-.menu--foot .gesture--selected:hover,
-.menu--foot .gesture--selected:focus-visible {
-  color: var(--colour-text);
-}
-
 .menu--foot .gesture:focus-visible {
   outline: none;
-}
-
-.menu--foot .gesture--selected .gesture__cursor,
-.menu--foot .gesture--selected:hover .gesture__cursor,
-.menu--foot .gesture--selected:focus-visible .gesture__cursor {
-  visibility: visible;
 }
 
 /* --- The search, centred on this screen ----------------------------------- */
@@ -312,28 +296,20 @@
 
 /* --- Delete Project, said before it is done ----------------------------- */
 
-/*
- * The New Project dialog's look (`home.css`); only the words are new. The
- * deleted folder's path stands out, because it is where the project will be.
- */
+/* The New Project dialog's look (`home.css`); only the words are new. */
 .project-dialog__message {
   display: grid;
   gap: var(--space-tight);
 }
 
-.project-dialog__line,
-.project-dialog__path {
+.project-dialog__line {
   margin: 0;
   font-size: var(--size-label);
   line-height: var(--leading-body);
   color: var(--colour-muted);
+  overflow-wrap: anywhere;
 }
 
 .project-dialog__line--lead {
   color: var(--colour-text);
-}
-
-.project-dialog__path {
-  color: var(--colour-accent);
-  overflow-wrap: anywhere;
 }

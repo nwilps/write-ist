@@ -27,8 +27,8 @@
 export const FORMAT_VERSION = "1";
 
 /**
- * The formats a project can be, all on the screenplay surface. An import is
- * always a Feature (#38); New Project offers each of them.
+ * The formats a project can be, all on the screenplay surface. New Project and
+ * Import offer each of them.
  */
 export const FORMATS = ["Feature", "Episode", "Short Film"] as const;
 export type ProjectFormat = (typeof FORMATS)[number];

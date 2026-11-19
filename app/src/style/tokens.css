@@ -363,6 +363,8 @@
   /** A menu row on the home screen, and each button slot in the dialog. */
   --measure-home-row: 240px;
   --measure-dialog-slot: 180px;
+  /** Kept clear at each end of a dialog's button: the `>`, with a gap either side. */
+  --space-dialog-arrow: calc(var(--space-tight) * 2 + 1ch);
   /** Row to row on the home screen: a 24px row and 10px between. */
   --space-home-row: var(--space-snug);
   /** The space between the home screen's pieces: logo, tagline, rule, menu. */

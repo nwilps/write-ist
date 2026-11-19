@@ -32,12 +32,15 @@ export const GOALS_FILE = "goals.md";
 
 /**
  * Where a deleted project goes: a folder of this name in the default location,
- * `~/Documents/write-ist/Deleted Projects/` (`delete.ts`). It holds whole
- * bundles, moved and never changed, so bringing one back is moving its folder
- * back out. It has no `project.md` of its own, so the projects list passes over
- * it, and `folderNameFor` never gives a project its name.
+ * `~/Documents/write-ist/Graveyard/` (`delete.ts`). It holds whole bundles,
+ * moved and never changed, so bringing one back is moving its folder back out.
+ * It has no `project.md` of its own, so the projects list passes over it, and
+ * `folderNameFor` never gives a project its name.
  */
-export const DELETED_FOLDER = "Deleted Projects";
+export const GRAVEYARD_FOLDER = "Graveyard";
+
+/** What the Graveyard used to be called; one still on disk is moved into it. */
+export const FORMER_GRAVEYARD_FOLDER = "Deleted Projects";
 
 /** A project as the application holds it: where it is, and what it says it is. */
 export interface Project {
@@ -75,15 +78,25 @@ const MAX_LENGTH = 80;
  */
 export function folderNameFor(projectName: string, taken: ReadonlySet<string>): string {
   const base = cleanFolderName(projectName);
-  // The deleted folder's name is never a project's, so a project can never be
+  // The Graveyard's name is never a project's, so a project can never be
   // mistaken for it, nor it for a project.
-  const lowercased = new Set([...taken, DELETED_FOLDER].map((name) => name.toLowerCase()));
+  const lowercased = new Set([...taken, GRAVEYARD_FOLDER].map((name) => name.toLowerCase()));
 
   if (!lowercased.has(base.toLowerCase())) return base;
   for (let suffix = 2; ; suffix++) {
     const candidate = `${base} ${suffix}`;
     if (!lowercased.has(candidate.toLowerCase())) return candidate;
   }
+}
+
+/** Why the writer may not call a project this, in their words; undefined when they may. */
+export function refusedProjectName(name: string): string | undefined {
+  // A folder whose name starts with a dot is hidden, and the list never shows one.
+  if (name.startsWith(".")) return "A name that starts with a dot would hide the project. Choose another name.";
+  if (name.toLowerCase() === GRAVEYARD_FOLDER.toLowerCase()) {
+    return `“${GRAVEYARD_FOLDER}” is where deleted projects go. Choose another name.`;
+  }
+  return undefined;
 }
 
 /**

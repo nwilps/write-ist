@@ -96,6 +96,8 @@ byte-identical. That is invisible to the writer and is not a product constraint.
   *"Loudly" means the import report says so, never that the file refuses to open* — Write-ist
   never refuses to open a writer's file (ADR-0020). The dangling delimiter stays in the element
   as the characters the writer has, which is also how the writer sees that something is off.
+  *Amended 2026-11-18:* the import report is no longer shown (ADR-0020's note), so that retained
+  text is now the only sign.
 - **A comment is written once around everything it covers, across lines if the writer selected
   across lines, and is held once in the model.** Added 2026-09-18. One comment has one id and one
   remark, so it cannot be split per line the way a mark is

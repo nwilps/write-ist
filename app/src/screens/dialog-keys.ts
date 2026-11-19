@@ -12,7 +12,8 @@
  *
  * **A control that uses a key says so with `preventDefault`** and is left alone,
  * which is how an open `dialogSelect` keeps the arrows and Escape. Escape that
- * nobody used is the `<dialog>`'s own, and cancels it.
+ * nobody used is the `<dialog>`'s own, and cancels it. Enter that nobody used
+ * confirms the dialog (`enterSubmits`).
  */
 
 export interface DialogKeys {
@@ -99,7 +100,8 @@ export function dialogKeys(modal: HTMLDialogElement, rows: readonly (readonly HT
         setEditing(target);
       } else if (target instanceof HTMLButtonElement) {
         event.preventDefault();
-        target.click();
+        // Not a held key: Enter still down from a file picker must not press Confirm.
+        if (!event.repeat) target.click();
       }
       return;
     }
@@ -138,4 +140,18 @@ export function dialogKeys(modal: HTMLDialogElement, rows: readonly (readonly HT
       setEditing(field);
     },
   };
+}
+
+/**
+ * Enter confirms from the field being edited. Everywhere else it has already
+ * been used: to start editing, to press a button, or by a drop-down. Call this
+ * after `dialogKeys`, so that it hears what was used.
+ */
+export function enterSubmits(modal: HTMLDialogElement, form: HTMLFormElement): void {
+  modal.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.defaultPrevented) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    form.requestSubmit();
+  });
 }

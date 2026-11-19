@@ -68,7 +68,8 @@ Everything below is in the app now.
 
 **Getting scripts in and out**
 
-- **Import a Fountain file** to start a project from a script you already have.
+- **Import a Fountain file** from Open Project to start a project from a script you already
+  have. Pick its type and file, and the project takes the file's name.
 - **File ▸ Export As** puts every way out in one dialog:
   - **PDF**, laid out to industry format, with your title page in front. Export all pages or
     a range. A range keeps its printed page numbers, and the title page comes along when the
@@ -81,7 +82,7 @@ Everything below is in the app now.
 - A **Home** screen and an **Open Project** screen listing your projects.
 - **Rename** or **delete** a project from its right-click menu on Open Project. You can also rename
   the project you have open, with File ▸ Rename Project or by right-clicking its name at the bottom
-  left of the Editor. Deleting is recoverable: the project is moved to a `Deleted Projects` folder,
+  left of the Editor. Deleting is recoverable: the project is moved to a `Graveyard` folder,
   never erased, and moving it back restores it.
 
 ## Use cases

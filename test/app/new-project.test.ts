@@ -255,6 +255,18 @@ describe("the New Project buttons, lit like Home's selected row", () => {
     expect(rest).toContain("color: var(--colour-muted)");
   });
 
+  it("keeps every dialog button's words clear of its arrow, and lets a long label grow", () => {
+    const rest = ruleWith(".new-project-dialog__action");
+    expect(rest).toContain("padding: 0 var(--space-dialog-arrow)");
+    expect(rest).toContain("min-width: var(--measure-dialog-slot)");
+    expect(rest).toContain("width: max-content");
+    // The room is the arrow's own offset, its width, and the same gap again.
+    expect(ruleWith(".dialog-action .gesture__cursor")).toContain("left: var(--space-tight)");
+    expect(readFileSync("app/src/style/tokens.css", "utf8")).toContain(
+      "--space-dialog-arrow: calc(var(--space-tight) * 2 + 1ch);",
+    );
+  });
+
   it("lights hover and focus with the very rule that lights Home's selected row", () => {
     const lit = ruleWith(".menu--home .gesture--selected");
     expect(lit).toContain("background: var(--colour-overlay)");
@@ -278,8 +290,9 @@ describe("the New Project buttons, lit like Home's selected row", () => {
     expect(document.activeElement).toBe(create);
   });
 
-  it("leaves the permanently lit Confirm to the dialogs not yet moved over", () => {
-    expect(ruleWith(".new-project-dialog__action--confirm")).toContain("color: var(--colour-accent)");
+  it("has no permanently lit Confirm left, now every simple dialog is moved over", () => {
+    expect(home).not.toContain("new-project-dialog__action--confirm");
+    expect(home).not.toContain("new-project-dialog__cursor");
   });
 });
 

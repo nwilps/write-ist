@@ -1,5 +1,5 @@
 //! Moving a project's folder: renaming a project, and deleting one, which is
-//! moving it into `Deleted Projects` (`src/project/rename.ts`,
+//! moving it into the `Graveyard` (`src/project/rename.ts`,
 //! `src/project/delete.ts`).
 //!
 //! Its own module, with nothing from Tauri in it, so that the one piece of the
@@ -35,13 +35,7 @@ fn refused(why: String) -> io::Error {
 /// it fails with `EXDEV`, and that failure is the answer — no copy is made.
 pub fn move_within(root: &Path, from: &Path, to: &Path) -> io::Result<()> {
     for path in [from, to] {
-        if !path.is_absolute()
-            || path
-                .components()
-                .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
-        {
-            return Err(refused(format!("{} is not a plain path", path.display())));
-        }
+        plain(path)?;
     }
     let root = root.canonicalize()?;
 
@@ -78,6 +72,32 @@ pub fn move_within(root: &Path, from: &Path, to: &Path) -> io::Result<()> {
         if let Err(error) = File::open(folder).and_then(|handle| handle.sync_all()) {
             eprintln!("Write-ist moved a folder but could not flush {}: {error}", folder.display());
         }
+    }
+    Ok(())
+}
+
+/// Remove the folder `path`, inside `root`, **only if it is empty**:
+/// `remove_dir` cannot remove a folder with anything in it.
+pub fn remove_empty_within(root: &Path, path: &Path) -> io::Result<()> {
+    plain(path)?;
+    let root = root.canonicalize()?;
+    if !fs::symlink_metadata(path)?.is_dir() {
+        return Err(refused(format!("{} is not a folder", path.display())));
+    }
+    let path = path.canonicalize()?;
+    if path == root || !path.starts_with(&root) {
+        return Err(refused(format!("{} is not inside the projects folder", path.display())));
+    }
+    fs::remove_dir(path)
+}
+
+fn plain(path: &Path) -> io::Result<()> {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
+    {
+        return Err(refused(format!("{} is not a plain path", path.display())));
     }
     Ok(())
 }
@@ -134,8 +154,8 @@ mod tests {
     fn moves_a_project_folder_whole() {
         let folder = Folder::new("move");
         let (root, project) = projects_with(&folder, "Paper Boats");
-        fs::create_dir(root.join("Deleted Projects")).unwrap();
-        let to = root.join("Deleted Projects").join("Paper Boats");
+        fs::create_dir(root.join("Graveyard")).unwrap();
+        let to = root.join("Graveyard").join("Paper Boats");
 
         move_within(&root, &project, &to).unwrap();
 
@@ -200,6 +220,25 @@ mod tests {
         assert!(project.join("manuscript.fountain").exists());
         assert!(elsewhere.is_dir());
         assert!(!folder.0.join("Paper Boats").exists() && !folder.0.join("climbed").exists());
+    }
+
+    #[test]
+    fn removes_only_an_empty_folder_inside_the_projects_folder() {
+        let folder = Folder::new("remove");
+        let (root, project) = projects_with(&folder, "Paper Boats");
+        let empty = root.join("Empty");
+        fs::create_dir(&empty).unwrap();
+        let outside = folder.0.join("Outside");
+        fs::create_dir(&outside).unwrap();
+
+        assert!(remove_empty_within(&root, &project).is_err());
+        assert!(remove_empty_within(&root, &project.join("manuscript.fountain")).is_err());
+        assert!(remove_empty_within(&root, &outside).is_err());
+        assert!(remove_empty_within(&root, &root).is_err());
+        assert!(project.join("manuscript.fountain").exists() && outside.is_dir());
+
+        remove_empty_within(&root, &empty).unwrap();
+        assert!(!empty.exists());
     }
 
     #[test]

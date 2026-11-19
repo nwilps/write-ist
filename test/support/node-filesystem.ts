@@ -129,6 +129,11 @@ export const nodeFilesystem: Filesystem = {
       throw error;
     }
   },
+
+  async removeEmptyFolder(path: string): Promise<void> {
+    // `rmdir`, as `remove_empty_folder` does: it cannot take a folder with anything in it.
+    await rmdir(path);
+  },
 };
 
 /**

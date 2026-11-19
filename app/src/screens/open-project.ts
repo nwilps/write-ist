@@ -62,7 +62,7 @@ export interface OpenProjectScreen {
   readonly onNewProject: () => void;
   /** Rename a project: the right-click menu's first item, for the row pointed at. */
   readonly onRename: (project: Project) => void;
-  /** Move a project to the deleted folder: the menu's second item. */
+  /** Move a project to the Graveyard: the menu's second item. */
   readonly onDelete: (project: Project) => void;
   /** Search the projects: Alt+Enter, and nothing drawn. */
   readonly onSearch: () => void;

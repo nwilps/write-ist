@@ -20,6 +20,13 @@ const style = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "
 const uncommented = (file: string) => readFileSync(join(style, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const css = uncommented("open-project.css");
 const home = uncommented("home.css");
+const homeRuleWith = (selector: string): string => {
+  const found = [...home.matchAll(/([^{}]+)\{([^}]*)\}/g)].find(([, selectors]) =>
+    selectors!.split(",").map((s) => s.trim()).includes(selector),
+  );
+  expect(found, selector).toBeDefined();
+  return found![2]!;
+};
 
 const project = (name: string): Project => ({
   path: `/projects/${name}`,
@@ -167,13 +174,31 @@ describe("Home's `>` on Open Project", () => {
     expect(css).toMatch(/\.project \.gesture__cursor\s*\{[^}]*position:\s*absolute[^}]*left:\s*var\(--space-tight\)/);
     expect(css).toMatch(/\.project__name\s*\{[^}]*padding-left:\s*var\(--space-project-cursor\)/);
     expect(css).toMatch(/\.project\.gesture--selected \.gesture__cursor\s*\{\s*visibility:\s*visible/);
-    // The foot: just before the label, in the gap between labels.
-    expect(css).toMatch(/\.menu--foot \.gesture\s*\{[^}]*position:\s*relative/);
-    expect(css).toMatch(/\.menu--foot \.gesture__cursor\s*\{[^}]*position:\s*absolute[^}]*right:\s*calc\(100% \+ var\(--space-tight\)\)/);
-    expect(css).toMatch(/\.menu--foot \.gesture:hover \.gesture__cursor,\s*\.menu--foot \.gesture:focus-visible \.gesture__cursor\s*\{\s*visibility:\s*hidden/);
-    expect(css).toMatch(/\.menu--foot \.gesture--selected \.gesture__cursor,[^{]*\{\s*visibility:\s*visible/);
     // Hover and focus alone light nothing in the foot: only the one lit.
     expect(css).toMatch(/\.menu--foot \.gesture:hover,\s*\.menu--foot \.gesture:focus-visible\s*\{[^}]*color:\s*var\(--colour-muted\)/);
-    expect(css).not.toMatch(/\.menu--foot \.gesture__cursor\s*\{[^}]*display:\s*none/);
+    expect(css).toMatch(/\.menu--foot \.gesture:hover \.gesture__cursor,\s*\.menu--foot \.gesture:focus-visible \.gesture__cursor\s*\{\s*visibility:\s*hidden/);
+  });
+
+  it("lights a foot button with the very rules that light Home's selected row", () => {
+    const lit = homeRuleWith(".menu--home .gesture--selected");
+    expect(lit).toContain("background: var(--colour-overlay)");
+    expect(lit).toContain("color: var(--colour-accent)");
+    const arrow = homeRuleWith(".menu--home .gesture--selected .gesture__cursor");
+    expect(arrow).toContain("visibility: visible");
+    // Doubled, because open-project.css loads later and its resets would otherwise win.
+    for (const state of ["", ":hover", ":focus-visible"]) {
+      expect(homeRuleWith(`.menu--foot .gesture.gesture--selected${state}`)).toBe(lit);
+      expect(homeRuleWith(`.menu--foot .gesture.gesture--selected${state} .gesture__cursor`)).toBe(arrow);
+    }
+    expect(css).not.toMatch(/\.menu--foot \.gesture--selected/);
+  });
+
+  it("keeps the foot's `>` inside the button, left of the words, with the labels as far apart as before", () => {
+    expect(homeRuleWith(".menu--foot .gesture__cursor")).toBe(homeRuleWith(".menu--home .gesture__cursor"));
+    expect(homeRuleWith(".menu--foot .gesture__cursor")).toContain("left: var(--space-tight)");
+    expect(css).not.toMatch(/\.menu--foot \.gesture__cursor\s*\{/);
+    expect(css).toMatch(/\.menu--foot \.gesture\s*\{[^}]*position:\s*relative/);
+    expect(css).toMatch(/\.menu--foot \.gesture\s*\{[^}]*padding:\s*0 var\(--space-dialog-arrow\)/);
+    expect(css).toMatch(/\.menu--foot\s*\{[^}]*gap:\s*calc\(var\(--space-foot-gap\) - var\(--space-dialog-arrow\) \* 2\)/);
   });
 });

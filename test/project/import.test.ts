@@ -7,12 +7,12 @@
  * marker says, and — the one that matters most — that the file the writer
  * imported from is byte-identical afterwards.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { importProject } from "../../src/project/import.ts";
+import { CannotImport, importProject } from "../../src/project/import.ts";
 import { MANUSCRIPT_FILE, MARKER_FILE } from "../../src/project/bundle.ts";
-import { FORMAT_VERSION } from "../../src/project/marker.ts";
+import { FORMAT_VERSION, parseMarker, type ProjectFormat } from "../../src/project/marker.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { CORPUS_PATH, describeCorpus, readCorpusBytes } from "../support/corpus.ts";
@@ -101,19 +101,40 @@ describe("the bundle an import creates", () => {
 });
 
 describe("the name a project gets", () => {
-  it("comes from the title page's Title", async () => {
+  it("comes from the title page's Title, not the file's name", async () => {
     const imported = await importFrom(fixtureSource("Big-Fish.fountain"));
     expect(imported.project.marker.name).toBe("Big Fish");
+    // The title page itself is the script's, and stays.
+    const manuscript = readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE), "utf8");
+    expect(manuscript.startsWith("Title: Big Fish\n")).toBe(true);
   });
 
-  it("gathers a Title spread over continuation lines, without its marks", async () => {
-    // Brick & Steel writes its title `_**BRICK & STEEL**_` over two indented
-    // lines. The writer's name for it is neither the underscores nor one line.
+  it("joins a title spread over continuation lines, without its marks", async () => {
     const imported = await importFrom(fixtureSource("Brick-&-Steel.fountain"));
     expect(imported.project.marker.name).toBe("BRICK & STEEL FULL RETIRED");
+    expect(imported.bundlePath).toBe(join(projects, "BRICK & STEEL FULL RETIRED"));
   });
 
-  it("falls back to the file name when there is no title page", async () => {
+  it("keeps a title's punctuation in the name, and makes only the folder safe", async () => {
+    const source = sourceFile("draft.fountain", new TextEncoder().encode("title: Paper: Boats\n\nINT. ROOM - DAY\n"));
+    const imported = await importFrom(source);
+    expect(imported.project.marker.name).toBe("Paper: Boats");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats"));
+    expect(parseMarker(readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8"))?.name).toBe("Paper: Boats");
+  });
+
+  it.each([
+    ["is empty", "Title:\nAuthor: Someone\n\nINT. ROOM - DAY\n"],
+    ["leaves no folder name", "Title: ///\n\nINT. ROOM - DAY\n"],
+    ["would hide the folder", "Title: .secret\n\nINT. ROOM - DAY\n"],
+    ["is missing from the title page", "Author: Someone\n\nINT. ROOM - DAY\n"],
+  ])("is the file's name when the Title %s", async (_why, script) => {
+    const imported = await importFrom(sourceFile("The Pilot.fountain", new TextEncoder().encode(script)));
+    expect(imported.project.marker.name).toBe("The Pilot");
+    expect(imported.bundlePath).toBe(join(projects, "The Pilot"));
+  });
+
+  it("is the file's name when there is no title page", async () => {
     const source = sourceFile(
       "The Pilot.fountain",
       new TextEncoder().encode("INT. ROOM - DAY\n\nShe waits.\n"),
@@ -123,14 +144,72 @@ describe("the name a project gets", () => {
     expect(imported.project.marker.name).toBe("The Pilot");
   });
 
-  it("falls back to the file name when the title page has no Title", async () => {
-    const source = sourceFile(
-      "Untitled Draft.fountain",
-      new TextEncoder().encode("Author: Someone\n\nINT. ROOM - DAY\n\nShe waits.\n"),
+  it("loses only the last extension", async () => {
+    const source = sourceFile("Draft.v2.spmd", new TextEncoder().encode("INT. ROOM - DAY\n"));
+    expect((await importFrom(source)).project.marker.name).toBe("Draft.v2");
+  });
+
+  it("reads back from project.md even when the file's name is only spaces", async () => {
+    const imported = await importFrom(sourceFile("   .txt", new TextEncoder().encode("INT. ROOM - DAY\n")));
+    expect(imported.project.marker.name).toBe("Untitled");
+    const marker = readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8");
+    expect(parseMarker(marker)?.name).toBe("Untitled");
+  });
+});
+
+describe("a name the writer typed", () => {
+  const importNamed = (name: string, source = fixtureSource("Big-Fish.fountain")) =>
+    importProject(
+      { filesystem: nodeFilesystem, newProjectId: idsInOrder(A_PROJECT_ID) },
+      { sourcePath: source, projectsDirectory: projects, name },
     );
 
-    const imported = await importFrom(source);
-    expect(imported.project.marker.name).toBe("Untitled Draft");
+  it("names the project and its folder, and leaves the title page alone", async () => {
+    const imported = await importNamed("  Paper \t Boats ");
+    expect(imported.project.marker.name).toBe("Paper Boats");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats"));
+    expect(readFileSync(join(imported.bundlePath, MANUSCRIPT_FILE), "utf8").startsWith("Title: Big Fish\n")).toBe(true);
+  });
+
+  it("is made safe for the disk and numbered when taken, as a new project's title is", async () => {
+    mkdirSync(join(projects, "Paper Boats"), { recursive: true });
+    const imported = await importNamed("Paper/Boats");
+    expect(imported.project.marker.name).toBe("Paper Boats 2");
+    expect(imported.bundlePath).toBe(join(projects, "Paper Boats 2"));
+  });
+
+  it.each(["", "   ", "\t\n"])("falls back to the title page when it is %j", async (blank) => {
+    expect((await importNamed(blank)).project.marker.name).toBe("Big Fish");
+  });
+
+  it("falls back to the file's name when it is blank and the script has no title", async () => {
+    const source = sourceFile("The Pilot.fountain", new TextEncoder().encode("INT. ROOM - DAY\n"));
+    expect((await importNamed(" ", source)).project.marker.name).toBe("The Pilot");
+  });
+
+  it.each([".hidden", "...", "/.hidden", "Graveyard", " graveyard. "])("refuses %j, writing nothing", async (name) => {
+    await expect(importNamed(name)).rejects.toThrow(CannotImport);
+    expect(existsSync(projects)).toBe(false);
+  });
+});
+
+describe("the type a project gets", () => {
+  const script = () => sourceFile("Pilot.fountain", new TextEncoder().encode("INT. ROOM - DAY\n"));
+  const importAs = (format: ProjectFormat) =>
+    importProject(
+      { filesystem: nodeFilesystem, newProjectId: idsInOrder(A_PROJECT_ID) },
+      { sourcePath: script(), projectsDirectory: projects, format },
+    );
+
+  it.each(["Feature", "Episode", "Short Film"] as const)("is written as Format: %s", async (format) => {
+    const imported = await importAs(format);
+    expect(imported.project.marker.format).toBe(format);
+    expect(readFileSync(join(imported.bundlePath, MARKER_FILE), "utf8")).toContain(`Format: ${format}\n`);
+  });
+
+  it("refuses a type that is only coming, writing nothing", async () => {
+    await expect(importAs("Novel" as ProjectFormat)).rejects.toThrow(CannotImport);
+    expect(existsSync(projects)).toBe(false);
   });
 });
 

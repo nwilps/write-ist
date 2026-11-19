@@ -1,7 +1,7 @@
 /**
  * The Open Project screen's right-click menu, and the two dialogs it opens:
  * a menu only on a project row, for the project right-clicked, with Rename
- * Project and Delete Project — and Delete a move to `Deleted Projects`.
+ * Project and Delete Project — and Delete a move to the `Graveyard`.
  *
  * Every project here is made up, in a temporary folder.
  */
@@ -13,7 +13,7 @@ import { renderOpenProject, type OpenProjectScreen } from "../../app/src/screens
 import { showDeleteProject, showRenameProject } from "../../app/src/screens/project-dialogs.ts";
 import { answerKey, type KeyPress } from "../../app/src/screens/shortcuts.ts";
 import { createProject } from "../../src/project/create.ts";
-import { deleteProject, deletedFolderIn } from "../../src/project/delete.ts";
+import { deleteProject, graveyardIn } from "../../src/project/delete.ts";
 import { renameProject } from "../../src/project/rename.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import type { Project } from "../../src/project/bundle.ts";
@@ -244,6 +244,49 @@ describe("the Rename Project dialog", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("uses the shared buttons and keys: the name is being edited, Tab wraps, Escape steps out", () => {
+    const { modal, input, cancel, confirm, type } = open();
+    const press = (key: string, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+      document.activeElement!.dispatchEvent(event);
+      return event;
+    };
+    expect(cancel.classList.contains("dialog-action")).toBe(true);
+    expect(confirm.classList.contains("dialog-action")).toBe(true);
+    expect(modal.querySelector(".new-project-dialog__action--confirm")).toBeNull();
+    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
+    expect(press("ArrowLeft").defaultPrevented).toBe(false);
+
+    // Confirm is off for the same name, so Tab steps over it.
+    press("Tab");
+    expect(document.activeElement).toBe(cancel);
+    press("Tab");
+    expect(document.activeElement).toBe(input);
+    type("Paper Planes");
+    press("Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(confirm);
+    press("ArrowLeft");
+    expect(document.activeElement).toBe(cancel);
+
+    input.focus();
+    press("Enter");
+    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
+    expect(press("Escape").defaultPrevented).toBe(true);
+    expect(input.classList.contains("dialog-keys__editing")).toBe(false);
+    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(false);
+    expect(press("Escape").defaultPrevented).toBe(false);
+    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(true);
+  });
+
+  it("goes back to editing the name after a refusal", async () => {
+    const { type, enter, modal, input } = open(vi.fn(async () => "Taken."));
+    type("Quiet Road");
+    enter();
+    await vi.waitFor(() => expect(modal.querySelector('[role="alert"]')).not.toBeNull());
+    expect(document.activeElement).toBe(input);
+    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
+  });
+
   it("cancels with Cancel, renaming nothing", () => {
     const { cancel, onRename, onClose } = open();
     cancel.click();
@@ -255,26 +298,54 @@ describe("the Rename Project dialog", () => {
 describe("the Delete Project dialog", () => {
   const open = (onDelete = vi.fn<() => Promise<string | undefined>>(async () => undefined)) => {
     const onClose = vi.fn();
-    const deletedFolder = "/home/writer/Documents/write-ist/Deleted Projects";
-    const modal = showDeleteProject(document.body, { project: project("Paper Boats"), deletedFolder, onDelete, onClose });
+    const modal = showDeleteProject(document.body, { project: project("Paper Boats"), onDelete, onClose });
     const [cancel, confirm] = [...modal.querySelectorAll<HTMLButtonElement>(".new-project-dialog__action")];
-    return { modal, cancel: cancel!, confirm: confirm!, onDelete, onClose, deletedFolder };
+    return { modal, cancel: cancel!, confirm: confirm!, onDelete, onClose };
   };
 
-  it("says plainly that the project is moved to the deleted folder, names it, and is not deleted for good", () => {
-    const { modal, deletedFolder, confirm, cancel } = open();
-    const text = modal.textContent!;
+  it("asks in exactly its two lines, naming the project, and offers the Graveyard", () => {
+    const { modal, confirm, cancel } = open();
     expect(modal.getAttribute("aria-label")).toBe("Delete Project");
-    expect(text).toContain("“Paper Boats”");
-    expect(text).toContain("not deleted for good");
-    expect(text).toContain("moved");
-    expect(modal.querySelector(".project-dialog__path")!.textContent).toBe(deletedFolder);
-    expect(text).toContain("move its folder from there back");
+    expect([...modal.querySelectorAll(".project-dialog__line")].map((line) => line.textContent)).toEqual([
+      'Delete "Paper Boats"?',
+      "This will NOT permanently delete your project, but move it to the Graveyard. You may access your Graveyard in Settings.",
+    ]);
+    expect(modal.querySelector(".project-dialog__path")).toBeNull();
     expect(cancel.textContent).toBe(">Cancel[Esc]");
-    expect(confirm.textContent).toBe(">Delete[Enter]");
+    expect(confirm.textContent).toBe(">Move to Graveyard[Enter]");
+    // The shared button makes room for a long label and its arrow; no sizing of its own.
+    expect(confirm.className).toBe(cancel.className);
   });
 
-  it("moves nothing until Delete is chosen, and nothing when cancelled", () => {
+  it("uses the shared buttons, starts on Move to Graveyard, and walks them with the arrows and Tab", async () => {
+    const { modal, cancel, confirm, onDelete, onClose } = open();
+    const press = (key: string, init: KeyboardEventInit = {}) =>
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init }));
+    expect(modal.querySelector("input")).toBeNull();
+    expect(cancel.classList.contains("dialog-action")).toBe(true);
+    expect(confirm.classList.contains("dialog-action")).toBe(true);
+    expect(document.activeElement).toBe(confirm);
+    press("ArrowLeft");
+    expect(document.activeElement).toBe(cancel);
+    press("ArrowLeft");
+    expect(document.activeElement).toBe(confirm);
+    press("Tab");
+    expect(document.activeElement).toBe(cancel);
+    press("Tab", { shiftKey: true });
+    expect(document.activeElement).toBe(confirm);
+
+    cancel.focus();
+    press("Enter");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onDelete).not.toHaveBeenCalled();
+
+    const again = open();
+    press("Enter");
+    await vi.waitFor(() => expect(again.onClose).toHaveBeenCalledOnce());
+    expect(again.onDelete).toHaveBeenCalledOnce();
+  });
+
+  it("moves nothing until Move to Graveyard is chosen, and nothing when cancelled", () => {
     const { cancel, onDelete, onClose } = open();
     expect(onDelete).not.toHaveBeenCalled();
     cancel.click();
@@ -291,7 +362,7 @@ describe("the Delete Project dialog", () => {
 });
 
 describe("the menu, end to end, on real projects in a temporary folder", () => {
-  it("deletes the project right-clicked into Deleted Projects, and renames the one right-clicked", async () => {
+  it("deletes the project right-clicked into the Graveyard, and renames the one right-clicked", async () => {
     const temporary = temporaryDirectory();
     try {
       const folder = join(temporary.path, "write-ist");
@@ -308,7 +379,6 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       const onDelete = (chosen: Project) =>
         void showDeleteProject(document.body, {
           project: chosen,
-          deletedFolder: deletedFolderIn(folder),
           onDelete: async () => void (await deleteProject(nodeFilesystem, folder, chosen)),
           onClose: () => {},
         });
@@ -318,12 +388,12 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       rightClick(rowNamed(drawn.rows, "Quiet Road"));
       choose("Delete Project");
       const modal = document.querySelector<HTMLDialogElement>("dialog[open]")!;
-      modal.querySelector<HTMLButtonElement>(".new-project-dialog__action--confirm")!.click();
+      modal.querySelectorAll<HTMLButtonElement>(".dialog-action")[1]!.click();
       await vi.waitFor(() => expect(modal.isConnected).toBe(false));
 
       real = await listProjects(nodeFilesystem, folder);
       expect(real.projects.map((p) => p.marker.name).sort()).toEqual(["Paper Boats", "Untitled Short"]);
-      expect(readdirSync(deletedFolderIn(folder))).toEqual(["Quiet Road"]);
+      expect(readdirSync(graveyardIn(folder))).toEqual(["Quiet Road"]);
 
       const onRename = (chosen: Project) =>
         void showRenameProject(document.body, {
@@ -338,7 +408,7 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       const input = rename.querySelector("input")!;
       input.value = "Short Story";
       input.dispatchEvent(new Event("input"));
-      rename.querySelector<HTMLButtonElement>(".new-project-dialog__action--confirm")!.click();
+      rename.querySelectorAll<HTMLButtonElement>(".dialog-action")[1]!.click();
       await vi.waitFor(() => expect(rename.isConnected).toBe(false));
 
       real = await listProjects(nodeFilesystem, folder);

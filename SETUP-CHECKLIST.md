@@ -176,7 +176,7 @@ screen, with **Open Project** its own screen — the shape Phase 1 recorded abov
 after #38 built the single screen an earlier draft of #37 described. `src/project/` holds the
 layer above the document model: the bundle on disk (ADR-0025), the `project.md` marker with its
 format version and minted project id (ADR-0004, ADR-0015), **import** into the default location
-(ADR-0016, ADR-0028), and the import report in the writer's words (ADR-0020).
+(ADR-0016, ADR-0028), and the import report in the writer's words (ADR-0020; no longer shown since 2026-11-18).
 
 - Everything is above a four-method `Filesystem` port, so the disk tests use real files in a
   temporary folder and the application uses Tauri's plugin. No logic lives in the window.
@@ -218,9 +218,9 @@ finding projects.
 Right-click on a project row on Open Project (or the Menu key, or Shift+F10, on the lit row) opens
 the shared context menu with **Rename Project** and **Delete Project**, for the row right-clicked;
 blank space opens nothing. Rename changes the folder and `project.md` together and refuses a name
-already taken. **Delete moves the whole bundle into `~/Documents/write-ist/Deleted Projects/` and
-erases nothing**; to recover a project, move its folder back into `write-ist`. Every move is the
-`move_folder` command (`src-tauri/src/folders.rs`): one rename, never over anything, never across
+already taken. **Delete moves the whole bundle into the Graveyard, `~/Documents/write-ist/Graveyard/`, and
+erases nothing**; a `Deleted Projects` folder from before the name changed is moved into it. To
+recover a project, move its folder back into `write-ist`. Every move is the `move_folder` command (`src-tauri/src/folders.rs`): one rename, never over anything, never across
 disks, only inside the projects folder. Not built: a restore screen, and emptying the folder.
 
 The open project can be renamed too, from **File ▸ Rename Project…** or the right-click menu on the
@@ -229,10 +229,17 @@ the Editor stays up and writes to the new folder from then on.
 
 **New Project** is the pattern for the other dialogs: buttons lit as Home's selected row is, a
 drawn drop-down with a right-click-menu tray, and the whole dialog walkable by keyboard, from three
-shared pieces (`dialogAction`, `dialogSelect`, `dialogKeys`). No other dialog uses them yet. Its
-type list offers **Feature, Episode and Short Film**, all screenplays, and records the choice as
-`Format:` in `project.md`. Novel, Short Story, Novella, Flash Fiction and Poem are shown dimmed and
-tagged *soon*; they cannot be picked or created.
+shared pieces (`dialogAction`, `dialogSelect`, `dialogKeys`). Rename Project, Delete Project, Export
+As and Import use them too; Title Page, its preview, Goals and Search keep their own. Its type list
+offers **Feature, Episode and Short Film**, all screenplays, and records the choice as `Format:` in
+`project.md`. Novel, Short Story, Novella, Flash Fiction and Poem are shown dimmed and tagged *soon*;
+they cannot be picked or created.
+
+**Import** is a dialog on Open Project (Import [I]; Home has no Import row): the same type list, an
+optional Project Name, and a display-only file field the dialog's full width, which opens the system
+file picker when pressed. The project takes the typed name; left blank, it is named for its title
+page's Title, or for the file when there is none. A failure stays in the dialog. The report that used to follow an
+import is gone; the normalisations still apply.
 
 ### Done: the screenplay is displayed, in an Editor the shell hosts (#39)
 

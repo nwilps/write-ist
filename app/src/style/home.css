@@ -3,7 +3,8 @@
  *
  * Everything here is the interface's one typeface, in the colours the desk
  * uses. Every rule below is behind `.menu--home` or the dialog's own classes;
- * the Open Project screen has its own design, in `open-project.css` (ADR-0043).
+ * the Open Project screen has its own design, in `open-project.css` (ADR-0043),
+ * and only its foot buttons share the lit look here.
  */
 
 /* --- Home ---------------------------------------------------------------- */
@@ -105,6 +106,7 @@
 }
 
 .menu--home .gesture__cursor,
+.menu--foot .gesture__cursor,
 .dialog-action .gesture__cursor {
   position: absolute;
   left: var(--space-tight);
@@ -128,11 +130,16 @@
 
 /*
  * The selected row: the first, until the eye or the keyboard is on another. A
- * dialog's button under the pointer or holding focus is lit by the same rule.
+ * dialog's button under the pointer or holding focus is lit by the same rule,
+ * and so is Open Project's lit foot button. The foot's selectors name `.gesture`
+ * twice over to outrank its resets in `open-project.css`, which loads after this.
  */
 .menu--home .gesture--selected,
 .menu--home .gesture--selected:hover,
 .menu--home .gesture--selected:focus-visible,
+.menu--foot .gesture.gesture--selected,
+.menu--foot .gesture.gesture--selected:hover,
+.menu--foot .gesture.gesture--selected:focus-visible,
 .dialog-action:hover:not(:disabled),
 .dialog-action:focus:not(:disabled) {
   background: var(--colour-overlay);
@@ -146,6 +153,9 @@
 .menu--home .gesture--selected .gesture__cursor,
 .menu--home .gesture--selected:hover .gesture__cursor,
 .menu--home .gesture--selected:focus-visible .gesture__cursor,
+.menu--foot .gesture.gesture--selected .gesture__cursor,
+.menu--foot .gesture.gesture--selected:hover .gesture__cursor,
+.menu--foot .gesture.gesture--selected:focus-visible .gesture__cursor,
 .dialog-action:hover:not(:disabled) .gesture__cursor,
 .dialog-action:focus:not(:disabled) .gesture__cursor {
   visibility: visible;
@@ -245,9 +255,11 @@
   justify-content: center;
   align-items: center;
   gap: var(--space-tight);
-  width: var(--measure-dialog-slot);
+  /* The slot, or wider for a long label. The `>` is out of flow, so the padding keeps the words off it. */
+  width: max-content;
+  min-width: var(--measure-dialog-slot);
   height: var(--size-row);
-  padding: 0;
+  padding: 0 var(--space-dialog-arrow);
   font-family: inherit;
   font-size: var(--size-label);
   line-height: var(--leading-tight);
@@ -266,27 +278,6 @@
   outline: none;
 }
 
-.new-project-dialog__cursor {
-  display: none;
-}
-
-/* Confirm looks like the home screen's selected row. */
-.new-project-dialog__action--confirm {
-  background: var(--colour-overlay);
-  color: var(--colour-accent);
-}
-
-.new-project-dialog__action--confirm:hover,
-.new-project-dialog__action--confirm:focus-visible {
-  color: var(--colour-accent);
-}
-
-.new-project-dialog__action--confirm .new-project-dialog__cursor {
-  display: inline;
-  position: absolute;
-  left: var(--space-tight);
-}
-
 .new-project-dialog__action:disabled {
   color: var(--colour-faint);
   cursor: default;
@@ -300,12 +291,12 @@
 }
 
 /* The keys moved focus while the pointer rests on the other button: one is lit. */
-.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) {
+.new-project-dialog__form:has(.dialog-action:focus:not(:disabled)) .dialog-action:hover:not(:focus, :disabled) {
   background: transparent;
   color: var(--colour-muted);
 }
 
-.new-project-dialog__actions:has(> .dialog-action:focus:not(:disabled)) > .dialog-action:hover:not(:focus, :disabled) .gesture__cursor {
+.new-project-dialog__form:has(.dialog-action:focus:not(:disabled)) .dialog-action:hover:not(:focus, :disabled) .gesture__cursor {
   visibility: hidden;
 }
 
@@ -389,6 +380,34 @@
 /* The highlight on a row that cannot be picked: plain to see, but no gold. */
 .dialog-select__tray .dialog-select__option--unavailable.dialog-select__option--active {
   color: var(--colour-muted);
+}
+
+/* The Import dialog's file: a field to look at, the dialog's full width. */
+.import-project__source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* A long file name is cut short here, and must not widen the dialog. */
+.import-project__source .new-project-dialog__field,
+.import-project__source .new-project-dialog__box {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.import-project__file {
+  text-align: left;
+  cursor: pointer;
+}
+
+.import-project__file--empty {
+  color: var(--colour-faint);
+}
+
+.import-project__file-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* An empty problem line must not add a gap of its own. */

@@ -84,6 +84,11 @@ export const tauriFilesystem: Filesystem = {
     // moves only inside the projects folder (`move_folder`, `src-tauri/src/lib.rs`).
     await invoke("move_folder", { from, to });
   },
+
+  async removeEmptyFolder(path: string): Promise<void> {
+    // A command, so that nothing here is given the plugin's recursive remove.
+    await invoke("remove_empty_folder", { path });
+  },
 };
 
 /** The folder inside `Documents` that holds every project (ADR-0016). */

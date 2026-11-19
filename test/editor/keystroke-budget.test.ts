@@ -85,6 +85,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
     modifiedAt: refuse,
     appendFile: refuse,
     moveFolder: refuse,
+    removeEmptyFolder: refuse,
   };
   const draw = () => ({}) as HTMLElement;
   const project = {

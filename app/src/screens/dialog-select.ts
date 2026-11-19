@@ -35,6 +35,8 @@ export interface DialogSelectSpec {
   readonly label: string;
   /** The first available one is chosen to begin with; there must be one. */
   readonly choices: readonly DialogChoice[];
+  /** The writer picked a different choice; the tray has closed. */
+  readonly onChange?: (value: string) => void;
 }
 
 export interface DialogSelect {
@@ -62,7 +64,7 @@ export function placeTray(field: Span, height: number, gap: number, windowHeight
   return Math.max(0, windowHeight - height - gap * 2);
 }
 
-export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSelect {
+export function dialogSelect({ id, label, choices, onChange }: DialogSelectSpec): DialogSelect {
   const shown = element("span");
   const control = element("button", {
     id,
@@ -104,6 +106,13 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
     chosen = index;
     shown.textContent = choices[index]!.label;
     options.forEach((option, at) => option.setAttribute("aria-selected", String(at === index)));
+  };
+
+  const pick = (index: number): void => {
+    const changed = index !== chosen;
+    choose(index);
+    close();
+    if (changed) onChange?.(choices[index]!.value);
   };
 
   const highlight = (index: number): void => {
@@ -172,10 +181,7 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
       const step = key === "ArrowDown" ? 1 : -1;
       highlight((active + step + options.length) % options.length);
     } else if (key === "Enter" || key === " ") {
-      if (canChoose(active)) {
-        choose(active);
-        close();
-      }
+      if (canChoose(active)) pick(active);
     } else if (key === "Escape") {
       close();
     } else if (key !== "ArrowLeft" && key !== "ArrowRight") {
@@ -193,10 +199,7 @@ export function dialogSelect({ id, label, choices }: DialogSelectSpec): DialogSe
       if (index !== active && (movementX !== 0 || movementY !== 0)) highlight(index);
     });
     if (!canChoose(index)) return;
-    option.addEventListener("click", () => {
-      choose(index);
-      close();
-    });
+    option.addEventListener("click", () => pick(index));
   });
 
   choose(chosen);

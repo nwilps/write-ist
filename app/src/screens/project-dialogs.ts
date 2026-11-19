@@ -3,18 +3,20 @@
  * right-click menu opens, for the project that was right-clicked. Rename Project
  * is opened for the open project from the Editor too (`askToRenameProject`).
  *
- * Both are the New Project dialog's look (ADR-0042) and its manners: a modal
- * `<dialog>`, so Escape cancels and the screen behind hears nothing; Cancel
- * [Esc] on the left and the action [Enter] on the right; a failure said inside
- * the dialog in the writer's words, with the dialog left open; and nothing to
- * press twice while the disk is answering. What is done on disk is the
+ * Both are the New Project dialog's look (ADR-0042) and its manners, from the
+ * same shared button and keys: a modal `<dialog>`, so Escape cancels and the
+ * screen behind hears nothing; Cancel [Esc] on the left and the action [Enter]
+ * on the right; a failure said inside the dialog in the writer's words, with
+ * the dialog left open; and nothing to press twice while the disk is answering. What is done on disk is the
  * project layer's (`src/project/rename.ts`, `src/project/delete.ts`).
  */
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import { CannotRename, renameProject } from "../../../src/project/rename.ts";
+import { dialogAction } from "./dialog-action.ts";
+import { dialogKeys, enterSubmits, type DialogKeys } from "./dialog-keys.ts";
 import { element } from "./element.ts";
-import { action } from "./new-project.ts";
+import { field } from "./new-project.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
 /**
@@ -43,23 +45,21 @@ export function showRenameProject(
     autocomplete: "off",
     spellcheck: false,
   });
-  const field = element("div", { className: "new-project-dialog__field" }, [
-    element("label", { htmlFor: name.id, className: "new-project-dialog__label", textContent: "Project name" }),
-    element("div", { className: "new-project-dialog__box" }, [name]),
-  ]);
   // Nothing to confirm until the name is one, and a different one.
   const ready = () => name.value.trim() !== "" && name.value.trim() !== project.marker.name;
   const shown = dialog(into, {
     label: "Rename Project",
-    body: [field],
+    body: [field("Project name", name)],
+    stops: [name],
     confirm: "Confirm",
     ready,
     attempt: () => onRename(name.value),
     failed: "The project could not be renamed, so nothing was changed.",
+    resume: () => shown.keys.edit(name),
     onClose,
   });
   name.addEventListener("input", shown.settle);
-  name.focus();
+  shown.keys.edit(name);
   name.select();
   return shown.modal;
 }
@@ -113,19 +113,14 @@ export function askToRenameProject(ports: RenamePorts, project: Project, route: 
 
 export interface DeleteProjectDialog {
   readonly project: Project;
-  /** Where it will go: `~/Documents/write-ist/Deleted Projects`, as a full path. */
-  readonly deletedFolder: string;
   readonly onDelete: () => Promise<string | undefined>;
   readonly onClose: () => void;
 }
 
-/**
- * Ask before a project is moved to the deleted folder — and say plainly that
- * it is moved, where to, and that it is not deleted for good.
- */
+/** Ask before a project is moved to the Graveyard, and say that is all it is. */
 export function showDeleteProject(
   into: HTMLElement,
-  { project, deletedFolder, onDelete, onClose }: DeleteProjectDialog,
+  { project, onDelete, onClose }: DeleteProjectDialog,
 ): HTMLDialogElement {
   const shown = dialog(into, {
     label: "Delete Project",
@@ -133,24 +128,21 @@ export function showDeleteProject(
       element("div", { className: "project-dialog__message" }, [
         element("p", {
           className: "project-dialog__line project-dialog__line--lead",
-          textContent: `Delete “${project.marker.name}”?`,
+          textContent: `Delete "${project.marker.name}"?`,
         }),
         element("p", {
           className: "project-dialog__line",
           textContent:
-            "It is not deleted for good. The whole project folder is moved, unchanged, to the deleted folder:",
-        }),
-        element("p", { className: "project-dialog__path", textContent: deletedFolder }),
-        element("p", {
-          className: "project-dialog__line",
-          textContent: "To bring it back, move its folder from there back into the write-ist folder.",
+            "This will NOT permanently delete your project, but move it to the Graveyard. You may access your Graveyard in Settings.",
         }),
       ]),
     ],
-    confirm: "Delete",
+    stops: [],
+    confirm: "Move to Graveyard",
     ready: () => true,
     attempt: onDelete,
     failed: `“${project.marker.name}” could not be moved, so it is where it was.`,
+    resume: () => shown.confirm.focus(),
     onClose,
   });
   // Focus on the action whose key the label shows, as New Project's title does.
@@ -161,18 +153,28 @@ export function showDeleteProject(
 interface DialogSpec {
   readonly label: string;
   readonly body: readonly HTMLElement[];
+  /** What the keys visit above the buttons, top to bottom. */
+  readonly stops: readonly HTMLElement[];
   readonly confirm: string;
   readonly ready: () => boolean;
   readonly attempt: Attempt;
   /** Said before the reason, when the attempt throws rather than answers. */
   readonly failed: string;
+  /** Put focus back after a failure: the buttons were disabled, and it was lost. */
+  readonly resume: () => void;
   readonly onClose: () => void;
 }
 
-function dialog(into: HTMLElement, spec: DialogSpec) {
-  const confirm = action(spec.confirm, "Enter", "submit");
-  confirm.classList.add("new-project-dialog__action--confirm");
-  const cancel = action("Cancel", "Esc", "button");
+interface ShownDialog {
+  readonly modal: HTMLDialogElement;
+  readonly confirm: HTMLButtonElement;
+  readonly keys: DialogKeys;
+  readonly settle: () => void;
+}
+
+function dialog(into: HTMLElement, spec: DialogSpec): ShownDialog {
+  const confirm = dialogAction(spec.confirm, "Enter", "submit");
+  const cancel = dialogAction("Cancel", "Esc", "button");
   const problem = element("div", { className: "new-project__problem" });
   const form = element("form", { className: "new-project-dialog__form" }, [
     ...spec.body,
@@ -181,6 +183,7 @@ function dialog(into: HTMLElement, spec: DialogSpec) {
   ]);
   // No heading, as New Project has none; the dialog is still named.
   const modal = element("dialog", { className: "new-project-dialog project-dialog", ariaLabel: spec.label }, [form]);
+  const keys = dialogKeys(modal, [...spec.stops.map((stop) => [stop]), [cancel, confirm]]);
 
   let working = false;
   const settle = (): void => {
@@ -190,6 +193,7 @@ function dialog(into: HTMLElement, spec: DialogSpec) {
   };
   const say = (words: string): void => {
     problem.replaceChildren(troublePanel(words));
+    spec.resume();
   };
 
   form.addEventListener("submit", (event) => {
@@ -215,12 +219,7 @@ function dialog(into: HTMLElement, spec: DialogSpec) {
       },
     );
   });
-  // Enter confirms from anywhere in the dialog but a button, which acts on its own.
-  modal.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.target instanceof HTMLButtonElement) return;
-    event.preventDefault();
-    form.requestSubmit();
-  });
+  enterSubmits(modal, form);
   cancel.addEventListener("click", () => modal.close());
   // Escape closes a dialog natively; not while the disk is still answering.
   modal.addEventListener("cancel", (event) => {
@@ -234,5 +233,5 @@ function dialog(into: HTMLElement, spec: DialogSpec) {
   into.append(modal);
   modal.showModal();
   settle();
-  return { modal, confirm, settle };
+  return { modal, confirm, keys, settle };
 }

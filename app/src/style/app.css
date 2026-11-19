@@ -3,8 +3,8 @@
  * there is not a hex colour, a pixel size or a font name below this line.
  *
  * Three surfaces are here: the home screen the application opens to, the Open
- * Project screen reached from it, and the import report shown once an import
- * completes. (Both screens' designs are drawn in `home.css` and
+ * Project screen reached from it, and the report frame that Title Page and Goals
+ * wear. (Both screens' designs are drawn in `home.css` and
  * `open-project.css`, over what is here.) Both screens are a centred composition over the window, which is
  * v1's shape. **The shell and the Editor's page are in `editor.css`**, because
  * they answer to different references — v1 for these screens, the spike and the
@@ -219,7 +219,7 @@ body {
   margin-bottom: 0;
 }
 
-/* --- The import report -------------------------------------------------- */
+/* --- The report frame (Title Page, its preview, Goals) -------------------- */
 
 .report {
   max-width: var(--measure-reading);
@@ -247,37 +247,6 @@ body {
   margin: var(--space-tight) 0 0;
   color: var(--colour-muted);
   font-size: var(--size-label);
-}
-
-.report__changes {
-  list-style: none;
-  margin: var(--space-roomy) 0 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-tight);
-}
-
-.change {
-  display: flex;
-  gap: var(--space-snug);
-  align-items: baseline;
-  font-size: var(--size-label);
-}
-
-.change__count {
-  font-weight: var(--weight-bold);
-  color: var(--colour-affirm);
-  font-variant-numeric: tabular-nums;
-  min-width: var(--space-vast);
-  text-align: right;
-}
-
-.change--finding .change__count {
-  color: var(--colour-alarm);
-}
-
-.change__description {
-  color: var(--colour-muted);
 }
 
 .report__nothing {
