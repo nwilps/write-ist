@@ -1,24 +1,35 @@
 /*
  * The Keyboard Shortcuts dialog. `.new-project-dialog` and its parts dress it,
- * with Goals' margins; the right-click menu's `.drop-menu__divider` sits under
- * the columns and again over the button, as on Export As. This is what New
- * Project has no need of: two columns of rows, each a name and its key, and the
- * Tab circuit under them. One page, nothing scrolled, in the app's own window.
+ * with a wider margin than the other dialogs, since it is read rather than
+ * filled in. This is what New Project has no need of: two columns of rows, each
+ * a name and its key, split by the right-click menu's divider stood on end, and
+ * Tab Order drawn as a loop under Writing. One page, nothing scrolled, in the
+ * app's own window.
  */
 
-/* Two columns and Goals' margins, and never larger than the window. */
+/* Two columns and the divider between, a wide margin, and never larger than the window. */
 .new-project-dialog.shortcuts {
-  width: calc(var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  width: calc(
+    var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) * 2 + var(--rule-thin) +
+      var(--space-shortcuts-edge) * 2 + var(--rule-thin) * 2
+  );
   max-width: 100%;
   max-height: 100%;
-  padding: var(--space-loose);
+  padding: var(--space-shortcuts-edge);
 }
 
 .shortcuts__columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) var(--rule-thin) minmax(0, 1fr);
   align-items: start;
   gap: var(--space-shortcuts-columns);
+}
+
+/* The right-click menu's divider, stood on end, held in from the top and the bottom as that one is from the sides. */
+.shortcuts__divider {
+  align-self: stretch;
+  margin: var(--space-row-label) 0;
+  background: var(--colour-border);
 }
 
 .shortcuts__column {
@@ -38,73 +49,132 @@
 }
 
 .shortcuts__rows,
-.shortcuts-circuit__steps {
+.shortcuts-loop__steps {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A name at the left, its key at the right, on the menus' row height. */
+/* A name at the left, its key at the right, as tall as the key. */
 .shortcuts__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-panel);
+  height: var(--size-pill);
+  font-size: var(--size-label);
+  color: var(--colour-text);
+}
+
+/*
+ * A key: the bottom bar's pill (`.pill`), with the thin edge the Goals days and
+ * the workspace bar give theirs, since the dialog is the pill's own grey. For
+ * reading only: nothing lights under the pointer.
+ */
+.shortcuts .pill.shortcuts__key {
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  pointer-events: none;
+}
+
+/* --- Tab Order: its own section, to keep or drop whole --- */
+
+/* Spaced from the rows above as one group is from the next. */
+.shortcuts-tab-order {
+  display: grid;
+  gap: var(--space-tight);
+  margin-block-start: calc(var(--space-roomy) - var(--space-tight));
+}
+
+.shortcuts-tab-order__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-panel);
+  height: var(--size-pill);
+}
+
+.shortcuts-tab-order__keys {
+  display: flex;
+  gap: var(--space-tight);
+}
+
+/* The loop: as wide as its longest name, with a rail down either side. */
+.shortcuts-loop {
+  position: relative;
+  width: max-content;
+}
+
+.shortcuts-loop__step {
+  display: flex;
+  align-items: center;
   height: var(--size-row);
   font-size: var(--size-label);
   color: var(--colour-text);
-}
-
-/* The menus' dim hint, in a quiet chip. */
-.shortcuts__key {
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--size-row) - var(--space-hair) * 2);
-  padding: 0 var(--space-tight);
-  line-height: var(--leading-tight);
-  border: var(--rule-thin) solid var(--colour-border);
-  border-radius: var(--radius-slight);
-  font-size: var(--size-label);
-  color: var(--colour-faint);
   white-space: nowrap;
 }
 
-/* --- The Tab circuit: its own section, to keep or drop whole --- */
-
-.shortcuts-circuit {
-  display: grid;
-  gap: var(--space-tight);
+/* The rails run from the middle of the first row to the middle of the last. */
+.shortcuts-loop__rail {
+  position: absolute;
+  top: calc(var(--size-row) / 2);
+  bottom: calc(var(--size-row) / 2);
+  width: 0;
 }
 
-.shortcuts-circuit__keys {
-  display: flex;
-  gap: var(--space-tight);
+/* Back up, on the left, from the last to the first. */
+.shortcuts-loop__rail--back {
+  left: 0;
+  border-left: var(--rule-thin) solid var(--colour-faint);
 }
 
-.shortcuts-circuit__steps {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: var(--space-tight);
-  min-height: var(--size-row);
-  font-size: var(--size-label);
-  color: var(--colour-text);
+/* On down, on the right, from the first to each after it. */
+.shortcuts-loop__rail--on {
+  right: 0;
+  border-right: var(--rule-thin) solid var(--colour-faint);
 }
 
-.shortcuts-circuit__step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-tight);
-  white-space: nowrap;
+/* Left of a name: the arrow in to the first, the line out of the last, and room on the rest. */
+.shortcuts-loop__lead {
+  position: relative;
+  flex: none;
+  width: var(--space-roomy);
+  height: 0;
+  margin-inline-end: var(--space-tight);
 }
 
-.shortcuts-circuit__arrow {
-  color: var(--colour-faint);
+.shortcuts-loop__lead--in,
+.shortcuts-loop__lead--out {
+  border-top: var(--rule-thin) solid var(--colour-faint);
 }
 
-/* The divider over the button is spaced as the one under the columns: the form's gap either side, no more. */
-.shortcuts .drop-menu__divider + .new-project-dialog__actions {
-  margin-block-start: 0;
+/* Right of a name: a line out to the rail, and on every row but the first an arrowhead in. */
+.shortcuts-loop__tie {
+  position: relative;
+  flex: 1;
+  min-width: var(--space-loose);
+  height: 0;
+  margin-inline-start: var(--space-tight);
+  border-top: var(--rule-thin) solid var(--colour-faint);
+}
+
+/* A thin chevron on the line's end, pointing left into the name before it. */
+.shortcuts-loop__head {
+  position: absolute;
+  left: 0;
+  top: calc(var(--rule-thin) / -2);
+  width: var(--space-tight);
+  height: var(--space-tight);
+  border-left: var(--rule-thin) solid var(--colour-faint);
+  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  translate: 0 -50%;
+  rotate: 45deg;
+}
+
+/* The start: the same chevron, turned to point right into the first name. */
+.shortcuts-loop__head--in {
+  left: auto;
+  right: 0;
+  rotate: -135deg;
 }
 
 /* Close alone, at the bottom right. */

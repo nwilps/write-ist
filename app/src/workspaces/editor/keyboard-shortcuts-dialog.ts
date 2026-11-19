@@ -7,9 +7,9 @@
  * nothing is listed that the table does not answer, so this list and the keys
  * cannot drift apart.
  *
- * Below the list, the Tab circuit: the order Tab and Shift+Tab step a line's
- * element type through, read from the screenplay surface's own `TAB_CYCLE`.
- * It is its own section and its own helper, so it can be taken out whole.
+ * Under Writing, Tab Order: the loop Tab and Shift+Tab step a line's element
+ * type round, read from the screenplay surface's own `TAB_CYCLE`. It is its own
+ * section and its own helper, so it can be taken out whole.
  *
  * New Project's dialog, built from its pieces, its shared button and keys among
  * them: a modal `<dialog>` with no heading, Escape closes it natively, and it
@@ -70,9 +70,10 @@ export function tabCircuit(): readonly string[] {
   return TAB_CYCLE.map((type) => commandById(`element-${type}`)?.label ?? type);
 }
 
-const keyPill = (hint: string): HTMLElement => element("span", { className: "shortcuts__key", textContent: hint });
+/** A key, drawn as the bottom bar's pills are: for reading, not for pressing. */
+const keyPill = (hint: string): HTMLElement => element("span", { className: "pill shortcuts__key", textContent: hint });
 
-function drawGroup(group: ShortcutGroup): HTMLElement {
+function drawGroup(group: ShortcutGroup, after: readonly HTMLElement[] = []): HTMLElement {
   return element("section", { className: "shortcuts__group" }, [
     element("h2", { className: "new-project-dialog__label shortcuts__label", textContent: group.name }),
     element(
@@ -82,42 +83,64 @@ function drawGroup(group: ShortcutGroup): HTMLElement {
         element("li", { className: "shortcuts__row" }, [element("span", { textContent: row.label }), keyPill(row.hint)]),
       ),
     ),
+    ...after,
   ]);
 }
 
-/** The Tab circuit: a section of its own, so dropping it is deleting this and its call. */
-function drawTabCircuit(): HTMLElement {
+/** A piece of the loop's drawing: lines and arrowheads, which a screen reader skips. */
+const drawn = (className: string): HTMLElement => element("span", { className, ariaHidden: "true" });
+
+/**
+ * Tab Order: the element types top to bottom, drawn as a loop. An arrow comes
+ * into the first from the left; a line leaves it on the right and runs down,
+ * turning in to each one after; the last leaves on the left, and a line runs
+ * back up to that first arrow. A section of its own, so dropping it is
+ * deleting this and its call.
+ */
+function drawTabOrder(): HTMLElement {
+  const last = TAB_CYCLE.length - 1;
   const steps = tabCircuit().map((label, at) =>
-    element("li", { className: "shortcuts-circuit__step" }, [
-      ...(at === 0 ? [] : [element("span", { className: "shortcuts-circuit__arrow", ariaHidden: "true", textContent: "→" })]),
-      element("span", { textContent: label }),
-      // And round again, to the first.
-      ...(at === TAB_CYCLE.length - 1 ? [element("span", { className: "shortcuts-circuit__arrow", ariaHidden: "true", textContent: "↺" })] : []),
+    element("li", { className: "shortcuts-loop__step" }, [
+      // In at the top from the left (→); out at the bottom to the left, and round again.
+      at === 0
+        ? element("span", { className: "shortcuts-loop__lead shortcuts-loop__lead--in", ariaHidden: "true" }, [
+            drawn("shortcuts-loop__head shortcuts-loop__head--in"),
+          ])
+        : drawn(`shortcuts-loop__lead${at === last ? " shortcuts-loop__lead--out" : ""}`),
+      element("span", { className: "shortcuts-loop__name", textContent: label }),
+      // Out to the right from the first; in from the right to every other.
+      element("span", { className: "shortcuts-loop__tie", ariaHidden: "true" }, at === 0 ? [] : [drawn("shortcuts-loop__head")]),
     ]),
   );
-  return element("section", { className: "shortcuts-circuit" }, [
-    element("div", { className: "shortcuts__row" }, [
-      element("h2", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab circuit" }),
-      element("span", { className: "shortcuts-circuit__keys" }, [keyPill("[Tab]"), keyPill("[Shift + Tab]")]),
+  return element("section", { className: "shortcuts-tab-order" }, [
+    element("div", { className: "shortcuts-tab-order__head" }, [
+      element("h3", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab Order" }),
+      element("span", { className: "shortcuts-tab-order__keys" }, [keyPill("[Tab]"), keyPill("[Shift + Tab]")]),
     ]),
-    element("ol", { className: "shortcuts-circuit__steps", ariaLabel: "Tab steps forward, Shift+Tab back, and both go round" }, steps),
+    element("div", { className: "shortcuts-loop" }, [
+      drawn("shortcuts-loop__rail shortcuts-loop__rail--back"),
+      element("ol", { className: "shortcuts-loop__steps", ariaLabel: "Tab steps forward, Shift+Tab back, and both go round" }, steps),
+      drawn("shortcuts-loop__rail shortcuts-loop__rail--on"),
+    ]),
   ]);
 }
 
 export function openKeyboardShortcutsDialog(into: HTMLElement, options: KeyboardShortcutsDialogOptions): HTMLDialogElement {
   const groups = shortcutGroups();
-  const column = (names: readonly ShortcutGroupName[]): HTMLElement =>
-    element("div", { className: "shortcuts__column" }, groups.filter((group) => names.includes(group.name)).map(drawGroup));
+  const group = (name: ShortcutGroupName): ShortcutGroup => groups.find((one) => one.name === name)!;
+  const column = (children: readonly HTMLElement[]): HTMLElement => element("div", { className: "shortcuts__column" }, children);
 
   // Esc, because it closes from anywhere; the dialog's own key is in the list.
   const close = dialogAction("Close", "Esc", "button");
   // No heading, as New Project has none; the dialog is still named for a screen reader.
+  // File, Edit and View down one side; Writing, the longest, alone on the other.
   const modal = element("dialog", { className: "new-project-dialog shortcuts", ariaLabel: "Keyboard Shortcuts" }, [
     element("div", { className: "new-project-dialog__form" }, [
-      element("div", { className: "shortcuts__columns" }, [column(["File", "Edit"]), column(["View", "Writing"])]),
-      element("div", { className: "drop-menu__divider", role: "separator" }),
-      drawTabCircuit(),
-      element("div", { className: "drop-menu__divider", role: "separator" }),
+      element("div", { className: "shortcuts__columns" }, [
+        column((["File", "Edit", "View"] as const).map((name) => drawGroup(group(name)))),
+        element("div", { className: "shortcuts__divider", role: "separator", ariaOrientation: "vertical" }),
+        column([drawGroup(group("Writing"), [drawTabOrder()])]),
+      ]),
       element("div", { className: "new-project-dialog__actions" }, [close]),
     ]),
   ]);

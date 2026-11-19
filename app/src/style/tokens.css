@@ -369,9 +369,11 @@
 
 :root {
   /** One column of shortcuts: the longest name and the widest key, with room between. */
-  --measure-shortcuts-column: 280px;
-  /** Between the two columns. */
+  --measure-shortcuts-column: 300px;
+  /** Either side of the divider between the two columns. */
   --space-shortcuts-columns: var(--space-vast);
+  /** The margin all round: wider than the other dialogs', as this one is read, not filled in. */
+  --space-shortcuts-edge: var(--space-vast);
 }
 
 /* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */

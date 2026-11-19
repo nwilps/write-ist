@@ -4,7 +4,7 @@
  *
  * The rows are checked against the command table, not against a second copy
  * of it: a row the table does not answer, or a hint the menus would not draw,
- * fails here. The Tab circuit is checked against the surface's `TAB_CYCLE`.
+ * fails here. Tab Order is checked against the surface's `TAB_CYCLE`.
  */
 // @vitest-environment jsdom
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -142,24 +142,156 @@ describe("the list, generated from the command table", () => {
   });
 });
 
-describe("the Tab circuit", () => {
+describe("Tab Order", () => {
+  /** The section, and its names top to bottom. */
+  const tabOrder = (modal: HTMLElement) => {
+    const section = modal.querySelector<HTMLElement>(".shortcuts-tab-order")!;
+    const steps = [...section.querySelectorAll(".shortcuts-loop__step")];
+    return { section, steps, names: steps.map((step) => step.querySelector(".shortcuts-loop__name")!.textContent) };
+  };
+
   it("is TAB_CYCLE in order, by the command table's names", () => {
     expect(tabCircuit()).toEqual(TAB_CYCLE.map((type) => commandById(`element-${type}`)!.label));
     expect(tabCircuit()).toEqual(["Scene Heading", "Action", "Character", "Dialogue", "Parenthetical", "Transition"]);
   });
 
-  it("is drawn in its own section, and does not pretend Tab reaches Centered", () => {
+  it("sits inside Writing, after its rows, and is not one of them", () => {
     const { modal } = opened();
-    const section = modal.querySelector(".shortcuts-circuit")!;
-    const steps = [...section.querySelectorAll(".shortcuts-circuit__step")].map(
-      (step) => step.querySelector("span:not([aria-hidden])")!.textContent,
-    );
-    expect(steps).toEqual(tabCircuit());
+    const { section } = tabOrder(modal);
+    const writing = section.closest(".shortcuts__group")!;
+    expect(writing.querySelector(".shortcuts__label")!.textContent).toBe("Writing");
+    expect(writing.lastElementChild).toBe(section);
+    expect(section.closest(".shortcuts__row")).toBeNull();
+    expect(section.querySelector(".shortcuts__row")).toBeNull();
+    expect(section.querySelector(".shortcuts__label")!.textContent).toBe("Tab Order");
+    expect(modal.querySelectorAll(".shortcuts-tab-order")).toHaveLength(1);
+  });
+
+  it("stacks TAB_CYCLE top to bottom, with the keys beside it, and does not pretend Tab reaches Centered", () => {
+    const { modal } = opened();
+    const { section, names } = tabOrder(modal);
+    expect(names).toEqual(tabCircuit());
+    expect(section.querySelector("ol")).not.toBeNull();
     expect(section.textContent).not.toContain("Centered");
     expect(TAB_CYCLE).not.toContain("centered");
     expect([...section.querySelectorAll(".shortcuts__key")].map((key) => key.textContent)).toEqual(["[Tab]", "[Shift + Tab]"]);
-    // Not tangled into the generated list.
-    expect(section.closest(".shortcuts__columns")).toBeNull();
+  });
+
+  it("draws a loop: in to the first from the left, down the right into each after, and back up the left from the last", () => {
+    const { modal } = opened();
+    const { section, steps } = tabOrder(modal);
+    const last = steps.length - 1;
+    const lead = (step: Element): Element => step.firstElementChild!;
+    const tie = (step: Element): Element => step.lastElementChild!;
+
+    // The start: an arrow pointing into Scene Heading, and only there.
+    expect(lead(steps[0]!).classList.contains("shortcuts-loop__lead--in")).toBe(true);
+    expect(lead(steps[0]!).querySelector(".shortcuts-loop__head--in")).not.toBeNull();
+    expect(section.querySelectorAll(".shortcuts-loop__lead--in")).toHaveLength(1);
+    // Out of the first on the right, with no arrowhead; into every other from the right, with one.
+    steps.forEach((step, at) => {
+      expect(tie(step).classList.contains("shortcuts-loop__tie"), String(at)).toBe(true);
+      expect(tie(step).querySelectorAll(".shortcuts-loop__head"), String(at)).toHaveLength(at === 0 ? 0 : 1);
+    });
+    // Out of the last on the left, back round to the start.
+    expect(lead(steps[last]!).classList.contains("shortcuts-loop__lead--out")).toBe(true);
+    expect(section.querySelectorAll(".shortcuts-loop__lead--out")).toHaveLength(1);
+    // A rail down either side of the names.
+    const loop = section.querySelector(".shortcuts-loop")!;
+    expect(loop.firstElementChild!.className).toBe("shortcuts-loop__rail shortcuts-loop__rail--back");
+    expect(loop.lastElementChild!.className).toBe("shortcuts-loop__rail shortcuts-loop__rail--on");
+    // The drawing is for the eye: a screen reader hears the names and the list's label.
+    for (const piece of section.querySelectorAll("[class*='shortcuts-loop__']:not(.shortcuts-loop__steps):not(.shortcuts-loop__step):not(.shortcuts-loop__name)")) {
+      expect(piece.closest("[aria-hidden='true']"), piece.className).not.toBeNull();
+    }
+    expect(section.querySelector("ol")!.getAttribute("aria-label")).toContain("go round");
+  });
+
+  it("draws its lines thin and dim, the rails from the middle of the first row to the middle of the last", () => {
+    const sheet = css("shortcuts.css");
+    const line = "var(--rule-thin) solid var(--colour-faint)";
+    expect(rule(sheet, ".shortcuts-loop__rail--back")).toContain(`border-left: ${line}`);
+    expect(rule(sheet, ".shortcuts-loop__rail--on")).toContain(`border-right: ${line}`);
+    expect(rule(sheet, ".shortcuts-loop__rail")).toContain("top: calc(var(--size-row) / 2)");
+    expect(rule(sheet, ".shortcuts-loop__rail")).toContain("bottom: calc(var(--size-row) / 2)");
+    expect(rule(sheet, ".shortcuts-loop__tie")).toContain(`border-top: ${line}`);
+    expect(sheet).toMatch(new RegExp(`\\.shortcuts-loop__lead--in,\\s*\\.shortcuts-loop__lead--out\\s*\\{[^}]*border-top: ${line.replace(/[()-]/g, "\\$&")}`));
+    expect(rule(sheet, ".shortcuts-loop__head")).toContain(`border-left: ${line}`);
+    expect(rule(sheet, ".shortcuts-loop__head")).toContain(`border-bottom: ${line}`);
+  });
+});
+
+describe("the layout: two columns and a divider stood on end", () => {
+  const columns = (modal: HTMLElement): Element[] => [...modal.querySelectorAll(".shortcuts__column")];
+  const names = (column: Element): string[] =>
+    [...column.querySelectorAll(".shortcuts__group > .shortcuts__label")].map((label) => label.textContent!);
+
+  it("puts File, Edit and View down one side, and Writing alone on the other", () => {
+    const { modal } = opened();
+    expect(columns(modal).map(names)).toEqual([["File", "Edit", "View"], ["Writing"]]);
+  });
+
+  it("has one divider, vertical, between the two columns, and no horizontal one", () => {
+    const { modal } = opened();
+    expect(modal.querySelectorAll(".drop-menu__divider")).toHaveLength(0);
+    const dividers = modal.querySelectorAll("[role='separator']");
+    expect(dividers).toHaveLength(1);
+    const divider = dividers[0]!;
+    expect(divider.classList.contains("shortcuts__divider")).toBe(true);
+    expect(divider.getAttribute("aria-orientation")).toBe("vertical");
+    const [left, right] = columns(modal);
+    expect(divider.previousElementSibling).toBe(left);
+    expect(divider.nextElementSibling).toBe(right);
+  });
+
+  it("draws the divider as the right-click menu's, stood on end, and held in at the top and bottom", () => {
+    const sheet = css("shortcuts.css");
+    expect(rule(sheet, ".shortcuts__columns")).toContain(
+      "grid-template-columns: minmax(0, 1fr) var(--rule-thin) minmax(0, 1fr)",
+    );
+    const divider = rule(sheet, ".shortcuts__divider");
+    expect(divider).toContain("background: var(--colour-border)");
+    expect(divider).toContain("align-self: stretch");
+    // The menu's divider is held in from the sides by --space-row-label; this one from the top and bottom.
+    expect(divider).toContain("margin: var(--space-row-label) 0");
+    expect(rule(css("menus.css"), ".drop-menu__divider")).toMatch(/margin: [^;]* var\(--space-row-label\);/);
+    expect(rule(css("menus.css"), ".drop-menu__divider")).toContain("background: var(--colour-border)");
+  });
+});
+
+describe("the keys, drawn as the bottom bar's pills", () => {
+  it("are every one a `.pill`, in the rows and beside Tab Order, and none is a button", () => {
+    const { modal } = opened();
+    const keys = [...modal.querySelectorAll(".shortcuts__key")];
+    expect(keys).toHaveLength(COMMANDS.filter((command) => hintOf(command) !== undefined).length + 2);
+    for (const key of keys) {
+      expect(key.classList.contains("pill"), key.textContent!).toBe(true);
+      expect(key.tagName).toBe("SPAN");
+    }
+  });
+
+  it("take the bottom bar's shape and grey, with the thin edge the Goals days have", () => {
+    const pill = rule(css("editor.css"), ".pill");
+    expect(pill).toContain("border-radius: var(--radius-float)");
+    expect(pill).toContain("height: var(--size-pill)");
+    expect(pill).toContain("padding: 0 var(--space-roomy)");
+    expect(pill).toContain("font-size: var(--size-label)");
+    expect(pill).toContain("background: var(--colour-raised)");
+    expect(pill).toContain("color: var(--colour-muted)");
+    const key = rule(css("shortcuts.css"), ".shortcuts .pill.shortcuts__key");
+    const edge = "border: var(--rule-thin) solid var(--colour-border-strong)";
+    expect(key).toContain(edge);
+    expect(css("goals.css")).toContain(edge);
+    // Nothing of the old chip, and no colour or shape of its own.
+    expect(key).not.toMatch(/radius|color|height|padding|background/);
+    expect(css("shortcuts.css")).not.toContain("--radius-slight");
+    // For reading: nothing lights under the pointer.
+    expect(key).toContain("pointer-events: none");
+  });
+
+  it("set each row as tall as its key", () => {
+    expect(rule(css("shortcuts.css"), ".shortcuts__row")).toContain("height: var(--size-pill)");
+    expect(rule(css("shortcuts.css"), ".shortcuts-tab-order__head")).toContain("height: var(--size-pill)");
   });
 });
 
@@ -169,7 +301,10 @@ describe("the dialog", () => {
     expect(modal.getAttribute("aria-label")).toBe("Keyboard Shortcuts");
     expect(modal.classList.contains("new-project-dialog")).toBe(true);
     expect(modal.firstElementChild!.classList.contains("new-project-dialog__form")).toBe(true);
-    expect(modal.firstElementChild!.firstElementChild!.classList.contains("shortcuts__columns")).toBe(true);
+    expect([...modal.firstElementChild!.children].map((child) => child.className)).toEqual([
+      "shortcuts__columns",
+      "new-project-dialog__actions",
+    ]);
   });
 
   it("opens with nothing focused: the dialog itself holds the focus", () => {
@@ -370,46 +505,53 @@ describe("one page, nothing scrolled, in the app's window", () => {
 
   /** The packed size from the tokens: jsdom lays nothing out. */
   const packed = () => {
-    const frame = (px("--space-loose") + px("--rule-thin")) * 2;
-    const width = px("--measure-shortcuts-column") * 2 + px("--space-vast") + frame;
+    const frame = (px("--space-vast") + px("--rule-thin")) * 2;
+    const width = px("--measure-shortcuts-column") * 2 + px("--space-vast") * 2 + px("--rule-thin") + frame;
     const groups = shortcutGroups();
     const label = px("--size-caption") * leadingTight();
     const group = (name: string): number =>
-      label + px("--space-tight") + groups.find((one) => one.name === name)!.rows.length * px("--size-row");
-    const column = (names: string[]): number =>
-      names.map(group).reduce((sum, one) => sum + one, 0) + px("--space-roomy") * (names.length - 1);
-    const columns = Math.max(column(["File", "Edit"]), column(["View", "Writing"]));
-    const gap = px("--space-roomy");
-    const divider = px("--rule-thin") + px("--space-row-gap");
-    // The label's row, and one row of steps.
-    const circuit = px("--size-row") + px("--space-tight") + px("--size-row");
-    const actions = px("--size-row");
-    const height = frame + columns + gap + divider + gap + circuit + gap + divider + gap + actions;
-    return { width, height };
+      label + px("--space-tight") + groups.find((one) => one.name === name)!.rows.length * px("--size-pill");
+    const left = ["File", "Edit", "View"].map(group).reduce((sum, one) => sum + one, 0) + px("--space-roomy") * 2;
+    // Spaced from Writing's rows as one group is from the next; its head as tall as its keys; a row for each type.
+    const tabOrder = px("--space-roomy") + px("--size-pill") + px("--space-tight") + TAB_CYCLE.length * px("--size-row");
+    const right = group("Writing") + tabOrder;
+    const actions = px("--space-dialog-actions") + px("--size-row");
+    const height = frame + Math.max(left, right) + actions;
+    return { width, height, left, right };
   };
 
   it("is the window the app opens at", () => {
     expect([appWindow.width, appWindow.height]).toEqual([1100, 820]);
   });
 
-  it("packs to 650 by about 509, inside 1100 by 820, with the 24px margins", () => {
-    // The sum headless Chrome measures too (650 × 509.19).
-    expect(packed().width).toBe(650);
-    expect(packed().height).toBeCloseTo(509.2, 5);
+  it("packs to 763 by about 602, inside 1100 by 820, with 40px margins", () => {
+    // The sum headless Chrome measures too (763 × 601.59).
+    expect(packed().width).toBe(763);
+    expect(packed().height).toBeCloseTo(601.6, 5);
+    // Writing and Tab Order are the taller side.
+    expect(packed().right).toBeGreaterThan(packed().left);
+    // Room to spare all round, so nothing scrolls.
     expect(packed().width + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.width);
     expect(packed().height + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.height);
   });
 
-  it("is two columns, set by the tokens the sum reads, and nothing inside scrolls", () => {
+  it("has a wider margin than the other dialogs", () => {
+    expect(css("tokens.css")).toContain("--space-shortcuts-edge: var(--space-vast);");
+    expect(px("--space-vast")).toBeGreaterThan(px("--space-loose"));
+    expect(rule(css("shortcuts.css"), ".new-project-dialog.shortcuts")).toContain("padding: var(--space-shortcuts-edge)");
+  });
+
+  it("is two columns and a divider, set by the tokens the sum reads, and nothing inside scrolls", () => {
     const sheet = css("shortcuts.css");
-    const frame = rule(sheet, ".new-project-dialog.shortcuts");
+    const frame = rule(sheet, ".new-project-dialog.shortcuts").replace(/\s+/g, " ");
     expect(frame).toContain(
-      "width: calc(var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) + var(--space-loose) * 2 + var(--rule-thin) * 2)",
+      "width: calc( var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) * 2 + var(--rule-thin) + var(--space-shortcuts-edge) * 2 + var(--rule-thin) * 2 )",
     );
+    expect(css("tokens.css")).toContain("--measure-shortcuts-column: 300px;");
     expect(css("tokens.css")).toContain("--space-shortcuts-columns: var(--space-vast);");
-    expect(frame).toContain("padding: var(--space-loose)");
-    expect(rule(sheet, ".shortcuts__columns")).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
-    expect(rule(sheet, ".shortcuts__row")).toContain("height: var(--size-row)");
+    expect(rule(sheet, ".shortcuts__columns")).toContain("gap: var(--space-shortcuts-columns)");
+    expect(rule(sheet, ".shortcuts-loop__step")).toContain("height: var(--size-row)");
+    expect(rule(sheet, ".shortcuts-tab-order")).toContain("margin-block-start: calc(var(--space-roomy) - var(--space-tight))");
     // No scroller of its own, and no height but the window's.
     expect(sheet).not.toMatch(/overflow/);
     expect(frame).not.toMatch(/(^|[\s;])height:/);
@@ -421,12 +563,9 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect(frame).toContain("max-height: 100%");
   });
 
-  it("dresses it as the other dialogs: their frame, label, divider and dim key", () => {
+  it("dresses it as the other dialogs: their frame, label and button", () => {
     const { modal } = opened();
-    expect(modal.querySelectorAll(".drop-menu__divider")).toHaveLength(2);
     expect(modal.querySelector(".shortcuts__label")!.classList.contains("new-project-dialog__label")).toBe(true);
     expect(closeButton(modal).classList.contains("dialog-action")).toBe(true);
-    expect(rule(css("shortcuts.css"), ".shortcuts__key")).toContain("color: var(--colour-faint)");
-    expect(css("menus.css")).toMatch(/\.drop-menu__hint\s*\{[^}]*color: var\(--colour-faint\)/);
   });
 });
