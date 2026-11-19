@@ -62,7 +62,7 @@ export function showImportProject(
     id: "import-project-name",
     className: "new-project-dialog__input",
     type: "text",
-    placeholder: "Optional; title page or file name",
+    placeholder: "Optional...",
     autocomplete: "off",
     spellcheck: false,
   });

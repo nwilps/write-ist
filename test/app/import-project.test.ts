@@ -76,7 +76,7 @@ describe("the Import dialog", () => {
     expect(type.textContent).toBe("Feature");
     expect([...modal.querySelectorAll("input")]).toEqual([name]);
     expect(name.value).toBe("");
-    expect(name.placeholder).toBe("Optional; title page or file name");
+    expect(name.placeholder).toBe("Optional...");
     expect(name.classList.contains("new-project-dialog__input")).toBe(true);
     expect(file.classList.contains("new-project-dialog__input")).toBe(true);
     expect(file.textContent).toBe("Select a file for import...");
