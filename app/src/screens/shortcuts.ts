@@ -95,9 +95,12 @@ export function chordMatches(chord: Chord, press: KeyPress): boolean {
   return [chord.key, ...(chord.alsoKeys ?? [])].some((key) => key.toLowerCase() === pressed);
 }
 
-/** A chord as the desk shows it: `[Ctrl + S]`, `[Alt + Enter]`, `[Esc]`. */
+/** Keys the hint names more shortly than `KeyboardEvent.key` does. */
+const KEY_NAMES: Readonly<Record<string, string>> = { Escape: "Esc", ArrowLeft: "Left", ArrowRight: "Right" };
+
+/** A chord as the desk shows it: `[Ctrl + S]`, `[Alt + Enter]`, `[Esc]`, `[Alt + Left]`. */
 export function chordHint(chord: Chord): string {
-  const key = chord.key === "Escape" ? "Esc" : chord.key.length === 1 ? chord.key.toUpperCase() : chord.key;
+  const key = KEY_NAMES[chord.key] ?? (chord.key.length === 1 ? chord.key.toUpperCase() : chord.key);
   const modifier = chord.mod === true ? "Ctrl + " : chord.alt === true ? "Alt + " : "";
   return `[${modifier}${key}]`;
 }

@@ -2,8 +2,8 @@
  * TEMPORARY placeholders: the Notes and Plan tabs.
  *
  * They exist only so the workspace bar can be seen with more than one tab in it
- * (the desk design, §2.3). They have no behaviour — nothing mounts in them and
- * the bar cannot yet switch to them. Delete this file when the real Notes and
+ * (the desk design, §2.3). They have no behaviour — nothing mounts in them, and
+ * selecting their tab leaves the Editor mounted and on screen. Delete this file when the real Notes and
  * Plan workspaces arrive, each as a manifest of its own (ADR-0005).
  */
 import { ListChecks, StickyNote } from "lucide";

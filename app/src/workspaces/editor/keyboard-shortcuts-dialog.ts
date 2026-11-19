@@ -45,11 +45,13 @@ export interface ShortcutGroup {
 export const KEYBOARD_SHORTCUTS = "keyboard-shortcuts";
 
 /**
- * Where a command is listed: under its menu, the clipboard with Edit, and
- * everything else with a key (the element types, Search) under Writing.
+ * Where a command is listed: under its menu, or where the table says
+ * (the workspace tabs under View), the clipboard with Edit, and everything
+ * else with a key (the element types, Search, the scene jumps) under Writing.
  */
 function groupOf(command: Command): ShortcutGroupName {
   if (command.menu !== undefined) return command.menu.name;
+  if (command.listedUnder !== undefined) return command.listedUnder;
   if (command.context?.group === "clipboard") return "Edit";
   return "Writing";
 }
@@ -139,7 +141,7 @@ export function openKeyboardShortcutsDialog(into: HTMLElement, options: Keyboard
   // Esc, because it closes from anywhere; the dialog's own key is in the list.
   const close = dialogAction("Close", "Esc", "button");
   // No heading, as New Project has none; the dialog is still named for a screen reader.
-  // File, Edit and View down one side; Writing, the longest, alone on the other.
+  // File, Edit and View down one side; Writing, with the Tab order, alone on the other.
   const modal = element("dialog", { className: "new-project-dialog shortcuts", ariaLabel: "Keyboard Shortcuts" }, [
     element("div", { className: "new-project-dialog__form" }, [
       element("div", { className: "shortcuts__columns" }, [
