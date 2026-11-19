@@ -8,8 +8,8 @@
  *      (`--space-panel-gap`) above and below it.
  *   1. Halfway between that and 100%.
  *   2. 100%: where every run of the app starts, and where Reset Zoom goes.
- *   3. The paper grows until the side panels reach the window's edges, the
- *      panel gap still between the paper and each panel.
+ *   3. The paper grows until the side panels come within the panel gap of the
+ *      window's edges: from each edge, the gap, a panel, the gap, the paper.
  *   4. The paper fills the window's width, with the panel gap at either side.
  *      The panels are still on the desk, hanging just past the window's edges.
  *
@@ -65,7 +65,7 @@ export function zoomScales(room: ZoomRoom): readonly number[] {
   if (!(viewWidth > 0 && viewHeight > 0 && pageWidth > 0 && pageHeight > 0)) return Array(ZOOM_LEVELS).fill(1);
   const out2 = Math.min(1, Math.max(SMALLEST, (viewHeight - 2 * gap) / pageHeight));
   const out1 = (out2 + 1) / 2;
-  const in1 = Math.max(1, (viewWidth - 2 * panel - 2 * gap) / pageWidth);
+  const in1 = Math.max(1, (viewWidth - 2 * panel - 4 * gap) / pageWidth);
   const in2 = Math.max(in1, (viewWidth - 2 * gap) / pageWidth);
   return [out2, out1, 1, in1, in2];
 }

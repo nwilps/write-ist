@@ -74,23 +74,23 @@ describe("the five levels", () => {
     expect([ZOOM_LEVELS, ZOOM_DEFAULT]).toEqual([5, 2]);
   });
 
-  it("on a wide window are one sheet top to bottom, halfway, 100%, the panels at the edges, and the paper edge to edge", () => {
+  it("on a wide window are one sheet top to bottom, halfway, 100%, the panels a gap in from the edges, and the paper edge to edge", () => {
     const [out2, out1, middle, in1, in2] = zoomScales(room(1920, 1000));
     // One whole sheet, with the gap above and below it.
     expect(out2! * 1056 + 2 * 12).toBeCloseTo(1000);
     expect(out1).toBeCloseTo((out2! + 1) / 2);
     expect(middle).toBe(1);
-    // The paper, the gap either side, and a panel either side: the window's width.
-    expect(in1! * 816 + 2 * 12 + 2 * 240).toBeCloseTo(1920);
+    // From each edge the gap, a panel, the gap, then the paper: the window's width.
+    expect(in1! * 816 + 4 * 12 + 2 * 240).toBeCloseTo(1920);
     // The paper and the gap either side: the window's width, the panels past it.
     expect(in2! * 816 + 2 * 12).toBeCloseTo(1920);
-    expect([out2, out1, in1, in2].map((scale) => scale!.toFixed(4))).toEqual(["0.9242", "0.9621", "1.7353", "2.3235"]);
+    expect([out2, out1, in1, in2].map((scale) => scale!.toFixed(4))).toEqual(["0.9242", "0.9621", "1.7059", "2.3235"]);
   });
 
   it("on the first window, 1100 by 820, hold the panels' level at 100%: they already reach past its edges there", () => {
     const scales = zoomScales(room(1100, 820));
-    // The panels at the edges would be (1100 − 480 − 24) / 816 = 73%, smaller than 100%.
-    expect((1100 - 2 * 240 - 2 * 12) / 816).toBeLessThan(1);
+    // The panels a gap in from the edges would be (1100 − 480 − 48) / 816 = 70%, smaller than 100%.
+    expect((1100 - 2 * 240 - 4 * 12) / 816).toBeLessThan(1);
     expect(scales.map((scale) => scale.toFixed(4))).toEqual(["0.7538", "0.8769", "1.0000", "1.0000", "1.3186"]);
   });
 
