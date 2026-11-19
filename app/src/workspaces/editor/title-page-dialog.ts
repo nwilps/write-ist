@@ -1,5 +1,12 @@
 /**
- * Edit Title Page: one box per title-page key, prefilled from the manuscript.
+ * Edit Title Page and View Title Page: one dialog with two faces.
+ *
+ * Edit has one box per title-page key, prefilled from the manuscript. View is
+ * the title page as it prints, filling the dialog. **They are one `<dialog>`,**
+ * and the boxes keep their place under the page while it shows, so the two are
+ * the same size in the same spot however tall the boxes make it, and the button
+ * that switches them never moves. Ctrl+E does what that button does, from
+ * anywhere, a box being typed in included.
  *
  * New Project's dialog, built from its pieces, its shared buttons and keys among
  * them: a modal `<dialog>` with no heading, and Escape cancels it natively. The
@@ -12,6 +19,10 @@
  *
  * What a value *means* — marks, continuation indent, keys the dialog has no box
  * for — is `src/screenplay/title-page.ts`'s; this draws and listens.
+ *
+ * View opens with nothing focused, as Goals does: Escape closes at once, and Tab
+ * or an arrow steps onto the buttons. Close and Escape put the whole dialog away,
+ * and what was typed and not saved goes with it, as it does with Cancel.
  */
 import type { TitlePageField } from "../../../../src/screenplay/document.ts";
 import {
@@ -26,15 +37,21 @@ import { dialogAction } from "../../screens/dialog-action.ts";
 import { dialogKeys } from "../../screens/dialog-keys.ts";
 import { element } from "../../screens/element.ts";
 import { field } from "../../screens/new-project.ts";
+import { chordMatches, type Chord } from "../../screens/shortcuts.ts";
 import { trouble } from "../../screens/trouble.ts";
-import { showTitlePagePreview } from "./title-page-preview.ts";
+import { titlePagePreview } from "./title-page-preview.ts";
 
 export interface TitlePageDialogOptions {
   readonly titlePage: readonly TitlePageField[];
   /** The new title page, only when it differs from the one opened. */
   readonly save: (titlePage: readonly TitlePageField[]) => void;
   readonly closed: () => void;
+  /** The face it opens on. Default `edit`. */
+  readonly opensOn?: "edit" | "view";
 }
+
+/** Switches between the faces. */
+const SWITCH: Chord = { key: "e", mod: true };
 
 /** What the dialog calls each box. */
 const LABELS: Readonly<Record<TitlePageKey, string>> = {
@@ -88,22 +105,63 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   );
   const box = (key: TitlePageKey): Box => boxes.get(key)!;
 
-  // View has no key of its own to promise.
-  const view = dialogAction("View", undefined, "button");
-  view.classList.add("title-page__view");
-  const cancel = dialogAction("Cancel", "Esc", "button");
+  // One button each, relabelled: the same element is the same pixels on both faces.
+  const toggle = dialogAction("View", "Ctrl+E", "button");
+  toggle.classList.add("title-page__toggle");
+  const leave = dialogAction("Cancel", "Esc", "button");
   const save = dialogAction("Save", "Enter", "submit");
   const problem = element("div", { className: "new-project__problem" });
+  const page = element("div", { className: "title-page__print", hidden: true });
 
   const list = element("div", { className: "title-page__fields" }, TITLE_PAGE_KEYS.map((key) => fields.get(key)!));
   const form = element("form", { className: "new-project-dialog__form" }, [
     list,
     problem,
-    element("div", { className: "new-project-dialog__actions" }, [view, cancel, save]),
+    element("div", { className: "new-project-dialog__actions" }, [toggle, leave, save]),
   ]);
   // No heading, as New Project has none; the dialog is still named for a screen reader.
-  const modal = element("dialog", { className: "new-project-dialog title-page", ariaLabel: "Edit Title Page" }, [form]);
-  const keys = dialogKeys(modal, [...TITLE_PAGE_KEYS.map((key) => [box(key)]), [view, cancel, save]]);
+  const modal = element("dialog", { className: "new-project-dialog title-page", ariaLabel: "Edit Title Page" }, [page, form]);
+
+  let viewing = false;
+  // Where Edit picks up again: the box last in use.
+  let lastBox = box("Title");
+
+  const relabel = (button: HTMLButtonElement, label: string): void => {
+    button.querySelector("span:not(.gesture__cursor)")!.textContent = label;
+  };
+  const showFace = (): void => {
+    modal.classList.toggle("title-page--view", viewing);
+    modal.ariaLabel = viewing ? "View Title Page" : "Edit Title Page";
+    list.toggleAttribute("inert", viewing);
+    page.hidden = !viewing;
+    save.hidden = viewing;
+    relabel(toggle, viewing ? "Edit" : "View");
+    relabel(leave, viewing ? "Close" : "Cancel");
+  };
+  const showPage = (titlePage: readonly TitlePageField[]): void => {
+    viewing = true;
+    problem.replaceChildren();
+    page.replaceChildren(...titlePagePreview(titlePage));
+    // Before the boxes go inert, so one being edited stops being edited and
+    // the next Escape closes the dialog.
+    modal.focus();
+    showFace();
+  };
+  const showBoxes = (): void => {
+    viewing = false;
+    showFace();
+    keys.edit(lastBox);
+  };
+
+  // Before `dialogKeys`, which leaves a used key alone: from the dialog itself,
+  // where View opens, every arrow steps onto the buttons.
+  modal.addEventListener("keydown", (event) => {
+    if (!viewing || event.target !== modal || !event.key.startsWith("Arrow")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    toggle.focus();
+  });
+  const keys = dialogKeys(modal, [...TITLE_PAGE_KEYS.map((key) => [box(key)]), [toggle, leave, save]]);
 
   /** What the boxes hold now, applied to the title page opened. */
   const result = () => {
@@ -125,11 +183,13 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
 
   // A short window cuts the list, and a browser leaves a half-shown box half shown.
   list.addEventListener("focusin", (event) => {
+    lastBox = event.target as Box;
     (event.target as HTMLElement).closest(".new-project-dialog__field")?.scrollIntoView?.({ block: "nearest" });
   });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (viewing) return;
     const applied = result();
     if ("problem" in applied) {
       say(applied.problem);
@@ -142,22 +202,33 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   // After `dialogKeys`, so this is only the Enter it left. Not `enterSubmits`:
   // in a text area being edited, plain Enter is a new line and Ctrl+Enter saves.
   modal.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.defaultPrevented || event.altKey) return;
+    if (viewing || event.key !== "Enter" || event.defaultPrevented || event.altKey) return;
     if (event.target instanceof HTMLTextAreaElement && !event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     // Not a held key: Enter still down from starting an edit must not save.
     if (!event.repeat) form.requestSubmit();
   });
+  // Heard here, so it works from a box being typed in. Not a held key: the faces
+  // must not flicker while it is down.
+  modal.addEventListener("keydown", (event) => {
+    if (!chordMatches(SWITCH, event)) return;
+    event.preventDefault();
+    if (!event.repeat) toggle.click();
+  });
   // What is typed now, saved or not; the model and the file are not touched.
-  view.addEventListener("click", () => {
+  toggle.addEventListener("click", () => {
+    if (viewing) {
+      showBoxes();
+      return;
+    }
     const applied = result();
     if ("problem" in applied) {
       say(applied.problem);
       return;
     }
-    showTitlePagePreview(into, applied.titlePage, () => view.focus());
+    showPage(applied.titlePage);
   });
-  cancel.addEventListener("click", () => modal.close());
+  leave.addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
     modal.remove();
     options.closed();
@@ -165,6 +236,8 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
 
   into.append(modal);
   modal.showModal();
-  keys.edit(box("Title"));
+  // From the menu the page is what is saved, exactly.
+  if (options.opensOn === "view") showPage(options.titlePage);
+  else keys.edit(box("Title"));
   return modal;
 }

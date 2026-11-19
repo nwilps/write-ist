@@ -1,7 +1,7 @@
 /*
- * The title page dialogs: the form (`.new-project-dialog` and its parts dress
- * it; this is what New Project has no need of) and the preview sheet. Every
- * value is a token (ADR-0030).
+ * The title page dialog: the form (`.new-project-dialog` and its parts dress
+ * it; this is what New Project has no need of) and the page that View lays over
+ * it. Every value is a token (ADR-0030).
  */
 
 /* New Project's frame with Goals' margin, and never larger than the window. */
@@ -52,8 +52,10 @@
   height: var(--size-title-lines-4);
 }
 
-/* View at the left, away from the pair that end the dialog; each as wide as its words. */
+/* The switch at the left, away from the pair that end the dialog; each as wide as
+ * its words. Above the page, which is laid over the form. */
 .title-page .new-project-dialog__actions {
+  position: relative;
   justify-content: flex-end;
 }
 
@@ -61,18 +63,45 @@
   min-width: 0;
 }
 
-.title-page .title-page__view {
+.title-page .new-project-dialog__action[hidden] {
+  display: none;
+}
+
+.title-page .title-page__toggle {
   margin-inline-end: auto;
+}
+
+/* View: the boxes keep the dialog's size from under the page. */
+.new-project-dialog.title-page--view {
+  background: var(--colour-page);
+}
+
+.title-page--view .title-page__fields {
+  visibility: hidden;
+}
+
+/* The whole dialog inside its border, the buttons in the page's bottom margin. */
+.title-page__print {
+  position: absolute;
+  inset: 0;
 }
 
 .title-sheet {
   display: block;
-  width: var(--size-title-sheet);
-  max-width: 100%;
-  height: auto;
-  margin: var(--space-roomy) auto 0;
-  background: var(--colour-page);
-  border: var(--rule-thin) solid var(--colour-border);
+  width: 100%;
+  height: 100%;
+}
+
+.title-page__nothing {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  margin: 0;
+  translate: 0 -50%;
+  font-size: var(--size-label);
+  text-align: center;
+  color: var(--colour-muted);
 }
 
 .title-run {

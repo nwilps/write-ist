@@ -8,7 +8,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
 import { sidePanels } from "../../app/src/workspaces/editor/panels.ts";
 import { openTitlePageDialog } from "../../app/src/workspaces/editor/title-page-dialog.ts";
-import { showTitlePagePreview } from "../../app/src/workspaces/editor/title-page-preview.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { titlePageRuns } from "../../src/screenplay/title-page-layout.ts";
@@ -42,11 +41,11 @@ const TITLE_PAGE = parse(
   "Title:\n\t_**BRICK & STEEL**_\n\t_**FULL RETIRED**_\nCredit: Written by\nAuthor: Stu\nRevision: Blue\n\nx\n",
 ).titlePage;
 
-function opened(titlePage = TITLE_PAGE) {
+function opened(titlePage = TITLE_PAGE, opensOn?: "edit" | "view") {
   const save = vi.fn();
   const closed = vi.fn();
   const into = document.body.appendChild(document.createElement("div"));
-  const modal = openTitlePageDialog(into, { titlePage, save, closed });
+  const modal = openTitlePageDialog(into, { titlePage, save, closed, ...(opensOn === undefined ? {} : { opensOn }) });
   const box = (key: string) => modal.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#title-page-${key}`)!;
   const button = (label: string) =>
     [...modal.querySelectorAll("button")].find((b) => b.querySelector("span:not(.gesture__cursor)")?.textContent === label)!;
@@ -157,11 +156,10 @@ describe("Edit Title Page", () => {
   });
 
   it("previews what is typed now, saved or not, without saving", () => {
-    const { into, save, type, button } = opened();
+    const { modal, save, type, button } = opened();
     type("credit", "Screenplay by");
     button("View").click();
-    const preview = into.querySelector("dialog.title-preview")!;
-    expect([...preview.querySelectorAll("text")].map((t) => t.textContent)).toContain("Screenplay by");
+    expect([...modal.querySelectorAll(".title-page__print text")].map((t) => t.textContent)).toContain("Screenplay by");
     expect(save).not.toHaveBeenCalled();
   });
 });
@@ -182,7 +180,7 @@ describe("Edit Title Page's look", () => {
     for (const key of ["title", "credit", "author", "source", "draft-date", "contact", "notes"]) {
       expect(box(key).classList.contains("new-project-dialog__input"), key).toBe(true);
     }
-    expect(button("View").textContent).toBe(">View");
+    expect(button("View").textContent).toBe(">View[Ctrl+E]");
     expect(button("Cancel").textContent).toBe(">Cancel[Esc]");
     expect(button("Save").textContent).toBe(">Save[Enter]");
     for (const label of ["View", "Cancel", "Save"]) expect(button(label).classList.contains("dialog-action"), label).toBe(true);
@@ -321,14 +319,6 @@ describe("Edit Title Page's look", () => {
     expect((opened(broken("\tA\n\tB\n\tC\n\tD\n\tE")).box("credit") as HTMLTextAreaElement).rows).toBe(4);
   });
 
-  it("keeps the preview's sheet and frame", () => {
-    expect(css("title-page.css")).toMatch(/\.title-sheet\s*\{[^}]*width: var\(--size-title-sheet\)/);
-    expect(css("title-page.css")).toContain(".title-run--underline");
-    const preview = showTitlePagePreview(document.body, TITLE_PAGE);
-    expect(preview.classList.contains("report")).toBe(true);
-    expect(preview.querySelector(".report__heading")?.textContent).toBe("Title Page");
-  });
-
   it("leaves the other dialogs' frames as they were", () => {
     expect(css("home.css")).toMatch(/\.new-project-dialog\s*\{[^}]*width: var\(--measure-new-project\)/);
     expect(css("home.css")).toMatch(/\.new-project-dialog__input\s*\{[^}]*height: var\(--size-field\)/);
@@ -393,9 +383,9 @@ describe("the Author(s) box", () => {
   });
 
   it("previews an untouched Author on its own lines", () => {
-    const { into, button } = opened(TWO_AUTHORS);
+    const { modal, button } = opened(TWO_AUTHORS);
     button("View").click();
-    const drawn = [...into.querySelectorAll("dialog.title-preview text")].map((t) => t.textContent);
+    const drawn = [...modal.querySelectorAll(".title-page__print text")].map((t) => t.textContent);
     expect(drawn).toEqual(expect.arrayContaining(["John August", "Daniel Wallace"]));
   });
 });
@@ -616,22 +606,24 @@ describe("Edit Title Page from the keyboard", () => {
     expect(second.save).toHaveBeenCalledTimes(1);
   });
 
-  it("opens the preview from View with Enter, and comes back to View", () => {
-    const { into, button, save, modal } = opened(PLAIN);
+  it("shows the page from View with Enter, saving nothing and staying open", () => {
+    const { button, save, modal } = opened(PLAIN);
     button("View").focus();
     press("Enter");
-    const preview = into.querySelector<HTMLDialogElement>("dialog.title-preview")!;
+    expect(modal.classList.contains("title-page--view")).toBe(true);
     expect(save).not.toHaveBeenCalled();
-    preview.close();
-    expect(document.activeElement).toBe(button("View"));
     expect(modal.hasAttribute("open")).toBe(true);
   });
 });
 
 describe("View Title Page", () => {
+  const viewing = (titlePage = TITLE_PAGE) => opened(titlePage, "view");
+  const labels = (modal: HTMLDialogElement): string[] =>
+    [...modal.querySelectorAll<HTMLButtonElement>(".new-project-dialog__actions button")].filter((b) => !b.hidden).map((b) => b.textContent!);
+  const isView = (modal: HTMLDialogElement): boolean => modal.classList.contains("title-page--view");
+
   it("draws the shared layout's runs, each where the layout put it", () => {
-    const into = document.body.appendChild(document.createElement("div"));
-    const modal = showTitlePagePreview(into, TITLE_PAGE);
+    const { modal } = viewing();
     const drawn = [...modal.querySelectorAll("text")].map((t) => ({
       text: t.textContent,
       x: Number(t.getAttribute("x")),
@@ -640,25 +632,168 @@ describe("View Title Page", () => {
     expect(drawn).toEqual(titlePageRuns(TITLE_PAGE).map(({ text, x, y }) => ({ text, x, y })));
     expect(drawn.length).toBeGreaterThan(0);
     // Marks are faces, not delimiters.
-    expect(modal.textContent).not.toContain("_**");
+    expect(modal.querySelector(".title-page__print")!.textContent).not.toContain("_**");
     expect(modal.querySelector(".title-run--bold.title-run--underline")).not.toBeNull();
   });
 
-  it("closes with Escape and leaves the page where it was", () => {
-    const into = document.body.appendChild(document.createElement("div"));
-    const closed = vi.fn();
-    const modal = showTitlePagePreview(into, TITLE_PAGE, closed);
-    modal.close();
-    expect(closed).toHaveBeenCalledTimes(1);
-    expect(into.querySelector("dialog")).toBeNull();
+  it("draws Brick & Steel's saved title page as the layout does", () => {
+    const { titlePage } = parse(BRICK_AND_STEEL);
+    const drawn = [...viewing(titlePage).modal.querySelectorAll("text")].map((t) => t.textContent);
+    expect(drawn).toEqual(titlePageRuns(titlePage).map((run) => run.text));
   });
 
   it("says there is nothing to show for an empty title page, on an empty sheet", () => {
-    const into = document.body.appendChild(document.createElement("div"));
-    const modal = showTitlePagePreview(into, []);
-    expect(modal.textContent).toContain("no title page to show");
+    const { modal } = viewing([]);
+    expect(modal.querySelector(".title-page__print")!.textContent).toContain("no title page to show");
     expect(modal.querySelector("svg.title-sheet")).not.toBeNull();
     expect(modal.querySelectorAll("text")).toHaveLength(0);
+  });
+
+  it("has no heading or standfirst, only the page and two buttons", () => {
+    const { modal } = viewing(PLAIN);
+    expect(modal.querySelector("h1, h2, h3, .report__heading, .report__standfirst")).toBeNull();
+    expect(modal.classList.contains("report")).toBe(false);
+    expect(modal.getAttribute("aria-label") ?? modal.ariaLabel).toBe("View Title Page");
+    expect(labels(modal)).toEqual([">Edit[Ctrl+E]", ">Close[Esc]"]);
+    for (const button of modal.querySelectorAll(".new-project-dialog__actions button")) {
+      expect(button.classList.contains("dialog-action")).toBe(true);
+    }
+  });
+
+  it("lays the page over the whole dialog, keeping the boxes' size under it", () => {
+    const sheet = css("title-page.css");
+    expect(rule(sheet, ".title-page__print")).toContain("inset: 0");
+    expect(rule(sheet, ".title-sheet")).toContain("width: 100%");
+    expect(rule(sheet, ".title-sheet")).toContain("height: 100%");
+    expect(rule(sheet, ".title-page--view .title-page__fields")).toContain("visibility: hidden");
+    expect(rule(sheet, ".title-page .new-project-dialog__actions")).toContain("position: relative");
+  });
+
+  it("is the same dialog and the same button on both faces", () => {
+    const { into, modal, button } = opened(PLAIN);
+    const toggle = button("View");
+    toggle.click();
+    expect(into.querySelectorAll("dialog")).toHaveLength(1);
+    expect(button("Edit")).toBe(toggle);
+    expect(modal.querySelector(".title-page__fields")!.hasAttribute("inert")).toBe(true);
+    toggle.click();
+    expect(button("View")).toBe(toggle);
+    expect(modal.querySelector(".title-page__fields")!.hasAttribute("inert")).toBe(false);
+    expect(labels(modal)).toEqual([">View[Ctrl+E]", ">Cancel[Esc]", ">Save[Enter]"]);
+  });
+
+  it("opens with nothing focused, and the first Escape closes it", () => {
+    const { modal, closed, save } = viewing(PLAIN);
+    expect(document.activeElement).toBe(modal);
+    escape(modal);
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(modal.isConnected).toBe(false);
+  });
+
+  it("closes at once on Escape even after Ctrl+E from a box being typed in", () => {
+    const { modal, box, closed, save, type } = opened(PLAIN);
+    type("title", "Changed");
+    expect(box("title").classList.contains("dialog-keys__editing")).toBe(true);
+    press("e", { ctrlKey: true });
+    expect(document.activeElement).toBe(modal);
+    expect(box("title").classList.contains("dialog-keys__editing")).toBe(false);
+    escape(modal);
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("closes completely from Close", () => {
+    const { into, closed, button, save } = viewing(PLAIN);
+    button("Close").click();
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(into.querySelector("dialog")).toBeNull();
+  });
+
+  it.each([["Tab", {}, "Edit"], ["Tab", { shiftKey: true }, "Close"], ["ArrowDown", {}, "Edit"], ["ArrowUp", {}, "Edit"], ["ArrowLeft", {}, "Edit"], ["ArrowRight", {}, "Edit"]])(
+    "steps onto the buttons with %s %j",
+    (key, init, label) => {
+      const { button } = viewing(PLAIN);
+      press(key, init);
+      expect(document.activeElement).toBe(button(label));
+    },
+  );
+
+  it("walks only its two buttons, never the boxes under the page", () => {
+    const { button } = viewing(PLAIN);
+    press("Tab");
+    press("Tab");
+    expect(document.activeElement).toBe(button("Close"));
+    press("Tab");
+    expect(document.activeElement).toBe(button("Edit"));
+    press("ArrowRight");
+    expect(document.activeElement).toBe(button("Close"));
+    press("ArrowDown");
+    expect(document.activeElement).toBe(button("Close"));
+  });
+
+  it("never saves from the page, by Enter or Ctrl+Enter or the form", () => {
+    const { modal, save, closed, submit } = opened(PLAIN);
+    press("e", { ctrlKey: true });
+    press("Enter");
+    press("Enter", { ctrlKey: true });
+    submit();
+    expect(save).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+    expect(isView(modal)).toBe(true);
+  });
+
+  it.each([["ctrlKey"], ["metaKey"]])("goes both ways with E and %s, from a text area and a one-line box", (modifier) => {
+    const { modal, box, button } = opened(PLAIN);
+    for (const key of ["title", "credit"]) {
+      box(key).focus();
+      expect(press("e", { [modifier]: true }).defaultPrevented).toBe(true);
+      expect(isView(modal)).toBe(true);
+      expect(button("Edit").textContent).toBe(">Edit[Ctrl+E]");
+      expect(press("E", { [modifier]: true }).defaultPrevented).toBe(true);
+      expect(isView(modal)).toBe(false);
+      expect(document.activeElement).toBe(box(key));
+      expect(box(key).classList.contains("dialog-keys__editing")).toBe(true);
+    }
+  });
+
+  it("does not flicker while Ctrl+E is held, and leaves Alt+E and a plain e alone", () => {
+    const { modal } = opened(PLAIN);
+    expect(press("e", { ctrlKey: true, repeat: true }).defaultPrevented).toBe(true);
+    expect(isView(modal)).toBe(false);
+    expect(press("e", { altKey: true }).defaultPrevented).toBe(false);
+    expect(press("e").defaultPrevented).toBe(false);
+    expect(isView(modal)).toBe(false);
+  });
+
+  it("keeps what was typed across the switch, and shows it on the page", () => {
+    const { modal, box, type, button, save } = opened(PLAIN);
+    type("credit", "Screenplay by");
+    button("View").click();
+    expect(modal.querySelector(".title-page__print")!.textContent).toContain("Screenplay by");
+    button("Edit").click();
+    expect(box("credit").value).toBe("Screenplay by");
+    type("credit", "Story by");
+    button("View").click();
+    expect(modal.querySelector(".title-page__print")!.textContent).toContain("Story by");
+    expect(modal.querySelector(".title-page__print")!.textContent).not.toContain("Screenplay by");
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("can still save after coming back from the page", () => {
+    const { button, type, save, closed } = opened(PLAIN, "view");
+    button("Edit").click();
+    type("credit", "Screenplay by");
+    press("Enter", { ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens Edit on the Title box when it began on the page", () => {
+    const { box, button } = viewing(PLAIN);
+    button("Edit").click();
+    expect(document.activeElement).toBe(box("title"));
   });
 });
 

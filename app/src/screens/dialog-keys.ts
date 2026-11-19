@@ -4,7 +4,7 @@
  * The caller lists its controls as rows, top to bottom, each row left to right.
  * Tab and Shift+Tab go through them all and wrap, so focus stays in the dialog.
  * Up and Down move between rows, Left and Right along one, wrapping too. What
- * cannot be used right now (a disabled Confirm) is stepped over.
+ * cannot be used right now (a disabled Confirm, an inert list) is stepped over.
  *
  * **A text field is either focused or being edited.** Focused, it is one more
  * stop: the arrows pass through it. Clicking it, Enter, or typing starts the
@@ -32,7 +32,7 @@ const isTextField = (node: EventTarget | null): node is HTMLElement =>
   node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
 
 const usable = (control: HTMLElement): boolean =>
-  !control.matches(":disabled") && control.closest("[hidden]") === null;
+  !control.matches(":disabled") && control.closest("[hidden], [inert]") === null;
 
 /** The place `by` steps from `index`, going round. */
 const around = (index: number, by: number, length: number): number => (index + by + length) % length;

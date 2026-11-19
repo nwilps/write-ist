@@ -319,11 +319,9 @@
   --layer-menu: 5;
 }
 
-/* --- The title page dialogs ---------------------------------------------- */
+/* --- The title page dialog ----------------------------------------------- */
 
 :root {
-  /** The preview sheet: US Letter at 70%, so it fits a short window. */
-  --size-title-sheet: 428px;
   /** The form's one column. The frame is this plus 24px margins and the rules:
    * 564px, a rough 8.5/11 of the packed dialog's 729px height (US Letter). */
   --measure-title-page: 514px;

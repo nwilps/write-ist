@@ -64,7 +64,6 @@ import { caretScrolling, measureCaretRoom, scrollCaretIntoView } from "./caret-m
 import { openExportDialog } from "./export-dialog.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
-import { showTitlePagePreview } from "./title-page-preview.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
 import { tauriSpellEngine } from "../../spell-tauri.ts";
@@ -237,13 +236,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // Step 4 and 6: the title page is edited in a form and viewed as it
   // prints; it is never on the paper. Save is one transaction, so autosave
   // sees it as any edit and Undo takes it back in one step.
-  const editTitlePage = (): void => {
+  const openTitlePage = (opensOn: "edit" | "view"): void => {
     if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
     const writing = session;
     openTitlePageDialog(into, {
       titlePage: titlePageOf(writing.state.doc),
       save: (titlePage) => view?.dispatch(setTitlePage(writing.state, titlePage)),
       closed: () => view?.focus(),
+      opensOn,
     });
   };
   // ADR-0040: the Goals dialog, from the Edit menu, the counts pill or the Goal
@@ -296,11 +296,6 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
   };
 
-  const viewTitlePage = (): void => {
-    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
-    showTitlePagePreview(into, titlePageOf(session.state.doc), () => view?.focus());
-  };
-
   // What the command table (`commands.ts`) runs against: the menus, the keys
   // and the panels all go through it.
   const host: CommandHost = {
@@ -309,8 +304,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     toProjects: context.leave.toProjects,
     renameProject,
     toHome: context.leave.toHome,
-    editTitlePage,
-    viewTitlePage,
+    editTitlePage: () => openTitlePage("edit"),
+    viewTitlePage: () => openTitlePage("view"),
     editGoals,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,

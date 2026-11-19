@@ -219,48 +219,6 @@ body {
   margin-bottom: 0;
 }
 
-/* --- The report frame (the title page preview) ----------------------------- */
-
-.report {
-  max-width: var(--measure-reading);
-  padding: var(--space-loose);
-  border: var(--rule-thin) solid var(--colour-border);
-  border-radius: var(--radius-round);
-  background: var(--colour-raised);
-  box-shadow: var(--shadow-float);
-  color: var(--colour-text);
-}
-
-.report::backdrop {
-  /* The window behind, dimmed. `color-mix` keeps this a token too. */
-  background: color-mix(in srgb, var(--colour-base) 80%, transparent);
-}
-
-.report__heading {
-  margin: 0;
-  font-size: var(--size-heading);
-  line-height: var(--leading-tight);
-  color: var(--colour-accent);
-}
-
-.report__standfirst {
-  margin: var(--space-tight) 0 0;
-  color: var(--colour-muted);
-  font-size: var(--size-label);
-}
-
-.report__nothing {
-  margin: var(--space-roomy) 0 0;
-  font-size: var(--size-label);
-  color: var(--colour-muted);
-}
-
-.report__actions {
-  margin-top: var(--space-loose);
-  display: flex;
-  justify-content: flex-end;
-}
-
 /* --- Trouble ------------------------------------------------------------ */
 
 .trouble {
