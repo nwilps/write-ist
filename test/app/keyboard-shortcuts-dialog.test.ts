@@ -234,7 +234,7 @@ describe("Tab Order", () => {
     expect(section.querySelector("ol")!.getAttribute("aria-label")).toContain("go round");
   });
 
-  it("draws its arrows thin and dim, each step stopping short of the next, the return the whole list long", () => {
+  it("draws its arrows thin and dim, sized to the rows, each step stopping short of the next, the return the whole list long", () => {
     const sheet = css("shortcuts.css");
     const line = "var(--rule-thin) solid var(--colour-faint)";
     const step = rule(sheet, ".shortcuts-loop__step-arrow");
@@ -242,16 +242,27 @@ describe("Tab Order", () => {
     expect(step).not.toContain("border-left");
     // Out a little below one name's middle, in a little above the next one's: a gap between neighbours.
     expect(step).toContain("top: calc(50% + var(--space-shortcuts-arrows) / 2)");
-    expect(step).toContain("height: calc(var(--size-row) + var(--space-shortcuts-steps) - var(--space-shortcuts-arrows))");
-    const gap = px("--space-snug");
-    expect(css("tokens.css")).toContain("--space-shortcuts-arrows: var(--space-snug);");
-    expect(css("tokens.css")).toContain("--space-shortcuts-steps: var(--space-tight);");
-    // Each arrow is 20px tall where one name's middle is 30px from the next: 10px of nothing between neighbours.
-    const pitch = px("--size-row") + px("--space-tight");
-    expect([pitch, pitch - gap, gap]).toEqual([30, 20, 10]);
-    // The arrowhead, a --space-tight square turned on end, stays inside that gap and does not touch the next arrow.
-    expect((px("--space-tight") * Math.SQRT2) / 2).toBeLessThan(gap);
-    expect(rule(sheet, ".shortcuts-loop__steps")).toContain("gap: var(--space-shortcuts-steps)");
+    expect(step).toContain("height: calc(var(--size-row) - var(--space-shortcuts-arrows))");
+    expect(step).toContain("width: calc(var(--size-shortcuts-arrowhead) * 2)");
+    const gap = px("--space-tight");
+    expect(css("tokens.css")).toContain("--space-shortcuts-arrows: var(--space-tight);");
+    // The names sit on the rows' own rhythm, one menu row apart, with no gap of their own.
+    expect(rule(sheet, ".shortcuts-loop__step")).toContain("height: var(--size-row)");
+    expect(rule(sheet, ".shortcuts-loop__steps")).not.toContain("gap");
+    // Each arrow is 18px tall and 8px wide where one name's middle is 24px from the next: 6px of nothing between
+    // neighbours. Smaller than the 20 × 10 it was beside 30px steps, so it is not oversized next to the rows.
+    const pitch = px("--size-row");
+    const head = px("--size-shortcuts-arrowhead");
+    expect([pitch, pitch - gap, head * 2, gap]).toEqual([24, 18, 8, 6]);
+    expect(pitch - gap).toBeLessThan(20);
+    expect(head * 2).toBeLessThan(10);
+    // The arrowhead, a 4px square turned on end, smaller than the 6px it was, stays inside that gap and does not
+    // touch the next arrow.
+    const head_ = rule(sheet, ".shortcuts-loop__head");
+    expect(head_).toContain("width: var(--size-shortcuts-arrowhead)");
+    expect(head_).toContain("height: var(--size-shortcuts-arrowhead)");
+    expect(head).toBeLessThan(px("--space-tight"));
+    expect((head * Math.SQRT2) / 2).toBeLessThan(gap);
 
     const back = rule(sheet, ".shortcuts-loop__return");
     for (const side of ["top", "left", "bottom"]) expect(back).toContain(`border-${side}: ${line}`);
@@ -302,47 +313,40 @@ describe("the layout: two columns and a divider stood on end", () => {
   });
 });
 
-describe("the keys, drawn as the bottom bar's pills", () => {
-  it("are every one a `.pill`, in the rows and beside Tab Order, and none is a button", () => {
+describe("the keys, drawn as the menus' hints", () => {
+  it("are plain text, in the rows and beside Tab Order: no `.pill`, and none is a button", () => {
     const { modal } = opened();
     const keys = [...modal.querySelectorAll(".shortcuts__key")];
     expect(keys).toHaveLength(COMMANDS.filter((command) => hintOf(command) !== undefined).length + 2);
+    expect(keys.map((key) => key.textContent)).toEqual(expect.arrayContaining(["[Ctrl + S]", "[Tab]", "[Shift + Tab]"]));
     for (const key of keys) {
-      expect(key.classList.contains("pill"), key.textContent!).toBe(true);
+      expect(key.className, key.textContent!).toBe("shortcuts__key");
       expect(key.tagName).toBe("SPAN");
+      expect(key.children).toHaveLength(0);
     }
+    expect(modal.querySelector(".pill")).toBeNull();
   });
 
-  it("take the bottom bar's shape and grey, with the thin edge the Goals days have", () => {
-    const pill = rule(css("editor.css"), ".pill");
-    expect(pill).toContain("border-radius: var(--radius-float)");
-    expect(pill).toContain("height: var(--size-pill)");
-    expect(pill).toContain("padding: 0 var(--space-roomy)");
-    expect(pill).toContain("font-size: var(--size-label)");
-    expect(pill).toContain("background: var(--colour-raised)");
-    expect(pill).toContain("color: var(--colour-muted)");
-    const key = rule(css("shortcuts.css"), ".shortcuts .pill.shortcuts__key");
-    const edge = "border: var(--rule-thin) solid var(--colour-border-strong)";
-    expect(key).toContain(edge);
-    expect(css("goals.css")).toContain(edge);
-    // Nothing of the old chip, and no colour or shape of its own.
-    expect(key).not.toMatch(/radius|color|height|padding|background/);
-    expect(css("shortcuts.css")).not.toContain("--radius-slight");
-    // For reading: nothing lights under the pointer.
-    expect(key).toContain("pointer-events: none");
+  it("take the dim of the menus' own hints, with no background, edge or height of a pill", () => {
+    const sheet = css("shortcuts.css");
+    const key = rule(sheet, ".shortcuts__key");
+    expect(key).toContain("color: var(--colour-faint)");
+    expect(rule(css("menus.css"), ".drop-menu__hint")).toContain("color: var(--colour-faint)");
+    expect(key).not.toMatch(/background|border|height|padding|radius/);
+    // Nothing of the pill anywhere in the dialog's sheet.
+    expect(sheet).not.toMatch(/\.pill|--size-pill|--radius-float|--colour-border-strong/);
   });
 
-  it("set each row as tall as its key", () => {
-    expect(rule(css("shortcuts.css"), ".shortcuts__row")).toContain("height: var(--size-pill)");
-    expect(rule(css("shortcuts.css"), ".shortcuts-tab-order__head")).toContain("height: var(--size-pill)");
-  });
-
-  it("stand apart, with a visible gap between one row's key and the next", () => {
-    expect(rule(css("shortcuts.css"), ".shortcuts__rows")).toContain("gap: var(--space-shortcuts-rows)");
-    expect(css("tokens.css")).toContain("--space-shortcuts-rows: var(--space-snug);");
-    // Not a hairline: 10px between 32px pills.
-    expect(px("--space-snug")).toBe(10);
-    expect(px("--space-snug")).toBeGreaterThan(px("--space-hair"));
+  it("set each row a menu row tall, one straight after the next", () => {
+    const sheet = css("shortcuts.css");
+    expect(rule(sheet, ".shortcuts__row")).toContain("height: var(--size-row)");
+    expect(rule(sheet, ".shortcuts-tab-order__head")).toContain("height: var(--size-row)");
+    expect(rule(css("menus.css"), ".drop-menu__item")).toContain("height: var(--size-row)");
+    expect(rule(sheet, ".shortcuts__rows")).not.toContain("gap");
+    expect(css("tokens.css")).not.toContain("--space-shortcuts-rows");
+    // 24px from one row to the next, where it was a 32px pill and a 10px gap.
+    expect(px("--size-row")).toBe(24);
+    expect(px("--size-row")).toBeLessThan(px("--size-pill") + px("--space-snug"));
   });
 
   it("sit further from their names than before", () => {
@@ -568,15 +572,14 @@ describe("one page, nothing scrolled, in the app's window", () => {
     const width = px("--measure-shortcuts-column") * 2 + columns * 2 + px("--rule-thin") + frame;
     const groups = shortcutGroups();
     const label = px("--size-caption") * leadingTight();
-    const between = px("--space-snug");
     const group = (name: string): number => {
       const rows = groups.find((one) => one.name === name)!.rows.length;
-      return label + px("--space-tight") + rows * px("--size-pill") + (rows - 1) * between;
+      return label + px("--space-tight") + rows * px("--size-row");
     };
     const left = ["File", "Edit", "View"].map(group).reduce((sum, one) => sum + one, 0) + px("--space-loose") * 2;
-    // Spaced from Writing's rows as one group is from the next; its head as tall as its keys; a row for each type.
-    const steps = TAB_CYCLE.length * px("--size-row") + (TAB_CYCLE.length - 1) * px("--space-tight");
-    const tabOrder = px("--space-loose") + px("--size-pill") + px("--space-snug") + steps;
+    // Spaced from Writing's rows as one group is from the next; its head a row; a row for each type.
+    const steps = TAB_CYCLE.length * px("--size-row");
+    const tabOrder = px("--space-loose") + px("--size-row") + px("--space-tight") + steps;
     const right = group("Writing") + tabOrder;
     const actions = px("--space-dialog-actions") + px("--size-row");
     const height = frame + Math.max(left, right) + actions;
@@ -587,15 +590,13 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect([appWindow.width, appWindow.height]).toEqual([1100, 820]);
   });
 
-  it("packs to 891 by about 714, inside 1100 by 820, with 40px margins", () => {
+  it("packs to 891 by about 538, inside 1100 by 820, with 40px margins", () => {
     // The sum headless Chrome measures too.
     expect(packed().width).toBe(891);
-    expect(packed().height).toBeCloseTo(713.6, 5);
-    // More spread out than the 763 × 601.6 it was, and still within about 1000 × 740.
-    expect(packed().width).toBeGreaterThan(763);
-    expect(packed().height).toBeGreaterThan(601.6);
-    expect(packed().width).toBeLessThanOrEqual(1000);
-    expect(packed().height).toBeLessThanOrEqual(740);
+    expect(packed().height).toBeCloseTo(537.6, 5);
+    // As wide as it was with the pills, and shorter than their 713.6.
+    expect(packed().height).toBeLessThan(713.6);
+    expect(713.6 - packed().height).toBeGreaterThan(150);
     // Writing and Tab Order are the taller side.
     expect(packed().right).toBeGreaterThan(packed().left);
     // Room to spare all round, so nothing scrolls.
@@ -617,6 +618,19 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect(columns).toBeGreaterThan(40);
   });
 
+  it("keeps the room across that the pills had: only the rows got closer", () => {
+    const tokens = css("tokens.css");
+    expect(tokens).toContain("--space-shortcuts-key: var(--space-loose);");
+    expect(tokens).toContain("--space-shortcuts-edge: var(--space-vast);");
+    // Label to key, column, either side of the divider, the edge.
+    expect([
+      px("--space-loose"),
+      px("--measure-shortcuts-column"),
+      px("--space-vast") + px("--space-loose"),
+      px("--space-vast"),
+    ]).toEqual([24, 340, 64, 40]);
+  });
+
   it("is two columns and a divider, set by the tokens the sum reads, and nothing inside scrolls", () => {
     const sheet = css("shortcuts.css");
     const frame = rule(sheet, ".new-project-dialog.shortcuts").replace(/\s+/g, " ");
@@ -628,7 +642,7 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect(rule(sheet, ".shortcuts__columns")).toContain("gap: var(--space-shortcuts-columns)");
     expect(rule(sheet, ".shortcuts-loop__step")).toContain("height: var(--size-row)");
     expect(rule(sheet, ".shortcuts-tab-order")).toContain("margin-block-start: calc(var(--space-loose) - var(--space-tight))");
-    expect(rule(sheet, ".shortcuts-tab-order")).toContain("gap: var(--space-snug)");
+    expect(rule(sheet, ".shortcuts-tab-order")).toContain("gap: var(--space-tight)");
     expect(rule(sheet, ".shortcuts__column")).toContain("gap: var(--space-loose)");
     // No scroller of its own, and no height but the window's.
     expect(sheet).not.toMatch(/overflow/);

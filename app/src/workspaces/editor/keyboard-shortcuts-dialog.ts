@@ -70,8 +70,8 @@ export function tabCircuit(): readonly string[] {
   return TAB_CYCLE.map((type) => commandById(`element-${type}`)?.label ?? type);
 }
 
-/** A key, drawn as the bottom bar's pills are: for reading, not for pressing. */
-const keyPill = (hint: string): HTMLElement => element("span", { className: "pill shortcuts__key", textContent: hint });
+/** A key, drawn as the menus draw theirs beside a command: plain, dim text, for reading, not for pressing. */
+const keyHint = (hint: string): HTMLElement => element("span", { className: "shortcuts__key", textContent: hint });
 
 function drawGroup(group: ShortcutGroup, after: readonly HTMLElement[] = []): HTMLElement {
   return element("section", { className: "shortcuts__group" }, [
@@ -80,7 +80,7 @@ function drawGroup(group: ShortcutGroup, after: readonly HTMLElement[] = []): HT
       "ul",
       { className: "shortcuts__rows" },
       group.rows.map((row) =>
-        element("li", { className: "shortcuts__row" }, [element("span", { textContent: row.label }), keyPill(row.hint)]),
+        element("li", { className: "shortcuts__row" }, [element("span", { textContent: row.label }), keyHint(row.hint)]),
       ),
     ),
     ...after,
@@ -113,7 +113,7 @@ function drawTabOrder(): HTMLElement {
   return element("section", { className: "shortcuts-tab-order" }, [
     element("div", { className: "shortcuts-tab-order__head" }, [
       element("h3", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab Order" }),
-      element("span", { className: "shortcuts-tab-order__keys" }, [keyPill("[Tab]"), keyPill("[Shift + Tab]")]),
+      element("span", { className: "shortcuts-tab-order__keys" }, [keyHint("[Tab]"), keyHint("[Shift + Tab]")]),
     ]),
     element("div", { className: "shortcuts-loop" }, [
       arrow("shortcuts-loop__return", "shortcuts-loop__head shortcuts-loop__head--back"),

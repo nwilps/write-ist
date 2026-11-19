@@ -55,31 +55,26 @@
   list-style: none;
 }
 
-/* A gap between one key and the next, so the pills stand apart. */
+/* One row straight after the next, as a menu's are. */
 .shortcuts__rows {
   display: grid;
-  gap: var(--space-shortcuts-rows);
 }
 
-/* A name at the left, its key at the right, as tall as the key. */
+/* A name at the left, its key at the right, a menu row tall. */
 .shortcuts__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-shortcuts-key);
-  height: var(--size-pill);
+  height: var(--size-row);
   font-size: var(--size-label);
   color: var(--colour-text);
 }
 
-/*
- * A key: the bottom bar's pill (`.pill`), with the thin edge the Goals days and
- * the workspace bar give theirs, since the dialog is the pill's own grey. For
- * reading only: nothing lights under the pointer.
- */
-.shortcuts .pill.shortcuts__key {
-  border: var(--rule-thin) solid var(--colour-border-strong);
-  pointer-events: none;
+/* A key: plain text in the dim of the menus' own hints (`.drop-menu__hint`). */
+.shortcuts__key {
+  color: var(--colour-faint);
+  white-space: nowrap;
 }
 
 /* --- Tab Order: its own section, to keep or drop whole --- */
@@ -87,7 +82,7 @@
 /* Spaced from the rows above as one group is from the next. */
 .shortcuts-tab-order {
   display: grid;
-  gap: var(--space-snug);
+  gap: var(--space-tight);
   margin-block-start: calc(var(--space-loose) - var(--space-tight));
 }
 
@@ -96,24 +91,24 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-shortcuts-key);
-  height: var(--size-pill);
+  height: var(--size-row);
 }
 
 .shortcuts-tab-order__keys {
   display: flex;
-  gap: var(--space-tight);
+  gap: var(--space-snug);
 }
 
 /* The loop: as wide as its longest name, with room either side for the arrows. */
 .shortcuts-loop {
   position: relative;
   width: max-content;
-  padding-inline: var(--space-loose);
+  padding-inline: var(--space-roomy);
 }
 
+/* One name straight after the next, on the rows' own rhythm. */
 .shortcuts-loop__steps {
   display: grid;
-  gap: var(--space-shortcuts-steps);
 }
 
 .shortcuts-loop__step {
@@ -135,8 +130,8 @@
   position: absolute;
   top: calc(50% + var(--space-shortcuts-arrows) / 2);
   left: calc(100% + var(--space-tight));
-  width: var(--space-snug);
-  height: calc(var(--size-row) + var(--space-shortcuts-steps) - var(--space-shortcuts-arrows));
+  width: calc(var(--size-shortcuts-arrowhead) * 2);
+  height: calc(var(--size-row) - var(--space-shortcuts-arrows));
   border-top: var(--rule-thin) solid var(--colour-faint);
   border-right: var(--rule-thin) solid var(--colour-faint);
   border-bottom: var(--rule-thin) solid var(--colour-faint);
@@ -152,7 +147,7 @@
   top: calc(var(--size-row) / 2);
   bottom: calc(var(--size-row) / 2);
   left: 0;
-  width: calc(var(--space-loose) - var(--space-tight));
+  width: calc(var(--space-roomy) - var(--space-tight));
   border-top: var(--rule-thin) solid var(--colour-faint);
   border-left: var(--rule-thin) solid var(--colour-faint);
   border-bottom: var(--rule-thin) solid var(--colour-faint);
@@ -164,8 +159,8 @@
   position: absolute;
   left: 0;
   top: calc(100% + var(--rule-thin) / 2);
-  width: var(--space-tight);
-  height: var(--space-tight);
+  width: var(--size-shortcuts-arrowhead);
+  height: var(--size-shortcuts-arrowhead);
   border-left: var(--rule-thin) solid var(--colour-faint);
   border-bottom: var(--rule-thin) solid var(--colour-faint);
   translate: 0 -50%;

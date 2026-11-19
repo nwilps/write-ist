@@ -372,14 +372,12 @@
   --measure-shortcuts-column: 340px;
   /** Either side of the divider between the two columns. */
   --space-shortcuts-columns: calc(var(--space-vast) + var(--space-loose));
-  /** Between one key and the next down a group, so no two pills touch. */
-  --space-shortcuts-rows: var(--space-snug);
   /** Between a name and its key, at the least. */
   --space-shortcuts-key: var(--space-loose);
-  /** Between one name and the next in Tab Order. */
-  --space-shortcuts-steps: var(--space-tight);
   /** Between one step arrow's end and the next one's start, so each reads as its own. */
-  --space-shortcuts-arrows: var(--space-snug);
+  --space-shortcuts-arrows: var(--space-tight);
+  /** The side of a Tab Order arrowhead's chevron, sized to the 24px rows; a step arrow is twice as wide. */
+  --size-shortcuts-arrowhead: 4px;
   /** The margin all round: wider than the other dialogs', as this one is read, not filled in. */
   --space-shortcuts-edge: var(--space-vast);
 }
