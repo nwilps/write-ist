@@ -8,15 +8,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { showDeleteProject, showRenameProject } from "../../app/src/screens/project-dialogs.ts";
 import { mountShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext } from "../../app/src/shell/workspace.ts";
 import { commandById, runCommand, type CommandHost } from "../../app/src/workspaces/editor/commands.ts";
+import { openExportDialog } from "../../app/src/workspaces/editor/export-dialog.ts";
 import { openGoalsDialog } from "../../app/src/workspaces/editor/goals-dialog.ts";
 import { openTitlePageDialog } from "../../app/src/workspaces/editor/title-page-dialog.ts";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
 import { WEEKDAYS } from "../../src/goals/day.ts";
 import { NO_GOALS } from "../../src/goals/history.ts";
 import { GoalsTracker } from "../../src/goals/tracker.ts";
+import { EXPORT_FORMATS } from "../../src/project/export-formats.ts";
 import { wordCount } from "../../src/project/ledger.ts";
 import { wordsIn } from "../../src/screenplay/counts.ts";
 import { editorStateFor } from "../../src/screenplay/editing.ts";
@@ -405,11 +408,57 @@ describe("the Goals dialog from the keyboard", () => {
     });
   const WALK = ["goals-on", "goals-daily", ...SUNDAY_FIRST, "goals-sprint", "Start", "Done"];
 
-  it("opens on Done, not in a field, so one Escape closes it", () => {
+  it("opens with nothing focused or lit: the dialog itself holds the focus", () => {
+    const { modal } = opened(WITH_GOAL);
+    expect(document.activeElement).toBe(modal);
+    expect(modal.querySelector(":focus")).toBeNull();
+    expect(modal.querySelector(".dialog-keys__editing")).toBeNull();
+    // The dialog holding the focus draws no ring of its own.
+    expect(css("home.css")).toMatch(/\.dialog-keys:focus\s*\{\s*outline: none/);
+  });
+
+  it("closes on one Escape from the open state", () => {
     const { modal, closed } = opened(WITH_GOAL);
-    expect(document.activeElement).toBe(action(modal, "Done"));
     escape(modal);
     expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it("goes to the first control on the first Tab, and the last on the first Shift+Tab", () => {
+    expect(stops(opened(WITH_GOAL).modal, 1)).toEqual(["goals-on"]);
+    expect(stops(opened(WITH_GOAL).modal, 1, "Tab", { shiftKey: true })).toEqual(["Done"]);
+  });
+
+  it.each(["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"])("steps in at the first control on %s", (key) => {
+    const { modal, tracker } = opened();
+    expect(stops(modal, 1, key)).toEqual(["goals-on"]);
+    expect(tracker.data().goal).toBeUndefined();
+  });
+
+  it("is back to the usual arrows once a control has the focus", () => {
+    const { modal } = opened(WITH_GOAL);
+    expect(stops(modal, 3, "ArrowUp")).toEqual(["goals-on", "Done", "goals-sprint"]);
+  });
+
+  it("leaves an arrow held with Ctrl, Alt or Cmd alone", () => {
+    const { modal } = opened(WITH_GOAL);
+    press("ArrowDown", { ctrlKey: true });
+    press("ArrowDown", { altKey: true });
+    press("ArrowDown", { metaKey: true });
+    expect(document.activeElement).toBe(modal);
+  });
+
+  it("leaves the other dialogs opening where they did", () => {
+    const into = document.body.appendChild(document.createElement("div"));
+    const project = { marker: { name: "Big Fish" } } as never;
+    const title = openTitlePageDialog(into, { titlePage: parse("Title: Big Fish\n\nx\n").titlePage, save: vi.fn(), closed: vi.fn() });
+    expect(title.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(title);
+    const exporting = openExportDialog(into, { formats: EXPORT_FORMATS, pageCount: () => 1, write: async () => true, report: vi.fn(), closed: vi.fn() });
+    expect(document.activeElement).toBe(exporting.querySelector("#export-format"));
+    const rename = showRenameProject(into, { project, onRename: async () => undefined, onClose: vi.fn() });
+    expect(document.activeElement).toBe(rename.querySelector("input"));
+    const remove = showDeleteProject(into, { project, onDelete: async () => undefined, onClose: vi.fn() });
+    expect(document.activeElement).toBe([...remove.querySelectorAll(".new-project-dialog__action")].at(-1));
   });
 
   it("walks every control with Tab and Shift+Tab, and wraps", () => {

@@ -247,6 +247,14 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
       element("div", { className: "new-project-dialog__actions" }, [done]),
     ]),
   ]);
+  // Before `dialogKeys`, which leaves a used key alone: from the dialog itself,
+  // where it opens, every arrow steps in at the top.
+  modal.addEventListener("keydown", (event) => {
+    if (event.target !== modal || !event.key.startsWith("Arrow")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    on.control.focus();
+  });
   dialogKeys(modal, [[on.control], [goalBox, ...dayButtons.values()], [sprintBox, start, end], [done]]);
 
   // After `dialogKeys`, so this is only the Enter it left: in a number being
@@ -269,6 +277,7 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   redraw();
   into.append(modal);
   modal.showModal();
-  done.focus();
+  // Nothing is assumed: no control lit, and the focus still inside the dialog.
+  modal.focus();
   return modal;
 }
