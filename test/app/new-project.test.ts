@@ -793,13 +793,9 @@ describe("the project type drop-down", () => {
 describe("the old dialog styles", () => {
   const css = (name: string) => readFileSync(join(import.meta.dirname, "..", "..", "app", "src", "style", name), "utf8");
 
-  it("keep the report frame for the title page preview, and nothing no dialog wears", () => {
+  it("keep nothing no dialog wears", () => {
     const app = css("app.css");
-    for (const selector of [".report", ".report__heading", ".report__actions"]) {
-      expect(app).toContain(`${selector} {`);
-    }
-    expect(app).toContain(".report::backdrop");
-    for (const selector of [".new-project__form", ".field", ".field__label", ".field__input", ".new-project__actions"]) {
+    for (const selector of [".report", ".report__heading", ".report__actions", ".new-project__form", ".field", ".field__label", ".field__input", ".new-project__actions"]) {
       expect(app).not.toContain(`${selector} {`);
     }
   });

@@ -25,7 +25,6 @@ describe("the shadow on floating surfaces", () => {
   it.each([
     ["menus.css", ".drop-menu"],
     ["home.css", ".new-project-dialog"],
-    ["app.css", ".report"],
     ["search.css", ".search__panel"],
     ["autocomplete.css", ".autocomplete__list"],
   ])("%s gives %s the shared shadow", (file, selector) => {

@@ -1,10 +1,9 @@
 /**
- * View Title Page: the title page drawn on a sheet, read-only.
+ * The title page drawn on a sheet, read-only: View Title Page's face of the
+ * title page dialog (`title-page-dialog.ts`).
  *
  * It draws `titlePageRuns` and nothing else — the list the PDF's first page
- * prints — so there is no second placement to drift from the first. A modal
- * `<dialog>`, like the other dialogs: Escape closes it natively, and the
- * window behind (which answers Escape by closing the project) hears nothing.
+ * prints — so there is no second placement to drift from the first.
  */
 import { PAGE } from "../../../../src/screenplay/geometry.ts";
 import type { TitlePageField } from "../../../../src/screenplay/document.ts";
@@ -13,11 +12,8 @@ import { element } from "../../screens/element.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
 
-export function showTitlePagePreview(
-  into: HTMLElement,
-  titlePage: readonly TitlePageField[],
-  onClose: () => void = () => {},
-): HTMLDialogElement {
+/** The sheet, and a line saying so when there is nothing on it. */
+export function titlePagePreview(titlePage: readonly TitlePageField[]): readonly Element[] {
   const runs = titlePageRuns(titlePage);
 
   const sheet = document.createElementNS(SVG, "svg");
@@ -40,22 +36,7 @@ export function showTitlePagePreview(
     sheet.append(drawn);
   }
 
-  const close = element("button", { className: "button button--leading", type: "button", textContent: "Close" });
-  const modal = element("dialog", { className: "report title-preview", ariaLabel: "Title page preview" }, [
-    element("h2", { className: "report__heading", textContent: "Title Page" }),
-    runs.length === 0
-      ? element("p", { className: "report__nothing", textContent: "There is no title page to show yet." })
-      : element("p", { className: "report__standfirst", textContent: "As it prints. Esc closes." }),
-    sheet,
-    element("div", { className: "report__actions" }, [close]),
-  ]);
-  close.addEventListener("click", () => modal.close());
-  modal.addEventListener("close", () => {
-    modal.remove();
-    onClose();
-  });
-  into.append(modal);
-  modal.showModal();
-  close.focus();
-  return modal;
+  return runs.length === 0
+    ? [sheet, element("p", { className: "title-page__nothing", textContent: "There is no title page to show yet." })]
+    : [sheet];
 }

@@ -24,6 +24,9 @@ checkbox. It is a plain stop for `dialogKeys`, and Space and Enter flip it. Goal
 for the title page preview alone. Its text areas keep Enter for a new line, so it does not use
 `enterSubmits`.
 
+**Amended 2026-11-18 (Noah):** View Title Page has moved over as well. It is now the other face of
+the Edit Title Page dialog, so nothing uses `.report` any more and it is gone.
+
 ## What it decides
 
 - **The typeface is the one already bundled.** The handoff says JetBrains Mono "is not in the repo
