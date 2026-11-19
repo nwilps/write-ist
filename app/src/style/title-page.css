@@ -1,19 +1,68 @@
 /*
- * The title page dialogs: the form (it wears the New Project dialog's clothes)
- * and the preview sheet. Every value is a token (ADR-0030).
+ * The title page dialogs: the form (`.new-project-dialog` and its parts dress
+ * it; this is what New Project has no need of) and the preview sheet. Every
+ * value is a token (ADR-0030).
  */
 
-.title-page__fields {
-  display: grid;
-  gap: var(--space-snug);
-  max-height: var(--size-title-form-max);
-  overflow-y: auto;
-  /* Room for the scrollbar without the boxes touching it. */
-  padding-right: var(--space-tight);
+/* New Project's frame with Goals' margin, and never larger than the window. */
+.new-project-dialog.title-page {
+  width: calc(var(--measure-title-page) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  max-width: 100%;
+  max-height: 100%;
+  padding: var(--space-loose);
 }
 
-.field__input--lines {
-  resize: vertical;
+/* In a window too short for it all, the fields give way and the buttons stay. */
+.title-page .new-project-dialog__form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--size-desk-height) - var(--space-loose) * 2 - var(--rule-thin) * 2);
+}
+
+/* One to a row, the full width, and the only part of the form that scrolls. */
+.title-page__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-panel);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* As many lines as `rows` says; past them a box scrolls its own text. */
+.title-page .title-page__lines {
+  display: block;
+  height: auto;
+  padding: var(--space-title-lines) var(--space-panel);
+  line-height: var(--leading-title-lines);
+  overflow-y: auto;
+  resize: none;
+}
+
+/* Title, Author(s) and Source are two lines; Contact three; Notes four. */
+.title-page .title-page__lines--2 {
+  height: var(--size-title-lines-2);
+}
+
+.title-page .title-page__lines--3 {
+  height: var(--size-title-lines-3);
+}
+
+.title-page .title-page__lines--4 {
+  height: var(--size-title-lines-4);
+}
+
+/* View at the left, away from the pair that end the dialog; each as wide as its words. */
+.title-page .new-project-dialog__actions {
+  justify-content: flex-end;
+}
+
+.title-page .new-project-dialog__action {
+  min-width: 0;
+}
+
+.title-page .title-page__view {
+  margin-inline-end: auto;
 }
 
 .title-sheet {

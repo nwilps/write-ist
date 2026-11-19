@@ -163,10 +163,6 @@
 
 /* --- The New Project dialog ---------------------------------------------- */
 
-/*
- * Its own classes, deliberately: the title page dialog wears `.report`,
- * `.new-project__form` and `.field`, and a change to those is a change to it.
- */
 .new-project-dialog {
   width: var(--measure-new-project);
   max-width: 100%;

@@ -3,8 +3,8 @@
  * there is not a hex colour, a pixel size or a font name below this line.
  *
  * Three surfaces are here: the home screen the application opens to, the Open
- * Project screen reached from it, and the report frame that Title Page and Goals
- * wear. (Both screens' designs are drawn in `home.css` and
+ * Project screen reached from it, and the report frame that the title page's
+ * preview wears. (Both screens' designs are drawn in `home.css` and
  * `open-project.css`, over what is here.) Both screens are a centred composition over the window, which is
  * v1's shape. **The shell and the Editor's page are in `editor.css`**, because
  * they answer to different references — v1 for these screens, the spike and the
@@ -219,7 +219,7 @@ body {
   margin-bottom: 0;
 }
 
-/* --- The report frame (Title Page and its preview) ------------------------ */
+/* --- The report frame (the title page preview) ----------------------------- */
 
 .report {
   max-width: var(--measure-reading);
@@ -282,41 +282,4 @@ body {
   margin: var(--space-tight) 0 0;
   padding-left: var(--space-roomy);
   color: var(--colour-muted);
-}
-
-/* --- The New Project dialog -------------------------------------------- */
-
-.new-project__form {
-  display: grid;
-  gap: var(--space-roomy);
-  width: var(--measure-reading);
-  max-width: 100%;
-}
-
-.field {
-  display: grid;
-  gap: var(--space-tight);
-}
-
-.field__label {
-  font-size: var(--size-label);
-  color: var(--colour-muted);
-}
-
-.field__input {
-  font-family: inherit;
-  font-size: inherit;
-  padding: var(--space-tight) var(--space-snug);
-  border: var(--rule-thin) solid var(--colour-border);
-  border-radius: var(--radius-slight);
-  background: var(--colour-base);
-  color: var(--colour-text);
-}
-
-.field__input:focus-visible {
-  border-color: var(--colour-accent);
-}
-
-.new-project__actions {
-  gap: var(--space-snug);
 }
