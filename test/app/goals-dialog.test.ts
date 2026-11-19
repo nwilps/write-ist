@@ -390,12 +390,11 @@ describe("the Goals dialog's look", () => {
     expect(goals).toMatch(/\.new-project-dialog\.goals\s*\{[^}]*calc\(var\(--measure-goals\) \+ var\(--space-loose\) \* 2 \+ var\(--rule-thin\) \* 2\)/);
   });
 
-  it("leaves the title page in its own frame", () => {
+  it("keeps its look to itself: the title page dialog is not dressed as Goals", () => {
     const into = document.body.appendChild(document.createElement("div"));
     const modal = openTitlePageDialog(into, { titlePage: parse("Title: Big Fish\n\nx\n").titlePage, save: vi.fn(), closed: vi.fn() });
-    expect(modal.classList.contains("report")).toBe(true);
-    expect(modal.classList.contains("new-project-dialog")).toBe(false);
-    expect(modal.querySelector(".report__heading")?.textContent).toBe("Edit Title Page");
+    expect(modal.classList.contains("goals")).toBe(false);
+    expect(modal.classList.contains("title-page")).toBe(true);
   });
 });
 

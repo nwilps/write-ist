@@ -19,6 +19,11 @@ confirming. Every other dialog keeps the look and keys described below until it 
 (`app/src/screens/dialog-toggle.ts`), a small sliding switch, gold when on and dim when off, not a
 checkbox. It is a plain stop for `dialogKeys`, and Space and Enter flip it. Goals is the first to use it.
 
+**Amended 2026-11-18 (Noah):** Edit Title Page has moved over too, so nothing uses
+`.new-project__form`, `.field` or `.new-project__actions` any more and they are gone. `.report` stays
+for the title page preview alone. Its text areas keep Enter for a new line, so it does not use
+`enterSubmits`.
+
 ## What it decides
 
 - **The typeface is the one already bundled.** The handoff says JetBrains Mono "is not in the repo

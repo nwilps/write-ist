@@ -1,19 +1,63 @@
 /*
- * The title page dialogs: the form (it wears the New Project dialog's clothes)
- * and the preview sheet. Every value is a token (ADR-0030).
+ * The title page dialogs: the form (`.new-project-dialog` and its parts dress
+ * it; this is what New Project has no need of) and the preview sheet. Every
+ * value is a token (ADR-0030).
  */
 
-.title-page__fields {
-  display: grid;
-  gap: var(--space-snug);
-  max-height: var(--size-title-form-max);
-  overflow-y: auto;
-  /* Room for the scrollbar without the boxes touching it. */
-  padding-right: var(--space-tight);
+/* New Project's frame with Goals' margin, and as tall as the window if it must be. */
+.new-project-dialog.title-page {
+  width: calc(var(--measure-title-page) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  max-height: 100%;
+  padding: var(--space-loose);
 }
 
-.field__input--lines {
-  resize: vertical;
+/* Two across, read left to right: the keys keep their order. */
+.title-page__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-panel);
+}
+
+/* The title has the full width to itself. */
+.title-page__fields > :first-child {
+  grid-column: 1 / -1;
+}
+
+/* Two lines to begin with; `fitLines` hands in the height of the text. */
+.title-page .title-page__lines {
+  display: block;
+  height: calc(var(--title-lines-height) * var(--size-pixel));
+  min-height: var(--size-title-lines);
+  max-height: var(--size-title-lines-most);
+  padding: var(--space-title-lines) var(--space-panel);
+  line-height: var(--leading-title-lines);
+  overflow-y: auto;
+  resize: none;
+}
+
+/* Contact and Notes go further, but leave the dialog a margin inside the window. */
+.title-page .title-page__lines--long {
+  max-height: max(
+    var(--size-title-lines),
+    min(
+      var(--size-title-lines-long),
+      calc(var(--size-desk-height) - var(--title-page-rest, 0) * var(--size-pixel) - var(--space-loose) * 2)
+    )
+  );
+}
+
+/* View at the left, away from the pair that end the dialog; each as wide as its words. */
+.title-page .new-project-dialog__actions {
+  justify-content: flex-end;
+}
+
+.title-page .new-project-dialog__action {
+  min-width: 0;
+}
+
+.title-page .title-page__view {
+  margin-inline-end: auto;
 }
 
 .title-sheet {

@@ -230,8 +230,8 @@ the Editor stays up and writes to the new folder from then on.
 **New Project** is the pattern for the other dialogs: buttons lit as Home's selected row is, a
 drawn drop-down with a right-click-menu tray, and the whole dialog walkable by keyboard, from three
 shared pieces (`dialogAction`, `dialogSelect`, `dialogKeys`). Rename Project, Delete Project, Export
-As, Import and Goals use them too (Goals has no drop-down, so not `dialogSelect`); Title Page, its
-preview and Search keep their own. Goals adds a fourth, `dialogToggle`, the app's sliding on/off
+As, Import, Goals and Edit Title Page use them too (the last two have no drop-down, so not
+`dialogSelect`); the title page preview and Search keep their own. Goals adds a fourth, `dialogToggle`, the app's sliding on/off
 switch, for the next dialog that needs one. Its type list
 offers **Feature, Episode and Short Film**, all screenplays, and records the choice as `Format:` in
 `project.md`. Novel, Short Story, Novella, Flash Fiction and Poem are shown dimmed and tagged *soon*;
