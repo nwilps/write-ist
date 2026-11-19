@@ -90,26 +90,24 @@ function drawGroup(group: ShortcutGroup, after: readonly HTMLElement[] = []): HT
 /** A piece of the loop's drawing: lines and arrowheads, which a screen reader skips. */
 const drawn = (className: string): HTMLElement => element("span", { className, ariaHidden: "true" });
 
+/** A curve with an arrowhead on its end, drawn whole: the arrowhead is its child. */
+const arrow = (className: string, head: string): HTMLElement =>
+  element("span", { className, ariaHidden: "true" }, [drawn(head)]);
+
 /**
- * Tab Order: the element types top to bottom, drawn as a loop. An arrow comes
- * into the first from the left; a line leaves it on the right and runs down,
- * turning in to each one after; the last leaves on the left, and a line runs
- * back up to that first arrow. A section of its own, so dropping it is
+ * Tab Order: the element types top to bottom, drawn as a loop. On the right, a
+ * short arrow of its own for each step, out of one name and into the next,
+ * with a gap before the next arrow starts. On the left, one long arrow out of
+ * the last and back into the first. A section of its own, so dropping it is
  * deleting this and its call.
  */
 function drawTabOrder(): HTMLElement {
   const last = TAB_CYCLE.length - 1;
   const steps = tabCircuit().map((label, at) =>
     element("li", { className: "shortcuts-loop__step" }, [
-      // In at the top from the left (→); out at the bottom to the left, and round again.
-      at === 0
-        ? element("span", { className: "shortcuts-loop__lead shortcuts-loop__lead--in", ariaHidden: "true" }, [
-            drawn("shortcuts-loop__head shortcuts-loop__head--in"),
-          ])
-        : drawn(`shortcuts-loop__lead${at === last ? " shortcuts-loop__lead--out" : ""}`),
       element("span", { className: "shortcuts-loop__name", textContent: label }),
-      // Out to the right from the first; in from the right to every other.
-      element("span", { className: "shortcuts-loop__tie", ariaHidden: "true" }, at === 0 ? [] : [drawn("shortcuts-loop__head")]),
+      // Every name but the last steps on to the next.
+      ...(at === last ? [] : [arrow("shortcuts-loop__step-arrow", "shortcuts-loop__head")]),
     ]),
   );
   return element("section", { className: "shortcuts-tab-order" }, [
@@ -118,9 +116,8 @@ function drawTabOrder(): HTMLElement {
       element("span", { className: "shortcuts-tab-order__keys" }, [keyPill("[Tab]"), keyPill("[Shift + Tab]")]),
     ]),
     element("div", { className: "shortcuts-loop" }, [
-      drawn("shortcuts-loop__rail shortcuts-loop__rail--back"),
+      arrow("shortcuts-loop__return", "shortcuts-loop__head shortcuts-loop__head--back"),
       element("ol", { className: "shortcuts-loop__steps", ariaLabel: "Tab steps forward, Shift+Tab back, and both go round" }, steps),
-      drawn("shortcuts-loop__rail shortcuts-loop__rail--on"),
     ]),
   ]);
 }

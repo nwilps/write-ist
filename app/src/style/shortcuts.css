@@ -34,7 +34,7 @@
 
 .shortcuts__column {
   display: grid;
-  gap: var(--space-roomy);
+  gap: var(--space-loose);
 }
 
 .shortcuts__group {
@@ -55,12 +55,18 @@
   list-style: none;
 }
 
+/* A gap between one key and the next, so the pills stand apart. */
+.shortcuts__rows {
+  display: grid;
+  gap: var(--space-shortcuts-rows);
+}
+
 /* A name at the left, its key at the right, as tall as the key. */
 .shortcuts__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-panel);
+  gap: var(--space-shortcuts-key);
   height: var(--size-pill);
   font-size: var(--size-label);
   color: var(--colour-text);
@@ -81,15 +87,15 @@
 /* Spaced from the rows above as one group is from the next. */
 .shortcuts-tab-order {
   display: grid;
-  gap: var(--space-tight);
-  margin-block-start: calc(var(--space-roomy) - var(--space-tight));
+  gap: var(--space-snug);
+  margin-block-start: calc(var(--space-loose) - var(--space-tight));
 }
 
 .shortcuts-tab-order__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-panel);
+  gap: var(--space-shortcuts-key);
   height: var(--size-pill);
 }
 
@@ -98,13 +104,20 @@
   gap: var(--space-tight);
 }
 
-/* The loop: as wide as its longest name, with a rail down either side. */
+/* The loop: as wide as its longest name, with room either side for the arrows. */
 .shortcuts-loop {
   position: relative;
   width: max-content;
+  padding-inline: var(--space-loose);
+}
+
+.shortcuts-loop__steps {
+  display: grid;
+  gap: var(--space-shortcuts-steps);
 }
 
 .shortcuts-loop__step {
+  position: relative;
   display: flex;
   align-items: center;
   height: var(--size-row);
@@ -113,55 +126,44 @@
   white-space: nowrap;
 }
 
-/* The rails run from the middle of the first row to the middle of the last. */
-.shortcuts-loop__rail {
+/*
+ * One step, on the right: a small curve out of this name, a little below its
+ * middle, and in to the next, a little above its middle. Each stops short of
+ * the next by --space-shortcuts-arrows, so they read as separate steps.
+ */
+.shortcuts-loop__step-arrow {
+  position: absolute;
+  top: calc(50% + var(--space-shortcuts-arrows) / 2);
+  left: calc(100% + var(--space-tight));
+  width: var(--space-snug);
+  height: calc(var(--size-row) + var(--space-shortcuts-steps) - var(--space-shortcuts-arrows));
+  border-top: var(--rule-thin) solid var(--colour-faint);
+  border-right: var(--rule-thin) solid var(--colour-faint);
+  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  border-radius: 0 var(--radius-round) var(--radius-round) 0;
+}
+
+/*
+ * Round again, on the left: one longer curve out of the last name and back up
+ * into the first, from the middle of one to the middle of the other.
+ */
+.shortcuts-loop__return {
   position: absolute;
   top: calc(var(--size-row) / 2);
   bottom: calc(var(--size-row) / 2);
-  width: 0;
-}
-
-/* Back up, on the left, from the last to the first. */
-.shortcuts-loop__rail--back {
   left: 0;
+  width: calc(var(--space-loose) - var(--space-tight));
+  border-top: var(--rule-thin) solid var(--colour-faint);
   border-left: var(--rule-thin) solid var(--colour-faint);
+  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  border-radius: var(--radius-round) 0 0 var(--radius-round);
 }
 
-/* On down, on the right, from the first to each after it. */
-.shortcuts-loop__rail--on {
-  right: 0;
-  border-right: var(--rule-thin) solid var(--colour-faint);
-}
-
-/* Left of a name: the arrow in to the first, the line out of the last, and room on the rest. */
-.shortcuts-loop__lead {
-  position: relative;
-  flex: none;
-  width: var(--space-roomy);
-  height: 0;
-  margin-inline-end: var(--space-tight);
-}
-
-.shortcuts-loop__lead--in,
-.shortcuts-loop__lead--out {
-  border-top: var(--rule-thin) solid var(--colour-faint);
-}
-
-/* Right of a name: a line out to the rail, and on every row but the first an arrowhead in. */
-.shortcuts-loop__tie {
-  position: relative;
-  flex: 1;
-  min-width: var(--space-loose);
-  height: 0;
-  margin-inline-start: var(--space-tight);
-  border-top: var(--rule-thin) solid var(--colour-faint);
-}
-
-/* A thin chevron on the line's end, pointing left into the name before it. */
+/* A thin chevron on a step's lower end, pointing left into the next name. */
 .shortcuts-loop__head {
   position: absolute;
   left: 0;
-  top: calc(var(--rule-thin) / -2);
+  top: calc(100% + var(--rule-thin) / 2);
   width: var(--space-tight);
   height: var(--space-tight);
   border-left: var(--rule-thin) solid var(--colour-faint);
@@ -170,10 +172,11 @@
   rotate: 45deg;
 }
 
-/* The start: the same chevron, turned to point right into the first name. */
-.shortcuts-loop__head--in {
+/* The return's: the same chevron on its upper end, turned to point right into the first name. */
+.shortcuts-loop__head--back {
   left: auto;
   right: 0;
+  top: calc(var(--rule-thin) / -2);
   rotate: -135deg;
 }
 

@@ -177,29 +177,56 @@ describe("Tab Order", () => {
     expect([...section.querySelectorAll(".shortcuts__key")].map((key) => key.textContent)).toEqual(["[Tab]", "[Shift + Tab]"]);
   });
 
-  it("draws a loop: in to the first from the left, down the right into each after, and back up the left from the last", () => {
+  it("draws a separate step arrow out of each name into the next, five of them, and no rail", () => {
     const { modal } = opened();
     const { section, steps } = tabOrder(modal);
     const last = steps.length - 1;
-    const lead = (step: Element): Element => step.firstElementChild!;
-    const tie = (step: Element): Element => step.lastElementChild!;
-
-    // The start: an arrow pointing into Scene Heading, and only there.
-    expect(lead(steps[0]!).classList.contains("shortcuts-loop__lead--in")).toBe(true);
-    expect(lead(steps[0]!).querySelector(".shortcuts-loop__head--in")).not.toBeNull();
-    expect(section.querySelectorAll(".shortcuts-loop__lead--in")).toHaveLength(1);
-    // Out of the first on the right, with no arrowhead; into every other from the right, with one.
-    steps.forEach((step, at) => {
-      expect(tie(step).classList.contains("shortcuts-loop__tie"), String(at)).toBe(true);
-      expect(tie(step).querySelectorAll(".shortcuts-loop__head"), String(at)).toHaveLength(at === 0 ? 0 : 1);
+    const arrows = [...section.querySelectorAll(".shortcuts-loop__step-arrow")];
+    // One for each pair TAB_CYCLE steps through: Scene Heading → Action, … Parenthetical → Transition.
+    expect(arrows).toHaveLength(TAB_CYCLE.length - 1);
+    expect(arrows).toHaveLength(5);
+    const pairs = arrows.map((arrow) => {
+      const from = arrow.closest(".shortcuts-loop__step")!;
+      const to = from.nextElementSibling!;
+      return [from, to].map((step) => step.querySelector(".shortcuts-loop__name")!.textContent);
     });
-    // Out of the last on the left, back round to the start.
-    expect(lead(steps[last]!).classList.contains("shortcuts-loop__lead--out")).toBe(true);
-    expect(section.querySelectorAll(".shortcuts-loop__lead--out")).toHaveLength(1);
-    // A rail down either side of the names.
+    expect(pairs).toEqual(tabCircuit().slice(0, -1).map((name, at) => [name, tabCircuit()[at + 1]]));
+    expect(pairs).toEqual([
+      ["Scene Heading", "Action"],
+      ["Action", "Character"],
+      ["Character", "Dialogue"],
+      ["Dialogue", "Parenthetical"],
+      ["Parenthetical", "Transition"],
+    ]);
+    // Each its own piece, with its own arrowhead, after its name; none out of the last.
+    steps.forEach((step, at) => {
+      const own = step.querySelectorAll(".shortcuts-loop__step-arrow");
+      expect(own, String(at)).toHaveLength(at === last ? 0 : 1);
+      if (at !== last) {
+        expect(step.lastElementChild).toBe(own[0]);
+        expect(own[0]!.querySelectorAll(".shortcuts-loop__head"), String(at)).toHaveLength(1);
+      }
+    });
+    // Not one rail with ticks: no line runs the length of the list on the right, and no start arrow of its own.
+    expect(section.querySelector("[class*='rail'], [class*='tie'], [class*='lead']")).toBeNull();
+    expect(section.querySelectorAll(".shortcuts-loop__head")).toHaveLength(TAB_CYCLE.length);
+  });
+
+  it("draws one longer return arrow, apart from the steps, from the last back into the first", () => {
+    const { modal } = opened();
+    const { section } = tabOrder(modal);
     const loop = section.querySelector(".shortcuts-loop")!;
-    expect(loop.firstElementChild!.className).toBe("shortcuts-loop__rail shortcuts-loop__rail--back");
-    expect(loop.lastElementChild!.className).toBe("shortcuts-loop__rail shortcuts-loop__rail--on");
+    const returns = loop.querySelectorAll(".shortcuts-loop__return");
+    expect(returns).toHaveLength(1);
+    const back = returns[0]!;
+    // Beside the list, not inside any one name's row, and not one of the steps.
+    expect(back.parentElement).toBe(loop);
+    expect(back.closest(".shortcuts-loop__step")).toBeNull();
+    expect(back.classList.contains("shortcuts-loop__step-arrow")).toBe(false);
+    // Its one arrowhead points back into the first.
+    expect([...back.querySelectorAll(".shortcuts-loop__head")].map((head) => head.className)).toEqual([
+      "shortcuts-loop__head shortcuts-loop__head--back",
+    ]);
     // The drawing is for the eye: a screen reader hears the names and the list's label.
     for (const piece of section.querySelectorAll("[class*='shortcuts-loop__']:not(.shortcuts-loop__steps):not(.shortcuts-loop__step):not(.shortcuts-loop__name)")) {
       expect(piece.closest("[aria-hidden='true']"), piece.className).not.toBeNull();
@@ -207,17 +234,33 @@ describe("Tab Order", () => {
     expect(section.querySelector("ol")!.getAttribute("aria-label")).toContain("go round");
   });
 
-  it("draws its lines thin and dim, the rails from the middle of the first row to the middle of the last", () => {
+  it("draws its arrows thin and dim, each step stopping short of the next, the return the whole list long", () => {
     const sheet = css("shortcuts.css");
     const line = "var(--rule-thin) solid var(--colour-faint)";
-    expect(rule(sheet, ".shortcuts-loop__rail--back")).toContain(`border-left: ${line}`);
-    expect(rule(sheet, ".shortcuts-loop__rail--on")).toContain(`border-right: ${line}`);
-    expect(rule(sheet, ".shortcuts-loop__rail")).toContain("top: calc(var(--size-row) / 2)");
-    expect(rule(sheet, ".shortcuts-loop__rail")).toContain("bottom: calc(var(--size-row) / 2)");
-    expect(rule(sheet, ".shortcuts-loop__tie")).toContain(`border-top: ${line}`);
-    expect(sheet).toMatch(new RegExp(`\\.shortcuts-loop__lead--in,\\s*\\.shortcuts-loop__lead--out\\s*\\{[^}]*border-top: ${line.replace(/[()-]/g, "\\$&")}`));
+    const step = rule(sheet, ".shortcuts-loop__step-arrow");
+    for (const side of ["top", "right", "bottom"]) expect(step).toContain(`border-${side}: ${line}`);
+    expect(step).not.toContain("border-left");
+    // Out a little below one name's middle, in a little above the next one's: a gap between neighbours.
+    expect(step).toContain("top: calc(50% + var(--space-shortcuts-arrows) / 2)");
+    expect(step).toContain("height: calc(var(--size-row) + var(--space-shortcuts-steps) - var(--space-shortcuts-arrows))");
+    const gap = px("--space-snug");
+    expect(css("tokens.css")).toContain("--space-shortcuts-arrows: var(--space-snug);");
+    expect(css("tokens.css")).toContain("--space-shortcuts-steps: var(--space-tight);");
+    // Each arrow is 20px tall where one name's middle is 30px from the next: 10px of nothing between neighbours.
+    const pitch = px("--size-row") + px("--space-tight");
+    expect([pitch, pitch - gap, gap]).toEqual([30, 20, 10]);
+    // The arrowhead, a --space-tight square turned on end, stays inside that gap and does not touch the next arrow.
+    expect((px("--space-tight") * Math.SQRT2) / 2).toBeLessThan(gap);
+    expect(rule(sheet, ".shortcuts-loop__steps")).toContain("gap: var(--space-shortcuts-steps)");
+
+    const back = rule(sheet, ".shortcuts-loop__return");
+    for (const side of ["top", "left", "bottom"]) expect(back).toContain(`border-${side}: ${line}`);
+    expect(back).not.toContain("border-right");
+    expect(back).toContain("top: calc(var(--size-row) / 2)");
+    expect(back).toContain("bottom: calc(var(--size-row) / 2)");
     expect(rule(sheet, ".shortcuts-loop__head")).toContain(`border-left: ${line}`);
     expect(rule(sheet, ".shortcuts-loop__head")).toContain(`border-bottom: ${line}`);
+    expect(sheet).not.toMatch(/rail|__tie|__lead/);
   });
 });
 
@@ -292,6 +335,21 @@ describe("the keys, drawn as the bottom bar's pills", () => {
   it("set each row as tall as its key", () => {
     expect(rule(css("shortcuts.css"), ".shortcuts__row")).toContain("height: var(--size-pill)");
     expect(rule(css("shortcuts.css"), ".shortcuts-tab-order__head")).toContain("height: var(--size-pill)");
+  });
+
+  it("stand apart, with a visible gap between one row's key and the next", () => {
+    expect(rule(css("shortcuts.css"), ".shortcuts__rows")).toContain("gap: var(--space-shortcuts-rows)");
+    expect(css("tokens.css")).toContain("--space-shortcuts-rows: var(--space-snug);");
+    // Not a hairline: 10px between 32px pills.
+    expect(px("--space-snug")).toBe(10);
+    expect(px("--space-snug")).toBeGreaterThan(px("--space-hair"));
+  });
+
+  it("sit further from their names than before", () => {
+    expect(rule(css("shortcuts.css"), ".shortcuts__row")).toContain("gap: var(--space-shortcuts-key)");
+    expect(css("tokens.css")).toContain("--space-shortcuts-key: var(--space-loose);");
+    // Was --space-panel, 12px.
+    expect(px("--space-loose")).toBeGreaterThan(px("--space-panel"));
   });
 });
 
@@ -506,14 +564,19 @@ describe("one page, nothing scrolled, in the app's window", () => {
   /** The packed size from the tokens: jsdom lays nothing out. */
   const packed = () => {
     const frame = (px("--space-vast") + px("--rule-thin")) * 2;
-    const width = px("--measure-shortcuts-column") * 2 + px("--space-vast") * 2 + px("--rule-thin") + frame;
+    const columns = px("--space-vast") + px("--space-loose");
+    const width = px("--measure-shortcuts-column") * 2 + columns * 2 + px("--rule-thin") + frame;
     const groups = shortcutGroups();
     const label = px("--size-caption") * leadingTight();
-    const group = (name: string): number =>
-      label + px("--space-tight") + groups.find((one) => one.name === name)!.rows.length * px("--size-pill");
-    const left = ["File", "Edit", "View"].map(group).reduce((sum, one) => sum + one, 0) + px("--space-roomy") * 2;
+    const between = px("--space-snug");
+    const group = (name: string): number => {
+      const rows = groups.find((one) => one.name === name)!.rows.length;
+      return label + px("--space-tight") + rows * px("--size-pill") + (rows - 1) * between;
+    };
+    const left = ["File", "Edit", "View"].map(group).reduce((sum, one) => sum + one, 0) + px("--space-loose") * 2;
     // Spaced from Writing's rows as one group is from the next; its head as tall as its keys; a row for each type.
-    const tabOrder = px("--space-roomy") + px("--size-pill") + px("--space-tight") + TAB_CYCLE.length * px("--size-row");
+    const steps = TAB_CYCLE.length * px("--size-row") + (TAB_CYCLE.length - 1) * px("--space-tight");
+    const tabOrder = px("--space-loose") + px("--size-pill") + px("--space-snug") + steps;
     const right = group("Writing") + tabOrder;
     const actions = px("--space-dialog-actions") + px("--size-row");
     const height = frame + Math.max(left, right) + actions;
@@ -524,10 +587,15 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect([appWindow.width, appWindow.height]).toEqual([1100, 820]);
   });
 
-  it("packs to 763 by about 602, inside 1100 by 820, with 40px margins", () => {
-    // The sum headless Chrome measures too (763 × 601.59).
-    expect(packed().width).toBe(763);
-    expect(packed().height).toBeCloseTo(601.6, 5);
+  it("packs to 891 by about 714, inside 1100 by 820, with 40px margins", () => {
+    // The sum headless Chrome measures too.
+    expect(packed().width).toBe(891);
+    expect(packed().height).toBeCloseTo(713.6, 5);
+    // More spread out than the 763 × 601.6 it was, and still within about 1000 × 740.
+    expect(packed().width).toBeGreaterThan(763);
+    expect(packed().height).toBeGreaterThan(601.6);
+    expect(packed().width).toBeLessThanOrEqual(1000);
+    expect(packed().height).toBeLessThanOrEqual(740);
     // Writing and Tab Order are the taller side.
     expect(packed().right).toBeGreaterThan(packed().left);
     // Room to spare all round, so nothing scrolls.
@@ -541,17 +609,27 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect(rule(css("shortcuts.css"), ".new-project-dialog.shortcuts")).toContain("padding: var(--space-shortcuts-edge)");
   });
 
+  it("spreads the columns wider apart, and further from the divider, than before", () => {
+    // Was 300px columns and --space-vast (40px) either side of the divider.
+    expect(px("--measure-shortcuts-column")).toBeGreaterThan(300);
+    const columns = px("--space-vast") + px("--space-loose");
+    expect(columns).toBe(64);
+    expect(columns).toBeGreaterThan(40);
+  });
+
   it("is two columns and a divider, set by the tokens the sum reads, and nothing inside scrolls", () => {
     const sheet = css("shortcuts.css");
     const frame = rule(sheet, ".new-project-dialog.shortcuts").replace(/\s+/g, " ");
     expect(frame).toContain(
       "width: calc( var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) * 2 + var(--rule-thin) + var(--space-shortcuts-edge) * 2 + var(--rule-thin) * 2 )",
     );
-    expect(css("tokens.css")).toContain("--measure-shortcuts-column: 300px;");
-    expect(css("tokens.css")).toContain("--space-shortcuts-columns: var(--space-vast);");
+    expect(css("tokens.css")).toContain("--measure-shortcuts-column: 340px;");
+    expect(css("tokens.css")).toContain("--space-shortcuts-columns: calc(var(--space-vast) + var(--space-loose));");
     expect(rule(sheet, ".shortcuts__columns")).toContain("gap: var(--space-shortcuts-columns)");
     expect(rule(sheet, ".shortcuts-loop__step")).toContain("height: var(--size-row)");
-    expect(rule(sheet, ".shortcuts-tab-order")).toContain("margin-block-start: calc(var(--space-roomy) - var(--space-tight))");
+    expect(rule(sheet, ".shortcuts-tab-order")).toContain("margin-block-start: calc(var(--space-loose) - var(--space-tight))");
+    expect(rule(sheet, ".shortcuts-tab-order")).toContain("gap: var(--space-snug)");
+    expect(rule(sheet, ".shortcuts__column")).toContain("gap: var(--space-loose)");
     // No scroller of its own, and no height but the window's.
     expect(sheet).not.toMatch(/overflow/);
     expect(frame).not.toMatch(/(^|[\s;])height:/);
