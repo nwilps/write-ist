@@ -3,7 +3,7 @@
  *
  * New Project's dialog, built from its pieces, its shared buttons and keys among
  * them: a modal `<dialog>` with no heading, and Escape cancels it natively. The
- * boxes sit two across, so the whole form is seen at once.
+ * boxes are stacked, one to a row, in a dialog tall enough to show them all.
  *
  * Enter in a one-line box saves. Contact and Notes, and any other value that
  * already has more than one line, are text areas that grow with their text:
@@ -88,27 +88,23 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   const save = dialogAction("Save", "Enter", "submit");
   const problem = element("div", { className: "new-project__problem" });
 
+  const list = element("div", { className: "title-page__fields" }, TITLE_PAGE_KEYS.map((key) => fields.get(key)!));
   const form = element("form", { className: "new-project-dialog__form" }, [
-    element("div", { className: "title-page__fields" }, TITLE_PAGE_KEYS.map((key) => fields.get(key)!)),
+    list,
     problem,
     element("div", { className: "new-project-dialog__actions" }, [view, cancel, save]),
   ]);
   // No heading, as New Project has none; the dialog is still named for a screen reader.
   const modal = element("dialog", { className: "new-project-dialog title-page", ariaLabel: "Edit Title Page" }, [form]);
-  const keys = dialogKeys(modal, [
-    [box("Title")],
-    [box("Credit"), box("Author")],
-    [box("Source"), box("Draft date")],
-    [box("Contact"), box("Notes")],
-    [view, cancel, save],
-  ]);
+  const keys = dialogKeys(modal, [...TITLE_PAGE_KEYS.map((key) => [box(key)]), [view, cancel, save]]);
 
   const areas = [...boxes.values()].filter((one) => one instanceof HTMLTextAreaElement);
   const long = areas.filter((area) => area.classList.contains("title-page__lines--long"));
   /**
-   * Each text area as tall as its text. Contact and Notes may take what the rest
-   * of the dialog leaves of the window, so it is measured with them at their
-   * smallest; past the stylesheet's limit a box scrolls, and the form does not.
+   * Each text area as tall as its text. Contact and Notes share what the rest of
+   * the dialog leaves of the window, so it is measured with them at their
+   * smallest, and with the whole list, however little of it a short window shows.
+   * Past the stylesheet's limit a box scrolls, and the form does not.
    */
   const fitLines = (): void => {
     const scrolled = areas.map((area) => area.scrollTop);
@@ -116,8 +112,8 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
       area.style.setProperty("--title-lines-height", String(area.scrollHeight + area.offsetHeight - area.clientHeight));
     for (const area of areas) area.style.setProperty("--title-lines-height", "");
     for (const area of areas) if (!long.includes(area)) fit(area);
-    const smallest = Math.max(...long.map((area) => area.offsetHeight));
-    modal.style.setProperty("--title-page-rest", String(modal.scrollHeight + modal.offsetHeight - modal.clientHeight - smallest));
+    const smallest = long.reduce((sum, area) => sum + area.offsetHeight, 0);
+    modal.style.setProperty("--title-page-rest", String(list.scrollHeight + modal.offsetHeight - list.clientHeight - smallest));
     for (const area of long) fit(area);
     areas.forEach((area, at) => {
       area.scrollTop = scrolled[at]!;

@@ -4,24 +4,29 @@
  * value is a token (ADR-0030).
  */
 
-/* New Project's frame with Goals' margin, and as tall as the window if it must be. */
+/* New Project's frame with Goals' margin, and never larger than the window. */
 .new-project-dialog.title-page {
   width: calc(var(--measure-title-page) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  max-width: 100%;
   max-height: 100%;
   padding: var(--space-loose);
 }
 
-/* Two across, read left to right: the keys keep their order. */
-.title-page__fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: var(--space-panel);
+/* In a window too short for it all, the fields give way and the buttons stay. */
+.title-page .new-project-dialog__form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--size-desk-height) - var(--space-loose) * 2 - var(--rule-thin) * 2);
 }
 
-/* The title has the full width to itself. */
-.title-page__fields > :first-child {
-  grid-column: 1 / -1;
+/* One to a row, the full width, and the only part of the form that scrolls. */
+.title-page__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-panel);
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Two lines to begin with; `fitLines` hands in the height of the text. */
@@ -36,13 +41,13 @@
   resize: none;
 }
 
-/* Contact and Notes go further, but leave the dialog a margin inside the window. */
+/* Contact and Notes go further, halving what the window has left, less a margin. */
 .title-page .title-page__lines--long {
   max-height: max(
     var(--size-title-lines),
     min(
       var(--size-title-lines-long),
-      calc(var(--size-desk-height) - var(--title-page-rest, 0) * var(--size-pixel) - var(--space-loose) * 2)
+      calc((var(--size-desk-height) - var(--title-page-rest, 0) * var(--size-pixel) - var(--space-loose) * 2) / 2)
     )
   );
 }

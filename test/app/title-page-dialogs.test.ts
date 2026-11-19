@@ -32,6 +32,12 @@ afterEach(() => document.body.replaceChildren());
 const css = (name: string): string =>
   readFileSync(`app/src/style/${name}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
+/** What one selector's block in a stylesheet says. */
+const rule = (sheet: string, selector: string): string =>
+  new RegExp(`(?:^|\\})\\s*${selector.replace(/[.]/g, "\\.")}\\s*\\{([^}]*)\\}`).exec(sheet)![1]!;
+/** A token's size in pixels. */
+const px = (token: string): number => Number(new RegExp(`${token}: ([\\d.]+)px;`).exec(css("tokens.css"))![1]);
+
 const TITLE_PAGE = parse(
   "Title:\n\t_**BRICK & STEEL**_\n\t_**FULL RETIRED**_\nCredit: Written by\nAuthor: Stu\nRevision: Blue\n\nx\n",
 ).titlePage;
@@ -180,12 +186,65 @@ describe("Edit Title Page's look", () => {
     expect(css("home.css")).toMatch(/\.new-project-dialog\s*\{[^}]*padding: var\(--space-roomy\)/);
   });
 
-  it("does not scroll the form, and fits the smallest window across", () => {
+  it("stacks every box full width, one to a row, in the title page's order", () => {
+    const { modal } = opened(TWO_AUTHORS);
+    const list = modal.querySelector(".title-page__fields")!;
+    expect([...list.children].map((row) => row.querySelector("label")!.textContent)).toEqual([
+      "Title", "Credit", "Author(s)", "Source", "Draft date", "Contact", "Notes",
+    ]);
     const sheet = css("title-page.css");
-    expect(sheet).toMatch(/\.title-page__fields\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/);
-    expect(/\.title-page__fields\s*\{([^}]*)\}/.exec(sheet)![1]).not.toMatch(/overflow|max-height/);
-    expect(css("tokens.css")).not.toContain("--size-title-form-max");
-    expect(css("tokens.css")).toContain("--measure-title-page: 500px;");
+    expect(rule(sheet, ".title-page__fields")).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(sheet).not.toContain("repeat(");
+    expect(sheet).not.toContain("grid-column");
+  });
+
+  it("is wide enough for a line of authors", () => {
+    expect(px("--measure-title-page")).toBe(720);
+    const inside = px("--measure-title-page") - px("--space-panel") * 2 - px("--rule-thin") * 2;
+    // A column of the interface's face is 0.6em wide.
+    const columns = inside / (px("--size-query") * 0.6);
+    expect(columns).toBeGreaterThan("John August, Daniel Wallace, Tim Burton".length * 2);
+  });
+
+  it("shows every box without scrolling in a laptop's window, at their first height", () => {
+    const label = px("--size-caption") * Number(/--leading-tight: ([\d.]+);/.exec(css("tokens.css"))![1]) + px("--space-tight");
+    const oneLine = label + px("--size-field");
+    const twoLines = label + px("--size-field") + px("--leading-title-lines");
+    const list = oneLine * 5 + twoLines * 2 + px("--space-panel") * 6;
+    const foot = px("--space-dialog-actions") + px("--size-row");
+    const frame = (px("--space-loose") + px("--rule-thin")) * 2;
+    // jsdom lays nothing out; this is the sum headless Chrome measures too.
+    expect(list + foot + frame).toBeCloseTo(609.2, 5);
+    expect(list + foot + frame).toBeLessThan(768);
+    expect(px("--measure-title-page") + frame).toBeLessThan(1366);
+  });
+
+  it("keeps inside a smaller window: the boxes scroll, the buttons do not", () => {
+    const sheet = css("title-page.css");
+    const frame = rule(sheet, ".new-project-dialog.title-page");
+    expect(frame).toContain("max-width: 100%");
+    expect(frame).toContain("max-height: 100%");
+    expect(frame).toContain("padding: var(--space-loose)");
+    const form = rule(sheet, ".title-page .new-project-dialog__form");
+    expect(form).toContain("flex-direction: column");
+    expect(form).toContain("max-height: calc(var(--size-desk-height) - var(--space-loose) * 2 - var(--rule-thin) * 2)");
+    const list = rule(sheet, ".title-page__fields");
+    expect(list).toContain("min-height: 0");
+    expect(list).toContain("overflow-y: auto");
+  });
+
+  it("measures the rest of the dialog from the whole list, even when a short window cuts it", () => {
+    const { modal, box, type } = opened(PLAIN);
+    const list = modal.querySelector(".title-page__fields")!;
+    const size = (node: Element, sizes: Record<string, number>) => {
+      for (const [name, value] of Object.entries(sizes)) Object.defineProperty(node, name, { get: () => value, configurable: true });
+    };
+    size(modal, { offsetHeight: 420, clientHeight: 418, scrollHeight: 418 });
+    size(list, { scrollHeight: 515, clientHeight: 326 });
+    size(box("contact"), { offsetHeight: 56 });
+    size(box("notes"), { offsetHeight: 56 });
+    type("notes", "FINAL");
+    expect(modal.style.getPropertyValue("--title-page-rest")).toBe(String(515 + 420 - 326 - 56 * 2));
   });
 
   it("starts Contact and Notes at two lines, with no gripper, and lets them grow to a limit", () => {
@@ -194,11 +253,14 @@ describe("Edit Title Page's look", () => {
       expect(box(key).tagName, key).toBe("TEXTAREA");
       expect((box(key) as HTMLTextAreaElement).rows, key).toBe(2);
     }
-    const rule = /\.title-page \.title-page__lines\s*\{([^}]*)\}/.exec(css("title-page.css"))![1]!;
-    expect(rule).toContain("resize: none");
-    expect(rule).toContain("min-height: var(--size-title-lines)");
-    expect(rule).toContain("height: calc(var(--title-lines-height) * var(--size-pixel))");
-    expect(css("title-page.css")).toMatch(/\.title-page__lines--long\s*\{[^}]*var\(--size-title-lines-long\)/);
+    const lines = rule(css("title-page.css"), ".title-page .title-page__lines");
+    expect(lines).toContain("resize: none");
+    expect(lines).toContain("min-height: var(--size-title-lines)");
+    expect(lines).toContain("height: calc(var(--title-lines-height) * var(--size-pixel))");
+    const long = rule(css("title-page.css"), ".title-page .title-page__lines--long");
+    expect(long).toContain("var(--size-title-lines-long)");
+    // Stacked, the two add up: each may have half of what the window has left.
+    expect(long).toContain("var(--space-loose) * 2) / 2)");
   });
 
   it("makes Contact as tall as its text, and takes back the room when the text goes", () => {
@@ -309,11 +371,12 @@ describe("Edit Title Page from the keyboard", () => {
   it("moves between the rows and along them with the arrows, once out of the edit", () => {
     const { modal } = opened(PLAIN);
     escape(modal);
-    expect(stops(5, "ArrowDown")).toEqual([
-      "title-page-credit", "title-page-source", "title-page-contact", "View", "title-page-title",
-    ]);
+    expect(stops(8, "ArrowDown")).toEqual([...WALK.slice(1), "View", WALK[0]]);
+    expect(stops(1, "ArrowUp")).toEqual(["View"]);
+    expect(stops(2, "ArrowRight")).toEqual(["Cancel", "Save"]);
+    // A box has its row to itself, so there is nowhere along it to go.
     press("ArrowDown");
-    expect(stops(2, "ArrowRight")).toEqual(["title-page-author", "title-page-credit"]);
+    expect(stops(1, "ArrowRight")).toEqual([WALK[0]]);
   });
 
   it("leaves the arrows to the caret in a box being edited", () => {

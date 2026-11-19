@@ -324,8 +324,8 @@
 :root {
   /** The preview sheet: US Letter at 70%, so it fits a short window. */
   --size-title-sheet: 428px;
-  /** The form's two columns: with its margins, it still fits the smallest window. */
-  --measure-title-page: 500px;
+  /** The form's one column: some eighty characters of a field's type, for a line of several names. */
+  --measure-title-page: 720px;
   /** A line in a text area, and what centres one line in a field's height. */
   --leading-title-lines: 20px;
   --space-title-lines: calc((var(--size-field) - var(--rule-thin) * 2 - var(--leading-title-lines)) / 2);
