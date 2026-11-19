@@ -2,20 +2,26 @@
  * Goals: the daily goal, the streak, the last thirty days, and a sprint
  * (ADR-0040).
  *
- * A modal `<dialog>` built like the title page's, and like it Escape closes it
- * natively. Nothing is "saved" with a button: choosing a goal, a weekday, a
- * sprint changes the Editor's goals at once and the picture redraws, and
- * **Done** only puts the dialog away. What the numbers mean — net words, which
- * days count, how a streak is read — is `src/goals/`'s; this draws and listens.
+ * New Project's dialog, built from its pieces, its shared button and keys among
+ * them: a modal `<dialog>` with no heading, and Escape closes it natively.
+ * Nothing is "saved" with a button: choosing a goal, a weekday, a sprint changes
+ * the Editor's goals at once and the picture redraws, so there is nothing to
+ * cancel or confirm, and **Done** only puts the dialog away. Enter in a number
+ * being edited applies it; Enter that nothing else used closes the dialog. What
+ * the numbers mean — net words, which days count, how a streak is read — is
+ * `src/goals/`'s; this draws and listens.
  *
  * The chart is drawn from the same tokens as everything else: a row of bars
  * whose heights are a percentage handed in as a custom property, and a line
  * across at the goal. No chart library.
  */
 import { MAXIMUM_GOAL } from "../../../../src/goals/history.ts";
-import { WEEKDAYS, type Weekday } from "../../../../src/goals/day.ts";
+import type { Weekday } from "../../../../src/goals/day.ts";
 import { SPRINT_DEFAULT, SPRINT_MAXIMUM, SPRINT_MINIMUM } from "../../../../src/goals/sprint.ts";
 import type { GoalsView } from "../../../../src/goals/tracker.ts";
+import { dialogAction } from "../../screens/dialog-action.ts";
+import { dialogKeys } from "../../screens/dialog-keys.ts";
+import { dialogToggle } from "../../screens/dialog-toggle.ts";
 import { element } from "../../screens/element.ts";
 import { trouble } from "../../screens/trouble.ts";
 
@@ -31,6 +37,20 @@ export interface GoalsDialogOptions {
 
 /** What a daily goal defaults to when the writer first turns it on. */
 const DEFAULT_GOAL = 500;
+
+/** The day pills, Sunday first. Only how they are shown: a day is kept and counted as its `Weekday`. */
+const DAY_PILLS: readonly { readonly day: Weekday; readonly label: string; readonly name: string }[] = [
+  { day: "Sun", label: "Su", name: "Sunday" },
+  { day: "Mon", label: "Mo", name: "Monday" },
+  { day: "Tue", label: "Tu", name: "Tuesday" },
+  { day: "Wed", label: "We", name: "Wednesday" },
+  { day: "Thu", label: "Th", name: "Thursday" },
+  { day: "Fri", label: "Fr", name: "Friday" },
+  { day: "Sat", label: "Sa", name: "Saturday" },
+];
+
+/** The dim arrow on a Goals row, from the box to what it feeds. */
+const rowArrow = (): HTMLElement => element("span", { className: "goals__arrow", ariaHidden: "true", textContent: "→" });
 
 const WITH_COMMAS = new Intl.NumberFormat("en-US");
 const said = (value: number): string => WITH_COMMAS.format(value);
@@ -65,11 +85,18 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
 
   // --- The daily goal --------------------------------------------------
   const chosen = new Set<Weekday>(options.view().weekdays);
-  const on = element("input", { id: "goals-on", type: "checkbox", className: "goals__check" });
-  const onLabel = element("label", { htmlFor: "goals-on", className: "goals__check-label", textContent: "Daily word goal" });
+  const on = dialogToggle({
+    id: "goals-on",
+    onChange: (isOn) => {
+      if (isOn && goalTyped() === undefined) goalBox.value = String(DEFAULT_GOAL);
+      applyDaily();
+    },
+  });
+  const onLabel = element("label", { htmlFor: "goals-on", className: "new-project-dialog__label goals__toggle-label", textContent: "Daily word goal" });
   const goalBox = element("input", {
     id: "goals-daily",
-    className: "field__input goals__number",
+    className: "new-project-dialog__input goals__number",
+    ariaLabel: "Daily word goal",
     type: "number",
     min: "1",
     max: String(MAXIMUM_GOAL),
@@ -80,8 +107,8 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   const days = element(
     "div",
     { className: "goals__days", role: "group", ariaLabel: "Days that count" },
-    WEEKDAYS.map((day) => {
-      const button = element("button", { type: "button", className: "button goals__day", textContent: day });
+    DAY_PILLS.map(({ day, label, name }) => {
+      const button = element("button", { type: "button", className: "pill goals__day", textContent: label, ariaLabel: name });
       dayButtons.set(day, button);
       return button;
     }),
@@ -94,7 +121,7 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   };
   const applyDaily = (): void => {
     problem.replaceChildren();
-    if (!on.checked) {
+    if (!on.on()) {
       options.setDaily(undefined, [...chosen]);
       redraw();
       return;
@@ -106,16 +133,7 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     }
     redraw();
   };
-  on.addEventListener("change", () => {
-    if (on.checked && goalTyped() === undefined) goalBox.value = String(DEFAULT_GOAL);
-    applyDaily();
-  });
   goalBox.addEventListener("change", applyDaily);
-  goalBox.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    applyDaily();
-  });
   for (const [day, button] of dayButtons) {
     button.addEventListener("click", () => {
       if (chosen.has(day)) chosen.delete(day);
@@ -127,7 +145,8 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   // --- The sprint ------------------------------------------------------
   const sprintBox = element("input", {
     id: "goals-sprint",
-    className: "field__input goals__number",
+    className: "new-project-dialog__input goals__number",
+    ariaLabel: "Sprint, in words",
     type: "number",
     min: String(SPRINT_MINIMUM),
     max: String(SPRINT_MAXIMUM),
@@ -135,9 +154,10 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     value: String(SPRINT_DEFAULT),
     autocomplete: "off",
   });
-  const start = element("button", { type: "button", className: "button button--leading", textContent: "Start" });
-  const end = element("button", { type: "button", className: "button", textContent: "End" });
-  const sprintLabel = element("label", { htmlFor: "goals-sprint", className: "goals__check-label", textContent: "Sprint (words)" });
+  // The arrow beside them already says where to press, so neither wears the `>`.
+  const start = dialogAction("Start", undefined, "button", { cursor: false });
+  const end = dialogAction("End", undefined, "button", { cursor: false });
+  const sprintLabel = element("label", { htmlFor: "goals-sprint", className: "new-project-dialog__label", textContent: "Sprint" });
   const sprintNow = element("span", { className: "goals__sprint-now", role: "status" });
   const startSprint = (): void => {
     problem.replaceChildren();
@@ -147,13 +167,10 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
       return;
     }
     redraw();
+    // The box and Start have just been hidden, and the focus must not go with them.
+    end.focus();
   };
   start.addEventListener("click", startSprint);
-  sprintBox.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    startSprint();
-  });
   end.addEventListener("click", () => {
     options.endSprint();
     redraw();
@@ -193,40 +210,64 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     );
     firstDay.textContent = shortDate(view.chart[0]!.day);
 
-    on.checked = view.goal !== undefined;
+    on.set(view.goal !== undefined);
     if (view.goal !== undefined) goalBox.value = String(view.goal);
-    goalBox.disabled = !on.checked;
+    goalBox.disabled = !on.on();
     for (const [day, button] of dayButtons) {
       const counted = chosen.has(day);
       button.setAttribute("aria-pressed", String(counted));
       button.classList.toggle("goals__day--counted", counted);
-      button.disabled = !on.checked;
+      button.disabled = !on.on();
     }
 
     const running = view.sprint;
-    sprintBox.hidden = start.hidden = sprintLabel.hidden = running !== undefined;
+    sprintBox.hidden = start.hidden = running !== undefined;
     end.hidden = sprintNow.hidden = running === undefined;
     if (running !== undefined) sprintNow.textContent = `${said(running.written)} / ${said(running.target)} words`;
   }
 
-  const done = element("button", { className: "button button--leading", type: "button", textContent: "Done" });
-  const modal = element("dialog", { className: "report new-project goals", ariaLabel: "Goals" }, [
-    element("div", { className: "new-project__form goals__form" }, [
-      element("h2", { className: "report__heading", textContent: "Goals" }),
+  // Esc, because it closes from every stop; Enter is often some other control's.
+  const done = dialogAction("Done", "Esc", "button");
+  // No heading, as New Project has none; the dialog is still named for a screen reader.
+  const modal = element("dialog", { className: "new-project-dialog goals", ariaLabel: "Goals" }, [
+    element("div", { className: "new-project-dialog__form" }, [
       summary,
       element("div", { className: "goals__chart" }, [chart, axis]),
-      element("div", { className: "field" }, [
-        element("div", { className: "goals__row" }, [on, onLabel, goalBox]),
-        days,
-      ]),
-      element("div", { className: "field" }, [
-        element("div", { className: "goals__row" }, [sprintLabel, sprintBox, start, sprintNow, end]),
+      element("div", { className: "goals__settings" }, [
+        element("div", { className: "new-project-dialog__field" }, [
+          element("div", { className: "goals__heading" }, [onLabel, on.control]),
+          element("div", { className: "goals__row" }, [goalBox, rowArrow(), days]),
+        ]),
+        element("div", { className: "new-project-dialog__field" }, [
+          sprintLabel,
+          element("div", { className: "goals__row" }, [sprintBox, sprintNow, rowArrow(), start, end]),
+        ]),
       ]),
       problem,
-      element("div", { className: "report__actions new-project__actions" }, [done]),
+      element("div", { className: "new-project-dialog__actions" }, [done]),
     ]),
   ]);
+  // Before `dialogKeys`, which leaves a used key alone: from the dialog itself,
+  // where it opens, every arrow steps in at the top.
+  modal.addEventListener("keydown", (event) => {
+    if (event.target !== modal || !event.key.startsWith("Arrow")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    on.control.focus();
+  });
+  dialogKeys(modal, [[on.control], [goalBox, ...dayButtons.values()], [sprintBox, start, end], [done]]);
 
+  // After `dialogKeys`, so this is only the Enter it left: in a number being
+  // edited, or on nothing that has a use for it.
+  modal.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.defaultPrevented) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    if (event.target === goalBox) applyDaily();
+    else if (event.target === sprintBox) startSprint();
+    // Not a held key: Enter still down from the box must not close the dialog.
+    else if (!event.repeat) modal.close();
+  });
   done.addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
     modal.remove();
@@ -236,6 +277,7 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   redraw();
   into.append(modal);
   modal.showModal();
-  done.focus();
+  // Nothing is assumed: no control lit, and the focus still inside the dialog.
+  modal.focus();
   return modal;
 }

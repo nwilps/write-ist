@@ -1,12 +1,13 @@
 /*
  * The Goals dialog (ADR-0040): totals, a thirty-day chart with a line at the
- * goal, the daily goal's settings and a sprint. It is the title page dialog's
- * kind of dialog, so `.report` and `.new-project` give it its frame; this
- * is what is its own.
+ * goal, the daily goal's settings and a sprint. `.new-project-dialog` and its
+ * parts dress it; this is what New Project has no need of.
  */
 
-.goals__form {
-  width: var(--measure-goals);
+/* New Project's frame with more margin, wide enough to hold the chart at `--measure-goals`. */
+.new-project-dialog.goals {
+  width: calc(var(--measure-goals) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  padding: var(--space-loose);
 }
 
 .goals__summary {
@@ -90,19 +91,44 @@
   color: var(--colour-faint);
 }
 
-.goals__row {
+/* The daily goal and the sprint: each a line of words over a line of controls. */
+.goals__settings {
+  display: grid;
+  gap: var(--space-roomy);
+}
+
+.goals__heading {
   display: flex;
   align-items: center;
   gap: var(--space-snug);
 }
 
-.goals__check-label {
-  font-size: var(--size-label);
-  color: var(--colour-muted);
+.goals__toggle-label {
+  cursor: pointer;
 }
 
-.goals__number {
+/* As tall as the box, so the dialog keeps its height when a sprint hides it. */
+.goals__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-goals-arrow);
+  min-height: var(--size-field);
+}
+
+/* Named twice over: `home.css` loads after this and sets the box's width too. */
+.goals .goals__number {
+  flex: none;
   width: var(--size-goals-number);
+}
+
+.goals .goals__number:disabled {
+  border-color: var(--colour-border);
+  color: var(--colour-faint);
+}
+
+/* The webview's white stepper is no part of this look; the arrow keys still step. */
+.goals__number::-webkit-inner-spin-button {
+  appearance: none;
 }
 
 .goals__days {
@@ -110,23 +136,77 @@
   gap: var(--space-tight);
 }
 
-.goals__day {
-  flex: 1;
+/*
+ * The save pill's square, holding two letters. The pill's colour is the dialog's
+ * too, so a thin edge keeps its shape. Named three times over to outrank
+ * `button.pill:hover`: a day keeps its colour whatever the pointer does.
+ */
+.goals button.pill.goals__day {
+  width: var(--size-pill);
+  padding: 0;
+  border: var(--rule-thin) solid var(--colour-border-strong);
   color: var(--colour-faint);
 }
 
-.goals__day--counted {
-  color: var(--colour-text);
+.goals button.pill.goals__day--counted {
+  color: var(--colour-accent);
+}
+
+.goals button.pill.goals__day:hover:not(:disabled),
+.goals button.pill.goals__day:focus-visible {
+  background: var(--colour-overlay);
+}
+
+.goals button.pill.goals__day:focus-visible {
+  outline: none;
   border-color: var(--colour-accent);
 }
 
+/* The daily goal is off: nothing is gold, but the counted days can still be told. */
+.goals button.pill.goals__day:disabled {
+  color: var(--colour-border-strong);
+  cursor: default;
+}
+
+.goals button.pill.goals__day--counted:disabled {
+  color: var(--colour-faint);
+}
+
+/* Not the gold `>` of a lit button: always there, always dim, pointing at what the box feeds. */
+.goals__arrow {
+  flex: none;
+  color: var(--colour-faint);
+}
+
+/*
+ * Start and End are only as wide as their words. At rest the words are all that
+ * shows, so the margin takes back the padding and they sit a full gap from the arrow.
+ */
+.goals__row .new-project-dialog__action {
+  min-width: 0;
+  margin-inline-start: calc(var(--space-tight) * -1);
+  padding: 0 var(--space-tight);
+}
+
+/* Where the box was, while a sprint runs. */
 .goals__sprint-now {
+  min-width: var(--size-goals-number);
   font-size: var(--size-label);
   color: var(--colour-text);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.goals__sprint-now[hidden],
-.goals__row [hidden] {
+/* Done at the right, as wide as its words and the room kept for its `>`: a slot would centre it away from the edge. */
+.goals .new-project-dialog__actions {
+  justify-content: flex-end;
+}
+
+.goals .new-project-dialog__actions .new-project-dialog__action {
+  min-width: 0;
+}
+
+/* The row's pieces set a display of their own, which would outrank `hidden`. */
+.goals__settings [hidden] {
   display: none;
 }

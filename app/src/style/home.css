@@ -164,9 +164,8 @@
 /* --- The New Project dialog ---------------------------------------------- */
 
 /*
- * Its own classes, deliberately: the title page and Goals dialogs wear
- * `.report`, `.new-project__form` and `.field`, and a change to those is a
- * change to them.
+ * Its own classes, deliberately: the title page dialog wears `.report`,
+ * `.new-project__form` and `.field`, and a change to those is a change to it.
  */
 .new-project-dialog {
   width: var(--measure-new-project);
@@ -283,7 +282,7 @@
   cursor: default;
 }
 
-/* --- The shared dialog pieces (`dialog-action.ts`, `dialog-select.ts`, `dialog-keys.ts`) --- */
+/* --- The shared dialog pieces (`dialog-action.ts`, `dialog-select.ts`, `dialog-keys.ts`, `dialog-toggle.ts`) --- */
 
 .dialog-action:focus,
 .dialog-keys:focus {
@@ -304,6 +303,52 @@
 .dialog-keys .new-project-dialog__input:focus:not(.dialog-keys__editing) {
   border-color: var(--colour-accent);
   caret-color: transparent;
+}
+
+.dialog-toggle {
+  position: relative;
+  flex: none;
+  width: var(--size-toggle-width);
+  height: var(--size-toggle-height);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-round);
+  background: var(--colour-toggle-off);
+  cursor: pointer;
+  transition: background-color var(--duration-toggle);
+}
+
+.dialog-toggle::after {
+  content: "";
+  position: absolute;
+  top: calc((var(--size-toggle-height) - var(--size-toggle-knob)) / 2);
+  left: calc((var(--size-toggle-height) - var(--size-toggle-knob)) / 2);
+  width: var(--size-toggle-knob);
+  height: var(--size-toggle-knob);
+  border-radius: var(--radius-round);
+  background: var(--colour-toggle-knob-off);
+  transition: translate var(--duration-toggle), background-color var(--duration-toggle);
+}
+
+.dialog-toggle[aria-checked="true"] {
+  background: var(--colour-toggle-on);
+}
+
+.dialog-toggle[aria-checked="true"]::after {
+  translate: calc(var(--size-toggle-width) - var(--size-toggle-height)) 0;
+  background: var(--colour-toggle-knob-on);
+}
+
+.dialog-toggle:focus-visible {
+  outline: var(--focus-width) solid var(--colour-accent);
+  outline-offset: var(--focus-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-toggle,
+  .dialog-toggle::after {
+    transition: none;
+  }
 }
 
 .dialog-select {

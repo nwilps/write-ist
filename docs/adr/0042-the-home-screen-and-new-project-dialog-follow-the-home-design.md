@@ -12,6 +12,13 @@ right-click menu's look, not a native `<select>`. Its Cancel and Confirm are qui
 focused, then lit as Home's selected row is, and Enter on the drop-down opens it rather than
 confirming. Every other dialog keeps the look and keys described below until it moves over.
 
+**Amended 2026-11-18 (Noah):** Goals has moved over, so only Edit Title Page still reuses `.report`,
+`.new-project__form`, `.field` and `.new-project__actions`.
+
+**Amended 2026-11-18 (Noah):** a dialog's on/off choice is `dialogToggle`
+(`app/src/screens/dialog-toggle.ts`), a small sliding switch, gold when on and dim when off, not a
+checkbox. It is a plain stop for `dialogKeys`, and Space and Enter flip it. Goals is the first to use it.
+
 ## What it decides
 
 - **The typeface is the one already bundled.** The handoff says JetBrains Mono "is not in the repo
