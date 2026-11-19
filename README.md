@@ -76,6 +76,8 @@ Everything below is in the app now.
     range starts at page 1.
   - **Fountain**: a clean copy of the whole script to hand to someone else, with your private
     notes and cut material left out.
+  - **Final Draft (.fdx)** is listed but cannot be exported yet: Export stays dimmed while it is
+    chosen.
 
 **Projects**
 

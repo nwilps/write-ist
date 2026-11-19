@@ -2,6 +2,10 @@
  * Export As: every format in one dialog, and a page range where the format has
  * pages.
  *
+ * File Type, then Pages and the From → To row under it. Everything is always
+ * shown: what does not apply to the chosen file type is dimmed and the keys
+ * step over it, and Export is dimmed for a file type nothing writes yet.
+ *
  * New Project's dialog, built from its pieces, its shared button, drop-down and
  * keys among them: a modal `<dialog>`, Escape cancels it natively, Enter on
  * Export or in a page box being edited exports. It stays up until the file is written, so a range
@@ -17,6 +21,7 @@ import { dialogSelect } from "../../screens/dialog-select.ts";
 import { element } from "../../screens/element.ts";
 import { chevron, field } from "../../screens/new-project.ts";
 import { message, trouble } from "../../screens/trouble.ts";
+import { rowArrow } from "./goals-dialog.ts";
 
 export interface ExportDialogOptions {
   /** The first is chosen to begin with. */
@@ -39,11 +44,13 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
       min: "1",
       step: "1",
       autocomplete: "off",
+      // Off until a range is asked for: `redraw` decides.
+      disabled: true,
     });
 
   const format = dialogSelect({
     id: "export-format",
-    label: "Format",
+    label: "File Type",
     choices: options.formats.map(({ id, label }) => ({ value: id, label })),
     onChange: () => redraw(),
   });
@@ -51,32 +58,36 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
     id: "export-pages",
     label: "Pages",
     choices: [
-      { value: "all", label: "All pages" },
-      { value: "range", label: "From / to" },
+      { value: "all", label: "All Pages" },
+      { value: "range", label: "Page Range" },
     ],
-    onChange: () => {
-      // What the writer typed before stepping away is kept.
-      if (wantsRange() && from.value === "" && to.value === "") {
-        from.value = "1";
-        to.value = String(options.pageCount());
-      }
-      // The focus stays here, so the writer can change this again; Tab goes to From.
-      redraw();
-    },
+    // The focus stays here, so the writer can change this again; Tab goes to From.
+    onChange: () => redraw(),
   });
   const from = pageBox("export-from");
   const to = pageBox("export-to");
 
-  const pages = field("Pages", pageChoice.control, [chevron(), pageChoice.tray]);
-  const range = element("div", { className: "export-as__range" }, [field("From", from), field("To", to)]);
+  const label = (words: string, box: HTMLInputElement): HTMLLabelElement =>
+    element("label", { htmlFor: box.id, className: "new-project-dialog__label", textContent: words });
+  const boxed = (box: HTMLInputElement): HTMLElement => element("div", { className: "new-project-dialog__box" }, [box]);
+  // Always there, so the dialog keeps its shape; dimmed when it is not the writer's to change.
+  const range = element("div", { className: "export-as__range" }, [
+    label("From", from),
+    boxed(from),
+    rowArrow(),
+    label("To", to),
+    boxed(to),
+  ]);
 
   const problem = element("div", { className: "new-project__problem" });
   const cancel = dialogAction("Cancel", "Esc", "button");
   const confirm = dialogAction("Export", "Enter", "submit");
   // `noValidate`: the boxes' limits are said in `problem`, not in the webview's own bubble.
   const form = element("form", { className: "new-project-dialog__form", noValidate: true }, [
-    field("Format", format.control, [chevron(), format.tray]),
-    pages,
+    field("File Type", format.control, [chevron(), format.tray]),
+    // The right-click menu's separator, inset as it is there.
+    element("div", { className: "drop-menu__divider", role: "separator" }),
+    field("Pages", pageChoice.control, [chevron(), pageChoice.tray]),
     range,
     problem,
     element("div", { className: "new-project-dialog__actions" }, [cancel, confirm]),
@@ -86,13 +97,30 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
   dialogKeys(modal, [[format.control], [pageChoice.control], [from, to], [cancel, confirm]]);
 
   const chosen = (): ExportFormat => options.formats.find(({ id }) => id === format.value())!;
-  const wantsRange = (): boolean => pageChoice.value() === "range";
+  const wantsRange = (): boolean => chosen().pageRange && pageChoice.value() === "range";
   const typed = (box: HTMLInputElement): number => (box.value.trim() === "" ? NaN : Number(box.value));
+
+  // What the writer typed in the boxes, kept while they show the whole script instead.
+  let kept: { readonly from: string; readonly to: string } | undefined;
 
   function redraw(): void {
     problem.replaceChildren();
-    pages.hidden = !chosen().pageRange;
-    range.hidden = pages.hidden || !wantsRange();
+    const exported = chosen();
+    // A format without pages leaves Pages on All Pages, dimmed.
+    if (!exported.pageRange) pageChoice.set("all");
+    pageChoice.control.disabled = !exported.pageRange;
+    confirm.disabled = !exported.writable;
+    const ranged = wantsRange();
+    if (ranged && from.disabled) {
+      from.value = kept?.from ?? "1";
+      to.value = kept?.to ?? String(options.pageCount());
+    } else if (!ranged) {
+      if (!from.disabled) kept = { from: from.value, to: to.value };
+      // The whole script, for reference.
+      from.value = "1";
+      to.value = String(options.pageCount());
+    }
+    from.disabled = to.disabled = !ranged;
   }
   for (const box of [from, to]) box.addEventListener("input", () => problem.replaceChildren());
 
@@ -101,8 +129,10 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
   const exportNow = async (): Promise<void> => {
     if (exporting) return;
     const exported = chosen();
+    // Export is dimmed for a format nothing writes yet, and Enter is no way round it.
+    if (!exported.writable) return;
     let pageRange: PageRange | undefined;
-    if (exported.pageRange && wantsRange()) {
+    if (wantsRange()) {
       pageRange = { from: typed(from), to: typed(to) };
       const wrong = pageRangeProblem(pageRange, options.pageCount());
       if (wrong !== undefined) {

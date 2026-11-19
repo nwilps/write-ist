@@ -60,8 +60,10 @@ function opened(write: (id: string, range: unknown) => Promise<boolean> = async 
     document.activeElement!.dispatchEvent(event);
     return event;
   };
-  const pagesShown = (): boolean => !q("#export-pages").closest<HTMLElement>(".new-project-dialog__field")!.hidden;
-  const rangeShown = (): boolean => !q(".export-as__range").hidden;
+  const box = (id: string): HTMLInputElement => q<HTMLInputElement>(`#${id}`);
+  /** Whether the writer can use Pages, From and To: always drawn, dimmed when not. */
+  const pagesOn = (): boolean => !q<HTMLButtonElement>("#export-pages").disabled;
+  const rangeOn = (): boolean => !box("export-from").disabled && !box("export-to").disabled;
   /** Enter from a page box being typed in. */
   const enterIn = (selector: string): void => {
     q(selector).focus();
@@ -74,29 +76,39 @@ function opened(write: (id: string, range: unknown) => Promise<boolean> = async 
     press("Enter");
   };
   const range = (from: string, to: string): void => {
-    choose("export-pages", "From / to");
+    choose("export-pages", "Page Range");
     q<HTMLInputElement>("#export-from").value = from;
     q<HTMLInputElement>("#export-to").value = to;
   };
   const button = (label: string): HTMLButtonElement =>
     [...modal.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
   const problem = (): string => q(".new-project__problem").textContent ?? "";
-  return { modal, written, closed, report, q, choose, press, pagesShown, rangeShown, enterIn, exportNow, range, button, problem };
+  const walk = (count: number) => Array.from({ length: count }, () => (press("Tab"), document.activeElement));
+  return { modal, written, closed, report, q, box, choose, press, pagesOn, rangeOn, enterIn, exportNow, range, button, problem, walk };
 }
 
 describe("the Export As dialog", () => {
-  it("offers every format in the table in the shared drop-down, with PDF chosen and Export confirming", () => {
+  it("offers every format in the table under File Type, with PDF chosen and Export confirming", () => {
     const { modal, q, button } = opened();
     const format = q<HTMLButtonElement>("#export-format");
+    expect(modal.querySelector('label[for="export-format"]')!.textContent).toBe("File Type");
+    expect(modal.querySelector('label[for="export-pages"]')!.textContent).toBe("Pages");
+    expect(q("#export-format-list").getAttribute("aria-label") ?? q("#export-format-list").ariaLabel).toBe("File Type");
     expect(modal.querySelector("select")).toBeNull();
     expect(format.classList.contains("dialog-select")).toBe(true);
     expect([...modal.querySelectorAll("#export-format-list [role=option]")].map((row) => row.textContent)).toEqual(
       EXPORT_FORMATS.map((each) => each.label),
     );
-    expect(EXPORT_FORMATS.map((each) => each.label)).toEqual(["PDF", "Fountain"]);
+    expect(EXPORT_FORMATS.map((each) => each.label)).toEqual(["PDF", "Fountain", "Final Draft (.fdx)"]);
+    // Every one can be picked: none is drawn as coming soon.
+    expect(modal.querySelector(".dialog-select__option--unavailable, [aria-disabled]")).toBeNull();
     expect(format.textContent).toBe("PDF");
     expect(document.activeElement).toBe(format);
-    expect(q("#export-pages").textContent).toBe("All pages");
+    expect([...modal.querySelectorAll("#export-pages-list [role=option]")].map((row) => row.textContent)).toEqual([
+      "All Pages",
+      "Page Range",
+    ]);
+    expect(q("#export-pages").textContent).toBe("All Pages");
     expect(modal.querySelector('input[type="radio"]')).toBeNull();
     expect(button("Export").type).toBe("submit");
     expect(modal.querySelector("[title]")).toBeNull();
@@ -123,27 +135,62 @@ describe("the Export As dialog", () => {
     for (const label of ["Cancel", "Export"]) expect(button(label).classList.contains("dialog-action")).toBe(true);
   });
 
-  it("walks every control that is showing, wrapping, and skips what is hidden", () => {
-    const { q, choose, press, button } = opened();
-    const walk = (count: number) => Array.from({ length: count }, () => (press("Tab"), document.activeElement));
+  it("puts the right-click menu's separator under File Type, and Goals' dim arrow between From and To", () => {
+    const { q } = opened();
+    const typeField = q("#export-format").closest(".new-project-dialog__field")!;
+    const divider = typeField.nextElementSibling!;
+    expect(divider.className).toBe("drop-menu__divider");
+    expect(divider.getAttribute("role")).toBe("separator");
+    expect(divider.nextElementSibling).toBe(q("#export-pages").closest(".new-project-dialog__field"));
+    const row = q(".export-as__range");
+    expect([...row.children].map((child) => child.textContent)).toEqual(["From", "", "→", "To", ""]);
+    expect(row.children[1]!.contains(q("#export-from"))).toBe(true);
+    expect(row.children[4]!.contains(q("#export-to"))).toBe(true);
+    expect(row.children[2]!.className).toBe("goals__arrow");
+    expect(row.children[2]!.getAttribute("aria-hidden") ?? (row.children[2] as HTMLElement).ariaHidden).toBe("true");
+  });
+
+  it("walks every control the writer can use, wrapping, and skips what is dimmed", () => {
+    const { q, choose, button, walk } = opened();
+    // PDF, All Pages: From and To are dimmed.
     expect(walk(4)).toEqual([q("#export-pages"), button("Cancel"), button("Export"), q("#export-format")]);
-    choose("export-pages", "From / to");
+    choose("export-pages", "Page Range");
     q("#export-format").focus();
     expect(walk(6)).toEqual([q("#export-pages"), q("#export-from"), q("#export-to"), button("Cancel"), button("Export"), q("#export-format")]);
     choose("export-format", "Fountain");
     expect(walk(3)).toEqual([button("Cancel"), button("Export"), q("#export-format")]);
+    choose("export-format", "Final Draft (.fdx)");
+    expect(walk(2)).toEqual([button("Cancel"), q("#export-format")]);
+  });
+
+  it("steps over what is dimmed with the arrows too", () => {
+    const { q, choose, press, button } = opened();
+    choose("export-format", "Fountain");
+    press("ArrowDown");
+    expect(document.activeElement).toBe(button("Cancel"));
+    press("ArrowRight");
+    expect(document.activeElement).toBe(button("Export"));
+    press("ArrowDown");
+    expect(document.activeElement).toBe(q("#export-format"));
+    choose("export-format", "Final Draft (.fdx)");
+    press("ArrowDown");
+    expect(document.activeElement).toBe(button("Cancel"));
+    press("ArrowRight");
+    expect(document.activeElement).toBe(button("Cancel"));
+    press("ArrowUp");
+    expect(document.activeElement).toBe(q("#export-format"));
   });
 
   it("opens a drop-down on Enter and picks with the arrows, exporting nothing", async () => {
-    const { q, press, written, rangeShown } = opened();
+    const { q, press, written, rangeOn } = opened();
     q("#export-pages").focus();
     press("Enter");
     expect(q("#export-pages").getAttribute("aria-expanded")).toBe("true");
     press("ArrowDown");
     press("Enter");
     expect(q("#export-pages").getAttribute("aria-expanded")).toBe("false");
-    expect(q("#export-pages").textContent).toBe("From / to");
-    expect(rangeShown()).toBe(true);
+    expect(q("#export-pages").textContent).toBe("Page Range");
+    expect(rangeOn()).toBe(true);
     await settled();
     expect(written).not.toHaveBeenCalled();
   });
@@ -160,7 +207,7 @@ describe("the Export As dialog", () => {
 
   it("treats From and To as fields to enter and leave, like New Project's title", () => {
     const { q, choose, press } = opened();
-    choose("export-pages", "From / to");
+    choose("export-pages", "Page Range");
     const from = q("#export-from");
     from.focus();
     expect(from.classList.contains("dialog-keys__editing")).toBe(false);
@@ -176,43 +223,65 @@ describe("the Export As dialog", () => {
     expect(from.classList.contains("dialog-keys__editing")).toBe(false);
   });
 
-  it("offers a page range for PDF and not for Fountain", () => {
-    const { choose, pagesShown, rangeShown } = opened();
-    expect(pagesShown()).toBe(true);
-    choose("export-pages", "From / to");
-    expect(rangeShown()).toBe(true);
-    choose("export-format", "Fountain");
-    expect(pagesShown()).toBe(false);
-    expect(rangeShown()).toBe(false);
+  it("offers Pages, From and To for PDF, and dims them all for Fountain and Final Draft", () => {
+    const { q, box, choose, pagesOn, rangeOn } = opened();
+    expect(pagesOn()).toBe(true);
+    choose("export-pages", "Page Range");
+    expect(rangeOn()).toBe(true);
+    for (const label of ["Fountain", "Final Draft (.fdx)"]) {
+      choose("export-format", label);
+      expect(pagesOn(), label).toBe(false);
+      expect(rangeOn(), label).toBe(false);
+      // Drawn, not hidden; Pages goes back to All Pages and the boxes show the whole script.
+      expect(q(".export-as__range").hidden, label).toBe(false);
+      expect(q("#export-pages").closest<HTMLElement>(".new-project-dialog__field")!.hidden, label).toBe(false);
+      expect(q("#export-pages").textContent, label).toBe("All Pages");
+      expect([box("export-from").value, box("export-to").value], label).toEqual(["1", "12"]);
+    }
     choose("export-format", "PDF");
-    expect(pagesShown()).toBe(true);
-    expect(rangeShown()).toBe(true);
+    expect(pagesOn()).toBe(true);
+    expect(q("#export-pages").textContent).toBe("All Pages");
+    expect(rangeOn()).toBe(false);
   });
 
-  it("shows From and To only for a range, filled with the whole script", () => {
-    const { q, choose, rangeShown } = opened();
-    expect(rangeShown()).toBe(false);
-    choose("export-pages", "From / to");
-    expect(rangeShown()).toBe(true);
-    expect(q<HTMLInputElement>("#export-from").value).toBe("1");
-    expect(q<HTMLInputElement>("#export-to").value).toBe("12");
-    choose("export-pages", "All pages");
-    expect(rangeShown()).toBe(false);
+  it("will not open Pages while it is dimmed", () => {
+    const { q, choose } = opened();
+    choose("export-format", "Fountain");
+    q("#export-pages").click();
+    q("#export-pages").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    expect(q("#export-pages").getAttribute("aria-expanded")).toBe("false");
+    expect(q("#export-pages").parentElement!.querySelector<HTMLElement>(".dialog-select__tray")!.hidden).toBe(true);
   });
 
-  it("keeps what was typed when the writer steps away from a range and back", () => {
-    const { q, choose, range } = opened();
+  it("shows the whole script, dimmed, under All Pages, and opens the boxes for a Page Range", () => {
+    const { box, choose, rangeOn } = opened();
+    expect(rangeOn()).toBe(false);
+    expect([box("export-from").value, box("export-to").value]).toEqual(["1", "12"]);
+    choose("export-pages", "Page Range");
+    expect(rangeOn()).toBe(true);
+    expect([box("export-from").value, box("export-to").value]).toEqual(["1", "12"]);
+    choose("export-pages", "All Pages");
+    expect(rangeOn()).toBe(false);
+  });
+
+  it("keeps what was typed when the writer steps away from a range and back, showing the whole script meanwhile", () => {
+    const { box, choose, range } = opened();
     range("2", "3");
-    choose("export-pages", "All pages");
-    choose("export-pages", "From / to");
-    expect(q<HTMLInputElement>("#export-from").value).toBe("2");
-    expect(q<HTMLInputElement>("#export-to").value).toBe("3");
+    choose("export-pages", "All Pages");
+    expect([box("export-from").value, box("export-to").value]).toEqual(["1", "12"]);
+    choose("export-pages", "Page Range");
+    expect([box("export-from").value, box("export-to").value]).toEqual(["2", "3"]);
+    // And across a format without pages.
+    choose("export-format", "Fountain");
+    choose("export-format", "PDF");
+    choose("export-pages", "Page Range");
+    expect([box("export-from").value, box("export-to").value]).toEqual(["2", "3"]);
   });
 
   it("exports all pages when a range was typed and then All pages chosen", async () => {
     const { written, range, choose, exportNow } = opened();
     range("9", "2");
-    choose("export-pages", "All pages");
+    choose("export-pages", "All Pages");
     exportNow();
     await settled();
     expect(written).toHaveBeenCalledExactlyOnceWith("pdf", undefined);
@@ -295,6 +364,38 @@ describe("the Export As dialog", () => {
     expect(written).toHaveBeenCalledExactlyOnceWith("fountain", undefined);
   });
 
+  it("lists Final Draft with Export dimmed: no click, no Enter, no note, and Cancel and Escape still close", async () => {
+    const { modal, q, choose, button, press, written, problem } = opened();
+    const before = modal.textContent;
+    choose("export-format", "Final Draft (.fdx)");
+    expect(q("#export-format").textContent).toBe("Final Draft (.fdx)");
+    expect(button("Export").disabled).toBe(true);
+    expect(modal.textContent).toBe(before.replace("PDF", "Final Draft (.fdx)"));
+    button("Export").click();
+    // Enter that nothing else uses, as from the dialog's empty space, would confirm.
+    modal.focus();
+    press("Enter");
+    modal.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await settled();
+    expect(written).not.toHaveBeenCalled();
+    expect(modal.open).toBe(true);
+    expect(problem()).toBe("");
+    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(true);
+    button("Cancel").click();
+    expect(modal.isConnected).toBe(false);
+    expect(written).not.toHaveBeenCalled();
+  });
+
+  it("lights Export again on leaving Final Draft", async () => {
+    const { choose, button, exportNow, written } = opened();
+    choose("export-format", "Final Draft (.fdx)");
+    choose("export-format", "Fountain");
+    expect(button("Export").disabled).toBe(false);
+    exportNow();
+    await settled();
+    expect(written).toHaveBeenCalledExactlyOnceWith("fountain", undefined);
+  });
+
   it("stays open, as it was, when the save dialog is cancelled", async () => {
     const { modal, closed, range, enterIn, q, problem } = opened(async () => false);
     range("2", "3");
@@ -303,7 +404,7 @@ describe("the Export As dialog", () => {
     expect(modal.open).toBe(true);
     expect(closed).not.toHaveBeenCalled();
     expect(q("#export-format").textContent).toBe("PDF");
-    expect(q("#export-pages").textContent).toBe("From / to");
+    expect(q("#export-pages").textContent).toBe("Page Range");
     expect(q<HTMLInputElement>("#export-from").value).toBe("2");
     expect(problem()).toBe("");
   });
@@ -341,6 +442,7 @@ describe("exportScript", () => {
   });
   const project = { path: "/p", marker: { name: "Small" } } as never;
   const fountain = EXPORT_FORMATS.find((format) => format.id === "fountain")!;
+  const writable = EXPORT_FORMATS.filter((format) => format.writable);
   const source = "INT. A - DAY\n\nHi [[c:a1 private]]there[[/c:a1]].\n\n/*\n\nCut.\n\n*/\n\nBye.\n";
 
   it("writes the same clean whole-script copy, with or without a leftover range", async () => {
@@ -362,7 +464,8 @@ describe("exportScript", () => {
   });
 
   it("writes nothing and reads nothing when the save dialog is cancelled", async () => {
-    for (const format of EXPORT_FORMATS) {
+    expect(writable.map((format) => format.id)).toEqual(["pdf", "fountain"]);
+    for (const format of writable) {
       const writeFile = vi.fn();
       const document = vi.fn(() => parse(source));
       const answered = await exportScript(format, {
@@ -382,7 +485,7 @@ describe("exportScript", () => {
     const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
     const font = new Uint8Array(readFileSync(join(root, "app", "public", "fonts", "CourierPrime-Regular.ttf")));
     const faces = async () => ({ regular: font, bold: font, italic: font, boldItalic: font });
-    for (const format of EXPORT_FORMATS) {
+    for (const format of writable) {
       const writeFile = vi.fn();
       await expect(
         exportScript(format, {
@@ -395,6 +498,33 @@ describe("exportScript", () => {
       ).rejects.toThrow(/own manuscript/);
       expect(writeFile).not.toHaveBeenCalled();
     }
+  });
+
+  it("lists Final Draft with no writer: it asks nowhere, reads nothing and writes nothing", async () => {
+    const fdx = EXPORT_FORMATS.find((format) => format.id === "fdx")!;
+    expect(fdx).toMatchObject({ label: "Final Draft (.fdx)", writable: false, pageRange: false });
+    const writeFile = vi.fn();
+    const document = vi.fn(() => parse(source));
+    const asked = places("/out/a.fdx");
+    await expect(
+      exportScript(fdx, {
+        filesystem: { writeFile } as never,
+        project,
+        places: asked,
+        document,
+        faces: () => Promise.reject(new Error("not reached")),
+      }),
+    ).rejects.toThrow(/cannot export Final Draft/);
+    expect(asked.chooseCopyLocation).not.toHaveBeenCalled();
+    expect(asked.choosePdfLocation).not.toHaveBeenCalled();
+    expect(document).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+    // Its own row writes nothing either, if anything reached past `exportScript`.
+    expect(await fdx.chooseLocation(asked, "a.fdx")).toBeUndefined();
+    await expect(
+      fdx.write({ filesystem: { writeFile } as never, project, document: parse(source), faces: async () => ({}) as never, destination: "/out/a.fdx", range: undefined }),
+    ).rejects.toThrow(/cannot export Final Draft/);
+    expect(writeFile).not.toHaveBeenCalled();
   });
 });
 

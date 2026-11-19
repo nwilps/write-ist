@@ -49,8 +49,8 @@ const DAY_PILLS: readonly { readonly day: Weekday; readonly label: string; reado
   { day: "Sat", label: "Sa", name: "Saturday" },
 ];
 
-/** The dim arrow on a Goals row, from the box to what it feeds. */
-const rowArrow = (): HTMLElement => element("span", { className: "goals__arrow", ariaHidden: "true", textContent: "→" });
+/** The dim arrow on a Goals row, from the box to what it feeds. Export As draws its From → To with it too. */
+export const rowArrow = (): HTMLElement => element("span", { className: "goals__arrow", ariaHidden: "true", textContent: "→" });
 
 const WITH_COMMAS = new Intl.NumberFormat("en-US");
 const said = (value: number): string => WITH_COMMAS.format(value);
