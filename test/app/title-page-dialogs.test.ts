@@ -206,17 +206,33 @@ describe("Edit Title Page's look", () => {
     expect(columns).toBeGreaterThan("John August, Daniel Wallace, Tim Burton".length * 2);
   });
 
-  it("shows every box without scrolling in a laptop's window, at their first height", () => {
+  /** The whole dialog's height, nothing scrolled, from the tokens: jsdom lays nothing out. */
+  const packed = (extraLines = 0): number => {
     const label = px("--size-caption") * Number(/--leading-tight: ([\d.]+);/.exec(css("tokens.css"))![1]) + px("--space-tight");
     const oneLine = label + px("--size-field");
-    const twoLines = label + px("--size-field") + px("--leading-title-lines");
-    const list = oneLine * 5 + twoLines * 2 + px("--space-panel") * 6;
+    const fourLines = oneLine + px("--leading-title-lines") * 3;
+    const list = oneLine * 5 + fourLines * 2 + px("--space-panel") * 6 + px("--leading-title-lines") * extraLines;
     const foot = px("--space-dialog-actions") + px("--size-row");
     const frame = (px("--space-loose") + px("--rule-thin")) * 2;
-    // jsdom lays nothing out; this is the sum headless Chrome measures too.
-    expect(list + foot + frame).toBeCloseTo(609.2, 5);
-    expect(list + foot + frame).toBeLessThan(768);
-    expect(px("--measure-title-page") + frame).toBeLessThan(1366);
+    return list + foot + frame;
+  };
+
+  it("shows every box with no scrolling in a laptop's window", () => {
+    // The sum headless Chrome measures too.
+    expect(packed()).toBeCloseTo(689.2, 5);
+    expect(packed()).toBeLessThan(720);
+    expect(px("--measure-title-page") + (px("--space-loose") + px("--rule-thin")) * 2).toBe(770);
+  });
+
+  it("still fits a laptop's window with a two-line title, which adds one line", () => {
+    expect(packed(1)).toBeCloseTo(709.2, 5);
+    expect(packed(1)).toBeLessThan(720);
+  });
+
+  it("sets no height of its own, so nothing but the window limits the dialog", () => {
+    const frame = rule(css("title-page.css"), ".new-project-dialog.title-page");
+    expect(frame).not.toMatch(/(^|[\s;])height:/);
+    expect(frame).not.toContain("min-height");
   });
 
   it("keeps inside a smaller window: the boxes scroll, the buttons do not", () => {
@@ -233,49 +249,50 @@ describe("Edit Title Page's look", () => {
     expect(list).toContain("overflow-y: auto");
   });
 
-  it("measures the rest of the dialog from the whole list, even when a short window cuts it", () => {
-    const { modal, box, type } = opened(PLAIN);
-    const list = modal.querySelector(".title-page__fields")!;
-    const size = (node: Element, sizes: Record<string, number>) => {
-      for (const [name, value] of Object.entries(sizes)) Object.defineProperty(node, name, { get: () => value, configurable: true });
-    };
-    size(modal, { offsetHeight: 420, clientHeight: 418, scrollHeight: 418 });
-    size(list, { scrollHeight: 515, clientHeight: 326 });
-    size(box("contact"), { offsetHeight: 56 });
-    size(box("notes"), { offsetHeight: 56 });
-    type("notes", "FINAL");
-    expect(modal.style.getPropertyValue("--title-page-rest")).toBe(String(515 + 420 - 326 - 56 * 2));
+  it("brings the whole of a focused field into view, label and all", () => {
+    const { modal, box } = opened(PLAIN);
+    const row = box("notes").closest(".new-project-dialog__field")!;
+    const scrolled = vi.fn();
+    row.scrollIntoView = scrolled;
+    box("notes").focus();
+    expect(modal.querySelector(".title-page__fields")!.contains(row)).toBe(true);
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
   });
 
-  it("starts Contact and Notes at two lines, with no gripper, and lets them grow to a limit", () => {
+  it("makes Contact and Notes four lines, with no gripper", () => {
     const { box } = opened(PLAIN);
     for (const key of ["contact", "notes"]) {
       expect(box(key).tagName, key).toBe("TEXTAREA");
-      expect((box(key) as HTMLTextAreaElement).rows, key).toBe(2);
+      expect((box(key) as HTMLTextAreaElement).rows, key).toBe(4);
     }
-    const lines = rule(css("title-page.css"), ".title-page .title-page__lines");
-    expect(lines).toContain("resize: none");
-    expect(lines).toContain("min-height: var(--size-title-lines)");
-    expect(lines).toContain("height: calc(var(--title-lines-height) * var(--size-pixel))");
-    const long = rule(css("title-page.css"), ".title-page .title-page__lines--long");
-    expect(long).toContain("var(--size-title-lines-long)");
-    // Stacked, the two add up: each may have half of what the window has left.
-    expect(long).toContain("var(--space-loose) * 2) / 2)");
+    expect(css("tokens.css")).toContain("--size-title-lines: calc(var(--size-field) + var(--leading-title-lines) * 3);");
+    expect(rule(css("title-page.css"), ".title-page .title-page__lines--long")).toContain("height: var(--size-title-lines)");
+    expect(rule(css("title-page.css"), ".title-page .title-page__lines")).toContain("resize: none");
   });
 
-  it("makes Contact as tall as its text, and takes back the room when the text goes", () => {
-    const { box, type } = opened(PLAIN);
-    const contact = box("contact");
+  it("keeps Contact four lines however much is typed, and scrolls inside the box", () => {
+    const { modal, box, type } = opened(PLAIN);
+    const contact = box("contact") as HTMLTextAreaElement;
     // jsdom lays nothing out, so the text's height is stood in for.
-    let textHeight = 96;
-    Object.defineProperty(contact, "scrollHeight", { get: () => textHeight });
-    Object.defineProperty(contact, "offsetHeight", { get: () => 58 });
-    Object.defineProperty(contact, "clientHeight", { get: () => 56 });
-    type("contact", "one\ntwo\nthree\nfour");
-    expect(contact.style.getPropertyValue("--title-lines-height")).toBe("98");
-    textHeight = 56;
-    type("contact", "one");
-    expect(contact.style.getPropertyValue("--title-lines-height")).toBe("58");
+    Object.defineProperty(contact, "scrollHeight", { get: () => 400 });
+    type("contact", Array.from({ length: 20 }, (_, line) => `line ${line}`).join("\n"));
+    expect(contact.rows).toBe(4);
+    expect(contact.getAttribute("style")).toBeNull();
+    expect(modal.getAttribute("style")).toBeNull();
+    expect(rule(css("title-page.css"), ".title-page .title-page__lines")).toContain("overflow-y: auto");
+  });
+
+  it("no longer grows a box or shares out the window's spare room", () => {
+    const sheets = css("title-page.css") + css("tokens.css");
+    for (const gone of ["--title-lines-height", "--title-page-rest", "--size-title-lines-most", "--size-title-lines-long"]) {
+      expect(sheets, gone).not.toContain(gone);
+    }
+  });
+
+  it("shows another broken value at its own lines, up to four", () => {
+    expect((opened().box("title") as HTMLTextAreaElement).rows).toBe(2);
+    const long = parse("Title:\n\tA\n\tB\n\tC\n\tD\n\tE\n\nx\n").titlePage;
+    expect((opened(long).box("title") as HTMLTextAreaElement).rows).toBe(4);
   });
 
   it("keeps the preview's sheet and frame", () => {

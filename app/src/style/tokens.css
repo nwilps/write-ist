@@ -329,10 +329,8 @@
   /** A line in a text area, and what centres one line in a field's height. */
   --leading-title-lines: 20px;
   --space-title-lines: calc((var(--size-field) - var(--rule-thin) * 2 - var(--leading-title-lines)) / 2);
-  /** A text area at two lines, the most a broken title or credit shows (four), and Contact's and Notes' most (eight). */
-  --size-title-lines: calc(var(--size-field) + var(--leading-title-lines));
-  --size-title-lines-most: calc(var(--size-field) + var(--leading-title-lines) * 3);
-  --size-title-lines-long: calc(var(--size-field) + var(--leading-title-lines) * 7);
+  /** A text area at four lines: Contact and Notes always, and the most any other shows. */
+  --size-title-lines: calc(var(--size-field) + var(--leading-title-lines) * 3);
 }
 
 /* --- The search dialog (the desk design, §2.5) --------------------------- */

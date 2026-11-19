@@ -6,8 +6,9 @@
  * boxes are stacked, one to a row, in a dialog tall enough to show them all.
  *
  * Enter in a one-line box saves. Contact and Notes, and any other value that
- * already has more than one line, are text areas that grow with their text:
- * there Enter is a new line and Ctrl+Enter saves. Author(s) is always one line.
+ * already has more than one line, are text areas of a fixed height that scroll
+ * their own text: there Enter is a new line and Ctrl+Enter saves. Author(s) is
+ * always one line.
  * What a value *means* — marks, continuation indent, keys the dialog has no box
  * for — is `src/screenplay/title-page.ts`'s; this draws and listens.
  */
@@ -48,6 +49,9 @@ const LABELS: Readonly<Record<TitlePageKey, string>> = {
 /** Keys whose value is naturally a list of lines. */
 const SEVERAL_LINES: ReadonlySet<TitlePageKey> = new Set(["Contact", "Notes"]);
 
+/** The most lines a text area shows; Contact and Notes always show this many. */
+const MOST_LINES = 4;
+
 /** How the one-line Author(s) box shows authors written on several lines. */
 const AUTHOR_JOIN = ", ";
 
@@ -69,7 +73,7 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
           ? element("textarea", {
               id,
               className: `new-project-dialog__input title-page__lines${SEVERAL_LINES.has(key) ? " title-page__lines--long" : ""}`,
-              rows: 2,
+              rows: SEVERAL_LINES.has(key) ? MOST_LINES : Math.min(value.split("\n").length, MOST_LINES),
               spellcheck: false,
             })
           : element("input", { id, className: "new-project-dialog__input", type: "text", autocomplete: "off", spellcheck: false });
@@ -98,28 +102,6 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   const modal = element("dialog", { className: "new-project-dialog title-page", ariaLabel: "Edit Title Page" }, [form]);
   const keys = dialogKeys(modal, [...TITLE_PAGE_KEYS.map((key) => [box(key)]), [view, cancel, save]]);
 
-  const areas = [...boxes.values()].filter((one) => one instanceof HTMLTextAreaElement);
-  const long = areas.filter((area) => area.classList.contains("title-page__lines--long"));
-  /**
-   * Each text area as tall as its text. Contact and Notes share what the rest of
-   * the dialog leaves of the window, so it is measured with them at their
-   * smallest, and with the whole list, however little of it a short window shows.
-   * Past the stylesheet's limit a box scrolls, and the form does not.
-   */
-  const fitLines = (): void => {
-    const scrolled = areas.map((area) => area.scrollTop);
-    const fit = (area: HTMLTextAreaElement): void =>
-      area.style.setProperty("--title-lines-height", String(area.scrollHeight + area.offsetHeight - area.clientHeight));
-    for (const area of areas) area.style.setProperty("--title-lines-height", "");
-    for (const area of areas) if (!long.includes(area)) fit(area);
-    const smallest = long.reduce((sum, area) => sum + area.offsetHeight, 0);
-    modal.style.setProperty("--title-page-rest", String(list.scrollHeight + modal.offsetHeight - list.clientHeight - smallest));
-    for (const area of long) fit(area);
-    areas.forEach((area, at) => {
-      area.scrollTop = scrolled[at]!;
-    });
-  };
-
   /** What the boxes hold now, applied to the title page opened. */
   const result = () => {
     const values = Object.fromEntries(
@@ -130,14 +112,15 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   };
   const say = (words: string): void => {
     problem.replaceChildren(trouble(words));
-    fitLines();
   };
   for (const one of boxes.values()) {
-    one.addEventListener("input", () => {
-      problem.replaceChildren();
-      fitLines();
-    });
+    one.addEventListener("input", () => problem.replaceChildren());
   }
+
+  // A short window cuts the list, and a browser leaves a half-shown box half shown.
+  list.addEventListener("focusin", (event) => {
+    (event.target as HTMLElement).closest(".new-project-dialog__field")?.scrollIntoView?.({ block: "nearest" });
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -176,7 +159,6 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
 
   into.append(modal);
   modal.showModal();
-  fitLines();
   keys.edit(box("Title"));
   return modal;
 }

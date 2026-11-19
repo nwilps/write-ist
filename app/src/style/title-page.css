@@ -29,27 +29,19 @@
   overflow-y: auto;
 }
 
-/* Two lines to begin with; `fitLines` hands in the height of the text. */
+/* As many lines as `rows` says; past them a box scrolls its own text. */
 .title-page .title-page__lines {
   display: block;
-  height: calc(var(--title-lines-height) * var(--size-pixel));
-  min-height: var(--size-title-lines);
-  max-height: var(--size-title-lines-most);
+  height: auto;
   padding: var(--space-title-lines) var(--space-panel);
   line-height: var(--leading-title-lines);
   overflow-y: auto;
   resize: none;
 }
 
-/* Contact and Notes go further, halving what the window has left, less a margin. */
+/* Contact and Notes are always four lines. */
 .title-page .title-page__lines--long {
-  max-height: max(
-    var(--size-title-lines),
-    min(
-      var(--size-title-lines-long),
-      calc((var(--size-desk-height) - var(--title-page-rest, 0) * var(--size-pixel) - var(--space-loose) * 2) / 2)
-    )
-  );
+  height: var(--size-title-lines);
 }
 
 /* View at the left, away from the pair that end the dialog; each as wide as its words. */
