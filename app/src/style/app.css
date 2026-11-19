@@ -17,6 +17,25 @@
   box-sizing: border-box;
 }
 
+/*
+ * **Nothing in the application draws a scrollbar** (Noah, 2026-11-19). The
+ * paper, the scene list, the title page, search, the menus, the Open Project
+ * list, a dialog's drop-down, and anything that scrolls later: all of them
+ * still scroll by the wheel, the trackpad and the keys, and the paper still
+ * follows the caret. Only the bar is gone. The standard property is for
+ * Chromium (WebView2) and current WebKit; `::-webkit-scrollbar` is for the
+ * WebKit that predates it. Here, once, so that no new scroller is missed.
+ */
+* {
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 html,
 body,
 /*
