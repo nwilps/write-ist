@@ -318,6 +318,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     context.renameProject({ into, carryOut: session.moveProject, closed: () => view?.focus() });
   };
   const stopListeningForRename = context.whenRenameAsked(renameProject);
+  // File ▸ Settings…: the application's, over the paper, never over another dialog.
+  const openSettings = (): void => {
+    if (searching !== undefined || into.querySelector("dialog[open]") !== null) return;
+    context.openSettings({ into, closed: () => view?.focus() });
+  };
   // The day turns over without a keystroke: the pill is refreshed each minute.
   const goalClock = setInterval(() => session?.showGoal(), GOAL_REFRESH_MS);
   // Where the caret is, kept in app data so reopening the project puts the
@@ -354,6 +359,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     exportAs,
     toProjects: context.leave.toProjects,
     renameProject,
+    openSettings,
     toHome: context.leave.toHome,
     editTitlePage: () => openTitlePage("edit"),
     viewTitlePage: () => openTitlePage("view"),

@@ -41,7 +41,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 /** A host whose every action is a spy, and whose editor is the one given. */
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
-    "save", "exportAs", "toProjects", "renameProject", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
+    "save", "exportAs", "toProjects", "renameProject", "openSettings", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
     "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo", "zoomIn", "zoomOut", "resetZoom",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
@@ -208,6 +208,8 @@ describe("the Editor's menus", () => {
         "Open Project",
         "Rename Project…",
         "---",
+        "Settings…",
+        "---",
         "Home[Esc]",
       ],
       Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
@@ -238,6 +240,7 @@ describe("the Editor's menus", () => {
     choose("Export As…");
     choose("Open Project");
     choose("Rename Project…");
+    choose("Settings…");
     choose("Home");
     choose("Edit Title Page…");
     choose("View Title Page");
@@ -253,6 +256,7 @@ describe("the Editor's menus", () => {
     expect(act["exportAs"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
     expect(act["renameProject"]).toHaveBeenCalledOnce();
+    expect(act["openSettings"]).toHaveBeenCalledOnce();
     expect(act["toHome"]).toHaveBeenCalledOnce();
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();
     expect(act["viewTitlePage"]).toHaveBeenCalledOnce();

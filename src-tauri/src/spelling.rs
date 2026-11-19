@@ -45,6 +45,9 @@ pub trait SpellEngine: Send + Sync {
     /// Forget a word the writer added, between sessions too. Answers whether
     /// it was among the writer's words; a word that was not is left alone.
     fn remove_word(&self, word: &str) -> Result<bool, String>;
+    /// The writer's own words, sorted, as the file holds them now: what
+    /// Settings ▸ Dictionary lists. The shipped words are never listed.
+    fn words(&self) -> Result<Vec<String>, String>;
 }
 
 /// One dictionary that ships with the application.
@@ -159,6 +162,13 @@ impl SpellEngine for SpellbookEngine {
         held.dictionary = built(self.shipped, &words)?;
         held.words = words;
         Ok(true)
+    }
+
+    fn words(&self) -> Result<Vec<String>, String> {
+        // Read only: the file is read back, never written, so a file that
+        // could not be read is refused here as it is for a change.
+        let held = self.held.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.custom.current(&held.words).map_err(|error| error.to_string())
     }
 }
 
@@ -431,6 +441,31 @@ mod tests {
         let engine = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
         assert!(engine.remove_word("Zorblax").is_err());
         assert!(file.is_dir());
+    }
+
+    /// Settings ▸ Dictionary lists the writer's words, and only theirs.
+    #[test]
+    fn lists_the_writers_words_sorted_and_nothing_shipped() {
+        let folder = Folder::new("list");
+        let file = folder.0.join("dictionary").join("custom-words.txt");
+        let engine = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        assert!(engine.words().unwrap().is_empty());
+        engine.add_word("Zorblax").unwrap();
+        engine.add_word("QUIMBY").unwrap();
+        assert_eq!(engine.words().unwrap(), words(&["Quimby", "Zorblax"]));
+        engine.remove_word("Zorblax").unwrap();
+        assert_eq!(engine.words().unwrap(), words(&["Quimby"]));
+        // Listing never writes.
+        assert_eq!(fs::read_to_string(&file).unwrap(), "Quimby\n");
+    }
+
+    #[test]
+    fn a_custom_dictionary_that_cannot_be_read_is_not_listed_as_empty() {
+        let folder = Folder::new("unreadable-list");
+        let file = folder.0.join("custom-words.txt");
+        fs::create_dir_all(&file).unwrap();
+        let engine = SpellbookEngine::new(&EN_US, Some(file.clone())).unwrap();
+        assert!(engine.words().is_err());
     }
 
     /// ADR-0032: dictionaries ship "with their notices kept", and a shipped

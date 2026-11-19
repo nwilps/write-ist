@@ -1,0 +1,236 @@
+/*
+ * The Settings dialog (`settings.ts`). `.new-project-dialog` and its parts
+ * dress it; this is what New Project has no need of: a list of sections on the
+ * left, split by the right-click menu's divider stood on end, and the one chosen
+ * on the right. One size for every section, so the dialog never jumps, and it
+ * fits the app's window; a long section scrolls inside, with no scrollbar.
+ */
+
+.new-project-dialog.settings {
+  width: calc(
+    var(--measure-settings-sections) + var(--space-loose) * 2 + var(--rule-thin) + var(--measure-settings-pane) +
+      var(--space-loose) * 2 + var(--rule-thin) * 2
+  );
+  max-width: 100%;
+  max-height: 100%;
+  padding: var(--space-loose);
+}
+
+.settings__body {
+  display: grid;
+  grid-template-columns: var(--measure-settings-sections) var(--rule-thin) minmax(0, 1fr);
+  gap: var(--space-loose);
+  height: var(--size-settings-pane);
+  max-height: calc(var(--size-desk-height) - var(--space-vast) * 4);
+}
+
+/* --- The list of sections: Home's rows, the chosen one lit -------------------- */
+
+.settings__tabs {
+  display: grid;
+  align-content: start;
+  gap: var(--space-row-gap);
+}
+
+.settings__tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--size-row);
+  padding: 0 var(--space-dialog-arrow);
+  font-family: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--colour-muted);
+  cursor: pointer;
+}
+
+.settings__tab .gesture__cursor {
+  position: absolute;
+  left: var(--space-tight);
+  visibility: hidden;
+}
+
+.settings__tab[aria-selected="true"] {
+  color: var(--colour-text);
+}
+
+.settings__tab:hover,
+.settings__tab:focus {
+  outline: none;
+  background: var(--colour-overlay);
+  color: var(--colour-accent);
+}
+
+.settings__tab[aria-selected="true"] .gesture__cursor {
+  visibility: visible;
+}
+
+.settings__divider {
+  background: var(--colour-border);
+}
+
+/* --- The section shown ------------------------------------------------------ */
+
+.settings__pane {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.settings__panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-roomy);
+}
+
+/* `display: grid` would otherwise draw a hidden section. */
+.settings__panel[hidden] {
+  display: none;
+}
+
+.settings__subheading {
+  margin: 0;
+  color: var(--colour-faint);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.settings__panel > .settings__subheading:not(:first-child) {
+  margin-block-start: var(--space-tight);
+}
+
+/* A switch and its label on one line, the switch at the right. */
+.settings__switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-roomy);
+  min-height: var(--size-row);
+}
+
+.settings__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-roomy);
+}
+
+.settings__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-panel);
+}
+
+.settings__grow {
+  flex: 1;
+}
+
+.settings__number {
+  width: var(--size-goals-number);
+}
+
+.settings__time {
+  width: var(--measure-settings-time);
+}
+
+.settings__number:disabled {
+  color: var(--colour-faint);
+}
+
+.settings__unit {
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+}
+
+/* --- The dictionary's words and the Graveyard's projects ---------------------- */
+
+.settings__list {
+  display: grid;
+  gap: var(--space-hair);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-row);
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+}
+
+.settings__row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--colour-text);
+}
+
+.settings__row-aside {
+  color: var(--colour-faint);
+}
+
+/* A row's button: lit like the others, only as wide as its word. */
+.new-project-dialog__action.settings__row-action {
+  min-width: auto;
+  padding: 0 var(--space-tight);
+}
+
+.settings__row-input {
+  flex: 1;
+  height: var(--size-row);
+}
+
+.settings__empty {
+  margin: 0;
+  font-size: var(--size-label);
+  color: var(--colour-faint);
+}
+
+/* --- Keyboard Shortcuts: two columns of names and keys ------------------------ */
+
+.settings__key-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-loose);
+}
+
+.settings__key-column {
+  display: grid;
+  gap: var(--space-roomy);
+}
+
+.settings__keys {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.settings__key-rows {
+  display: grid;
+  gap: var(--space-hair);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__key-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-roomy);
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  color: var(--colour-text);
+}
+
+.settings__key {
+  flex: none;
+  color: var(--colour-faint);
+}

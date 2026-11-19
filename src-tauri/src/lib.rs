@@ -8,7 +8,7 @@
 //! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
 //! asks for, `move_folder` because the plugin's rename replaces an empty folder
 //! without a word, and `remove_empty_folder` so that the application is never
-//! given the plugin's recursive remove (`folders.rs`). The four `spell_*` commands are here
+//! given the plugin's recursive remove (`folders.rs`). The five `spell_*` commands are here
 //! because spellcheck is ours, in Rust, off the thread that draws (ADR-0032):
 //! see `spelling.rs`.
 
@@ -153,6 +153,12 @@ fn spell_remove_word(word: String, engine: tauri::State<'_, spelling::Engine>) -
     engine.get()?.remove_word(&word)
 }
 
+/// The writer's own words, sorted: Settings ▸ Dictionary's list. Reads only.
+#[tauri::command(async)]
+fn spell_words(engine: tauri::State<'_, spelling::Engine>) -> Result<Vec<String>, String> {
+    engine.get()?.words()
+}
+
 /// Linux draws no title bar (ADR-0036). `tauri.linux.conf.json` says so, but a
 /// stale build or a toolkit that draws its own client-side bar on Wayland can
 /// leave one anyway, so the window is told again once it exists. Other
@@ -206,7 +212,8 @@ pub fn run() {
             spell_misspelled,
             spell_suggest,
             spell_add_word,
-            spell_remove_word
+            spell_remove_word,
+            spell_words
         ])
         .run(tauri::generate_context!())
         .expect("Write-ist could not open a window");

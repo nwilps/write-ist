@@ -8,9 +8,10 @@
  * box is in Sydney would be a day nobody could keep.
  *
  * **Day ends at is the application's, not a project's.** It is one setting
- * for the whole app, so it is one function here — `dayEndsAt()` — and a
- * settings page, when there is one, changes what that returns. Nothing else in
- * the goals reads a time of day. Until then it answers midnight.
+ * for the whole app, so it is one function here — `dayEndsAt()` — and
+ * Settings ▸ General changes what that returns (`setDayEndsAt`), from the
+ * writer's settings file at launch and whenever they change it. Nothing else
+ * in the goals reads a time of day. Unset, it answers midnight.
  *
  * The zone is read when the instant is dated and never stored, so a writer who
  * travels, or a clock that changes its offset for daylight saving, only moves
@@ -29,9 +30,22 @@ export interface TimeOfDay {
 /** Midnight: where a day ends until the writer says otherwise. */
 export const DEFAULT_DAY_ENDS_AT: TimeOfDay = { hour: 0, minute: 0 };
 
-/** Where the writer's day ends. The one place a settings page will plug in. */
+let endsAt: TimeOfDay = DEFAULT_DAY_ENDS_AT;
+
+/** Where the writer's day ends: midnight, or what Settings last said. */
 export function dayEndsAt(): TimeOfDay {
-  return DEFAULT_DAY_ENDS_AT;
+  return endsAt;
+}
+
+/**
+ * Where the writer's day ends from now on (Settings ▸ General). A time that is
+ * not one (an hour outside 0 to 23, a minute outside 0 to 59, a fraction) is
+ * quietly midnight. Days already dated are not touched.
+ */
+export function setDayEndsAt(time: TimeOfDay): void {
+  const { hour, minute } = time;
+  const real = Number.isInteger(hour) && Number.isInteger(minute) && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+  endsAt = real ? { hour, minute } : DEFAULT_DAY_ENDS_AT;
 }
 
 /** The days of the week the writer can count, Monday first. */

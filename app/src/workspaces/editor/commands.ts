@@ -43,6 +43,7 @@ import {
   Save,
   Scissors,
   Search,
+  Settings,
   SpellCheck,
   Target,
   Undo2,
@@ -75,6 +76,8 @@ export interface EditorActions {
   readonly toProjects: () => void;
   /** Open the Rename Project dialog, the one Open Project's row menu opens. */
   readonly renameProject: () => void;
+  /** Open the Settings dialog, the one Home's `[s]` opens. */
+  readonly openSettings: () => void;
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
   readonly viewTitlePage: () => void;
@@ -233,6 +236,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
   { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "project" }, run: (host) => host.toProjects() },
   { id: "rename-project", label: "Rename Project…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.renameProject() },
+  // No key yet: Ctrl+, is the usual one, and here it is Previous Scene's.
+  { id: "settings", label: "Settings…", icon: Settings, menu: { name: "File", group: "settings" }, run: (host) => host.openSettings() },
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
   { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
 

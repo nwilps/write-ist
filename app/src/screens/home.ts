@@ -3,9 +3,9 @@
  *
  * A short menu of what the writer can do, and nothing else. It is the calm,
  * obvious place a session starts from rather than the middle of something
- * (#37, story 10), and **it lists what exists**: when a project can be made
- * from nothing, or there are settings to change, they arrive here as further
- * gestures. Nothing is drawn for them now.
+ * (#37, story 10), and **it lists what exists**: New Project, Open Project,
+ * Settings (`settings.ts`) and Quit, and Metrics, which is drawn and does
+ * nothing yet.
  *
  * Shape and flow are v1's `HomeScreen` — a centred composition, a wordmark and
  * a column of items, each with its letter. Its typed tagline is here too, as
@@ -30,6 +30,8 @@ export interface HomeScreen {
   readonly onNewProject: () => void;
   /** To the Open Project screen, which is where a project comes from. */
   readonly onOpenProject: () => void;
+  /** Open the Settings dialog over this screen. */
+  readonly onSettings?: () => void;
   readonly onQuit: () => void;
   /** Something went wrong, in words the writer can act on. */
   readonly trouble?: string;
@@ -67,11 +69,11 @@ export function renderHome(into: HTMLElement, screen: HomeScreen): DrawnHome {
   const gestures: readonly Gesture[] = [
     { label: "New Project", key: "n", act: screen.onNewProject },
     { label: "Open Project", key: "o", act: screen.onOpenProject },
-    // TODO(Noah's decision, ADR-0042): Metrics and Settings are drawn and do
-    // nothing yet, on click or on their key. They are not `unavailable` — that
-    // would disable the button and the highlight could not move through them.
+    // TODO(Noah's decision, ADR-0042): Metrics is drawn and does nothing yet,
+    // on click or on its key. It is not `unavailable` — that would disable the
+    // button and the highlight could not move through it.
     { label: "Metrics", key: "m", act: () => {} },
-    { label: "Settings", key: "s", act: () => {} },
+    { label: "Settings", key: "s", act: () => screen.onSettings?.() },
     { label: "Quit", key: "q", act: screen.onQuit },
   ];
 

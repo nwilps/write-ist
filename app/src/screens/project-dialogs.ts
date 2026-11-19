@@ -2,6 +2,7 @@
  * Rename Project and Delete Project: the two dialogs the Open Project screen's
  * right-click menu opens, for the project that was right-clicked. Rename Project
  * is opened for the open project from the Editor too (`askToRenameProject`).
+ * Exile Project is Settings ▸ Graveyard's, for a project already deleted.
  *
  * Both are the New Project dialog's look (ADR-0042) and its manners, from the
  * same shared button and keys: a modal `<dialog>`, so Escape cancels and the
@@ -150,6 +151,50 @@ export function showDeleteProject(
   return shown.modal;
 }
 
+export interface ExileProjectDialog {
+  /** The project's name, as the Graveyard lists it. */
+  readonly name: string;
+  /**
+   * Erase it for good. **Absent in this first pass**: nothing in Write-ist can
+   * erase a project yet (ADR-0044), so the dialog is drawn and its Exile button
+   * stays disabled until this is given.
+   */
+  readonly onExile?: () => Promise<string | undefined>;
+  readonly onClose: () => void;
+}
+
+/** Ask before a project in the Graveyard is deleted forever (Settings ▸ Graveyard). */
+export function showExileProject(
+  into: HTMLElement,
+  { name, onExile, onClose }: ExileProjectDialog,
+): HTMLDialogElement {
+  const shown = dialog(into, {
+    label: "Exile Project",
+    body: [
+      element("div", { className: "project-dialog__message" }, [
+        element("p", {
+          className: "project-dialog__line project-dialog__line--lead",
+          textContent: `Exile "${name}"?`,
+        }),
+        element("p", {
+          className: "project-dialog__line",
+          textContent: "This permanently deletes the project. It cannot be recovered.",
+        }),
+      ]),
+    ],
+    stops: [],
+    confirm: "Exile",
+    ready: () => onExile !== undefined,
+    attempt: onExile ?? (async () => undefined),
+    failed: `“${name}” could not be exiled, so it is still in the Graveyard.`,
+    resume: () => shown.cancel.focus(),
+    onClose,
+  });
+  // Cancel first: the safe answer is the one under the writer's hand.
+  shown.cancel.focus();
+  return shown.modal;
+}
+
 interface DialogSpec {
   readonly label: string;
   readonly body: readonly HTMLElement[];
@@ -168,6 +213,7 @@ interface DialogSpec {
 interface ShownDialog {
   readonly modal: HTMLDialogElement;
   readonly confirm: HTMLButtonElement;
+  readonly cancel: HTMLButtonElement;
   readonly keys: DialogKeys;
   readonly settle: () => void;
 }
@@ -233,5 +279,5 @@ function dialog(into: HTMLElement, spec: DialogSpec): ShownDialog {
   into.append(modal);
   modal.showModal();
   settle();
-  return { modal, confirm, keys, settle };
+  return { modal, confirm, cancel, keys, settle };
 }

@@ -29,6 +29,7 @@ import "./style/menus.css";
 import "./style/title-page.css";
 import "./style/home.css";
 import "./style/open-project.css";
+import "./style/settings.css";
 // Named for what it is here. `open` on its own is what a writer does to a
 // project, and this is the file where both words are in play.
 import { open as chooseFile, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
@@ -37,11 +38,22 @@ import { CannotCreate, createProject } from "../../src/project/create.ts";
 import { newProjectId } from "../../src/project/import.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import { CannotDelete, deleteProject, moveDeletedProjectsToGraveyard } from "../../src/project/delete.ts";
+import { CannotRecover, listGraveyard, recoverProject } from "../../src/project/recover.ts";
+import { setDayEndsAt } from "../../src/goals/day.ts";
+import {
+  DEFAULT_SETTINGS,
+  openSettingsStore,
+  type Settings,
+  type SettingsStore,
+} from "../../src/settings/settings.ts";
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
 import { askToRenameProject, showDeleteProject, type RenameRoute } from "./screens/project-dialogs.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
+import { applyAppearance, openSettingsDialog } from "./screens/settings.ts";
+import { tauriDictionary } from "./spell-tauri.ts";
+import { shortcutGroups } from "./workspaces/editor/keyboard-shortcuts-dialog.ts";
 import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -102,6 +114,29 @@ void (async () => {
 })();
 
 /**
+ * The writer's settings (`src/settings/settings.ts`), in app data beside the
+ * ledger. The defaults until the file has been read, and if it never can be,
+ * the defaults for the session, with the file left as it was.
+ */
+let settings: Settings = DEFAULT_SETTINGS;
+let settingsStore: SettingsStore | undefined;
+const settingsRead: Promise<void> = (async () => {
+  try {
+    settingsStore = openSettingsStore(tauriFilesystem, await defaultLedgerDirectory());
+    useSettings(await settingsStore.load());
+  } catch {
+    // No app data folder: the defaults stand, and a change says it is not kept.
+  }
+})();
+
+/** Use these settings from now on: where the day ends, and how the window looks. */
+function useSettings(next: Settings): void {
+  settings = next;
+  setDayEndsAt(next.dayEndsAt);
+  applyAppearance(document.documentElement, next.appearance);
+}
+
+/**
  * Where the writer left the caret in each project, in app data beside the
  * ledger. Undefined until the folder is known, and if it never is, every
  * project simply opens at the top of its script.
@@ -152,6 +187,7 @@ function draw(): void {
           defaultPath: suggestedName,
           filters: [{ name: "PDF", extensions: ["pdf"] }],
         })) ?? undefined,
+      openSettings: ({ into: over, closed }) => openSettings(over, closed),
       askToRename: (route) =>
         askToRename(projectOnScreen(), {
           ...route,
@@ -170,6 +206,7 @@ function draw(): void {
     const home = renderHome(into, {
       onNewProject: askForNewProject,
       onOpenProject: () => go("open-project"),
+      onSettings: () => openSettings(),
       onQuit: quit,
       trouble,
     });
@@ -439,6 +476,52 @@ function askToDelete(project: Project): void {
       onClose: () => {},
     });
   })();
+}
+
+/**
+ * The Settings dialog: from Home's `[s]`, over the body, and from File ▸
+ * Settings… in an open project, over the workspace. A change is used at once and
+ * kept in the settings file; the Graveyard and the dictionary are on disk.
+ */
+function openSettings(over: HTMLElement = document.body, closed: () => void = () => {}): void {
+  if (document.querySelector("dialog[open]") !== null) return;
+  openSettingsDialog(over, {
+    settings: () => settings,
+    change: async (next) => {
+      // After the file is read, so the file's settings never land over a change.
+      await settingsRead;
+      useSettings(next);
+      if (settingsStore === undefined) {
+        return "Write-ist could not find its app data folder, so this change will last only until you quit.";
+      }
+      try {
+        return (await settingsStore.save(settings))
+          ? undefined
+          : "Your settings file could not be read when Write-ist started, so it has been left as it was and this change will last only until you quit.";
+      } catch (error) {
+        return `Your settings could not be kept, so this change will last only until you quit. ${message(error)}`;
+      }
+    },
+    shortcuts: shortcutGroups(),
+    dictionary: tauriDictionary,
+    graveyard: {
+      list: async () => listGraveyard(tauriFilesystem, await defaultProjectsDirectory()),
+      recover: async (project) => {
+        try {
+          await recoverProject(tauriFilesystem, await defaultProjectsDirectory(), project);
+          return undefined;
+        } catch (error) {
+          return error instanceof CannotRecover
+            ? error.message
+            : `“${project.marker.name}” could not be recovered, so it is still in the Graveyard. ${message(error)}`;
+        } finally {
+          void rereadProjects();
+        }
+      },
+      // Exile, the permanent delete, is not built (ADR-0044): its confirm is drawn, and its button stays disabled.
+    },
+    closed,
+  });
 }
 
 /**

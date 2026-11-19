@@ -31,6 +31,12 @@ import type { RenameRoute } from "../screens/project-dialogs.ts";
  */
 export type RenameRequest = Omit<RenameRoute, "renamed">;
 
+/** Where the Settings dialog goes, and what to do when it closes. */
+export interface SettingsRequest {
+  readonly into: HTMLElement;
+  readonly closed: () => void;
+}
+
 /** Where a workspace's work stands against the disk. */
 export type SaveState = "saved" | "unsaved" | "saving";
 
@@ -104,6 +110,11 @@ export interface WorkspaceContext {
    * name pill and `project` follow; the workspace stays mounted.
    */
   readonly renameProject: (request: RenameRequest) => void;
+  /**
+   * Open the application's Settings dialog into `into`, over the workspace.
+   * The shell passes this through and does not know what is in it.
+   */
+  readonly openSettings: (request: SettingsRequest) => void;
   /**
    * Say whether the workspace's work is on disk, in the save pill beside the
    * counts. `saving` is a save that has started and not yet landed; `unsaved`
