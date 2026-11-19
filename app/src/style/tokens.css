@@ -349,8 +349,8 @@
 /* --- The Goals dialog (ADR-0040) ------------------------------------------- */
 
 :root {
-  /** The dialog: a little wider than the title page's form, for thirty bars. */
-  --measure-goals: 560px;
+  /** The dialog's contents, for thirty bars: a reading measure, less a frame's padding and rules. */
+  --measure-goals: calc(var(--measure-reading) - var(--space-loose) * 2 - var(--rule-thin) * 2);
   /** The chart's plot: tall enough to read a bar against the goal line. */
   --size-goals-chart: 120px;
   /** A word-count box: five or six digits and the spinner. */

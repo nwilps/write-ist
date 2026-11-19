@@ -12,6 +12,9 @@ right-click menu's look, not a native `<select>`. Its Cancel and Confirm are qui
 focused, then lit as Home's selected row is, and Enter on the drop-down opens it rather than
 confirming. Every other dialog keeps the look and keys described below until it moves over.
 
+**Amended 2026-11-18 (Noah):** Goals has moved over, so only Edit Title Page still reuses `.report`,
+`.new-project__form`, `.field` and `.new-project__actions`.
+
 ## What it decides
 
 - **The typeface is the one already bundled.** The handoff says JetBrains Mono "is not in the repo

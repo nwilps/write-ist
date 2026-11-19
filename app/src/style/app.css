@@ -219,7 +219,7 @@ body {
   margin-bottom: 0;
 }
 
-/* --- The report frame (Title Page, its preview, Goals) -------------------- */
+/* --- The report frame (Title Page and its preview) ------------------------ */
 
 .report {
   max-width: var(--measure-reading);

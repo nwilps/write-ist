@@ -471,13 +471,13 @@ describe("the file field's look", () => {
 });
 
 describe("the older dialogs' styles", () => {
-  it("stay for Title Page, its preview and Goals", () => {
+  it("stay for Title Page and its preview", () => {
     const css = readFileSync("app/src/style/app.css", "utf8");
     for (const rule of [".report {", ".report__heading {", ".report__standfirst {", ".report__nothing {", ".report__actions {"]) {
       expect(css, rule).toContain(rule);
     }
     expect(css).not.toContain(".report__changes");
-    for (const file of ["title-page-dialog", "title-page-preview", "goals-dialog"]) {
+    for (const file of ["title-page-dialog", "title-page-preview"]) {
       expect(readFileSync(`app/src/workspaces/editor/${file}.ts`, "utf8"), file).toContain('"report');
     }
   });

@@ -1,12 +1,12 @@
 /*
  * The Goals dialog (ADR-0040): totals, a thirty-day chart with a line at the
- * goal, the daily goal's settings and a sprint. It is the title page dialog's
- * kind of dialog, so `.report` and `.new-project` give it its frame; this
- * is what is its own.
+ * goal, the daily goal's settings and a sprint. `.new-project-dialog` and its
+ * parts dress it; this is what New Project has no need of.
  */
 
-.goals__form {
-  width: var(--measure-goals);
+/* New Project's frame, wide enough to hold the chart at `--measure-goals`. */
+.new-project-dialog.goals {
+  width: calc(var(--measure-goals) + var(--space-roomy) * 2 + var(--rule-thin) * 2);
 }
 
 .goals__summary {
@@ -90,43 +90,115 @@
   color: var(--colour-faint);
 }
 
-.goals__row {
+/*
+ * The settings share one grid, so the two number boxes line up: words on the
+ * left, the box, then the sprint's button at the far end.
+ */
+.goals__settings {
+  display: grid;
+  grid-template-columns: max-content var(--size-goals-number) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-panel) var(--space-roomy);
+}
+
+.goals__toggle {
   display: flex;
   align-items: center;
-  gap: var(--space-snug);
+  gap: var(--space-tight);
+}
+
+.goals__check {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin: 0;
+  accent-color: var(--colour-accent);
+  cursor: pointer;
+}
+
+.goals__check:focus-visible {
+  outline: var(--rule-thin) solid var(--colour-accent);
+  outline-offset: var(--rule-thin);
 }
 
 .goals__check-label {
-  font-size: var(--size-label);
-  color: var(--colour-muted);
+  cursor: pointer;
 }
 
-.goals__number {
+/* Named twice over: `home.css` loads after this and sets the box's width too. */
+.goals .goals__number {
   width: var(--size-goals-number);
 }
 
+.goals .goals__number:disabled {
+  border-color: var(--colour-border);
+  color: var(--colour-faint);
+}
+
+/* The webview's white stepper is no part of this look; the arrow keys still step. */
+.goals__number::-webkit-inner-spin-button {
+  appearance: none;
+}
+
 .goals__days {
+  grid-column: 1 / -1;
   display: flex;
   gap: var(--space-tight);
 }
 
+/* A toggle, not an action: quiet, with a gold rule under each day that counts. */
 .goals__day {
   flex: 1;
+  height: var(--size-row);
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-tight);
+  border: none;
+  border-bottom: var(--rule-thick) solid transparent;
+  background: transparent;
   color: var(--colour-faint);
+  cursor: pointer;
 }
 
 .goals__day--counted {
+  border-bottom-color: var(--colour-accent);
   color: var(--colour-text);
-  border-color: var(--colour-accent);
+}
+
+.goals__day:hover:not(:disabled),
+.goals__day:focus-visible {
+  background: var(--colour-overlay);
+}
+
+.goals__day:focus-visible {
+  outline: none;
+  color: var(--colour-accent);
+}
+
+.goals__day:disabled {
+  color: var(--colour-faint);
+  cursor: default;
+}
+
+.goals__day--counted:disabled {
+  border-bottom-color: var(--colour-border-strong);
+}
+
+/* Start and End sit at the row's far end, only as wide as their words. */
+.goals__settings .new-project-dialog__action {
+  grid-column: 3;
+  justify-self: end;
+  min-width: 0;
 }
 
 .goals__sprint-now {
+  grid-column: 1 / span 2;
   font-size: var(--size-label);
   color: var(--colour-text);
   font-variant-numeric: tabular-nums;
 }
 
-.goals__sprint-now[hidden],
-.goals__row [hidden] {
+/* The row's pieces set a display of their own, which would outrank `hidden`. */
+.goals__settings [hidden] {
   display: none;
 }
