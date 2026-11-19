@@ -7,7 +7,10 @@
  * Nothing is "saved" with a button: choosing a goal, a weekday, a sprint changes
  * the Editor's goals at once and the picture redraws, so there is nothing to
  * cancel or confirm, and **Done** only puts the dialog away. Enter in a number
- * being edited applies it; Enter that nothing else used closes the dialog. What
+ * being edited applies it; Enter that nothing else used closes the dialog. A
+ * daily goal typed and not yet applied is applied when Escape leaves the box,
+ * and when the dialog closes, however quickly. A daily goal of 0 turns the goal
+ * off; a number that is not allowed is refused and the last good goal kept. What
  * the numbers mean — net words, which days count, how a streak is read — is
  * `src/goals/`'s; this draws and listens.
  *
@@ -88,7 +91,8 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   const on = dialogToggle({
     id: "goals-on",
     onChange: (isOn) => {
-      if (isOn && goalTyped() === undefined) goalBox.value = String(DEFAULT_GOAL);
+      // Turned on over a number that would be refused, it starts at the default instead of sticking.
+      if (isOn && !allowed(goalTyped())) goalBox.value = String(DEFAULT_GOAL);
       applyDaily();
     },
   });
@@ -119,8 +123,19 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     const typed = Number(goalBox.value);
     return goalBox.value.trim() !== "" && Number.isInteger(typed) ? typed : undefined;
   };
+  const allowed = (goal: number | undefined): goal is number => goal !== undefined && goal >= 1 && goal <= MAXIMUM_GOAL;
+  // A number typed in the goal box and not yet applied.
+  let typedUnapplied = false;
   const applyDaily = (): void => {
+    typedUnapplied = false;
     problem.replaceChildren();
+    // 0 is the writer saying "no goal": off, with the box back at the default for next time.
+    if (on.on() && goalTyped() === 0) {
+      on.set(false);
+      goalBox.value = String(DEFAULT_GOAL);
+      // The box is about to be disabled, and the focus must not go with it.
+      if (document.activeElement === goalBox) on.control.focus();
+    }
     if (!on.on()) {
       options.setDaily(undefined, [...chosen]);
       redraw();
@@ -129,11 +144,20 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     const goal = goalTyped();
     if (goal === undefined || !options.setDaily(goal, [...chosen])) {
       say(`A daily goal is a whole number of words, from 1 to ${said(MAXIMUM_GOAL)}.`);
+      // The goal kept is the last good one, and the box stays usable to put it right.
+      enable();
       return;
     }
     redraw();
   };
+  goalBox.addEventListener("input", () => {
+    typedUnapplied = true;
+  });
   goalBox.addEventListener("change", applyDaily);
+  // Before `dialogKeys` ends the edit: a second Escape straight after closes the dialog.
+  goalBox.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && typedUnapplied) applyDaily();
+  });
   for (const [day, button] of dayButtons) {
     button.addEventListener("click", () => {
       if (chosen.has(day)) chosen.delete(day);
@@ -177,6 +201,12 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     sprintBox.focus();
   });
 
+  /** The box and the day pills usable exactly while the switch is on. */
+  function enable(): void {
+    goalBox.disabled = !on.on();
+    for (const button of dayButtons.values()) button.disabled = !on.on();
+  }
+
   /** Draw everything that follows from the goals as they stand now. */
   function redraw(): void {
     const view = options.view();
@@ -212,13 +242,12 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
 
     on.set(view.goal !== undefined);
     if (view.goal !== undefined) goalBox.value = String(view.goal);
-    goalBox.disabled = !on.on();
     for (const [day, button] of dayButtons) {
       const counted = chosen.has(day);
       button.setAttribute("aria-pressed", String(counted));
       button.classList.toggle("goals__day--counted", counted);
-      button.disabled = !on.on();
     }
+    enable();
 
     const running = view.sprint;
     sprintBox.hidden = start.hidden = running !== undefined;
@@ -270,6 +299,8 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   });
   done.addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
+    // However it closed, a goal typed and not applied is applied, or refused and the last good one kept.
+    if (typedUnapplied) applyDaily();
     modal.remove();
     options.closed();
   });

@@ -149,15 +149,68 @@ describe("the Goals dialog", () => {
 
   it("changes the number, and refuses one that is not a whole number of words", () => {
     const { q, tracker } = opened({ goal: 500, weekdays: NO_GOALS.weekdays, days: new Map() });
-    change(q<HTMLInputElement>("#goals-daily"), "750");
+    const box = q<HTMLInputElement>("#goals-daily");
+    change(box, "750");
     expect(tracker.data().goal).toBe(750);
-    change(q<HTMLInputElement>("#goals-daily"), "0");
-    expect(tracker.data().goal).toBe(750);
-    expect(q(".new-project__problem").textContent).toContain("whole number of words");
-    change(q<HTMLInputElement>("#goals-daily"), "12.5");
-    expect(tracker.data().goal).toBe(750);
-    change(q<HTMLInputElement>("#goals-daily"), "");
-    expect(tracker.data().goal).toBe(750);
+    change(box, "1");
+    expect(tracker.data().goal).toBe(1);
+    change(box, "750");
+    for (const refused of ["12.5", "", "100001", "-5"]) {
+      change(box, refused);
+      expect(tracker.data().goal, refused).toBe(750);
+      expect(q(".new-project__problem").textContent, refused).toContain("whole number of words, from 1 to 100,000");
+      expect(isOn(q("#goals-on")), refused).toBe(true);
+      expect(box.disabled, refused).toBe(false);
+    }
+    change(box, "100000");
+    expect(tracker.data().goal).toBe(100_000);
+    expect(q(".new-project__problem").textContent).toBe("");
+  });
+
+  it("turns the goal off for a daily goal of 0, with 500 back in the box", () => {
+    const { q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    change(box, "0");
+    expect(tracker.data().goal).toBeUndefined();
+    expect(isOn(q("#goals-on"))).toBe(false);
+    expect(box.value).toBe("500");
+    expect(box.disabled).toBe(true);
+    expect(q(".new-project__problem").textContent).toBe("");
+    q("#goals-on").click();
+    expect(tracker.data().goal).toBe(500);
+    expect(isOn(q("#goals-on"))).toBe(true);
+    expect(box.disabled).toBe(false);
+  });
+
+  it("never leaves the box greyed out while the goal is on, whatever was typed before", () => {
+    const { modal, q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    const on = q("#goals-on");
+    const pills = (): HTMLButtonElement[] => [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")];
+    for (const typed of ["0", "", "12.5", "100001"]) {
+      change(box, typed);
+      // Off and on again, from whichever state the typing left the switch in.
+      if (isOn(on)) on.click();
+      expect(box.disabled, typed).toBe(true);
+      on.click();
+      expect(isOn(on), typed).toBe(true);
+      expect(box.disabled, typed).toBe(false);
+      expect(pills().some((pill) => pill.disabled), typed).toBe(false);
+      expect(tracker.data().goal, typed).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("turns the goal on at 500 when the box holds a number that would be refused", () => {
+    const { q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    const on = q("#goals-on");
+    change(box, "12.5");
+    on.click();
+    expect(tracker.data().goal).toBeUndefined();
+    on.click();
+    expect(tracker.data().goal).toBe(500);
+    expect(box.value).toBe("500");
+    expect(box.disabled).toBe(false);
   });
 
   it("has all seven weekdays pressed to begin with, and toggles any subset", () => {
@@ -213,6 +266,43 @@ describe("the Goals dialog", () => {
     action(modal, "Start").click();
     expect(tracker.view(1).sprint).toBeUndefined();
     expect(q(".new-project__problem").textContent).toContain("from 50");
+  });
+
+  it("applies a daily goal typed and left by two quick Escapes, closing as before", () => {
+    const { modal, q, tracker, closed } = opened(WITH_GOAL);
+    const box = q<HTMLInputElement>("#goals-daily");
+    box.focus();
+    press("Enter");
+    typeIn(box, "800");
+    escape(modal);
+    expect(modal.hasAttribute("open")).toBe(true);
+    expect(tracker.data().goal).toBe(800);
+    escape(modal);
+    expect(closed).toHaveBeenCalledOnce();
+    expect(tracker.data().goal).toBe(800);
+  });
+
+  it("applies a typed daily goal when the dialog closes, however it closes", () => {
+    for (const [typed, goal] of [["900", 900], ["0", undefined], ["12.5", 500]] as const) {
+      const { modal, q, tracker, closed } = opened(WITH_GOAL);
+      typeIn(q<HTMLInputElement>("#goals-daily"), typed);
+      action(modal, "Done").click();
+      expect(closed, typed).toHaveBeenCalledOnce();
+      expect(tracker.data().goal, typed).toBe(goal);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("starts no sprint when one was typed and the dialog left with Escape", () => {
+    const { modal, q, tracker, closed } = opened();
+    const box = q<HTMLInputElement>("#goals-sprint");
+    box.focus();
+    press("Enter");
+    typeIn(box, "900");
+    escape(modal);
+    escape(modal);
+    expect(closed).toHaveBeenCalledOnce();
+    expect(tracker.view(1).sprint).toBeUndefined();
   });
 
   it("is put away by Done, and says so", () => {
@@ -553,11 +643,23 @@ describe("the Goals dialog from the keyboard", () => {
     const { q, tracker, closed } = opened(WITH_GOAL);
     const box = q<HTMLInputElement>("#goals-daily");
     box.focus();
-    typeIn(box, "0");
+    typeIn(box, "12.5");
     press("Enter");
     expect(tracker.data().goal).toBe(500);
     expect(q(".new-project__problem").textContent).toContain("whole number of words");
     expect(document.activeElement).toBe(box);
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it("turns the goal off on Enter with 0, and moves to the switch rather than a greyed box", () => {
+    const { q, tracker, closed } = opened(WITH_GOAL);
+    const box = q<HTMLInputElement>("#goals-daily");
+    box.focus();
+    typeIn(box, "0");
+    press("Enter");
+    expect(tracker.data().goal).toBeUndefined();
+    expect(box.value).toBe("500");
+    expect(document.activeElement).toBe(q("#goals-on"));
     expect(closed).not.toHaveBeenCalled();
   });
 
