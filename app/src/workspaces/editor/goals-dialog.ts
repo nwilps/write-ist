@@ -9,9 +9,14 @@
  * cancel or confirm, and **Done** only puts the dialog away. Enter in a number
  * being edited applies it; Enter that nothing else used closes the dialog. A
  * daily goal typed and not yet applied is applied when Escape leaves the box,
- * and when the dialog closes, however quickly. A daily goal of 0 turns the goal
- * off; a number that is not allowed is refused and the last good goal kept. What
- * the numbers mean — net words, which days count, how a streak is read — is
+ * and when the dialog closes, however quickly.
+ *
+ * Neither number box ever says it was wrong. Only digits, a point and a minus
+ * can be typed in them, and what is there is quietly put right when it is used:
+ * a fraction is rounded to whole words, and too large is the largest allowed. A
+ * daily goal that comes to 0 or less turns the goal off; a sprint under the
+ * smallest is not started, and the box goes back to the last good number, as
+ * either box does when it is left blank. What the numbers mean — net words, which days count, how a streak is read — is
  * `src/goals/`'s; this draws and listens.
  *
  * The chart is drawn from the same tokens as everything else: a row of bars
@@ -26,7 +31,6 @@ import { dialogAction } from "../../screens/dialog-action.ts";
 import { dialogKeys } from "../../screens/dialog-keys.ts";
 import { dialogToggle } from "../../screens/dialog-toggle.ts";
 import { element } from "../../screens/element.ts";
-import { trouble } from "../../screens/trouble.ts";
 
 export interface GoalsDialogOptions {
   /** The goals as they stand now. */
@@ -59,15 +63,40 @@ const WITH_COMMAS = new Intl.NumberFormat("en-US");
 const said = (value: number): string => WITH_COMMAS.format(value);
 const plural = (count: number, one: string, many: string): string => `${said(count)} ${count === 1 ? one : many}`;
 
+/** What can be typed in a number box: digits, one point, and a minus at the front. */
+const NUMBER_TEXT = /^-?[0-9]*\.?[0-9]*$/;
+
+/**
+ * Let only what can make a number be typed or pasted into the box. The box is
+ * `type="number"`, which hides where the caret is, so a point or a minus is let
+ * in only where it can still be part of a number; anything that slips past
+ * reads as blank and is put back.
+ */
+function numbersOnly(box: HTMLInputElement): void {
+  box.addEventListener("beforeinput", (event) => {
+    if (!event.inputType.startsWith("insert")) return;
+    const adding = event.data ?? event.dataTransfer?.getData("text/plain") ?? "";
+    const allowed =
+      NUMBER_TEXT.test(adding) &&
+      !(adding.includes(".") && box.value.includes(".")) &&
+      !(adding.startsWith("-") && box.value !== "");
+    if (!allowed) event.preventDefault();
+  });
+}
+
+/** The number in a box rounded to whole words, or `undefined` for blank or not a number. */
+function wholeWords(box: HTMLInputElement): number | undefined {
+  const typed = Number(box.value);
+  // `+ 0` so a rounded -0.3 is plain 0.
+  return box.value.trim() !== "" && Number.isFinite(typed) ? Math.round(typed) + 0 : undefined;
+}
+
 /** `2026-11-03` as "Nov 3". The day is a calendar date, so it is read as UTC and shown as UTC. */
 function shortDate(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions): HTMLDialogElement {
-  const problem = element("div", { className: "new-project__problem" });
-  const say = (words: string): void => problem.replaceChildren(trouble(words));
-
   // --- The summary -----------------------------------------------------
   const stat = (label: string): { readonly node: HTMLElement; readonly value: HTMLElement } => {
     const value = element("dd", { className: "goals__value" });
@@ -91,8 +120,8 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   const on = dialogToggle({
     id: "goals-on",
     onChange: (isOn) => {
-      // Turned on over a number that would be refused, it starts at the default instead of sticking.
-      if (isOn && !allowed(goalTyped())) goalBox.value = String(DEFAULT_GOAL);
+      // Turned on over a box with no goal in it, it starts at the default instead of sticking.
+      if (isOn && (goalTyped() ?? 0) < 1) goalBox.value = String(DEFAULT_GOAL);
       applyDaily();
     },
   });
@@ -118,36 +147,33 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
     }),
   );
 
-  /** The number in the goal box, or `undefined` if it is not a whole number of words. */
+  numbersOnly(goalBox);
+
+  /** The goal box rounded and capped, or `undefined` if it holds no number. */
   const goalTyped = (): number | undefined => {
-    const typed = Number(goalBox.value);
-    return goalBox.value.trim() !== "" && Number.isInteger(typed) ? typed : undefined;
+    const typed = wholeWords(goalBox);
+    return typed === undefined ? undefined : Math.min(typed, MAXIMUM_GOAL);
   };
-  const allowed = (goal: number | undefined): goal is number => goal !== undefined && goal >= 1 && goal <= MAXIMUM_GOAL;
   // A number typed in the goal box and not yet applied.
   let typedUnapplied = false;
   const applyDaily = (): void => {
     typedUnapplied = false;
-    problem.replaceChildren();
-    // 0 is the writer saying "no goal": off, with the box back at the default for next time.
-    if (on.on() && goalTyped() === 0) {
+    const goal = goalTyped();
+    // 0 or less is the writer saying "no goal": off, with the box back at the default for next time.
+    if (on.on() && goal !== undefined && goal < 1) {
       on.set(false);
       goalBox.value = String(DEFAULT_GOAL);
       // The box is about to be disabled, and the focus must not go with it.
       if (document.activeElement === goalBox) on.control.focus();
     }
     if (!on.on()) {
+      if ((goalTyped() ?? 0) < 1) goalBox.value = String(DEFAULT_GOAL);
       options.setDaily(undefined, [...chosen]);
       redraw();
       return;
     }
-    const goal = goalTyped();
-    if (goal === undefined || !options.setDaily(goal, [...chosen])) {
-      say(`A daily goal is a whole number of words, from 1 to ${said(MAXIMUM_GOAL)}.`);
-      // The goal kept is the last good one, and the box stays usable to put it right.
-      enable();
-      return;
-    }
+    // Blank is not "off": nothing is set, and the redraw puts the last good goal back in the box.
+    if (goal !== undefined) options.setDaily(goal, [...chosen]);
     redraw();
   };
   goalBox.addEventListener("input", () => {
@@ -183,13 +209,32 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   const end = dialogAction("End", undefined, "button", { cursor: false });
   const sprintLabel = element("label", { htmlFor: "goals-sprint", className: "new-project-dialog__label", textContent: "Sprint" });
   const sprintNow = element("span", { className: "goals__sprint-now", role: "status" });
-  const startSprint = (): void => {
-    problem.replaceChildren();
-    const typed = Number(sprintBox.value);
-    if (sprintBox.value.trim() === "" || !options.startSprint(typed)) {
-      say(`A sprint is a whole number of words, from ${said(SPRINT_MINIMUM)} to ${said(SPRINT_MAXIMUM)}.`);
-      return;
+  numbersOnly(sprintBox);
+  // What the box goes back to: the default until a good number has been typed.
+  let lastSprint = SPRINT_DEFAULT;
+  /**
+   * Put the sprint box right, and say what it now holds, or `undefined` if it
+   * held no sprint. Rounding may lift 49.6 to 50; nothing else lifts a number to
+   * the smallest. Never starts a sprint.
+   */
+  const settleSprint = (): number | undefined => {
+    const typed = wholeWords(sprintBox);
+    const target = typed === undefined ? undefined : Math.min(typed, SPRINT_MAXIMUM);
+    if (target === undefined || target < SPRINT_MINIMUM) {
+      sprintBox.value = String(lastSprint);
+      return undefined;
     }
+    lastSprint = target;
+    sprintBox.value = String(target);
+    return target;
+  };
+  sprintBox.addEventListener("change", () => settleSprint());
+  sprintBox.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") settleSprint();
+  });
+  const startSprint = (): void => {
+    const target = settleSprint();
+    if (target === undefined || !options.startSprint(target)) return;
     redraw();
     // The box and Start have just been hidden, and the focus must not go with them.
     end.focus();
@@ -272,7 +317,6 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
           element("div", { className: "goals__row" }, [sprintBox, sprintNow, rowArrow(), start, end]),
         ]),
       ]),
-      problem,
       element("div", { className: "new-project-dialog__actions" }, [done]),
     ]),
   ]);
@@ -299,7 +343,7 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   });
   done.addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
-    // However it closed, a goal typed and not applied is applied, or refused and the last good one kept.
+    // However it closed, a goal typed and not applied is applied, put right as it would be anywhere else.
     if (typedUnapplied) applyDaily();
     modal.remove();
     options.closed();
