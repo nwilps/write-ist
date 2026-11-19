@@ -5,10 +5,11 @@
  * them: a modal `<dialog>` with no heading, and Escape cancels it natively. The
  * boxes are stacked, one to a row, in a dialog tall enough to show them all.
  *
- * Enter in a one-line box saves. Title, Contact and Notes are text areas of a
- * fixed height (two, three and four lines) that scroll their own text, and so
- * is any other value that already has more than one line: there Enter is a new
- * line and Ctrl+Enter saves. Author(s) is always one line.
+ * Enter in a one-line box saves. Title, Author(s) and Source are two lines,
+ * Contact three and Notes four: fixed text areas that scroll their own text,
+ * and so is any other value that already has more than one line. There Enter
+ * is a new line and Ctrl+Enter saves.
+ *
  * What a value *means* — marks, continuation indent, keys the dialog has no box
  * for — is `src/screenplay/title-page.ts`'s; this draws and listens.
  */
@@ -47,13 +48,10 @@ const LABELS: Readonly<Record<TitlePageKey, string>> = {
 };
 
 /** The boxes that are always text areas, and the lines each always shows. */
-const FIXED_LINES: Readonly<Partial<Record<TitlePageKey, number>>> = { Title: 2, Contact: 3, Notes: 4 };
+const FIXED_LINES: Readonly<Partial<Record<TitlePageKey, number>>> = { Title: 2, Author: 2, Source: 2, Contact: 3, Notes: 4 };
 
 /** The most lines any other box shows, when its value already has several. */
 const MOST_OTHER_LINES = 4;
-
-/** How the one-line Author(s) box shows authors written on several lines. */
-const AUTHOR_JOIN = ", ";
 
 type Box = HTMLInputElement | HTMLTextAreaElement;
 
@@ -70,14 +68,14 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   const fields = new Map(
     TITLE_PAGE_KEYS.map((key) => {
       const id = `title-page-${key.toLowerCase().replace(/\s+/g, "-")}`;
-      const value = key === "Author" ? opened.values[key].replaceAll("\n", AUTHOR_JOIN) : opened.values[key];
+      const value = opened.values[key];
       const fixedLines = FIXED_LINES[key];
       // A value with several lines is never squashed: an input would drop its breaks.
       const box: Box =
         fixedLines !== undefined || value.includes("\n")
           ? element("textarea", {
               id,
-              className: `new-project-dialog__input title-page__lines${fixedLines !== undefined ? ` title-page__lines--${key.toLowerCase()}` : ""}`,
+              className: `new-project-dialog__input title-page__lines${fixedLines !== undefined ? ` title-page__lines--${fixedLines}` : ""}`,
               rows: fixedLines ?? Math.min(value.split("\n").length, MOST_OTHER_LINES),
               spellcheck: false,
             })

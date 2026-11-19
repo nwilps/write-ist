@@ -39,16 +39,16 @@
   resize: none;
 }
 
-/* Title, Contact and Notes are always this tall. */
-.title-page .title-page__lines--title {
+/* Title, Author(s) and Source are two lines; Contact three; Notes four. */
+.title-page .title-page__lines--2 {
   height: var(--size-title-lines-2);
 }
 
-.title-page .title-page__lines--contact {
+.title-page .title-page__lines--3 {
   height: var(--size-title-lines-3);
 }
 
-.title-page .title-page__lines--notes {
+.title-page .title-page__lines--4 {
   height: var(--size-title-lines-4);
 }
 

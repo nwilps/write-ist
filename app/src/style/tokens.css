@@ -324,12 +324,13 @@
 :root {
   /** The preview sheet: US Letter at 70%, so it fits a short window. */
   --size-title-sheet: 428px;
-  /** The form's one column: some eighty characters of a field's type, for a line of several names. */
-  --measure-title-page: 720px;
+  /** The form's one column. The frame is this plus 24px margins and the rules:
+   * 564px, a rough 8.5/11 of the packed dialog's 729px height (US Letter). */
+  --measure-title-page: 514px;
   /** A line in a text area, and what centres one line in a field's height. */
   --leading-title-lines: 20px;
   --space-title-lines: calc((var(--size-field) - var(--rule-thin) * 2 - var(--leading-title-lines)) / 2);
-  /** The fixed text areas: Title at two lines, Contact at three, Notes at four. */
+  /** The fixed text areas: Title, Author(s) and Source at two lines, Contact at three, Notes at four. */
   --size-title-lines-2: calc(var(--size-field) + var(--leading-title-lines));
   --size-title-lines-3: calc(var(--size-field) + var(--leading-title-lines) * 2);
   --size-title-lines-4: calc(var(--size-field) + var(--leading-title-lines) * 3);

@@ -127,6 +127,8 @@ describe("Edit Title Page", () => {
 
   it.each([
     ["title", "ctrlKey"], ["title", "metaKey"],
+    ["author", "ctrlKey"], ["author", "metaKey"],
+    ["source", "ctrlKey"], ["source", "metaKey"],
     ["contact", "ctrlKey"], ["contact", "metaKey"],
     ["notes", "ctrlKey"], ["notes", "metaKey"],
   ])("saves from %s with Enter and %s", (key, modifier) => {
@@ -204,12 +206,11 @@ describe("Edit Title Page's look", () => {
     expect(sheet).not.toContain("grid-column");
   });
 
-  it("is wide enough for a line of authors", () => {
-    expect(px("--measure-title-page")).toBe(720);
-    const inside = px("--measure-title-page") - px("--space-panel") * 2 - px("--rule-thin") * 2;
-    // A column of the interface's face is 0.6em wide.
-    const columns = inside / (px("--size-query") * 0.6);
-    expect(columns).toBeGreaterThan("John August, Daniel Wallace, Tim Burton".length * 2);
+  it("is as wide as a rough 8.5 by 11 of its packed height", () => {
+    const width = px("--measure-title-page") + (px("--space-loose") + px("--rule-thin")) * 2;
+    expect(px("--measure-title-page")).toBe(514);
+    expect(width).toBe(564);
+    expect(width / packed()).toBeCloseTo(8.5 / 11, 2);
   });
 
   /** The whole dialog's height, nothing scrolled, from the tokens: jsdom lays nothing out. */
@@ -217,7 +218,7 @@ describe("Edit Title Page's look", () => {
     const label = px("--size-caption") * Number(/--leading-tight: ([\d.]+);/.exec(css("tokens.css"))![1]) + px("--space-tight");
     const oneLine = label + px("--size-field");
     const lines = (count: number): number => oneLine + px("--leading-title-lines") * (count - 1);
-    const list = lines(2) + oneLine * 4 + lines(3) + lines(4) + px("--space-panel") * 6;
+    const list = lines(2) * 3 + oneLine * 2 + lines(3) + lines(4) + px("--space-panel") * 6;
     const foot = px("--space-dialog-actions") + px("--size-row");
     const frame = (px("--space-loose") + px("--rule-thin")) * 2;
     return list + foot + frame;
@@ -225,16 +226,16 @@ describe("Edit Title Page's look", () => {
 
   it("shows every box with no scrolling in a laptop's window", () => {
     // The sum headless Chrome measures too.
-    expect(packed()).toBeCloseTo(689.2, 5);
-    expect(packed()).toBeLessThan(720);
-    expect(px("--measure-title-page") + (px("--space-loose") + px("--rule-thin")) * 2).toBe(770);
+    expect(packed()).toBeCloseTo(729.2, 5);
+    expect(packed()).toBeLessThan(768);
+    expect(px("--measure-title-page") + (px("--space-loose") + px("--rule-thin")) * 2).toBe(564);
   });
 
   it("is the same height whether the title has one line or two", () => {
     for (const titlePage of [PLAIN, TITLE_PAGE]) {
       const title = opened(titlePage).box("title") as HTMLTextAreaElement;
       expect(title.rows).toBe(2);
-      expect(title.classList.contains("title-page__lines--title")).toBe(true);
+      expect(title.classList.contains("title-page__lines--2")).toBe(true);
     }
   });
 
@@ -269,9 +270,11 @@ describe("Edit Title Page's look", () => {
   });
 
   it.each([
-    ["title", "--title", 2, "calc(var(--size-field) + var(--leading-title-lines))"],
-    ["contact", "--contact", 3, "calc(var(--size-field) + var(--leading-title-lines) * 2)"],
-    ["notes", "--notes", 4, "calc(var(--size-field) + var(--leading-title-lines) * 3)"],
+    ["title", "--2", 2, "calc(var(--size-field) + var(--leading-title-lines))"],
+    ["author", "--2", 2, "calc(var(--size-field) + var(--leading-title-lines))"],
+    ["source", "--2", 2, "calc(var(--size-field) + var(--leading-title-lines))"],
+    ["contact", "--3", 3, "calc(var(--size-field) + var(--leading-title-lines) * 2)"],
+    ["notes", "--4", 4, "calc(var(--size-field) + var(--leading-title-lines) * 3)"],
   ])("makes %s a fixed text area, with no gripper", (key, modifier, lines, height) => {
     const area = opened(PLAIN).box(key) as HTMLTextAreaElement;
     expect(area.tagName).toBe("TEXTAREA");
@@ -283,7 +286,7 @@ describe("Edit Title Page's look", () => {
     expect(rule(css("title-page.css"), ".title-page .title-page__lines")).toContain("resize: none");
   });
 
-  it.each([["title", 2], ["contact", 3], ["notes", 4]])("keeps %s at its height however much is typed", (key, lines) => {
+  it.each([["title", 2], ["author", 2], ["source", 2], ["contact", 3], ["notes", 4]])("keeps %s at its height however much is typed", (key, lines) => {
     const { modal, box, type } = opened(PLAIN);
     const area = box(key) as HTMLTextAreaElement;
     // jsdom lays nothing out, so the text's height is stood in for.
@@ -335,10 +338,12 @@ describe("Edit Title Page's look", () => {
 });
 
 describe("the Author(s) box", () => {
-  it("is one line, and shows authors written on several lines joined by a comma", () => {
+  it("is two lines, and shows authors written on several lines one per line", () => {
     const { box } = opened(TWO_AUTHORS);
-    expect(box("author").tagName).toBe("INPUT");
-    expect(box("author").value).toBe("John August, Daniel Wallace");
+    const author = box("author") as HTMLTextAreaElement;
+    expect(author.tagName).toBe("TEXTAREA");
+    expect(author.rows).toBe(2);
+    expect(author.value).toBe("John August\nDaniel Wallace");
   });
 
   it("leaves an untouched Author on its several lines, even when a neighbour changes", () => {
@@ -352,28 +357,39 @@ describe("the Author(s) box", () => {
     );
   });
 
-  it("writes nothing when the joined Author is saved as it opened", () => {
+  it("writes nothing when Author is saved as it opened", () => {
     const { save, closed, submit } = opened(TWO_AUTHORS);
     submit();
     expect(save).not.toHaveBeenCalled();
     expect(closed).toHaveBeenCalledTimes(1);
   });
 
-  it("counts typing the same words back as untouched", () => {
+  it("counts typing the same lines back as untouched", () => {
     const { save, type, submit } = opened(TWO_AUTHORS);
     type("author", "John August");
-    type("author", "John August, Daniel Wallace");
+    type("author", "John August\nDaniel Wallace");
     submit();
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("writes an edited Author back as one line, and leaves unboxed keys alone", () => {
+  it("counts a blank line left at the end as no change", () => {
     const { save, type, submit } = opened(TWO_AUTHORS);
-    type("author", "John August, Daniel Wallace, Tim Burton");
+    type("author", "John August\nDaniel Wallace\n");
+    submit();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("saves an edited two-line Author as two lines that read back the same, and leaves unboxed keys alone", () => {
+    const { save, type, submit } = opened(TWO_AUTHORS);
+    type("author", "John August\nTim Burton");
     submit();
     expect(saved(save.mock.calls[0]![0])).toBe(
-      "Title: Big Fish\nAuthor: John August, Daniel Wallace, Tim Burton\nCopyright: 2003",
+      "Title: Big Fish\nAuthor: John August\n\tTim Burton\nCopyright: 2003",
     );
+    const reread = opened(save.mock.calls[0]![0]);
+    expect(reread.box("author").value).toBe("John August\nTim Burton");
+    reread.submit();
+    expect(reread.save).not.toHaveBeenCalled();
   });
 
   it("previews an untouched Author on its own lines", () => {
@@ -381,6 +397,41 @@ describe("the Author(s) box", () => {
     button("View").click();
     const drawn = [...into.querySelectorAll("dialog.title-preview text")].map((t) => t.textContent);
     expect(drawn).toEqual(expect.arrayContaining(["John August", "Daniel Wallace"]));
+  });
+});
+
+describe("the Source box", () => {
+  const TWO_SOURCE = parse("Title: Big Fish\nSource:\n\tBased on a novel\n\tby Daniel Wallace\nCopyright: 2003\n\nx\n").titlePage;
+
+  it("is two lines, and shows a source written on several lines one per line", () => {
+    const source = opened(TWO_SOURCE).box("source") as HTMLTextAreaElement;
+    expect(source.tagName).toBe("TEXTAREA");
+    expect(source.rows).toBe(2);
+    expect(source.value).toBe("Based on a novel\nby Daniel Wallace");
+  });
+
+  it("writes nothing when Source is left alone, and keeps it when a neighbour changes", () => {
+    const first = opened(TWO_SOURCE);
+    first.submit();
+    expect(first.save).not.toHaveBeenCalled();
+    const { save, type, submit } = opened(TWO_SOURCE);
+    type("credit", "Written by");
+    submit();
+    const written = save.mock.calls[0]![0];
+    expect(written.find((one: { key: string }) => one.key === "Source")).toBe(TWO_SOURCE.find((one) => one.key === "Source"));
+  });
+
+  it("saves an edited two-line Source as two lines that read back the same", () => {
+    const { save, type, submit } = opened(PLAIN);
+    type("source", "Based on a novel\nby Daniel Wallace");
+    submit();
+    expect(saved(save.mock.calls[0]![0])).toBe(
+      "Title: Big Fish\nCredit: Written by\nAuthor: John August\nSource: Based on a novel\n\tby Daniel Wallace",
+    );
+    const reread = opened(save.mock.calls[0]![0]);
+    expect(reread.box("source").value).toBe("Based on a novel\nby Daniel Wallace");
+    reread.submit();
+    expect(reread.save).not.toHaveBeenCalled();
   });
 });
 
@@ -498,8 +549,8 @@ describe("Edit Title Page from the keyboard", () => {
     expect(closed).not.toHaveBeenCalled();
   });
 
-  it("keeps Enter a new line in Contact and Notes", () => {
-    for (const key of ["contact", "notes"]) {
+  it("keeps Enter a new line in Author, Source, Contact and Notes", () => {
+    for (const key of ["author", "source", "contact", "notes"]) {
       const { box, save, closed, modal } = opened(PLAIN);
       box(key).focus();
       expect(press("Enter").defaultPrevented, `${key}: starts the edit`).toBe(true);
