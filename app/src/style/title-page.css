@@ -39,9 +39,17 @@
   resize: none;
 }
 
-/* Contact and Notes are always four lines. */
-.title-page .title-page__lines--long {
-  height: var(--size-title-lines);
+/* Title, Contact and Notes are always this tall. */
+.title-page .title-page__lines--title {
+  height: var(--size-title-lines-2);
+}
+
+.title-page .title-page__lines--contact {
+  height: var(--size-title-lines-3);
+}
+
+.title-page .title-page__lines--notes {
+  height: var(--size-title-lines-4);
 }
 
 /* View at the left, away from the pair that end the dialog; each as wide as its words. */

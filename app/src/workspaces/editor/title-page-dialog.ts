@@ -5,10 +5,10 @@
  * them: a modal `<dialog>` with no heading, and Escape cancels it natively. The
  * boxes are stacked, one to a row, in a dialog tall enough to show them all.
  *
- * Enter in a one-line box saves. Contact and Notes, and any other value that
- * already has more than one line, are text areas of a fixed height that scroll
- * their own text: there Enter is a new line and Ctrl+Enter saves. Author(s) is
- * always one line.
+ * Enter in a one-line box saves. Title, Contact and Notes are text areas of a
+ * fixed height (two, three and four lines) that scroll their own text, and so
+ * is any other value that already has more than one line: there Enter is a new
+ * line and Ctrl+Enter saves. Author(s) is always one line.
  * What a value *means* — marks, continuation indent, keys the dialog has no box
  * for — is `src/screenplay/title-page.ts`'s; this draws and listens.
  */
@@ -46,16 +46,20 @@ const LABELS: Readonly<Record<TitlePageKey, string>> = {
   Notes: "Notes",
 };
 
-/** Keys whose value is naturally a list of lines. */
-const SEVERAL_LINES: ReadonlySet<TitlePageKey> = new Set(["Contact", "Notes"]);
+/** The boxes that are always text areas, and the lines each always shows. */
+const FIXED_LINES: Readonly<Partial<Record<TitlePageKey, number>>> = { Title: 2, Contact: 3, Notes: 4 };
 
-/** The most lines a text area shows; Contact and Notes always show this many. */
-const MOST_LINES = 4;
+/** The most lines any other box shows, when its value already has several. */
+const MOST_OTHER_LINES = 4;
 
 /** How the one-line Author(s) box shows authors written on several lines. */
 const AUTHOR_JOIN = ", ";
 
 type Box = HTMLInputElement | HTMLTextAreaElement;
+
+/** A box's text as it would be saved: blank lines and outer spaces do not count. */
+const savedLines = (text: string): string =>
+  text.split("\n").map((line) => line.trim()).filter((line) => line !== "").join("\n");
 
 export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogOptions): HTMLDialogElement {
   const opened = formOf(options.titlePage);
@@ -67,13 +71,14 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
     TITLE_PAGE_KEYS.map((key) => {
       const id = `title-page-${key.toLowerCase().replace(/\s+/g, "-")}`;
       const value = key === "Author" ? opened.values[key].replaceAll("\n", AUTHOR_JOIN) : opened.values[key];
+      const fixedLines = FIXED_LINES[key];
       // A value with several lines is never squashed: an input would drop its breaks.
       const box: Box =
-        SEVERAL_LINES.has(key) || value.includes("\n")
+        fixedLines !== undefined || value.includes("\n")
           ? element("textarea", {
               id,
-              className: `new-project-dialog__input title-page__lines${SEVERAL_LINES.has(key) ? " title-page__lines--long" : ""}`,
-              rows: SEVERAL_LINES.has(key) ? MOST_LINES : Math.min(value.split("\n").length, MOST_LINES),
+              className: `new-project-dialog__input title-page__lines${fixedLines !== undefined ? ` title-page__lines--${key.toLowerCase()}` : ""}`,
+              rows: fixedLines ?? Math.min(value.split("\n").length, MOST_OTHER_LINES),
               spellcheck: false,
             })
           : element("input", { id, className: "new-project-dialog__input", type: "text", autocomplete: "off", spellcheck: false });
@@ -105,7 +110,10 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   /** What the boxes hold now, applied to the title page opened. */
   const result = () => {
     const values = Object.fromEntries(
-      TITLE_PAGE_KEYS.map((key) => [key, box(key).value === shown.get(key) ? opened.values[key] : box(key).value]),
+      TITLE_PAGE_KEYS.map((key) => [
+        key,
+        savedLines(box(key).value) === savedLines(shown.get(key)!) ? opened.values[key] : box(key).value,
+      ]),
     ) as Record<TitlePageKey, string>;
     const typed: TitlePageForm = { values };
     return applyForm(options.titlePage, typed);

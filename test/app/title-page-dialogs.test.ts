@@ -75,6 +75,8 @@ const saved = (fields: Parameters<typeof serialise>[0]["titlePage"]): string =>
   serialise({ titlePage: fields, elements: [], comments: [], endsWithNewline: false });
 const PLAIN = parse("Title: Big Fish\nCredit: Written by\nAuthor: John August\n\nx\n").titlePage;
 const TWO_AUTHORS = parse("Title: Big Fish\nAuthor:\n\tJohn August\n\tDaniel Wallace\nCopyright: 2003\n\nx\n").titlePage;
+const BRICK_AND_STEEL = readFileSync("test/fixtures/Brick-&-Steel.fountain", "utf8");
+const BRICK_TITLE = "_**BRICK & STEEL**_\n_**FULL RETIRED**_";
 
 describe("Edit Title Page", () => {
   it("has a box for every key in the spec, prefilled, marks as written", () => {
@@ -88,7 +90,6 @@ describe("Edit Title Page", () => {
     expect(box("author").value).toBe("Stu");
     expect(box("draft-date").value).toBe("");
     expect(modal.querySelector("#title-page-other, #title-page-copyright")).toBeNull();
-    // A value with several lines is never squashed into a one-line input.
     expect(box("title").tagName).toBe("TEXTAREA");
     expect(box("credit").tagName).toBe("INPUT");
   });
@@ -124,12 +125,17 @@ describe("Edit Title Page", () => {
     expect(button("Save").type).toBe("submit");
   });
 
-  it.each(["ctrlKey", "metaKey"])("saves with Enter and %s from a several-line box", (modifier) => {
-    const { box, save, type } = opened();
-    type("notes", "FINAL\nDRAFT");
-    box("notes").focus();
+  it.each([
+    ["title", "ctrlKey"], ["title", "metaKey"],
+    ["contact", "ctrlKey"], ["contact", "metaKey"],
+    ["notes", "ctrlKey"], ["notes", "metaKey"],
+  ])("saves from %s with Enter and %s", (key, modifier) => {
+    const { box, save, closed, type } = opened();
+    type(key, "FINAL\nDRAFT");
+    box(key).focus();
     expect(press("Enter", { [modifier]: true }).defaultPrevented).toBe(true);
     expect(save).toHaveBeenCalledTimes(1);
+    expect(closed).toHaveBeenCalledTimes(1);
   });
 
   it("cancels with the Cancel button and with Escape, saving nothing", () => {
@@ -207,11 +213,11 @@ describe("Edit Title Page's look", () => {
   });
 
   /** The whole dialog's height, nothing scrolled, from the tokens: jsdom lays nothing out. */
-  const packed = (extraLines = 0): number => {
+  const packed = (): number => {
     const label = px("--size-caption") * Number(/--leading-tight: ([\d.]+);/.exec(css("tokens.css"))![1]) + px("--space-tight");
     const oneLine = label + px("--size-field");
-    const fourLines = oneLine + px("--leading-title-lines") * 3;
-    const list = oneLine * 5 + fourLines * 2 + px("--space-panel") * 6 + px("--leading-title-lines") * extraLines;
+    const lines = (count: number): number => oneLine + px("--leading-title-lines") * (count - 1);
+    const list = lines(2) + oneLine * 4 + lines(3) + lines(4) + px("--space-panel") * 6;
     const foot = px("--space-dialog-actions") + px("--size-row");
     const frame = (px("--space-loose") + px("--rule-thin")) * 2;
     return list + foot + frame;
@@ -224,9 +230,12 @@ describe("Edit Title Page's look", () => {
     expect(px("--measure-title-page") + (px("--space-loose") + px("--rule-thin")) * 2).toBe(770);
   });
 
-  it("still fits a laptop's window with a two-line title, which adds one line", () => {
-    expect(packed(1)).toBeCloseTo(709.2, 5);
-    expect(packed(1)).toBeLessThan(720);
+  it("is the same height whether the title has one line or two", () => {
+    for (const titlePage of [PLAIN, TITLE_PAGE]) {
+      const title = opened(titlePage).box("title") as HTMLTextAreaElement;
+      expect(title.rows).toBe(2);
+      expect(title.classList.contains("title-page__lines--title")).toBe(true);
+    }
   });
 
   it("sets no height of its own, so nothing but the window limits the dialog", () => {
@@ -259,40 +268,54 @@ describe("Edit Title Page's look", () => {
     expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
   });
 
-  it("makes Contact and Notes four lines, with no gripper", () => {
-    const { box } = opened(PLAIN);
-    for (const key of ["contact", "notes"]) {
-      expect(box(key).tagName, key).toBe("TEXTAREA");
-      expect((box(key) as HTMLTextAreaElement).rows, key).toBe(4);
-    }
-    expect(css("tokens.css")).toContain("--size-title-lines: calc(var(--size-field) + var(--leading-title-lines) * 3);");
-    expect(rule(css("title-page.css"), ".title-page .title-page__lines--long")).toContain("height: var(--size-title-lines)");
+  it.each([
+    ["title", "--title", 2, "calc(var(--size-field) + var(--leading-title-lines))"],
+    ["contact", "--contact", 3, "calc(var(--size-field) + var(--leading-title-lines) * 2)"],
+    ["notes", "--notes", 4, "calc(var(--size-field) + var(--leading-title-lines) * 3)"],
+  ])("makes %s a fixed text area, with no gripper", (key, modifier, lines, height) => {
+    const area = opened(PLAIN).box(key) as HTMLTextAreaElement;
+    expect(area.tagName).toBe("TEXTAREA");
+    expect(area.rows).toBe(lines);
+    expect(css("tokens.css")).toContain(`--size-title-lines-${lines}: ${height};`);
+    expect(rule(css("title-page.css"), `.title-page .title-page__lines${modifier}`)).toContain(
+      `height: var(--size-title-lines-${lines})`,
+    );
     expect(rule(css("title-page.css"), ".title-page .title-page__lines")).toContain("resize: none");
   });
 
-  it("keeps Contact four lines however much is typed, and scrolls inside the box", () => {
+  it.each([["title", 2], ["contact", 3], ["notes", 4]])("keeps %s at its height however much is typed", (key, lines) => {
     const { modal, box, type } = opened(PLAIN);
-    const contact = box("contact") as HTMLTextAreaElement;
+    const area = box(key) as HTMLTextAreaElement;
     // jsdom lays nothing out, so the text's height is stood in for.
-    Object.defineProperty(contact, "scrollHeight", { get: () => 400 });
-    type("contact", Array.from({ length: 20 }, (_, line) => `line ${line}`).join("\n"));
-    expect(contact.rows).toBe(4);
-    expect(contact.getAttribute("style")).toBeNull();
+    Object.defineProperty(area, "scrollHeight", { get: () => 400 });
+    type(key, Array.from({ length: 20 }, (_, line) => `line ${line}`).join("\n"));
+    expect(area.rows).toBe(lines);
+    expect(area.getAttribute("style")).toBeNull();
     expect(modal.getAttribute("style")).toBeNull();
     expect(rule(css("title-page.css"), ".title-page .title-page__lines")).toContain("overflow-y: auto");
   });
 
+  it("keeps a title of many lines at two, scrolling the rest", () => {
+    const long = parse("Title:\n\tA\n\tB\n\tC\n\tD\n\tE\n\nx\n").titlePage;
+    const title = opened(long).box("title") as HTMLTextAreaElement;
+    expect(title.rows).toBe(2);
+    expect(title.value).toBe("A\nB\nC\nD\nE");
+  });
+
   it("no longer grows a box or shares out the window's spare room", () => {
     const sheets = css("title-page.css") + css("tokens.css");
-    for (const gone of ["--title-lines-height", "--title-page-rest", "--size-title-lines-most", "--size-title-lines-long"]) {
+    for (const gone of [
+      "--title-lines-height", "--title-page-rest", "--size-title-lines-most", "--size-title-lines-long",
+      "--size-title-lines:", "title-page__lines--long",
+    ]) {
       expect(sheets, gone).not.toContain(gone);
     }
   });
 
   it("shows another broken value at its own lines, up to four", () => {
-    expect((opened().box("title") as HTMLTextAreaElement).rows).toBe(2);
-    const long = parse("Title:\n\tA\n\tB\n\tC\n\tD\n\tE\n\nx\n").titlePage;
-    expect((opened(long).box("title") as HTMLTextAreaElement).rows).toBe(4);
+    const broken = (lines: string) => parse(`Title: T\nCredit:\n${lines}\n\nx\n`).titlePage;
+    expect((opened(broken("\tA\n\tB")).box("credit") as HTMLTextAreaElement).rows).toBe(2);
+    expect((opened(broken("\tA\n\tB\n\tC\n\tD\n\tE")).box("credit") as HTMLTextAreaElement).rows).toBe(4);
   });
 
   it("keeps the preview's sheet and frame", () => {
@@ -361,6 +384,60 @@ describe("the Author(s) box", () => {
   });
 });
 
+describe("the Title box", () => {
+  const brick = parse(BRICK_AND_STEEL);
+  const file = (titlePage: readonly (typeof brick.titlePage)[number][]): string => serialise({ ...brick, titlePage });
+
+  it("writes nothing when Brick & Steel's two-line title is left alone", () => {
+    const { box, save, closed, submit } = opened(brick.titlePage);
+    expect(box("title").value).toBe(BRICK_TITLE);
+    submit();
+    expect(save).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Brick & Steel's title as written when a neighbour changes", () => {
+    const { save, type, submit } = opened(brick.titlePage);
+    type("credit", "Screenplay by");
+    submit();
+    const written = save.mock.calls[0]![0];
+    expect(written[0]).toBe(brick.titlePage[0]);
+    // Against the file as parsed: the fixture on disk is not yet normalised.
+    expect(file(written)).toBe(file(brick.titlePage).replace("Credit: Written by", "Credit: Screenplay by"));
+  });
+
+  it("counts a blank line left at the end as no change", () => {
+    const { save, type, submit } = opened(brick.titlePage);
+    type("title", `${BRICK_TITLE}\n`);
+    submit();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("saves an edited two-line title as two lines that read back the same", () => {
+    const { save, type, submit } = opened(brick.titlePage);
+    const edited = "_**BRICK & STEEL**_\n_**NOT RETIRED**_";
+    type("title", edited);
+    submit();
+    const written = file(save.mock.calls[0]![0]);
+    expect(written.startsWith("Title: _**BRICK & STEEL**_\n\t_**NOT RETIRED**_\nCredit: Written by\n")).toBe(true);
+    const reread = parse(written);
+    expect(reread.elements).toEqual(brick.elements);
+    const again = opened(reread.titlePage);
+    expect(again.box("title").value).toBe(edited);
+    again.submit();
+    expect(again.save).not.toHaveBeenCalled();
+  });
+
+  it("gives a one-line title a second line, with no comma and no blank lines", () => {
+    const { save, type, submit } = opened(PLAIN);
+    type("title", "Big Fish\n\nA Novel, Filmed");
+    submit();
+    expect(saved(save.mock.calls[0]![0])).toBe(
+      "Title: Big Fish\n\tA Novel, Filmed\nCredit: Written by\nAuthor: John August",
+    );
+  });
+});
+
 describe("Edit Title Page from the keyboard", () => {
   const WALK = ["title", "credit", "author", "source", "draft-date", "contact", "notes"].map((key) => `title-page-${key}`);
   const at = (): string => {
@@ -404,7 +481,9 @@ describe("Edit Title Page from the keyboard", () => {
 
   it("saves on Enter in a one-line box being edited", () => {
     const { save, closed, type } = opened(PLAIN);
-    type("title", "Bigger Fish");
+    press("Tab");
+    press("Enter");
+    type("credit", "Screenplay by");
     expect(press("Enter").defaultPrevented).toBe(true);
     expect(save).toHaveBeenCalledTimes(1);
     expect(closed).toHaveBeenCalledTimes(1);
@@ -434,11 +513,27 @@ describe("Edit Title Page from the keyboard", () => {
     }
   });
 
-  it("keeps Enter a new line in a title that already has several lines", () => {
-    const { box, closed } = opened();
-    expect(box("title").tagName).toBe("TEXTAREA");
+  it.each([["one line", PLAIN], ["two lines", TITLE_PAGE]])("keeps Enter a new line in a title of %s", (_, titlePage) => {
+    const { box, save, closed } = opened(titlePage);
+    expect(document.activeElement).toBe(box("title"));
+    // Not prevented: the browser puts the new line in.
     expect(press("Enter").defaultPrevented).toBe(false);
+    expect(save).not.toHaveBeenCalled();
     expect(closed).not.toHaveBeenCalled();
+  });
+
+  it("leaves the Title edit on the first Escape, restarts it on Enter, and cancels on the second", () => {
+    const { modal, box, save, closed } = opened(PLAIN);
+    escape(modal);
+    expect(modal.hasAttribute("open")).toBe(true);
+    expect(box("title").classList.contains("dialog-keys__editing")).toBe(false);
+    expect(press("Enter").defaultPrevented).toBe(true);
+    expect(box("title").classList.contains("dialog-keys__editing")).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
+    escape(modal);
+    escape(modal);
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("leaves the edit on the first Escape and cancels on the second, saving nothing", () => {
