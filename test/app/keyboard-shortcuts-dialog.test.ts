@@ -36,7 +36,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const style = join(root, "app", "src", "style");
 const css = (name: string): string => readFileSync(join(style, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const rule = (sheet: string, selector: string): string =>
-  new RegExp(`(?:^|\\})\\s*${selector.replace(/[.]/g, "\\.")}\\s*\\{([^}]*)\\}`).exec(sheet)![1]!;
+  new RegExp(`(?:^|\\})\\s*${selector.replace(/[.+:()]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(sheet)![1]!;
 /** A token's size in pixels. */
 const px = (token: string): number => Number(new RegExp(`${token}: ([\\d.]+)px;`).exec(css("tokens.css"))![1]);
 const leadingTight = (): number => Number(/--leading-tight: ([\d.]+);/.exec(css("tokens.css"))![1]);
@@ -79,7 +79,7 @@ const drawnGroups = (modal: HTMLElement): Record<string, [string, string][]> =>
   Object.fromEntries(
     [...modal.querySelectorAll(".shortcuts__group")].map((group) => [
       group.querySelector(".shortcuts__label")!.textContent,
-      [...group.querySelectorAll(".shortcuts__row")].map((row) => [
+      [...group.querySelectorAll(":scope > .shortcuts__rows > .shortcuts__row")].map((row) => [
         row.firstElementChild!.textContent!,
         row.querySelector(".shortcuts__key")!.textContent!,
       ]),
@@ -162,19 +162,78 @@ describe("Tab Order", () => {
     expect(writing.querySelector(".shortcuts__label")!.textContent).toBe("Writing");
     expect(writing.lastElementChild).toBe(section);
     expect(section.closest(".shortcuts__row")).toBeNull();
-    expect(section.querySelector(".shortcuts__row")).toBeNull();
     expect(section.querySelector(".shortcuts__label")!.textContent).toBe("Tab Order");
     expect(modal.querySelectorAll(".shortcuts-tab-order")).toHaveLength(1);
   });
 
-  it("stacks TAB_CYCLE top to bottom, with the keys beside it, and does not pretend Tab reaches Centered", () => {
+  it("has the heading alone on its line: no key beside it", () => {
+    const { modal } = opened();
+    const { section } = tabOrder(modal);
+    const heading = section.querySelector(".shortcuts__label")!;
+    expect(heading.parentElement).toBe(section);
+    expect(section.firstElementChild).toBe(heading);
+    expect(heading.textContent).toBe("Tab Order");
+    expect(heading.querySelector(".shortcuts__key")).toBeNull();
+    // Nothing shares its line: the next thing down is the rows.
+    expect(heading.nextElementSibling!.classList.contains("shortcuts__rows")).toBe(true);
+    expect(section.querySelector(".shortcuts-tab-order__head")).toBeNull();
+    expect(css("shortcuts.css")).not.toContain("shortcuts-tab-order__head");
+  });
+
+  it("teaches the keys first, as two ordinary rows: Next element [Tab], then Previous element (reverse) [Shift + Tab]", () => {
+    const { modal } = opened();
+    const { section } = tabOrder(modal);
+    const list = section.querySelector(".shortcuts-tab-order__keys")!;
+    expect(list.tagName).toBe("UL");
+    expect(list.classList.contains("shortcuts__rows")).toBe(true);
+    const rows = [...list.children];
+    expect(rows.map((row) => row.className)).toEqual(["shortcuts__row", "shortcuts__row"]);
+    expect(rows.map((row) => [row.firstElementChild!.textContent, row.lastElementChild!.textContent])).toEqual([
+      ["Next element", "[Tab]"],
+      ["Previous element (reverse)", "[Shift + Tab]"],
+    ]);
+    // The keys are the rows' own, in the same dim span as every other row's.
+    for (const row of rows) expect(row.lastElementChild!.className).toBe("shortcuts__key");
+    // The reverse aside is on Previous only.
+    expect(rows[0]!.querySelector(".shortcuts__aside")).toBeNull();
+    expect(rows[1]!.querySelector(".shortcuts__aside")!.textContent).toBe("(reverse)");
+    expect(section.querySelectorAll(".shortcuts__aside")).toHaveLength(1);
+    // Above the loop, and the only keys in the section.
+    expect(list.nextElementSibling!.classList.contains("shortcuts-loop")).toBe(true);
+    expect([...section.querySelectorAll(".shortcuts__key")].map((key) => key.textContent)).toEqual(["[Tab]", "[Shift + Tab]"]);
+  });
+
+  it("is not a command: no row of the table is Next or Previous element, and the generator does not list them", () => {
+    for (const label of ["Next element", "Previous element"]) {
+      expect(COMMANDS.some((command) => command.label.startsWith(label)), label).toBe(false);
+      expect(shortcutGroups().flatMap((group) => group.rows).some((row) => row.label.startsWith(label)), label).toBe(false);
+    }
+  });
+
+  it("sets the two rows a pause apart, less than one group from the next, and dims the reverse aside", () => {
+    const sheet = css("shortcuts.css");
+    expect(rule(sheet, ".shortcuts-tab-order__keys .shortcuts__row + .shortcuts__row")).toContain(
+      "margin-block-start: var(--space-shortcuts-pair)",
+    );
+    expect(css("tokens.css")).toContain("--space-shortcuts-pair: calc(var(--size-row) / 2);");
+    const pair = px("--size-row") / 2;
+    // 12px: a visible blank, but under the 24px between groups, so the two read as one pair.
+    expect(pair).toBe(12);
+    expect(pair).toBeGreaterThan(0);
+    expect(pair).toBeLessThan(px("--space-loose"));
+    expect(rule(sheet, ".shortcuts__aside")).toContain("color: var(--colour-faint)");
+    expect(rule(sheet, ".shortcuts__aside")).not.toMatch(/background|border|padding|radius/);
+    // The loop is set off from the rows as one group is from the next.
+    expect(rule(sheet, ".shortcuts-loop")).toContain("margin-block-start: calc(var(--space-loose) - var(--space-tight))");
+  });
+
+  it("stacks TAB_CYCLE top to bottom and does not pretend Tab reaches Centered", () => {
     const { modal } = opened();
     const { section, names } = tabOrder(modal);
     expect(names).toEqual(tabCircuit());
     expect(section.querySelector("ol")).not.toBeNull();
     expect(section.textContent).not.toContain("Centered");
     expect(TAB_CYCLE).not.toContain("centered");
-    expect([...section.querySelectorAll(".shortcuts__key")].map((key) => key.textContent)).toEqual(["[Tab]", "[Shift + Tab]"]);
   });
 
   it("draws a separate step arrow out of each name into the next, five of them, and no rail", () => {
@@ -298,18 +357,50 @@ describe("the layout: two columns and a divider stood on end", () => {
     expect(divider.nextElementSibling).toBe(right);
   });
 
-  it("draws the divider as the right-click menu's, stood on end, and held in at the top and bottom", () => {
+  it("draws the divider as the right-click menu's, stood on end, nearly the dialog's height, held in equally at each end", () => {
     const sheet = css("shortcuts.css");
     expect(rule(sheet, ".shortcuts__columns")).toContain(
       "grid-template-columns: minmax(0, 1fr) var(--rule-thin) minmax(0, 1fr)",
     );
-    const divider = rule(sheet, ".shortcuts__divider");
-    expect(divider).toContain("background: var(--colour-border)");
-    expect(divider).toContain("align-self: stretch");
-    // The menu's divider is held in from the sides by --space-row-label; this one from the top and bottom.
-    expect(divider).toContain("margin: var(--space-row-label) 0");
-    expect(rule(css("menus.css"), ".drop-menu__divider")).toMatch(/margin: [^;]* var\(--space-row-label\);/);
+    expect(rule(sheet, ".shortcuts__columns")).toContain("gap: var(--space-shortcuts-columns)");
+    // The divider keeps its 1px track between the columns; its line is drawn against the dialog's frame.
+    expect(rule(sheet, ".shortcuts__divider")).toContain("align-self: stretch");
+    expect(rule(sheet, ".shortcuts__divider")).not.toContain("margin");
+    const line = rule(sheet, ".shortcuts__divider::before");
+    expect(line).toContain("position: absolute");
+    expect(line).toContain("width: var(--rule-thin)");
+    expect(line).toContain("background: var(--colour-border)");
     expect(rule(css("menus.css"), ".drop-menu__divider")).toContain("background: var(--colour-border)");
+    // The same inset at the top and at the bottom, and no left or right of its own: it stays where the track is.
+    expect(line).toContain("top: var(--space-shortcuts-divider-end)");
+    expect(line).toContain("bottom: var(--space-shortcuts-divider-end)");
+    expect(line).not.toMatch(/(^|[\s;])(left|right|inset):/);
+    // Nothing between it and the modal dialog is positioned, so the dialog's frame is what it is placed against.
+    for (const selector of [".shortcuts__columns", ".shortcuts__column", ".new-project-dialog.shortcuts"]) {
+      expect(rule(sheet, selector), selector).not.toContain("position");
+    }
+    expect(rule(css("home.css"), ".new-project-dialog__form")).not.toContain("position");
+    // 24px from the frame, each end: further out than the 14px it was held in from the columns, and inside the 40px margin.
+    const end = px("--space-loose");
+    expect(css("tokens.css")).toContain("--space-shortcuts-divider-end: var(--space-loose);");
+    expect(end).toBe(24);
+    expect(end).toBeLessThan(px("--space-vast"));
+    expect(px("--space-vast") - end).toBeGreaterThan(px("--space-row-label"));
+  });
+
+  it("does not run into Close: Close sits at the right, past the right column's start", () => {
+    const sheet = css("shortcuts.css");
+    expect(rule(sheet, ".shortcuts .new-project-dialog__actions")).toContain("justify-content: flex-end");
+    // The line stands at the left margin, the left column and its 64px gap in: 445px from the dialog's left.
+    // Close ends at the right margin and, as headless Chrome measures it, is 180px wide, so it starts at 670px.
+    const edge = px("--space-vast") + px("--rule-thin");
+    const gap = px("--space-vast") + px("--space-loose");
+    const lineX = edge + px("--measure-shortcuts-column") + gap;
+    const width = edge * 2 + px("--measure-shortcuts-column") * 2 + gap * 2 + px("--rule-thin");
+    const closeLeft = width - edge - 180;
+    expect([lineX, closeLeft]).toEqual([445, 670]);
+    // A whole right column's worth of room would fit beside Close and still clear the line.
+    expect(closeLeft - lineX).toBeGreaterThan(px("--space-loose") * 9);
   });
 });
 
@@ -340,7 +431,6 @@ describe("the keys, drawn as the menus' hints", () => {
   it("set each row a menu row tall, one straight after the next", () => {
     const sheet = css("shortcuts.css");
     expect(rule(sheet, ".shortcuts__row")).toContain("height: var(--size-row)");
-    expect(rule(sheet, ".shortcuts-tab-order__head")).toContain("height: var(--size-row)");
     expect(rule(css("menus.css"), ".drop-menu__item")).toContain("height: var(--size-row)");
     expect(rule(sheet, ".shortcuts__rows")).not.toContain("gap");
     expect(css("tokens.css")).not.toContain("--space-shortcuts-rows");
@@ -577,26 +667,30 @@ describe("one page, nothing scrolled, in the app's window", () => {
       return label + px("--space-tight") + rows * px("--size-row");
     };
     const left = ["File", "Edit", "View"].map(group).reduce((sum, one) => sum + one, 0) + px("--space-loose") * 2;
-    // Spaced from Writing's rows as one group is from the next; its head a row; a row for each type.
+    // Spaced from Writing's rows as one group is from the next; its label; Next and Previous half a row apart;
+    // the loop set off as a group is, and a row for each type.
     const steps = TAB_CYCLE.length * px("--size-row");
-    const tabOrder = px("--space-loose") + px("--size-row") + px("--space-tight") + steps;
+    const keys = px("--size-row") * 2 + px("--size-row") / 2;
+    const tabOrder =
+      px("--space-loose") + label + px("--space-tight") + keys + px("--space-loose") + steps;
     const right = group("Writing") + tabOrder;
     const actions = px("--space-dialog-actions") + px("--size-row");
     const height = frame + Math.max(left, right) + actions;
-    return { width, height, left, right };
+    return { width, height, left, right, label };
   };
 
   it("is the window the app opens at", () => {
     expect([appWindow.width, appWindow.height]).toEqual([1100, 820]);
   });
 
-  it("packs to 891 by about 538, inside 1100 by 820, with 40px margins", () => {
-    // The sum headless Chrome measures too.
+  it("packs to 891 by about 613, inside 1100 by 820, with 40px margins", () => {
+    // The sum headless Chrome measures too (891 × 613.1875, the label's line rounded).
     expect(packed().width).toBe(891);
-    expect(packed().height).toBeCloseTo(537.6, 5);
-    // As wide as it was with the pills, and shorter than their 713.6.
+    expect(packed().height).toBeCloseTo(613.2, 5);
+    // Taller than the 537.6 it was by the two rows, their pause and the label standing alone, less the
+    // row-tall head it had; still shorter than the pills' 713.6.
+    expect(packed().height - 537.6).toBeCloseTo(px("--size-row") * 2.5 + px("--space-loose") + packed().label - px("--size-row"), 5);
     expect(packed().height).toBeLessThan(713.6);
-    expect(713.6 - packed().height).toBeGreaterThan(150);
     // Writing and Tab Order are the taller side.
     expect(packed().right).toBeGreaterThan(packed().left);
     // Room to spare all round, so nothing scrolls.
@@ -643,6 +737,7 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect(rule(sheet, ".shortcuts-loop__step")).toContain("height: var(--size-row)");
     expect(rule(sheet, ".shortcuts-tab-order")).toContain("margin-block-start: calc(var(--space-loose) - var(--space-tight))");
     expect(rule(sheet, ".shortcuts-tab-order")).toContain("gap: var(--space-tight)");
+    expect(rule(sheet, ".shortcuts-tab-order__keys .shortcuts__row + .shortcuts__row")).toContain("var(--space-shortcuts-pair)");
     expect(rule(sheet, ".shortcuts__column")).toContain("gap: var(--space-loose)");
     // No scroller of its own, and no height but the window's.
     expect(sheet).not.toMatch(/overflow/);

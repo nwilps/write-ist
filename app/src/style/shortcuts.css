@@ -25,10 +25,23 @@
   gap: var(--space-shortcuts-columns);
 }
 
-/* The right-click menu's divider, stood on end, held in from the top and the bottom as that one is from the sides. */
+/*
+ * The divider's place between the columns. The line itself is drawn from the
+ * dialog's own frame, not the columns', so it runs nearly the dialog's height,
+ * held in by the same margin at the top and the bottom. Close sits at the right,
+ * clear of it.
+ */
 .shortcuts__divider {
   align-self: stretch;
-  margin: var(--space-row-label) 0;
+}
+
+/* The right-click menu's divider, stood on end; the modal `<dialog>` is what it is placed against. */
+.shortcuts__divider::before {
+  content: "";
+  position: absolute;
+  top: var(--space-shortcuts-divider-end);
+  bottom: var(--space-shortcuts-divider-end);
+  width: var(--rule-thin);
   background: var(--colour-border);
 }
 
@@ -79,29 +92,30 @@
 
 /* --- Tab Order: its own section, to keep or drop whole --- */
 
-/* Spaced from the rows above as one group is from the next. */
+/* Spaced from the rows above as one group is from the next, its label over its rows as a group's is. */
 .shortcuts-tab-order {
   display: grid;
   gap: var(--space-tight);
   margin-block-start: calc(var(--space-loose) - var(--space-tight));
 }
 
-.shortcuts-tab-order__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-shortcuts-key);
-  height: var(--size-row);
+/* Next and Previous: one pair, with a little air between, less than between one group and the next. */
+.shortcuts-tab-order__keys .shortcuts__row + .shortcuts__row {
+  margin-block-start: var(--space-shortcuts-pair);
 }
 
-.shortcuts-tab-order__keys {
-  display: flex;
-  gap: var(--space-snug);
+/* Previous's "(reverse)": a quiet aside, in the dim of the keys. */
+.shortcuts__aside {
+  color: var(--colour-faint);
 }
 
-/* The loop: as wide as its longest name, with room either side for the arrows. */
+/*
+ * The loop: as wide as its longest name, with room either side for the
+ * arrows, and set off from the keys above as one group is from the next.
+ */
 .shortcuts-loop {
   position: relative;
+  margin-block-start: calc(var(--space-loose) - var(--space-tight));
   width: max-content;
   padding-inline: var(--space-roomy);
 }

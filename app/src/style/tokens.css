@@ -380,6 +380,10 @@
   --size-shortcuts-arrowhead: 4px;
   /** The margin all round: wider than the other dialogs', as this one is read, not filled in. */
   --space-shortcuts-edge: var(--space-vast);
+  /** The divider's ends to the frame, the same at the top and the bottom: nearer the frame than the margin. */
+  --space-shortcuts-divider-end: var(--space-loose);
+  /** Between Tab Order's Next and Previous rows: a pause, half a row, so they still read as a pair. */
+  --space-shortcuts-pair: calc(var(--size-row) / 2);
 }
 
 /* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */

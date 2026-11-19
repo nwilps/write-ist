@@ -7,8 +7,9 @@
  * nothing is listed that the table does not answer, so this list and the keys
  * cannot drift apart.
  *
- * Under Writing, Tab Order: the loop Tab and Shift+Tab step a line's element
- * type round, read from the screenplay surface's own `TAB_CYCLE`. It is its own
+ * Under Writing, Tab Order: a row each for Tab and Shift+Tab, then the loop they
+ * step a line's element type round, read from the screenplay surface's own
+ * `TAB_CYCLE`. It is its own
  * section and its own helper, so it can be taken out whole.
  *
  * New Project's dialog, built from its pieces, its shared button and keys among
@@ -111,9 +112,18 @@ function drawTabOrder(): HTMLElement {
     ]),
   );
   return element("section", { className: "shortcuts-tab-order" }, [
-    element("div", { className: "shortcuts-tab-order__head" }, [
-      element("h3", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab Order" }),
-      element("span", { className: "shortcuts-tab-order__keys" }, [keyHint("[Tab]"), keyHint("[Shift + Tab]")]),
+    element("h3", { className: "new-project-dialog__label shortcuts__label", textContent: "Tab Order" }),
+    // The two keys first, as rows like the rest, a pair with a little air between them. Not commands: Tab and
+    // Shift+Tab are the surface's own, so they are written here and not in the table.
+    element("ul", { className: "shortcuts__rows shortcuts-tab-order__keys" }, [
+      element("li", { className: "shortcuts__row" }, [element("span", { textContent: "Next element" }), keyHint("[Tab]")]),
+      element("li", { className: "shortcuts__row" }, [
+        element("span", {}, [
+          document.createTextNode("Previous element "),
+          element("span", { className: "shortcuts__aside", textContent: "(reverse)" }),
+        ]),
+        keyHint("[Shift + Tab]"),
+      ]),
     ]),
     element("div", { className: "shortcuts-loop" }, [
       arrow("shortcuts-loop__return", "shortcuts-loop__head shortcuts-loop__head--back"),
