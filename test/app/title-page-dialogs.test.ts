@@ -801,7 +801,7 @@ describe("the Edit and View menus", () => {
   const act = {
     save: vi.fn(), exportAs: vi.fn(), toProjects: vi.fn(), renameProject: vi.fn(), toHome: vi.fn(),
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(),
-    toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false),
+    toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false), keyboardShortcuts: vi.fn(),
     search: vi.fn(), view: () => undefined,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
   };
@@ -812,16 +812,16 @@ describe("the Edit and View menus", () => {
   }
   afterEach(() => vi.clearAllMocks());
 
-  it("hold only what works: undo, the title page, goals and spelling", () => {
+  it("hold only what works: undo, the title page, goals, spelling and the shortcuts", () => {
     const menus = editorMenus(act);
     const labels = (name: string) => menus[name]!.map((entry) => ("label" in entry ? entry.label : "—"));
     expect(Object.keys(menus)).toEqual(["File", "Edit", "View"]);
     expect(labels("Edit")).toEqual([
       "Undo", "Redo", "—", "Edit Title Page…", "—", "Edit Goals…",
     ]);
-    expect(labels("View")).toEqual(["View Title Page", "—", "Spellcheck"]);
-    // No shortcut is shown that does not exist: only Undo, Redo and Spellcheck have one here.
-    expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + ;]"]);
+    expect(labels("View")).toEqual(["View Title Page", "—", "Spellcheck", "—", "Keyboard Shortcuts"]);
+    // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck and Keyboard Shortcuts have one here.
+    expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + ;]", "[Ctrl + K]"]);
     expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + Z]", "[Ctrl + Y]"]);
   });
 

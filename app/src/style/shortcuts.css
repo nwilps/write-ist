@@ -1,0 +1,113 @@
+/*
+ * The Keyboard Shortcuts dialog. `.new-project-dialog` and its parts dress it,
+ * with Goals' margins; the right-click menu's `.drop-menu__divider` sits under
+ * the columns and again over the button, as on Export As. This is what New
+ * Project has no need of: two columns of rows, each a name and its key, and the
+ * Tab circuit under them. One page, nothing scrolled, in the app's own window.
+ */
+
+/* Two columns and Goals' margins, and never larger than the window. */
+.new-project-dialog.shortcuts {
+  width: calc(var(--measure-shortcuts-column) * 2 + var(--space-shortcuts-columns) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  max-width: 100%;
+  max-height: 100%;
+  padding: var(--space-loose);
+}
+
+.shortcuts__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-shortcuts-columns);
+}
+
+.shortcuts__column {
+  display: grid;
+  gap: var(--space-roomy);
+}
+
+.shortcuts__group {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+/* New Project's field label, without a heading's own margin and weight. */
+.shortcuts__label {
+  margin: 0;
+  font-weight: inherit;
+}
+
+.shortcuts__rows,
+.shortcuts-circuit__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A name at the left, its key at the right, on the menus' row height. */
+.shortcuts__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-panel);
+  height: var(--size-row);
+  font-size: var(--size-label);
+  color: var(--colour-text);
+}
+
+/* The menus' dim hint, in a quiet chip. */
+.shortcuts__key {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--size-row) - var(--space-hair) * 2);
+  padding: 0 var(--space-tight);
+  line-height: var(--leading-tight);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-slight);
+  font-size: var(--size-label);
+  color: var(--colour-faint);
+  white-space: nowrap;
+}
+
+/* --- The Tab circuit: its own section, to keep or drop whole --- */
+
+.shortcuts-circuit {
+  display: grid;
+  gap: var(--space-tight);
+}
+
+.shortcuts-circuit__keys {
+  display: flex;
+  gap: var(--space-tight);
+}
+
+.shortcuts-circuit__steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-tight);
+  min-height: var(--size-row);
+  font-size: var(--size-label);
+  color: var(--colour-text);
+}
+
+.shortcuts-circuit__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  white-space: nowrap;
+}
+
+.shortcuts-circuit__arrow {
+  color: var(--colour-faint);
+}
+
+/* The divider over the button is spaced as the one under the columns: the form's gap either side, no more. */
+.shortcuts .drop-menu__divider + .new-project-dialog__actions {
+  margin-block-start: 0;
+}
+
+/* Close alone, at the bottom right. */
+.shortcuts .new-project-dialog__actions {
+  justify-content: flex-end;
+}

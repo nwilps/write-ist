@@ -37,6 +37,7 @@ import {
   FileText,
   FolderOpen,
   House,
+  Keyboard,
   Pencil,
   Redo2,
   Save,
@@ -77,6 +78,8 @@ export interface EditorActions {
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
+  /** Open the Keyboard Shortcuts dialog, or close it if it is open. */
+  readonly keyboardShortcuts: () => void;
   readonly search: () => void;
   /** Cut, copy, paste and select-all: the same code the keys reach. Where, if anywhere, is the writer's selection. */
   readonly cut: () => void;
@@ -216,6 +219,8 @@ export const COMMANDS: readonly Command[] = [
     checked: (host) => host.spellcheckOn(),
     run: (host) => host.toggleSpellcheck(),
   },
+  // Heard wherever focus is, so it closes the dialog it opened as well.
+  { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 
   // Alt+Enter is heard wherever focus is (the desk design, §2.5).
   { id: "search", label: "Search", chord: { key: "Enter", alt: true }, keys: "window", run: (host) => host.search() },

@@ -63,6 +63,7 @@ import { drawSheetBreak } from "./sheet-break.ts";
 import { caretScrolling, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
 import { openExportDialog } from "./export-dialog.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
+import { openKeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog.ts";
 import { openTitlePageDialog } from "./title-page-dialog.ts";
 import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
@@ -260,6 +261,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     });
   };
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
+  // View ▸ Keyboard Shortcuts and Ctrl+K: the key that opens it closes it, and
+  // it never opens over another dialog.
+  let shortcuts: HTMLDialogElement | undefined;
+  const keyboardShortcuts = (): void => {
+    if (shortcuts !== undefined) {
+      shortcuts.close();
+      return;
+    }
+    if (searching !== undefined || into.querySelector("dialog[open]") !== null) return;
+    shortcuts = openKeyboardShortcutsDialog(into, {
+      closed: () => {
+        shortcuts = undefined;
+        view?.focus();
+      },
+    });
+  };
   // File ▸ Rename Project… and the name pill's menu. The session fits the move
   // between its writes; the paper, the caret and the undo history stay as they are.
   const renameProject = (): void => {
@@ -309,6 +326,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editGoals,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
+    keyboardShortcuts,
     search: startSearch,
     cut: () => viaWebview("cut"),
     copy: () => viaWebview("copy"),
@@ -457,7 +475,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         if (asked === undefined) return;
         event.preventDefault();
         event.stopPropagation();
-        runCommand(asked, host);
+        // Not a held key: a dialog this opens must not flicker while it is down.
+        if (!event.repeat) runCommand(asked, host);
       };
       window.addEventListener("keydown", asksForSearch, true);
       stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);

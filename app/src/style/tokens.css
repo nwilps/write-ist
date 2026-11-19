@@ -365,6 +365,15 @@
   --space-goals-arrow: var(--space-loose);
 }
 
+/* --- The Keyboard Shortcuts dialog ------------------------------------------ */
+
+:root {
+  /** One column of shortcuts: the longest name and the widest key, with room between. */
+  --measure-shortcuts-column: 280px;
+  /** Between the two columns. */
+  --space-shortcuts-columns: var(--space-vast);
+}
+
 /* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */
 
 :root {
