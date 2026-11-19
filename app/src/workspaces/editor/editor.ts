@@ -88,7 +88,7 @@ export const editorWorkspace: WorkspaceManifest = {
   name: "Editor",
   // The Editor is the workspace bar's first tab, as it is in the prototype.
   // Notes and Plan sit beside it as temporary placeholders
-  // (`../placeholders.ts`) that the bar cannot yet switch to.
+  // (`../placeholders.ts`): selecting one leaves the Editor where it is.
   key: "1",
   icon: PenLine,
   mount,

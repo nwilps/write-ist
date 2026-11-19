@@ -115,8 +115,19 @@ describe("the list, generated from the command table", () => {
     expect(shortcutGroups().map((group) => group.name)).toEqual(["File", "Edit", "View", "Writing"]);
     expect(ids("File")).toEqual(["save", "to-home"]);
     expect(ids("Edit")).toEqual(["undo", "redo", "cut", "copy", "paste", "select-all"]);
-    expect(ids("View")).toEqual(["toggle-spellcheck", "zoom-in", "zoom-out", "reset-zoom", "keyboard-shortcuts"]);
-    expect(ids("Writing")).toEqual(["search", ...NUMBERED_TYPES.map((type) => `element-${type}`)]);
+    expect(ids("View")).toEqual([
+      "toggle-spellcheck",
+      "zoom-in",
+      "zoom-out",
+      "reset-zoom",
+      "keyboard-shortcuts",
+      "workspace-editor",
+      "workspace-notes",
+      "workspace-plan",
+      "previous-workspace",
+      "next-workspace",
+    ]);
+    expect(ids("Writing")).toEqual(["search", "previous-scene", "next-scene", ...NUMBERED_TYPES.map((type) => `element-${type}`)]);
   });
 
   it("lists Zoom In, Zoom Out and Reset Zoom under View, with their keys", () => {
@@ -135,6 +146,20 @@ describe("the list, generated from the command table", () => {
       ["Zoom Out", "[Ctrl + -]"],
       ["Reset Zoom", "[Ctrl + 0]"],
       ["Keyboard Shortcuts", "[Ctrl + K]"],
+      ["Editor", "[Alt + 1]"],
+      ["Notes", "[Alt + 2]"],
+      ["Plan", "[Alt + 3]"],
+      ["Previous Workspace", "[Alt + Left]"],
+      ["Next Workspace", "[Alt + Right]"],
+    ]);
+  });
+
+  it("lists Previous Scene and Next Scene under Writing, after Search, as Ctrl + < and Ctrl + >", () => {
+    const { modal } = opened();
+    expect(drawnGroups(modal)["Writing"]!.slice(0, 3)).toEqual([
+      ["Search", "[Alt + Enter]"],
+      ["Previous Scene", "[Ctrl + <]"],
+      ["Next Scene", "[Ctrl + >]"],
     ]);
   });
 
@@ -717,17 +742,17 @@ describe("one page, nothing scrolled, in the app's window", () => {
     expect([appWindow.width, appWindow.height]).toEqual([1100, 820]);
   });
 
-  it("packs to 891 by about 580, shorter than the 613.2 it was, inside 1100 by 820, with 40px margins", () => {
+  it("packs to 891 by about 671, inside 1100 by 820, with 40px margins", () => {
     expect(packed().width).toBe(891);
-    expect(packed().height).toBeCloseTo(579.6, 5);
-    // Shorter than the 613.2 it was by the Tab Order heading and its gap, and the half-row pause.
-    expect(packed().height).toBeLessThan(613.2);
-    expect(613.2 - packed().height).toBeCloseTo(packed().label + px("--space-tight") + px("--size-row") / 2, 5);
-    // Writing is still the taller side, so the dialog is no taller: it was by
-    // 100.8, and View's three zoom rows have taken all but 28.8 of that.
-    expect(packed().right).toBeGreaterThan(packed().left);
-    expect(packed().right - packed().left).toBeCloseTo(100.8 - 3 * px("--size-row"), 5);
-    expect(packed().right - packed().left).toBeCloseTo(28.8, 5);
+    expect(packed().height).toBeCloseTo(670.8, 5);
+    // It was 579.6, with Writing the taller side by 28.8. Writing has gained the
+    // two scene rows and View the five workspace rows, so File, Edit and View
+    // are now the taller side, by 43.2, and the dialog is taller by View's five
+    // rows less the 28.8 Writing used to lead by: 91.2.
+    expect(packed().left).toBeGreaterThan(packed().right);
+    expect(packed().left - packed().right).toBeCloseTo(5 * px("--size-row") - 2 * px("--size-row") - 28.8, 5);
+    expect(packed().left - packed().right).toBeCloseTo(43.2, 5);
+    expect(packed().height - 579.6).toBeCloseTo(5 * px("--size-row") - 28.8, 5);
     // Room to spare all round, so nothing scrolls.
     expect(packed().width + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.width);
     expect(packed().height + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.height);

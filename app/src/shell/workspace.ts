@@ -183,9 +183,9 @@ export interface WorkspaceManifest {
   /** What the workspace bar calls it. */
   readonly name: string;
   /**
-   * The letter for reaching it from the keyboard. The workspace bar shows each
-   * tab's icon and name but does not read this yet; it is declared here because it is part of what a
-   * workspace *is*, and adding it later would mean touching every manifest.
+   * The key for reaching it from the keyboard: Alt and this selects its tab
+   * (`workspace-keys.ts`). Declared here because it is part of what a workspace
+   * *is*, and adding it later would mean touching every manifest.
    */
   readonly key: string;
   /** The Lucide icon drawn before its name in the workspace bar (ADR-0035). */

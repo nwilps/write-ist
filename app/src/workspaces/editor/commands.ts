@@ -61,6 +61,8 @@ import {
 } from "../../../../src/screenplay/dual-dialogue.ts";
 import { NUMBERED_TYPES, setElementType } from "../../../../src/screenplay/element-keys.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
+import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
+import { jumpToScene } from "./scene-jump.ts";
 
 /** What the window does for the Editor: the parts of a command that need a window. */
 export interface EditorActions {
@@ -144,6 +146,8 @@ export interface Command {
   readonly repeats?: true;
   /** The application menu that offers it; a rule is drawn where `group` changes. */
   readonly menu?: { readonly name: MenuName; readonly group: string };
+  /** Where the Keyboard Shortcuts dialog lists a command no menu offers. Default Writing. */
+  readonly listedUnder?: MenuName;
   /**
    * The right-click menu on the paper that offers it. Items are drawn in table
    * order, a rule where `group` changes. A `contextual` group is drawn only
@@ -175,6 +179,12 @@ const ELEMENT_LABELS: Readonly<Record<string, string>> = {
   transition: "Transition",
   centered: "Centered Text",
 };
+
+/** Previous or Next Scene, once the manuscript has been read. */
+function toScene(host: CommandHost, direction: -1 | 1): void {
+  const view = host.view();
+  if (view !== undefined) jumpToScene(view, direction);
+}
 
 /** The caret, where a command that acts at a place is not told where. */
 const caretOf = (view: EditorView): number => view.state.selection.head;
@@ -239,8 +249,22 @@ export const COMMANDS: readonly Command[] = [
   // Heard wherever focus is, so it closes the dialog it opened as well.
   { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 
+  // The workspace bar's tabs. The shell answers these keys, from the manifests
+  // (`workspace-keys.ts`), and selects the tab as a click does; the table knows
+  // them only to list them, so there is nothing for the Editor to run.
+  ...([["Editor", "1"], ["Notes", "2"], ["Plan", "3"]] as const).map(
+    ([label, key]): Command => ({ id: `workspace-${label.toLowerCase()}`, label, chord: workspaceChord(key), keys: "elsewhere", listedUnder: "View", run: () => {} }),
+  ),
+  { id: "previous-workspace", label: "Previous Workspace", chord: PREVIOUS_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
+  { id: "next-workspace", label: "Next Workspace", chord: NEXT_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
+
   // Alt+Enter is heard wherever focus is (the desk design, §2.5).
   { id: "search", label: "Search", chord: { key: "Enter", alt: true }, keys: "window", run: (host) => host.search() },
+
+  // The caret to the previous or next scene heading (`scene-jump.ts`). `<` and
+  // `>` are Shift+, and Shift+. on a US keyboard, so either is heard.
+  { id: "previous-scene", label: "Previous Scene", chord: { key: "<", alsoKeys: [","], mod: true }, run: (host) => toScene(host, -1) },
+  { id: "next-scene", label: "Next Scene", chord: { key: ">", alsoKeys: ["."], mod: true }, run: (host) => toScene(host, 1) },
 
   // Ctrl+1…7 are the screenplay surface's own keymap, built from the same
   // `NUMBERED_TYPES`: the table knows them for the panel's rows.

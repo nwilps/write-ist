@@ -25,6 +25,7 @@ import { dropMenu, type DropMenu, type MenuEntry } from "../../menus/drop-menu.t
 import { element } from "../../screens/element.ts";
 import { chordHint } from "../../screens/shortcuts.ts";
 import { commandById, hintOf, type Command } from "./commands.ts";
+import { sceneHeadings } from "./scene-jump.ts";
 
 /** The three menu rows, and the letter each answers to with Alt held. */
 const MENUS: readonly (readonly [string, string])[] = [
@@ -180,14 +181,9 @@ export function sidePanels(
   let listed = "";
   let current: HTMLElement | undefined;
   const update = (state: EditorState): void => {
-    // The scene headings, read off the top level of the model — the flat
-    // sequence, not the DOM. Redrawn only when the list is not the one drawn.
-    const headings: string[] = [];
-    state.doc.forEach((node) => {
-      if (node.type.name === "element" && node.attrs["type"] === "scene-heading") {
-        headings.push(node.textContent);
-      }
-    });
+    // The scene headings Previous and Next Scene visit. Redrawn only when the
+    // list is not the one drawn.
+    const headings = sceneHeadings(state.doc).map((heading) => heading.text);
     const key = JSON.stringify(headings);
     if (key !== listed) {
       listed = key;
