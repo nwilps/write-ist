@@ -270,7 +270,7 @@ describe("the Goals dialog's look", () => {
     const row = q("#goals-daily").parentElement!;
     expect(row).not.toBe(heading);
     expect(heading.nextElementSibling).toBe(row);
-    expect([...row.children]).toEqual([q("#goals-daily"), q(".goals__days")]);
+    expect([...row.children]).toEqual([q("#goals-daily"), row.querySelector(".goals__arrow"), q(".goals__days")]);
     expect(row.querySelectorAll(".goals__day")).toHaveLength(7);
     expect(modal.querySelector(".goals__check")).toBeNull();
   });
@@ -318,8 +318,8 @@ describe("the Goals dialog's look", () => {
     expect(label.nextElementSibling).toBe(row);
     expect(row.contains(label)).toBe(false);
     const shown = [...row.children].filter((child) => !(child as HTMLElement).hidden);
-    expect(shown).toEqual([q("#goals-sprint"), q(".goals__arrow"), action(modal, "Start")]);
-    const arrow = q(".goals__arrow");
+    const arrow = row.querySelector<HTMLElement>(".goals__arrow")!;
+    expect(shown).toEqual([q("#goals-sprint"), arrow, action(modal, "Start")]);
     expect(arrow.textContent).toBe("→");
     expect(arrow.getAttribute("aria-hidden") ?? arrow.ariaHidden).toBe("true");
     const goals = css("goals.css");
@@ -330,13 +330,43 @@ describe("the Goals dialog's look", () => {
   it("keeps the label, the arrow and End in the row while a sprint runs, with the count", () => {
     const { modal, q } = opened();
     action(modal, "Start").click();
-    const row = q(".goals__arrow").parentElement!;
+    const row = q(".goals__sprint-now").parentElement!;
     const shown = [...row.children].filter((child) => !(child as HTMLElement).hidden);
-    expect(shown).toEqual([q(".goals__sprint-now"), q(".goals__arrow"), action(modal, "End")]);
+    expect(shown).toEqual([q(".goals__sprint-now"), row.querySelector(".goals__arrow"), action(modal, "End")]);
     expect(q(".goals__sprint-now").textContent).toBe("0 / 500 words");
     expect(q('label[for="goals-sprint"]').hidden).toBe(false);
     // The row stays as tall as the box it has lost, so the dialog does not jump.
     expect(css("goals.css")).toMatch(/\.goals__row\s*\{[^}]*min-height: var\(--size-field\)/);
+  });
+
+  it("puts the same arrow on both rows, with the same gap either side of it", () => {
+    const { modal, q } = opened(WITH_GOAL);
+    const arrows = [...modal.querySelectorAll<HTMLElement>(".goals__arrow")];
+    expect(arrows.map((arrow) => arrow.parentElement)).toEqual([q("#goals-daily").parentElement, q("#goals-sprint").parentElement]);
+    for (const arrow of arrows) {
+      expect(arrow.textContent).toBe("→");
+      expect(arrow.className).toBe("goals__arrow");
+      expect(arrow.getAttribute("aria-hidden") ?? arrow.ariaHidden).toBe("true");
+      expect(arrow.parentElement!.classList.contains("goals__row")).toBe(true);
+    }
+    // One gap, on the one rule both rows share, and it is a step of the shared scale.
+    expect(css("goals.css")).toMatch(/\.goals__row\s*\{[^}]*gap: var\(--space-goals-arrow\)/);
+    expect(css("tokens.css")).toContain("--space-goals-arrow: var(--space-loose);");
+  });
+
+  it("puts Done at the right inside the margin, with the room for its `>` kept", () => {
+    const goals = css("goals.css");
+    expect(goals).toMatch(/\.goals \.new-project-dialog__actions\s*\{[^}]*justify-content: flex-end/);
+    const done = goals.match(/\.goals \.new-project-dialog__actions \.new-project-dialog__action\s*\{([^}]*)\}/)![1]!;
+    expect(done).not.toMatch(/padding|margin/);
+    expect(css("home.css")).toMatch(/\.new-project-dialog__action\s*\{[^}]*padding: 0 var\(--space-dialog-arrow\)/);
+  });
+
+  it("leaves every other dialog's buttons centred", () => {
+    expect(css("home.css")).toMatch(/\.new-project-dialog__actions\s*\{[^}]*justify-content: center/);
+    expect(css("home.css")).toMatch(/\.new-project-dialog__action\s*\{[^}]*min-width: var\(--measure-dialog-slot\)/);
+    const footRules = css("goals.css").match(/[^{}]*\.new-project-dialog__actions[^{}]*\{/g)!;
+    for (const rule of footRules) expect(rule.trim()).toMatch(/^\.goals /);
   });
 
   it("gives Goals more margin than New Project, and no other dialog", () => {

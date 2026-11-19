@@ -355,6 +355,8 @@
   --size-goals-chart: 120px;
   /** A word-count box: five or six digits and the spinner. */
   --size-goals-number: 96px;
+  /** Either side of the arrow on a Goals row, so the daily goal and the sprint match. */
+  --space-goals-arrow: var(--space-loose);
 }
 
 /* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */

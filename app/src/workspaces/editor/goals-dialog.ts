@@ -49,6 +49,9 @@ const DAY_PILLS: readonly { readonly day: Weekday; readonly label: string; reado
   { day: "Sat", label: "Sa", name: "Saturday" },
 ];
 
+/** The dim arrow on a Goals row, from the box to what it feeds. */
+const rowArrow = (): HTMLElement => element("span", { className: "goals__arrow", ariaHidden: "true", textContent: "→" });
+
 const WITH_COMMAS = new Intl.NumberFormat("en-US");
 const said = (value: number): string => WITH_COMMAS.format(value);
 const plural = (count: number, one: string, many: string): string => `${said(count)} ${count === 1 ? one : many}`;
@@ -155,7 +158,6 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
   const start = dialogAction("Start", undefined, "button", { cursor: false });
   const end = dialogAction("End", undefined, "button", { cursor: false });
   const sprintLabel = element("label", { htmlFor: "goals-sprint", className: "new-project-dialog__label", textContent: "Sprint" });
-  const sprintArrow = element("span", { className: "goals__arrow", ariaHidden: "true", textContent: "→" });
   const sprintNow = element("span", { className: "goals__sprint-now", role: "status" });
   const startSprint = (): void => {
     problem.replaceChildren();
@@ -234,11 +236,11 @@ export function openGoalsDialog(into: HTMLElement, options: GoalsDialogOptions):
       element("div", { className: "goals__settings" }, [
         element("div", { className: "new-project-dialog__field" }, [
           element("div", { className: "goals__heading" }, [onLabel, on.control]),
-          element("div", { className: "goals__row" }, [goalBox, days]),
+          element("div", { className: "goals__row" }, [goalBox, rowArrow(), days]),
         ]),
         element("div", { className: "new-project-dialog__field" }, [
           sprintLabel,
-          element("div", { className: "goals__row" }, [sprintBox, sprintNow, sprintArrow, start, end]),
+          element("div", { className: "goals__row" }, [sprintBox, sprintNow, rowArrow(), start, end]),
         ]),
       ]),
       problem,

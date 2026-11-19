@@ -111,7 +111,7 @@
 .goals__row {
   display: flex;
   align-items: center;
-  gap: var(--space-snug);
+  gap: var(--space-goals-arrow);
   min-height: var(--size-field);
 }
 
@@ -172,15 +172,19 @@
   color: var(--colour-faint);
 }
 
-/* Not the gold `>` of a lit button: always there, always dim, pointing at Start or End. */
+/* Not the gold `>` of a lit button: always there, always dim, pointing at what the box feeds. */
 .goals__arrow {
   flex: none;
   color: var(--colour-faint);
 }
 
-/* Start and End sit close by the arrow, only as wide as their words. */
+/*
+ * Start and End are only as wide as their words. At rest the words are all that
+ * shows, so the margin takes back the padding and they sit a full gap from the arrow.
+ */
 .goals__row .new-project-dialog__action {
   min-width: 0;
+  margin-inline-start: calc(var(--space-tight) * -1);
   padding: 0 var(--space-tight);
 }
 
@@ -191,6 +195,15 @@
   color: var(--colour-text);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Done at the right, as wide as its words and the room kept for its `>`: a slot would centre it away from the edge. */
+.goals .new-project-dialog__actions {
+  justify-content: flex-end;
+}
+
+.goals .new-project-dialog__actions .new-project-dialog__action {
+  min-width: 0;
 }
 
 /* The row's pieces set a display of their own, which would outrank `hidden`. */
