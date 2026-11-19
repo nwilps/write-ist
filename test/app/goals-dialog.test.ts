@@ -14,6 +14,7 @@ import { commandById, runCommand, type CommandHost } from "../../app/src/workspa
 import { openGoalsDialog } from "../../app/src/workspaces/editor/goals-dialog.ts";
 import { openTitlePageDialog } from "../../app/src/workspaces/editor/title-page-dialog.ts";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
+import { WEEKDAYS } from "../../src/goals/day.ts";
 import { NO_GOALS } from "../../src/goals/history.ts";
 import { GoalsTracker } from "../../src/goals/tracker.ts";
 import { wordCount } from "../../src/project/ledger.ts";
@@ -24,6 +25,7 @@ import { parse } from "../../src/screenplay/parse.ts";
 const style = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src", "style");
 const css = (name: string): string => readFileSync(join(style, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const editorCss = css("editor.css");
+const SUNDAY_FIRST = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -80,13 +82,14 @@ const change = (box: HTMLInputElement, value: string): void => {
 };
 const dayButton = (modal: HTMLElement, name: string): HTMLButtonElement =>
   [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")].find((button) => button.textContent === name)!;
+const isOn = (toggle: HTMLElement): boolean => toggle.getAttribute("aria-checked") === "true";
 
 describe("the Goals dialog", () => {
   it("shows total words, today against the goal, and the streak", () => {
     const { q } = opened({ goal: 500, weekdays: NO_GOALS.weekdays, days: new Map([["2026-11-02", 600], ["2026-11-03", 320]]) });
     const values = [...document.querySelectorAll(".goals__value")].map((node) => node.textContent);
     expect(values).toEqual(["12,345", "320 / 500", "1 day · best 1"]);
-    expect(q<HTMLInputElement>("#goals-on").checked).toBe(true);
+    expect(isOn(q("#goals-on"))).toBe(true);
     expect(q<HTMLInputElement>("#goals-daily").value).toBe("500");
   });
 
@@ -109,23 +112,36 @@ describe("the Goals dialog", () => {
     expect(bars.some((bar) => bar.hasAttribute("title"))).toBe(false);
     expect(q(".goals-chart__goal").hidden).toBe(false);
     expect(q(".goals-chart__goal").style.getPropertyValue("--goal-at")).toBe("100");
-    tracker.setDaily(undefined, []);
-    q<HTMLInputElement>("#goals-on").checked = false;
-    q<HTMLInputElement>("#goals-on").dispatchEvent(new Event("change"));
+    q("#goals-on").click();
+    expect(tracker.data().goal).toBeUndefined();
     expect(q(".goals-chart__goal").hidden).toBe(true);
   });
 
   it("turns the goal on at 500, and off", () => {
     const { q, tracker } = opened();
     expect(q<HTMLInputElement>("#goals-daily").disabled).toBe(true);
-    const on = q<HTMLInputElement>("#goals-on");
-    on.checked = true;
-    on.dispatchEvent(new Event("change"));
+    const on = q("#goals-on");
+    on.click();
     expect(tracker.data().goal).toBe(500);
+    expect(isOn(on)).toBe(true);
     expect(q<HTMLInputElement>("#goals-daily").disabled).toBe(false);
-    on.checked = false;
-    on.dispatchEvent(new Event("change"));
+    on.click();
     expect(tracker.data().goal).toBeUndefined();
+    expect(isOn(on)).toBe(false);
+    expect(q<HTMLInputElement>("#goals-daily").disabled).toBe(true);
+  });
+
+  it("turns the goal on from its label too", () => {
+    const { q, tracker } = opened();
+    q('label[for="goals-on"]').click();
+    expect(tracker.data().goal).toBe(500);
+  });
+
+  it("leaves the day pills disabled while the goal is off", () => {
+    const { modal, q } = opened();
+    expect([...modal.querySelectorAll<HTMLButtonElement>(".goals__day")].every((pill) => pill.disabled)).toBe(true);
+    q("#goals-on").click();
+    expect([...modal.querySelectorAll<HTMLButtonElement>(".goals__day")].some((pill) => pill.disabled)).toBe(false);
   });
 
   it("changes the number, and refuses one that is not a whole number of words", () => {
@@ -144,14 +160,33 @@ describe("the Goals dialog", () => {
   it("has all seven weekdays pressed to begin with, and toggles any subset", () => {
     const { modal, tracker } = opened({ goal: 500, weekdays: NO_GOALS.weekdays, days: new Map() });
     const buttons = [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")];
-    expect(buttons.map((button) => button.textContent)).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    expect(buttons.map((button) => button.textContent)).toEqual(SUNDAY_FIRST);
     expect(buttons.every((button) => button.getAttribute("aria-pressed") === "true")).toBe(true);
-    dayButton(modal, "Sat").click();
-    dayButton(modal, "Sun").click();
+    dayButton(modal, "Sa").click();
+    dayButton(modal, "Su").click();
     expect(tracker.data().weekdays).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-    expect(dayButton(modal, "Sat").getAttribute("aria-pressed")).toBe("false");
-    dayButton(modal, "Sat").click();
+    expect(dayButton(modal, "Sa").getAttribute("aria-pressed")).toBe("false");
+    dayButton(modal, "Sa").click();
     expect(tracker.data().weekdays).toContain("Sat");
+  });
+
+  it("maps each pill to its own day: only the showing is Sunday first", () => {
+    const { modal, tracker } = opened(WITH_GOAL);
+    expect(WEEKDAYS).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    const pairs = SUNDAY_FIRST.map((label) => {
+      const before = tracker.data().weekdays;
+      dayButton(modal, label).click();
+      const gone = before.filter((day) => !tracker.data().weekdays.includes(day));
+      dayButton(modal, label).click();
+      return [label, ...gone];
+    });
+    expect(pairs).toEqual([["Su", "Sun"], ["Mo", "Mon"], ["Tu", "Tue"], ["We", "Wed"], ["Th", "Thu"], ["Fr", "Fri"], ["Sa", "Sat"]]);
+  });
+
+  it("names each pill in full for a screen reader", () => {
+    const { modal } = opened(WITH_GOAL);
+    const pill = dayButton(modal, "Th");
+    expect(pill.getAttribute("aria-label") ?? pill.ariaLabel).toBe("Thursday");
   });
 
   it("starts a sprint at 500 by default, shows it, and ends it", () => {
@@ -200,7 +235,7 @@ describe("the Goals dialog's look", () => {
     expect(q("#goals-sprint").classList.contains("new-project-dialog__input")).toBe(true);
     expect(q('label[for="goals-on"]').classList.contains("new-project-dialog__label")).toBe(true);
     expect(q('label[for="goals-sprint"]').classList.contains("new-project-dialog__label")).toBe(true);
-    expect(modal.querySelector("select, .dialog-select")).toBeNull();
+    expect(modal.querySelector("select, .dialog-select, input[type='checkbox']")).toBeNull();
     expect(modal.querySelector("[title]")).toBeNull();
   });
 
@@ -211,12 +246,103 @@ describe("the Goals dialog's look", () => {
     expect(foot[0]!.textContent).toBe(">Done[Esc]");
   });
 
-  it("gives Start and End the `>` but not a key, and the weekdays neither", () => {
+  it("gives Start, End and the day pills no `>`, and leaves Done its own", () => {
     const { modal } = opened();
-    expect(action(modal, "Start").textContent).toBe(">Start");
-    expect(action(modal, "End").textContent).toBe(">End");
-    expect(dayButton(modal, "Mon").classList.contains("dialog-action")).toBe(false);
-    expect(dayButton(modal, "Mon").querySelector(".gesture__cursor")).toBeNull();
+    expect(action(modal, "Start").textContent).toBe("Start");
+    expect(action(modal, "End").textContent).toBe("End");
+    expect(action(modal, "Start").querySelector(".gesture__cursor")).toBeNull();
+    expect(action(modal, "End").querySelector(".gesture__cursor")).toBeNull();
+    expect(action(modal, "Done").querySelector(".gesture__cursor")).not.toBeNull();
+    expect(dayButton(modal, "Mo").classList.contains("dialog-action")).toBe(false);
+    expect(dayButton(modal, "Mo").querySelector(".gesture__cursor")).toBeNull();
+  });
+
+  it("lights Start and End as every dialog button is lit", () => {
+    const { modal } = opened();
+    expect(action(modal, "Start").classList.contains("dialog-action")).toBe(true);
+    expect(action(modal, "End").classList.contains("dialog-action")).toBe(true);
+  });
+
+  it("puts the switch on the label's line, and the box and day pills on the line below", () => {
+    const { modal, q } = opened(WITH_GOAL);
+    const heading = q("#goals-on").parentElement!;
+    expect([...heading.children]).toEqual([q('label[for="goals-on"]'), q("#goals-on")]);
+    const row = q("#goals-daily").parentElement!;
+    expect(row).not.toBe(heading);
+    expect(heading.nextElementSibling).toBe(row);
+    expect([...row.children]).toEqual([q("#goals-daily"), q(".goals__days")]);
+    expect(row.querySelectorAll(".goals__day")).toHaveLength(7);
+    expect(modal.querySelector(".goals__check")).toBeNull();
+  });
+
+  it("makes the switch a real switch, with no tooltip", () => {
+    const { q } = opened(WITH_GOAL);
+    const on = q<HTMLButtonElement>("#goals-on");
+    expect(on.tagName).toBe("BUTTON");
+    expect(on.type).toBe("button");
+    expect(on.getAttribute("role") ?? on.role).toBe("switch");
+    expect(on.classList.contains("dialog-toggle")).toBe(true);
+    expect(on.hasAttribute("title")).toBe(false);
+  });
+
+  it("draws the switch gold when on, dim when off, and still when motion is unwelcome", () => {
+    const home = css("home.css");
+    const tokens = css("tokens.css");
+    expect(tokens).toContain("--colour-toggle-on: var(--colour-accent);");
+    expect(tokens).toContain("--colour-toggle-off: var(--colour-border-strong);");
+    expect(home).toMatch(/\.dialog-toggle\s*\{[^}]*background: var\(--colour-toggle-off\)/);
+    expect(home).toMatch(/\.dialog-toggle\[aria-checked="true"\]\s*\{[^}]*background: var\(--colour-toggle-on\)/);
+    expect(home).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.dialog-toggle,\s*\.dialog-toggle::after\s*\{\s*transition: none/);
+  });
+
+  it("makes the days the desk's pills: gold when counted, dim when not, never underlined", () => {
+    const { modal } = opened({ ...WITH_GOAL, weekdays: ["Mon"] });
+    const pills = [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")];
+    expect(pills.every((pill) => pill.classList.contains("pill"))).toBe(true);
+    expect(pills.filter((pill) => pill.classList.contains("goals__day--counted")).map((pill) => pill.textContent)).toEqual(["Mo"]);
+    const goals = css("goals.css");
+    // The height, corner, background and type are the pill's, left alone.
+    expect(goals).toMatch(/\.goals button\.pill\.goals__day\s*\{[^}]*width: var\(--size-pill\);\s*padding: 0/);
+    expect(goals).toMatch(/\.goals button\.pill\.goals__day\s*\{[^}]*color: var\(--colour-faint\)/);
+    expect(goals).toMatch(/\.goals button\.pill\.goals__day--counted\s*\{[^}]*color: var\(--colour-accent\)/);
+    const dayRules = goals.match(/[^{}]*goals__day[^{}]*\{[^}]*\}/g)!;
+    expect(dayRules.length).toBeGreaterThan(0);
+    for (const rule of dayRules) expect(rule).not.toMatch(/height|border-radius|font-size|border-bottom|underline|background: var\(--colour-raised\)/);
+  });
+
+  it("puts Sprint on its own line, over the box, a dim arrow, then Start", () => {
+    const { modal, q } = opened();
+    const label = q('label[for="goals-sprint"]');
+    expect(label.textContent).toBe("Sprint");
+    const row = q("#goals-sprint").parentElement!;
+    expect(label.nextElementSibling).toBe(row);
+    expect(row.contains(label)).toBe(false);
+    const shown = [...row.children].filter((child) => !(child as HTMLElement).hidden);
+    expect(shown).toEqual([q("#goals-sprint"), q(".goals__arrow"), action(modal, "Start")]);
+    const arrow = q(".goals__arrow");
+    expect(arrow.textContent).toBe("→");
+    expect(arrow.getAttribute("aria-hidden") ?? arrow.ariaHidden).toBe("true");
+    const goals = css("goals.css");
+    expect(goals).toMatch(/\.goals__arrow\s*\{[^}]*color: var\(--colour-faint\)/);
+    expect(goals).toMatch(/\.goals__row \.new-project-dialog__action\s*\{[^}]*min-width: 0/);
+  });
+
+  it("keeps the label, the arrow and End in the row while a sprint runs, with the count", () => {
+    const { modal, q } = opened();
+    action(modal, "Start").click();
+    const row = q(".goals__arrow").parentElement!;
+    const shown = [...row.children].filter((child) => !(child as HTMLElement).hidden);
+    expect(shown).toEqual([q(".goals__sprint-now"), q(".goals__arrow"), action(modal, "End")]);
+    expect(q(".goals__sprint-now").textContent).toBe("0 / 500 words");
+    expect(q('label[for="goals-sprint"]').hidden).toBe(false);
+    // The row stays as tall as the box it has lost, so the dialog does not jump.
+    expect(css("goals.css")).toMatch(/\.goals__row\s*\{[^}]*min-height: var\(--size-field\)/);
+  });
+
+  it("gives Goals more margin than New Project, and no other dialog", () => {
+    const goals = css("goals.css");
+    expect(goals).toMatch(/\.new-project-dialog\.goals\s*\{[^}]*padding: var\(--space-loose\)/);
+    expect(css("home.css")).toMatch(/\.new-project-dialog\s*\{[^}]*padding: var\(--space-roomy\)/);
   });
 
   it("keeps the chart and the three totals as they were drawn", () => {
@@ -228,7 +354,7 @@ describe("the Goals dialog's look", () => {
     expect(goals).toMatch(/\.goals-chart\s*\{[^}]*height: var\(--size-goals-chart\)/);
     // Its contents stay as wide as the old frame left them.
     expect(css("tokens.css")).toContain("--measure-goals: calc(var(--measure-reading) - var(--space-loose) * 2 - var(--rule-thin) * 2);");
-    expect(goals).toMatch(/\.new-project-dialog\.goals\s*\{[^}]*calc\(var\(--measure-goals\) \+ var\(--space-roomy\) \* 2 \+ var\(--rule-thin\) \* 2\)/);
+    expect(goals).toMatch(/\.new-project-dialog\.goals\s*\{[^}]*calc\(var\(--measure-goals\) \+ var\(--space-loose\) \* 2 \+ var\(--rule-thin\) \* 2\)/);
   });
 
   it("leaves the title page in its own frame", () => {
@@ -247,7 +373,7 @@ describe("the Goals dialog from the keyboard", () => {
       const at = document.activeElement as HTMLElement;
       return at.id || at.querySelector("span:not(.gesture__cursor)")?.textContent || at.textContent || modal.tagName;
     });
-  const WALK = ["goals-on", "goals-daily", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "goals-sprint", "Start", "Done"];
+  const WALK = ["goals-on", "goals-daily", ...SUNDAY_FIRST, "goals-sprint", "Start", "Done"];
 
   it("opens on Done, not in a field, so one Escape closes it", () => {
     const { modal, closed } = opened(WITH_GOAL);
@@ -267,13 +393,14 @@ describe("the Goals dialog from the keyboard", () => {
 
   it("moves between rows with Up and Down, and along one with Left and Right", () => {
     const { modal, q } = opened(WITH_GOAL);
-    expect(stops(modal, 4, "ArrowDown")).toEqual(["goals-on", "Mon", "goals-sprint", "Done"]);
-    q("#goals-on").focus();
-    expect(stops(modal, 2, "ArrowRight")).toEqual(["goals-daily", "goals-on"]);
-    dayButton(modal, "Mon").focus();
-    expect(stops(modal, 1, "ArrowLeft")).toEqual(["Sun"]);
-    // Back to the control last on in the row above.
+    expect(stops(modal, 4, "ArrowDown")).toEqual(["goals-on", "goals-daily", "goals-sprint", "Done"]);
+    q("#goals-daily").focus();
+    expect(stops(modal, 2, "ArrowRight")).toEqual(["Su", "Mo"]);
+    q("#goals-daily").focus();
+    expect(stops(modal, 1, "ArrowLeft")).toEqual(["Sa"]);
     expect(stops(modal, 1, "ArrowUp")).toEqual(["goals-on"]);
+    // Back to the control last on in the row below.
+    expect(stops(modal, 1, "ArrowDown")).toEqual(["Sa"]);
   });
 
   it("steps over what the daily goal being off has disabled", () => {
@@ -298,7 +425,7 @@ describe("the Goals dialog from the keyboard", () => {
     const box = q<HTMLInputElement>("#goals-daily");
     box.focus();
     expect(press("ArrowDown").defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(dayButton(modal, "Mon"));
+    expect(document.activeElement).toBe(q("#goals-sprint"));
     box.focus();
     expect(press("Enter").defaultPrevented).toBe(true);
     expect(box.classList.contains("dialog-keys__editing")).toBe(true);
@@ -366,30 +493,60 @@ describe("the Goals dialog from the keyboard", () => {
     expect(tracker.view(1).sprint).toEqual({ target: 500, written: 0 });
   });
 
-  it("toggles the checkbox with Space's click and stays a plain stop: arrows and Escape still work", () => {
-    const { modal, q, tracker, closed } = opened();
-    const on = q<HTMLInputElement>("#goals-on");
+  it("flips the switch with Space and with Enter, staying on it with the dialog open", () => {
+    const { q, tracker, closed } = opened();
+    const on = q("#goals-on");
     on.focus();
-    on.click(); // What Space does to a focused checkbox.
+    expect(press(" ").defaultPrevented).toBe(true);
+    expect(tracker.data().goal).toBe(500);
+    expect(isOn(on)).toBe(true);
+    expect(press("Enter").defaultPrevented).toBe(true);
+    expect(tracker.data().goal).toBeUndefined();
+    expect(isOn(on)).toBe(false);
+    expect(document.activeElement).toBe(on);
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it("does not flip the switch again for a key held down", () => {
+    const { q, tracker } = opened();
+    q("#goals-on").focus();
+    press(" ", { repeat: true });
+    press("Enter", { repeat: true });
+    expect(tracker.data().goal).toBeUndefined();
+  });
+
+  it("takes the focus to the switch when it is clicked, out of the box it may disable", () => {
+    const { q } = opened(WITH_GOAL);
+    q("#goals-daily").focus();
+    q("#goals-on").click();
+    expect(q<HTMLInputElement>("#goals-daily").disabled).toBe(true);
+    expect(document.activeElement).toBe(q("#goals-on"));
+  });
+
+  it("keeps the switch a plain stop: never edited, and the arrows and Escape still work", () => {
+    const { modal, q, tracker, closed } = opened();
+    const on = q("#goals-on");
+    on.focus();
+    press(" ");
     expect(tracker.data().goal).toBe(500);
     expect(on.classList.contains("dialog-keys__editing")).toBe(false);
-    expect(document.activeElement).toBe(on);
     press("ArrowDown");
-    expect(document.activeElement).toBe(dayButton(modal, "Mon"));
+    expect(document.activeElement).toBe(q("#goals-daily"));
     on.focus();
     on.click();
     expect(tracker.data().goal).toBeUndefined();
+    expect(on.classList.contains("dialog-keys__editing")).toBe(false);
     escape(modal);
     expect(closed).toHaveBeenCalledOnce();
   });
 
   it("toggles a weekday with Enter, and leaves the dialog open", () => {
     const { modal, tracker, closed } = opened(WITH_GOAL);
-    dayButton(modal, "Sun").focus();
+    dayButton(modal, "Su").focus();
     press("Enter");
     expect(tracker.data().weekdays).not.toContain("Sun");
-    expect(dayButton(modal, "Sun").getAttribute("aria-pressed")).toBe("false");
-    expect(document.activeElement).toBe(dayButton(modal, "Sun"));
+    expect(dayButton(modal, "Su").getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(dayButton(modal, "Su"));
     press("Enter");
     expect(tracker.data().weekdays).toContain("Sun");
     expect(closed).not.toHaveBeenCalled();
@@ -412,22 +569,22 @@ describe("the Goals dialog from the keyboard", () => {
     press("Enter");
     expect(first.closed).toHaveBeenCalledOnce();
     const second = opened(WITH_GOAL);
-    second.q("#goals-on").focus();
+    second.modal.focus();
     press("Enter");
     expect(second.closed).toHaveBeenCalledOnce();
     expect(second.tracker.data().goal).toBe(500);
   });
 
   it("does not close on an Enter that is still held down", () => {
-    const { q, closed } = opened(WITH_GOAL);
-    q("#goals-on").focus();
+    const { modal, closed } = opened(WITH_GOAL);
+    modal.focus();
     press("Enter", { repeat: true });
     expect(closed).not.toHaveBeenCalled();
   });
 
   it("changes nothing by closing: what was chosen has already happened", () => {
     const { modal, tracker } = opened(WITH_GOAL);
-    dayButton(modal, "Sat").click();
+    dayButton(modal, "Sa").click();
     const chosen = tracker.data().weekdays;
     escape(modal);
     expect(tracker.data().weekdays).toEqual(chosen);

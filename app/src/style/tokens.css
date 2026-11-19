@@ -357,6 +357,19 @@
   --size-goals-number: 96px;
 }
 
+/* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */
+
+:root {
+  --size-toggle-width: 28px;
+  --size-toggle-height: 16px;
+  --size-toggle-knob: 10px;
+  --colour-toggle-on: var(--colour-accent);
+  --colour-toggle-off: var(--colour-border-strong);
+  --colour-toggle-knob-on: var(--colour-on-accent);
+  --colour-toggle-knob-off: var(--colour-faint);
+  --duration-toggle: var(--duration-quick);
+}
+
 /* --- The home screen and the New Project dialog (the home design) ------------ */
 
 :root {

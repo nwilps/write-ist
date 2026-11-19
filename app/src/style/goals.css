@@ -4,9 +4,10 @@
  * parts dress it; this is what New Project has no need of.
  */
 
-/* New Project's frame, wide enough to hold the chart at `--measure-goals`. */
+/* New Project's frame with more margin, wide enough to hold the chart at `--measure-goals`. */
 .new-project-dialog.goals {
-  width: calc(var(--measure-goals) + var(--space-roomy) * 2 + var(--rule-thin) * 2);
+  width: calc(var(--measure-goals) + var(--space-loose) * 2 + var(--rule-thin) * 2);
+  padding: var(--space-loose);
 }
 
 .goals__summary {
@@ -90,42 +91,33 @@
   color: var(--colour-faint);
 }
 
-/*
- * The settings share one grid, so the two number boxes line up: words on the
- * left, the box, then the sprint's button at the far end.
- */
+/* The daily goal and the sprint: each a line of words over a line of controls. */
 .goals__settings {
   display: grid;
-  grid-template-columns: max-content var(--size-goals-number) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-panel) var(--space-roomy);
+  gap: var(--space-roomy);
 }
 
-.goals__toggle {
+.goals__heading {
   display: flex;
   align-items: center;
-  gap: var(--space-tight);
+  gap: var(--space-snug);
 }
 
-.goals__check {
-  width: var(--size-icon);
-  height: var(--size-icon);
-  margin: 0;
-  accent-color: var(--colour-accent);
+.goals__toggle-label {
   cursor: pointer;
 }
 
-.goals__check:focus-visible {
-  outline: var(--rule-thin) solid var(--colour-accent);
-  outline-offset: var(--rule-thin);
-}
-
-.goals__check-label {
-  cursor: pointer;
+/* As tall as the box, so the dialog keeps its height when a sprint hides it. */
+.goals__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+  min-height: var(--size-field);
 }
 
 /* Named twice over: `home.css` loads after this and sets the box's width too. */
 .goals .goals__number {
+  flex: none;
   width: var(--size-goals-number);
 }
 
@@ -140,62 +132,65 @@
 }
 
 .goals__days {
-  grid-column: 1 / -1;
   display: flex;
   gap: var(--space-tight);
 }
 
-/* A toggle, not an action: quiet, with a gold rule under each day that counts. */
-.goals__day {
-  flex: 1;
-  height: var(--size-row);
+/*
+ * The save pill's square, holding two letters. The pill's colour is the dialog's
+ * too, so a thin edge keeps its shape. Named three times over to outrank
+ * `button.pill:hover`: a day keeps its colour whatever the pointer does.
+ */
+.goals button.pill.goals__day {
+  width: var(--size-pill);
   padding: 0;
-  font-family: inherit;
-  font-size: var(--size-label);
-  line-height: var(--leading-tight);
-  border: none;
-  border-bottom: var(--rule-thick) solid transparent;
-  background: transparent;
+  border: var(--rule-thin) solid var(--colour-border-strong);
   color: var(--colour-faint);
-  cursor: pointer;
 }
 
-.goals__day--counted {
-  border-bottom-color: var(--colour-accent);
-  color: var(--colour-text);
-}
-
-.goals__day:hover:not(:disabled),
-.goals__day:focus-visible {
-  background: var(--colour-overlay);
-}
-
-.goals__day:focus-visible {
-  outline: none;
+.goals button.pill.goals__day--counted {
   color: var(--colour-accent);
 }
 
-.goals__day:disabled {
-  color: var(--colour-faint);
+.goals button.pill.goals__day:hover:not(:disabled),
+.goals button.pill.goals__day:focus-visible {
+  background: var(--colour-overlay);
+}
+
+.goals button.pill.goals__day:focus-visible {
+  outline: none;
+  border-color: var(--colour-accent);
+}
+
+/* The daily goal is off: nothing is gold, but the counted days can still be told. */
+.goals button.pill.goals__day:disabled {
+  color: var(--colour-border-strong);
   cursor: default;
 }
 
-.goals__day--counted:disabled {
-  border-bottom-color: var(--colour-border-strong);
+.goals button.pill.goals__day--counted:disabled {
+  color: var(--colour-faint);
 }
 
-/* Start and End sit at the row's far end, only as wide as their words. */
-.goals__settings .new-project-dialog__action {
-  grid-column: 3;
-  justify-self: end;
+/* Not the gold `>` of a lit button: always there, always dim, pointing at Start or End. */
+.goals__arrow {
+  flex: none;
+  color: var(--colour-faint);
+}
+
+/* Start and End sit close by the arrow, only as wide as their words. */
+.goals__row .new-project-dialog__action {
   min-width: 0;
+  padding: 0 var(--space-tight);
 }
 
+/* Where the box was, while a sprint runs. */
 .goals__sprint-now {
-  grid-column: 1 / span 2;
+  min-width: var(--size-goals-number);
   font-size: var(--size-label);
   color: var(--colour-text);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* The row's pieces set a display of their own, which would outrank `hidden`. */

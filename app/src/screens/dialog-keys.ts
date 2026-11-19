@@ -28,9 +28,8 @@ const STEPS: Readonly<Record<string, { readonly rows: number; readonly along: nu
   ArrowRight: { rows: 0, along: 1 },
 };
 
-// A checkbox is an `<input>` with nothing to type in: one more stop, never edited.
 const isTextField = (node: EventTarget | null): node is HTMLElement =>
-  (node instanceof HTMLInputElement && node.type !== "checkbox") || node instanceof HTMLTextAreaElement;
+  node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
 
 const usable = (control: HTMLElement): boolean =>
   !control.matches(":disabled") && control.closest("[hidden]") === null;

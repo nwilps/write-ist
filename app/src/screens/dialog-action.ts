@@ -4,7 +4,8 @@
  * At rest it is quiet. Under the pointer or holding focus it wears Home's
  * highlight, gold text and `>`, from the same rules (`home.css`) and the same
  * `cursor()`, so the two cannot drift. `.new-project-dialog__action` still gives
- * it its size and place in the row.
+ * it its size and place in the row. A button something else already points at
+ * can go without the `>` (`cursor: false`), and is lit the same.
  */
 import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
@@ -12,9 +13,14 @@ import { cursor } from "./menu.ts";
 const ACTION = "dialog-action";
 
 /** `> Label [Key]`, or `> Label` for a button no single key stands for. */
-export function dialogAction(label: string, key: string | undefined, kind: "submit" | "button"): HTMLButtonElement {
+export function dialogAction(
+  label: string,
+  key: string | undefined,
+  kind: "submit" | "button",
+  { cursor: withCursor = true }: { readonly cursor?: boolean } = {},
+): HTMLButtonElement {
   const button = element("button", { className: `new-project-dialog__action ${ACTION}`, type: kind }, [
-    cursor(),
+    ...(withCursor ? [cursor()] : []),
     element("span", { textContent: label }),
     ...(key === undefined ? [] : [element("span", { ariaHidden: "true", textContent: `[${key}]` })]),
   ]);
