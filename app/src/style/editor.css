@@ -105,16 +105,18 @@
 /*
  * The workspace fills the column and scrolls; the pills do not move.
  *
- * It scrolls both ways, because the page below keeps its width rather than
- * narrowing (#40). On a window too narrow for an 8.5in sheet the writer scrolls
- * across to the rest of the line, which is a small annoyance; the alternative
- * is a page that wraps somewhere the page count does not, which is a wrong
- * number.
+ * It scrolls up and down only, at every zoom. The page below keeps its width
+ * rather than narrowing (#40), because a page that wraps somewhere the page
+ * count does not is a wrong number. On a window too narrow for an 8.5in sheet
+ * the sheet stays centred and its sides are cut off; the writer does not
+ * scroll across to them (#157). `hidden` and not `clip`, so the Editor can
+ * still set the window's sideways position to centre the paper.
  */
 .shell__view {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

@@ -316,3 +316,88 @@ describe("an item that is on or off", () => {
     expect(tick()).toBe(true);
   });
 });
+
+describe("a row of steps", () => {
+  /** View ▸ Zoom in miniature: five steps, starting in the middle, and an item either side. */
+  function zoomRow() {
+    let at = 2;
+    const steps: string[] = [];
+    const built = build([
+      { label: "Spellcheck", act: () => {} },
+      {
+        label: "Zoom",
+        less: { label: "Zoom Out", act: () => (steps.push("−"), (at = Math.max(0, at - 1))) },
+        more: { label: "Zoom In", act: () => (steps.push("+"), (at = Math.min(4, at + 1))) },
+        at: () => ({ index: at, count: 5 }),
+      },
+      { label: "Reset Zoom", act: () => (at = 2) },
+    ]);
+    const row = built.list.querySelector<HTMLElement>(".drop-menu__stepper")!;
+    const dots = (): string =>
+      [...row.querySelectorAll(".drop-menu__dot")].map((dot) => (dot.classList.contains("drop-menu__dot--on") ? "●" : "○")).join("");
+    const end = (label: string): HTMLButtonElement => row.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+    return { ...built, row, dots, steps, end, at: () => at };
+  }
+
+  it("is one item: the label, then −, a dot for each step with the one in force filled, and +", () => {
+    const { row, dots, end, trigger } = zoomRow();
+    trigger.click();
+    expect(row.getAttribute("role")).toBe("menuitem");
+    expect(row.textContent).toBe("Zoom");
+    expect(dots()).toBe("○○●○○");
+    expect(row.getAttribute("aria-label")).toBe("Zoom, 3 of 5");
+    expect(end("Zoom Out").compareDocumentPosition(end("Zoom In")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("steps on − and +, and leaves the menu open with focus on the row, the dots following", () => {
+    const { menu, row, dots, end, trigger } = zoomRow();
+    trigger.click();
+    end("Zoom In").click();
+    end("Zoom In").click();
+    expect(dots()).toBe("○○○○●");
+    expect(menu.isOpen()).toBe(true);
+    expect(document.activeElement).toBe(row);
+    expect(end("Zoom In").getAttribute("aria-disabled")).toBe("true");
+    end("Zoom Out").click();
+    expect(dots()).toBe("○○○●○");
+    expect(end("Zoom In").getAttribute("aria-disabled")).toBe("false");
+    expect(menu.isOpen()).toBe(true);
+  });
+
+  it("presses − and + for Left and Right while the row has focus, and Up and Down leave it", () => {
+    const { menu, row, items$, dots, steps, trigger } = zoomRow();
+    trigger.click();
+    key(document.activeElement!, "ArrowDown");
+    expect(document.activeElement).toBe(row);
+    expect(key(row, "ArrowLeft").defaultPrevented).toBe(true);
+    key(row, "ArrowLeft");
+    key(row, "ArrowRight");
+    expect(steps).toEqual(["−", "−", "+"]);
+    expect(dots()).toBe("○●○○○");
+    expect(menu.isOpen()).toBe(true);
+    key(row, "ArrowDown");
+    expect(document.activeElement?.textContent).toBe("Reset Zoom");
+    key(document.activeElement!, "ArrowUp");
+    key(document.activeElement!, "ArrowUp");
+    expect(document.activeElement).toBe(items$()[0]);
+  });
+
+  it("is drawn afresh each time the menu opens, as a tick is", () => {
+    const { list, dots, end, trigger, items$ } = zoomRow();
+    trigger.click();
+    end("Zoom Out").click();
+    expect(dots()).toBe("○●○○○");
+    items$().find((item) => item.textContent?.startsWith("Reset"))!.click();
+    expect(list.hidden).toBe(true);
+    trigger.click();
+    expect(dots()).toBe("○○●○○");
+  });
+
+  it("looks like any other row: the item's own class, with its steps where a hint would be", () => {
+    const { row } = zoomRow();
+    expect(row.classList.contains("drop-menu__item")).toBe(true);
+    expect(menusCss).toMatch(/\.drop-menu__steps \{[^}]*margin-left: auto/);
+    expect(menusCss).toMatch(/\.drop-menu__dot \{[^}]*width: var\(--size-menu-dot\)/);
+    expect(tokens).toMatch(/--size-menu-dot: 8px;/);
+  });
+});

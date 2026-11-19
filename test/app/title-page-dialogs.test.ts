@@ -855,7 +855,7 @@ describe("the Edit and View menus", () => {
     save: vi.fn(), exportAs: vi.fn(), toProjects: vi.fn(), renameProject: vi.fn(), toHome: vi.fn(),
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false), keyboardShortcuts: vi.fn(),
-    zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(),
+    zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(), zoomLevel: () => 2,
     search: vi.fn(), view: () => undefined,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
   };
@@ -874,11 +874,12 @@ describe("the Edit and View menus", () => {
       "Undo", "Redo", "—", "Edit Title Page…", "—", "Edit Goals…",
     ]);
     expect(labels("View")).toEqual([
-      "View Title Page", "—", "Spellcheck", "—", "Zoom In", "Zoom Out", "Reset Zoom", "—", "Keyboard Shortcuts",
+      "View Title Page", "—", "Spellcheck", "—", "Zoom", "Reset Zoom", "—", "Keyboard Shortcuts",
     ]);
-    // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck, the zoom three and Keyboard Shortcuts have one here.
+    // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck, Reset Zoom and Keyboard Shortcuts
+    // have one here. The Zoom row is − and +, whose keys the Keyboard Shortcuts dialog lists.
     expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([
-      "[Ctrl + ;]", "[Ctrl + =]", "[Ctrl + -]", "[Ctrl + 0]", "[Ctrl + K]",
+      "[Ctrl + ;]", "[Ctrl + 0]", "[Ctrl + K]",
     ]);
     expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + Z]", "[Ctrl + Y]"]);
   });

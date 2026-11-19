@@ -110,14 +110,8 @@ export function scrollCaretIntoView(view: EditorView): boolean {
     threshold.top,
     margin.top,
   );
-  const across = scrollFor(
-    { start: caret.left, end: caret.right },
-    { start: box.left, end: box.left + scroller.clientWidth },
-    threshold.left,
-    margin.left,
-  );
+  // Up and down only: the paper never scrolls sideways (`centrePaper`).
   if (down !== 0) scroller.scrollTop += down;
-  if (across !== 0) scroller.scrollLeft += across;
   return true;
 }
 
@@ -140,7 +134,7 @@ function caretRect(view: EditorView): CaretRect {
 }
 
 /** The nearest element around the manuscript that scrolls, if any does. */
-function scrollerOf(manuscript: HTMLElement): HTMLElement | undefined {
+export function scrollerOf(manuscript: HTMLElement): HTMLElement | undefined {
   const view = manuscript.ownerDocument.defaultView;
   for (let at = manuscript.parentElement; at !== null && view !== null; at = at.parentElement) {
     if (/auto|scroll/.test(view.getComputedStyle(at).overflowY)) return at;
@@ -149,19 +143,40 @@ function scrollerOf(manuscript: HTMLElement): HTMLElement | undefined {
 }
 
 /**
- * Keep the caret where it sits in the window while `change` redraws the paper
- * (a zoom), then keep the usual room around it. The paper grows or shrinks
- * about the caret rather than about the top of the script.
+ * Keep the caret's line where it sits in the window while `change` redraws
+ * the paper (a zoom), then keep the usual room around it. The paper grows or
+ * shrinks about the caret's line rather than about the top of the script.
+ *
+ * **Up and down only.** Across, a zoom centres the paper (`centrePaper`), the
+ * same way every time, wherever the caret was: following a caret near the
+ * right margin slid the sheet off-centre, so that only one panel showed, cut
+ * off.
  */
 export function holdCaretWhile(view: EditorView, change: () => void): void {
   const scroller = view.state.selection instanceof TextSelection ? scrollerOf(view.dom) : undefined;
   const before = scroller === undefined ? undefined : caretRect(view);
   change();
   if (scroller === undefined || before === undefined) return;
-  const after = caretRect(view);
-  scroller.scrollTop += after.top - before.top;
-  scroller.scrollLeft += after.left - before.left;
+  scroller.scrollTop += caretRect(view).top - before.top;
   scrollCaretIntoView(view);
+}
+
+/**
+ * Scroll sideways so the paper's middle is the window's middle. Where the
+ * window cannot scroll that far, it scrolls as far as it can, which is the
+ * same thing: the desk centres the paper itself, so this undoes any sideways
+ * scroll there was.
+ *
+ * **This is the only sideways scroll there is.** The writer cannot scroll the
+ * paper across at any zoom (Noah, #157): the stylesheet gives the wheel, the
+ * trackpad and the keys nothing to move, and the Editor calls this again on
+ * every scroll, so whatever else moves it across (the webview showing the
+ * caret or a focused menu item) is put straight back.
+ */
+export function centrePaper(paper: HTMLElement, scroller: HTMLElement): void {
+  const sheet = paper.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  scroller.scrollLeft += sheet.left + sheet.width / 2 - (box.left + scroller.clientWidth / 2);
 }
 
 /**

@@ -30,8 +30,14 @@ describe("no scrollbars, anywhere", () => {
     }
   });
 
+  it("never scroll the paper sideways: the wheel, the trackpad and the keys have nothing to move across", () => {
+    const view = block("editor.css", ".shell__view");
+    expect(view).toMatch(/overflow-x:\s*hidden/);
+    expect(view).not.toMatch(/overflow:\s*\w/);
+  });
+
   it.each([
-    ["the paper", "editor.css", ".shell__view", /overflow:\s*auto/],
+    ["the paper", "editor.css", ".shell__view", /overflow-y:\s*auto/],
     ["the scene list", "panels.css", ".panel__scenes", /overflow-y:\s*auto/],
     ["the title page's fields", "title-page.css", ".title-page__fields", /overflow-y:\s*auto/],
     ["a title page box of lines", "title-page.css", ".title-page .title-page__lines", /overflow-y:\s*auto/],

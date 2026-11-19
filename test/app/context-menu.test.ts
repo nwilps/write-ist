@@ -233,7 +233,7 @@ const selectText = (writing: ReturnType<typeof editing>, element: number): void 
 };
 
 const drawn = (entries: readonly MenuEntry[]): string[] =>
-  entries.map((entry) => ("divider" in entry ? "---" : `${entry.unavailable === true ? "~" : ""}${entry.label}${entry.hint ?? ""}`));
+  entries.map((entry) => ("divider" in entry ? "---" : "less" in entry ? entry.label : `${entry.unavailable === true ? "~" : ""}${entry.label}${entry.hint ?? ""}`));
 const itemNamed = (entries: readonly MenuEntry[], label: string): MenuItem => {
   const found = entries.find((entry): entry is MenuItem => !("divider" in entry) && entry.label === label);
   if (found === undefined) throw new Error(label);
