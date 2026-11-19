@@ -115,8 +115,27 @@ describe("the list, generated from the command table", () => {
     expect(shortcutGroups().map((group) => group.name)).toEqual(["File", "Edit", "View", "Writing"]);
     expect(ids("File")).toEqual(["save", "to-home"]);
     expect(ids("Edit")).toEqual(["undo", "redo", "cut", "copy", "paste", "select-all"]);
-    expect(ids("View")).toEqual(["toggle-spellcheck", "keyboard-shortcuts"]);
+    expect(ids("View")).toEqual(["toggle-spellcheck", "zoom-in", "zoom-out", "reset-zoom", "keyboard-shortcuts"]);
     expect(ids("Writing")).toEqual(["search", ...NUMBERED_TYPES.map((type) => `element-${type}`)]);
+  });
+
+  it("lists Zoom In, Zoom Out and Reset Zoom under View, with their keys", () => {
+    const view = shortcutGroups().find((group) => group.name === "View")!;
+    expect(view.rows).toEqual(
+      expect.arrayContaining([
+        { label: "Zoom In", hint: "[Ctrl + =]" },
+        { label: "Zoom Out", hint: "[Ctrl + -]" },
+        { label: "Reset Zoom", hint: "[Ctrl + 0]" },
+      ]),
+    );
+    const { modal } = opened();
+    expect(drawnGroups(modal)["View"]).toEqual([
+      ["Spellcheck", "[Ctrl + ;]"],
+      ["Zoom In", "[Ctrl + =]"],
+      ["Zoom Out", "[Ctrl + -]"],
+      ["Reset Zoom", "[Ctrl + 0]"],
+      ["Keyboard Shortcuts", "[Ctrl + K]"],
+    ]);
   });
 
   it("includes itself, at Ctrl+K", () => {
@@ -704,9 +723,11 @@ describe("one page, nothing scrolled, in the app's window", () => {
     // Shorter than the 613.2 it was by the Tab Order heading and its gap, and the half-row pause.
     expect(packed().height).toBeLessThan(613.2);
     expect(613.2 - packed().height).toBeCloseTo(packed().label + px("--space-tight") + px("--size-row") / 2, 5);
-    // Writing is still the taller side, now by about four rows.
+    // Writing is still the taller side, so the dialog is no taller: it was by
+    // 100.8, and View's three zoom rows have taken all but 28.8 of that.
     expect(packed().right).toBeGreaterThan(packed().left);
-    expect(packed().right - packed().left).toBeCloseTo(100.8, 5);
+    expect(packed().right - packed().left).toBeCloseTo(100.8 - 3 * px("--size-row"), 5);
+    expect(packed().right - packed().left).toBeCloseTo(28.8, 5);
     // Room to spare all round, so nothing scrolls.
     expect(packed().width + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.width);
     expect(packed().height + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.height);

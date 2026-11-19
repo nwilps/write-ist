@@ -18,6 +18,7 @@ describe("the Fountain copy, through Export As…", () => {
       save: vi.fn(), exportAs, toProjects: vi.fn(), renameProject: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
       viewTitlePage: vi.fn(), editGoals: vi.fn(),
       toggleSpellcheck: vi.fn(), spellcheckOn: () => false, keyboardShortcuts: vi.fn(), search: vi.fn(), view: () => undefined,
+      zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(),
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,
     })["File"]!;
     const labels = file.map((entry) => ("label" in entry ? entry.label : "—"));

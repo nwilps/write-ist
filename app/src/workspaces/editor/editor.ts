@@ -60,7 +60,8 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
-import { caretScrolling, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
+import { caretScrolling, holdCaretWhile, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
+import { drawPaperZoom, paperZoom, setPaperZoom, zoomedIn, zoomedOut, ZOOM_RESET } from "./paper-zoom.ts";
 import { openExportDialog } from "./export-dialog.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openKeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog.ts";
@@ -109,6 +110,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
   let stopFittingCaretRoom: (() => void) | undefined;
+  let fitCaretRoom: (() => void) | undefined;
+
+  // View ▸ Zoom: the paper drawn larger or smaller, at the zoom this run of
+  // the app last left it (`paper-zoom.ts`). The caret stays where it was in the
+  // window, and the room kept around it is measured again at the new size.
+  const root = into.ownerDocument.documentElement;
+  drawPaperZoom(root, paperZoom());
+  const zoomTo = (percent: number): void => {
+    setPaperZoom(percent);
+    const draw = (): void => {
+      drawPaperZoom(root, paperZoom());
+      fitCaretRoom?.();
+    };
+    if (view === undefined) draw();
+    else holdCaretWhile(view, draw);
+  };
 
   const startSearch = (): void => {
     if (searching !== undefined || session === undefined || view === undefined) return;
@@ -326,6 +343,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editGoals,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
+    zoomIn: () => zoomTo(zoomedIn(paperZoom())),
+    zoomOut: () => zoomTo(zoomedOut(paperZoom())),
+    resetZoom: () => zoomTo(ZOOM_RESET),
     keyboardShortcuts,
     search: startSearch,
     cut: () => viaWebview("cut"),
@@ -452,10 +472,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       });
       // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
       const editing = view;
-      const fitCaretRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom)));
-      fitCaretRoom();
-      window.addEventListener("resize", fitCaretRoom);
-      stopFittingCaretRoom = () => window.removeEventListener("resize", fitCaretRoom);
+      const fitRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom, paperZoom() / 100)));
+      fitCaretRoom = fitRoom;
+      fitRoom();
+      window.addEventListener("resize", fitRoom);
+      stopFittingCaretRoom = () => window.removeEventListener("resize", fitRoom);
       // The writer can start typing at once, unless a menu opened while the
       // script was being read has the keys.
       const active = document.activeElement;
@@ -475,8 +496,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         if (asked === undefined) return;
         event.preventDefault();
         event.stopPropagation();
-        // Not a held key: a dialog this opens must not flicker while it is down.
-        if (!event.repeat) runCommand(asked, host);
+        // Not a held key: a dialog this opens must not flicker while it is
+        // down. A zoom steps on while its key is held.
+        if (!event.repeat || asked.repeats === true) runCommand(asked, host);
       };
       window.addEventListener("keydown", asksForSearch, true);
       stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);
@@ -505,6 +527,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         page.removeEventListener("contextmenu", onContextMenu);
         contextMenu?.close(false);
         panels.dispose();
+        drawPaperZoom(root, ZOOM_RESET);
         return true;
       }
       // The final save first, and it decides: the paper comes down only once
@@ -526,6 +549,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       searching?.close();
       view?.destroy();
       view = undefined;
+      drawPaperZoom(root, ZOOM_RESET);
       return true;
     },
   };

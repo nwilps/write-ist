@@ -125,7 +125,8 @@ describe("Ctrl+1…7", () => {
 
 describe("the panels' look", () => {
   it("is in tokens, with the design's row and column geometry", () => {
-    expect(css).toContain("grid-template-columns: 0 var(--page-width) 0");
+    // The paper's column is the sheet as drawn: its width at the View ▸ Zoom in force.
+    expect(css).toContain("grid-template-columns: 0 calc(var(--page-width) * var(--paper-zoom)) 0");
     expect(css).toContain("width: var(--size-panel)");
     expect(css).toContain("background: var(--colour-raised)");
     expect(css).toContain("border-radius: var(--radius-float)");

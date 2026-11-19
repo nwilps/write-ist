@@ -148,8 +148,28 @@ function scrollerOf(manuscript: HTMLElement): HTMLElement | undefined {
   return undefined;
 }
 
-/** The measures as the window has them now. */
-export function measureCaretRoom(manuscript: HTMLElement): Measures {
+/**
+ * Keep the caret where it sits in the window while `change` redraws the paper
+ * (a zoom), then keep the usual room around it. The paper grows or shrinks
+ * about the caret rather than about the top of the script.
+ */
+export function holdCaretWhile(view: EditorView, change: () => void): void {
+  const scroller = view.state.selection instanceof TextSelection ? scrollerOf(view.dom) : undefined;
+  const before = scroller === undefined ? undefined : caretRect(view);
+  change();
+  if (scroller === undefined || before === undefined) return;
+  const after = caretRect(view);
+  scroller.scrollTop += after.top - before.top;
+  scroller.scrollLeft += after.left - before.left;
+  scrollCaretIntoView(view);
+}
+
+/**
+ * The measures as the window has them now. `zoom` is how large the paper is
+ * drawn (1 is 100%): the stylesheet's line is the paper's own, and the window
+ * sees it that much larger or smaller.
+ */
+export function measureCaretRoom(manuscript: HTMLElement, zoom = 1): Measures {
   const view = manuscript.ownerDocument.defaultView;
   const fade = pixels(
     view === null ? "" : view.getComputedStyle(manuscript.ownerDocument.documentElement).getPropertyValue("--size-paper-fade"),
@@ -158,7 +178,7 @@ export function measureCaretRoom(manuscript: HTMLElement): Measures {
   const fontSize = pixels(style?.fontSize ?? "");
   // `normal` is the face's own leading; about 1.2 of the size for Courier Prime.
   const line = pixels(style?.lineHeight ?? "") || fontSize * 1.2;
-  return { fade, line, visible: view?.innerHeight ?? 0 };
+  return { fade, line: line * zoom, visible: view?.innerHeight ?? 0 };
 }
 
 function pixels(value: string): number {

@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "exportAs", "toProjects", "renameProject", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo",
+    "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo", "zoomIn", "zoomOut", "resetZoom",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -88,6 +88,43 @@ describe("the command a key press asks for", () => {
     expect(commandForKey({ ...alt, key: "f" }, "window")).toBeUndefined();
   });
 
+  it("is Zoom In for Ctrl+= and for Ctrl++ (Shift+= on a US keyboard, or the number pad), and Cmd on a Mac", () => {
+    for (const held of [{ ctrl: true }, { meta: true }] as const) {
+      expect(commandForKey(press("=", held), "window")?.id).toBe("zoom-in");
+      expect(commandForKey(press("+", { ...held, shift: true }), "window")?.id).toBe("zoom-in");
+      expect(commandForKey(press("+", held), "window")?.id).toBe("zoom-in");
+      expect(commandForKey(press("Add", held), "window")?.id).toBe("zoom-in");
+    }
+    // A bare = or + is the writer typing.
+    expect(commandForKey(press("="), "window")).toBeUndefined();
+    expect(commandForKey(press("+", { shift: true }), "window")).toBeUndefined();
+    expect(commandForKey(press("=", { ctrl: true }), "editor")).toBeUndefined();
+  });
+
+  it("is Zoom Out for Ctrl+- and Reset Zoom for Ctrl+0, and Cmd on a Mac", () => {
+    for (const held of [{ ctrl: true }, { meta: true }] as const) {
+      expect(commandForKey(press("-", held), "window")?.id).toBe("zoom-out");
+      expect(commandForKey(press("Subtract", held), "window")?.id).toBe("zoom-out");
+      expect(commandForKey(press("0", held), "window")?.id).toBe("reset-zoom");
+    }
+    expect(commandForKey(press("-"), "window")).toBeUndefined();
+    expect(commandForKey(press("0"), "window")).toBeUndefined();
+    expect(commandForKey(press("0", { ctrl: true, alt: true }), "window")).toBeUndefined();
+  });
+
+  it("zooms from anywhere in the window, held keys stepping on, so the webview never zooms the whole window", () => {
+    for (const id of ["zoom-in", "zoom-out", "reset-zoom"]) {
+      expect(commandById(id), id).toMatchObject({ keys: "window", menu: { name: "View", group: "zoom" } });
+    }
+    expect(commandById("zoom-in")!.repeats).toBe(true);
+    expect(commandById("zoom-out")!.repeats).toBe(true);
+    // Every other window key answers a held key once, so a dialog does not flicker.
+    expect(COMMANDS.filter((command) => command.repeats === true).map((command) => command.id)).toEqual([
+      "zoom-in",
+      "zoom-out",
+    ]);
+  });
+
   it("is asked only in the place the command is answered", () => {
     // Ctrl+S is the Editor's; Alt+Enter is the window's. Neither answers the other's.
     expect(commandForKey(press("s", { ctrl: true }), "window")).toBeUndefined();
@@ -109,6 +146,10 @@ describe("the hint drawn beside a command", () => {
     expect(hintOf(commandById("toggle-spellcheck")!)).toBe("[Ctrl + ;]");
     expect(hintOf(commandById("element-scene-heading")!)).toBe("[Ctrl + 1]");
     expect(hintOf(commandById("element-centered")!)).toBe("[Ctrl + 7]");
+    // Zoom In's hint names the = key; Ctrl++ is the same key with Shift.
+    expect(hintOf(commandById("zoom-in")!)).toBe("[Ctrl + =]");
+    expect(hintOf(commandById("zoom-out")!)).toBe("[Ctrl + -]");
+    expect(hintOf(commandById("reset-zoom")!)).toBe("[Ctrl + 0]");
   });
 
 
@@ -120,11 +161,14 @@ describe("the hint drawn beside a command", () => {
   it("is true for every command: whatever key a hint shows, pressing it finds a command", () => {
     for (const command of COMMANDS) {
       if (command.chord === undefined || command.keys === "elsewhere") continue;
-      const found = commandForKey(
-        { key: command.chord.key, altKey: command.chord.alt === true, ctrlKey: command.chord.mod === true, metaKey: false },
-        command.keys ?? "editor",
-      );
-      expect(found?.id, command.id).toBe(command.id);
+      // The key the hint names, and every other name it arrives under.
+      for (const key of [command.chord.key, ...(command.chord.alsoKeys ?? [])]) {
+        const found = commandForKey(
+          { key, altKey: command.chord.alt === true, ctrlKey: command.chord.mod === true, metaKey: false },
+          command.keys ?? "editor",
+        );
+        expect(found?.id, `${command.id} by ${key}`).toBe(command.id);
+      }
     }
   });
 
@@ -132,9 +176,11 @@ describe("the hint drawn beside a command", () => {
     const seen = new Map<string, string>();
     for (const { id, chord, keys, sameKeyAs } of COMMANDS) {
       if (chord === undefined || sameKeyAs !== undefined) continue;
-      const claim = `${keys ?? "editor"}:${chord.mod ? "mod+" : ""}${chord.alt ? "alt+" : ""}${chord.key.toLowerCase()}`;
-      expect(seen.get(claim), `${id} and ${seen.get(claim)} both answer ${claim}`).toBeUndefined();
-      seen.set(claim, id);
+      for (const key of [chord.key, ...(chord.alsoKeys ?? [])]) {
+        const claim = `${keys ?? "editor"}:${chord.mod ? "mod+" : ""}${chord.alt ? "alt+" : ""}${key.toLowerCase()}`;
+        expect(seen.get(claim), `${id} and ${seen.get(claim)} both answer ${claim}`).toBeUndefined();
+        seen.set(claim, id);
+      }
     }
   });
 });
@@ -160,7 +206,17 @@ describe("the Editor's menus", () => {
         "Home[Esc]",
       ],
       Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
-      View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]", "---", "Keyboard Shortcuts[Ctrl + K]"],
+      View: [
+        "View Title Page",
+        "---",
+        "Spellcheck[Ctrl + ;]",
+        "---",
+        "Zoom In[Ctrl + =]",
+        "Zoom Out[Ctrl + -]",
+        "Reset Zoom[Ctrl + 0]",
+        "---",
+        "Keyboard Shortcuts[Ctrl + K]",
+      ],
     });
   });
 
@@ -182,6 +238,9 @@ describe("the Editor's menus", () => {
     choose("Spellcheck");
     choose("Undo");
     choose("Redo");
+    choose("Zoom In");
+    choose("Zoom Out");
+    choose("Reset Zoom");
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["exportAs"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
@@ -192,6 +251,9 @@ describe("the Editor's menus", () => {
     expect(act["toggleSpellcheck"]).toHaveBeenCalledOnce();
     expect(act["undo"]).toHaveBeenCalledOnce();
     expect(act["redo"]).toHaveBeenCalledOnce();
+    expect(act["zoomIn"]).toHaveBeenCalledOnce();
+    expect(act["zoomOut"]).toHaveBeenCalledOnce();
+    expect(act["resetZoom"]).toHaveBeenCalledOnce();
   });
 
   // Undo's keys are the screenplay surface's keymap, which runs the session's

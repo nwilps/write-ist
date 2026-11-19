@@ -42,9 +42,12 @@ import {
   Redo2,
   Save,
   Scissors,
+  Search,
   SpellCheck,
   Target,
   Undo2,
+  ZoomIn,
+  ZoomOut,
   type IconNode,
 } from "lucide";
 import type { EditorView } from "prosemirror-view";
@@ -78,6 +81,10 @@ export interface EditorActions {
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
+  /** Draw the paper one step larger or smaller, or back at 100% (`paper-zoom.ts`). */
+  readonly zoomIn: () => void;
+  readonly zoomOut: () => void;
+  readonly resetZoom: () => void;
   /** Open the Keyboard Shortcuts dialog, or close it if it is open. */
   readonly keyboardShortcuts: () => void;
   readonly search: () => void;
@@ -130,6 +137,11 @@ export interface Command {
   readonly sameKeyAs?: string;
   /** Where the key is answered. Default `editor`. */
   readonly keys?: KeyPlace;
+  /**
+   * A held key asks again, as it repeats. Only for a `window` key, which
+   * otherwise answers a held key once so a dialog it opens does not flicker.
+   */
+  readonly repeats?: true;
   /** The application menu that offers it; a rule is drawn where `group` changes. */
   readonly menu?: { readonly name: MenuName; readonly group: string };
   /**
@@ -219,6 +231,11 @@ export const COMMANDS: readonly Command[] = [
     checked: (host) => host.spellcheckOn(),
     run: (host) => host.toggleSpellcheck(),
   },
+  // Zoom is heard wherever focus is, so the webview never takes the key and
+  // zooms the whole window; holding it steps on. Ctrl+Shift+= is `+`.
+  { id: "zoom-in", label: "Zoom In", icon: ZoomIn, chord: { key: "=", alsoKeys: ["+", "Add"], mod: true }, keys: "window", repeats: true, menu: { name: "View", group: "zoom" }, run: (host) => host.zoomIn() },
+  { id: "zoom-out", label: "Zoom Out", icon: ZoomOut, chord: { key: "-", alsoKeys: ["Subtract"], mod: true }, keys: "window", repeats: true, menu: { name: "View", group: "zoom" }, run: (host) => host.zoomOut() },
+  { id: "reset-zoom", label: "Reset Zoom", icon: Search, chord: { key: "0", mod: true }, keys: "window", menu: { name: "View", group: "zoom" }, run: (host) => host.resetZoom() },
   // Heard wherever focus is, so it closes the dialog it opened as well.
   { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 

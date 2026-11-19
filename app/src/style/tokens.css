@@ -236,6 +236,12 @@
    * cannot render it).
    */
   --size-paper-fade: 72px;
+  /**
+   * How large the paper is drawn: View ▸ Zoom (`paper-zoom.ts`), which sets it
+   * on the root for the Editor. A scale of the laid-out paper, so no sheet
+   * breaks anywhere new; the chrome never reads it.
+   */
+  --paper-zoom: 1;
   --opacity-paper-fade: 1;
   /**
    * The one shadow, on everything that floats: the workspace bar, the menus,

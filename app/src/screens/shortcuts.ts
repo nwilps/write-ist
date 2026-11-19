@@ -65,13 +65,20 @@ export function shortcutOf(press: KeyPress): string | undefined {
 export interface Chord {
   /** The key, as `KeyboardEvent.key` names it: `s`, `;`, `Enter`, `Escape`. */
   readonly key: string;
+  /**
+   * Other names the same key arrives under, which the hint does not show. `=`
+   * with Shift held is `+` on a US keyboard, and the number pad's plus is `+`
+   * (`Add` in older webviews): one key to the writer, three to the window.
+   */
+  readonly alsoKeys?: readonly string[];
   /** Ctrl or Cmd. */
   readonly mod?: true;
   readonly alt?: true;
 }
 
 /**
- * Whether a key press is exactly this chord: the key, in either case, with the
+ * Whether a key press is exactly this chord: the key (or another name it
+ * arrives under), in either case, with the
  * modifiers the chord names and no others. Shift is never counted, so a
  * capital still finds its command. Ctrl or Cmd together with Alt is the window
  * manager's, and matches nothing.
@@ -84,7 +91,8 @@ export function chordMatches(chord: Chord, press: KeyPress): boolean {
   } else if (press.altKey || press.ctrlKey || press.metaKey) {
     return false;
   }
-  return press.key.toLowerCase() === chord.key.toLowerCase();
+  const pressed = press.key.toLowerCase();
+  return [chord.key, ...(chord.alsoKeys ?? [])].some((key) => key.toLowerCase() === pressed);
 }
 
 /** A chord as the desk shows it: `[Ctrl + S]`, `[Alt + Enter]`, `[Esc]`. */
