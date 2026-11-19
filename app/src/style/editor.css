@@ -141,14 +141,14 @@
  * column, as wide as the paper and centred on it, so the panels and the desk
  * either side are untouched. Above the paper, below the pills (z-index 0 under
  * their 1), and `pointer-events: none` so clicks and selection go through.
- * It is exactly the paper's width, so its straight sides sit on the rounded
- * paper's edge, and it is the desk's colour at the window's edge, so the
+ * It is exactly the paper's width as drawn, at any zoom, so its straight
+ * sides sit on the rounded paper's edge, and it is the desk's colour at the window's edge, so the
  * paper's corners there vanish into it rather than showing a square seam.
  */
 .paper-fade {
   position: absolute;
   left: 50%;
-  width: min(var(--page-width), 100%);
+  width: min(calc(var(--page-width) * var(--paper-zoom)), 100%);
   transform: translateX(-50%);
   height: var(--size-paper-fade);
   z-index: 0;
@@ -324,6 +324,12 @@ button.pill:focus-visible,
    */
   padding: var(--page-inset-top) var(--page-inset-right) var(--page-inset-bottom)
     var(--page-inset-left);
+  /*
+   * View ▸ Zoom: the sheet laid out at its own size and drawn larger or
+   * smaller, text, seams and the desk between sheets with it. `zoom` and not a
+   * transform, because it takes room as drawn, so the window scrolls to it.
+   */
+  zoom: var(--paper-zoom);
 }
 
 .page__reading {
