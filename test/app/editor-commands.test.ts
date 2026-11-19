@@ -45,7 +45,7 @@ function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof
     "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo", "zoomIn", "zoomOut", "resetZoom",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
-  return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
+  return { ...spies, spellcheckOn: vi.fn(() => true), zoomLevel: vi.fn(() => 2), view: () => view } as never;
 }
 
 describe("the command a key press asks for", () => {
@@ -113,9 +113,12 @@ describe("the command a key press asks for", () => {
   });
 
   it("zooms from anywhere in the window, held keys stepping on, so the webview never zooms the whole window", () => {
-    for (const id of ["zoom-in", "zoom-out", "reset-zoom"]) {
-      expect(commandById(id), id).toMatchObject({ keys: "window", menu: { name: "View", group: "zoom" } });
-    }
+    for (const id of ["zoom-in", "zoom-out", "reset-zoom"]) expect(commandById(id)?.keys, id).toBe("window");
+    // Reset Zoom is View's own item; In and Out are the Zoom row's − and +.
+    expect(commandById("reset-zoom")!.menu).toEqual({ name: "View", group: "zoom" });
+    expect(commandById("zoom")!.menu).toEqual({ name: "View", group: "zoom" });
+    expect(commandById("zoom")!.steps).toMatchObject({ less: "zoom-out", more: "zoom-in", count: 5 });
+    expect(commandById("zoom")!.chord).toBeUndefined();
     expect(commandById("zoom-in")!.repeats).toBe(true);
     expect(commandById("zoom-out")!.repeats).toBe(true);
     // Every other window key answers a held key once, so a dialog does not flicker.
@@ -190,7 +193,9 @@ describe("the Editor's menus", () => {
     Object.fromEntries(
       Object.entries(editorMenus(host())).map(([name, entries]) => [
         name,
-        entries.map((entry) => ("divider" in entry ? "---" : `${entry.label}${entry.hint ?? ""}`)),
+        entries.map((entry) =>
+          "divider" in entry ? "---" : "less" in entry ? `${entry.label} − ○○●○○ +` : `${entry.label}${entry.hint ?? ""}`,
+        ),
       ]),
     );
 
@@ -211,8 +216,7 @@ describe("the Editor's menus", () => {
         "---",
         "Spellcheck[Ctrl + ;]",
         "---",
-        "Zoom In[Ctrl + =]",
-        "Zoom Out[Ctrl + -]",
+        "Zoom − ○○●○○ +",
         "Reset Zoom[Ctrl + 0]",
         "---",
         "Keyboard Shortcuts[Ctrl + K]",
@@ -225,9 +229,11 @@ describe("the Editor's menus", () => {
     const items = Object.values(editorMenus(act)).flat();
     const choose = (label: string): void => {
       const item = items.find((entry) => !("divider" in entry) && entry.label === label);
-      if (item === undefined || "divider" in item) throw new Error(label);
+      if (item === undefined || "divider" in item || "less" in item) throw new Error(label);
       item.act();
     };
+    const zoom = items.find((entry) => "less" in entry);
+    if (zoom === undefined || !("less" in zoom)) throw new Error("Zoom");
     choose("Save Project");
     choose("Export As…");
     choose("Open Project");
@@ -238,9 +244,11 @@ describe("the Editor's menus", () => {
     choose("Spellcheck");
     choose("Undo");
     choose("Redo");
-    choose("Zoom In");
-    choose("Zoom Out");
+    zoom.more.act();
+    zoom.less.act();
     choose("Reset Zoom");
+    expect([zoom.less.label, zoom.more.label]).toEqual(["Zoom Out", "Zoom In"]);
+    expect(zoom.at()).toEqual({ index: 2, count: 5 });
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["exportAs"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
@@ -271,7 +279,7 @@ describe("the Editor's menus", () => {
   it("tick the spelling item from whether the pass is on", () => {
     const entries = Object.values(editorMenus(host())).flat();
     const item = entries.find((entry) => !("divider" in entry) && entry.label === "Spellcheck");
-    expect(item !== undefined && !("divider" in item) && item.checked?.()).toBe(true);
+    expect(item !== undefined && !("divider" in item) && !("less" in item) && item.checked?.()).toBe(true);
   });
 
   it("do not hold the commands that are not in a menu yet: the dual-dialogue three", () => {

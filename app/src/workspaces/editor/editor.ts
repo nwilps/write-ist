@@ -60,8 +60,17 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
-import { caretScrolling, holdCaretWhile, measureCaretRoom, scrollCaretIntoView } from "./caret-margin.ts";
-import { drawPaperZoom, paperZoom, setPaperZoom, zoomedIn, zoomedOut, ZOOM_RESET } from "./paper-zoom.ts";
+import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
+import {
+  drawPaperZoom,
+  measureZoomRoom,
+  paperZoomLevel,
+  setPaperZoomLevel,
+  zoomedIn,
+  zoomedOut,
+  zoomScales,
+  ZOOM_DEFAULT,
+} from "./paper-zoom.ts";
 import { openExportDialog } from "./export-dialog.ts";
 import { openGoalsDialog } from "./goals-dialog.ts";
 import { openKeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog.ts";
@@ -109,22 +118,30 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let gone = false;
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
-  let stopFittingCaretRoom: (() => void) | undefined;
   let fitCaretRoom: (() => void) | undefined;
 
-  // View ▸ Zoom: the paper drawn larger or smaller, at the zoom this run of
-  // the app last left it (`paper-zoom.ts`). The caret stays where it was in the
-  // window, and the room kept around it is measured again at the new size.
+  // View ▸ Zoom: the paper drawn at the level this run of the app last left it
+  // (`paper-zoom.ts`), its size measured from the window as it is now, and
+  // again whenever the window changes size. The caret's line stays where it
+  // was in the window, the paper is centred across it (never following the
+  // caret sideways), and the room kept around the caret is measured again at
+  // the new size.
   const root = into.ownerDocument.documentElement;
-  drawPaperZoom(root, paperZoom());
-  const zoomTo = (percent: number): void => {
-    setPaperZoom(percent);
-    const draw = (): void => {
-      drawPaperZoom(root, paperZoom());
-      fitCaretRoom?.();
-    };
-    if (view === undefined) draw();
-    else holdCaretWhile(view, draw);
+  let scale = 1;
+  const drawZoom = (): void => {
+    scale = zoomScales(measureZoomRoom(root, scrollerOf(page)))[paperZoomLevel()] ?? 1;
+    drawPaperZoom(root, scale);
+    fitCaretRoom?.();
+  };
+  const redrawZoom = (): void => {
+    if (view === undefined) drawZoom();
+    else holdCaretWhile(view, drawZoom);
+    const scroller = scrollerOf(page);
+    if (scroller !== undefined) centrePaper(page, scroller);
+  };
+  const zoomTo = (level: number): void => {
+    setPaperZoomLevel(level);
+    redrawZoom();
   };
 
   const startSearch = (): void => {
@@ -343,9 +360,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editGoals,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
-    zoomIn: () => zoomTo(zoomedIn(paperZoom())),
-    zoomOut: () => zoomTo(zoomedOut(paperZoom())),
-    resetZoom: () => zoomTo(ZOOM_RESET),
+    zoomIn: () => zoomTo(zoomedIn(paperZoomLevel())),
+    zoomOut: () => zoomTo(zoomedOut(paperZoomLevel())),
+    resetZoom: () => zoomTo(ZOOM_DEFAULT),
+    zoomLevel: paperZoomLevel,
     keyboardShortcuts,
     search: startSearch,
     cut: () => viaWebview("cut"),
@@ -387,6 +405,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     context.setSpellcheck(writing.spellcheck.isOn(writing.state));
   };
   into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
+  drawZoom();
+  window.addEventListener("resize", redrawZoom);
 
   void (async () => {
     try {
@@ -472,11 +492,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       });
       // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
       const editing = view;
-      const fitRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom, paperZoom() / 100)));
-      fitCaretRoom = fitRoom;
-      fitRoom();
-      window.addEventListener("resize", fitRoom);
-      stopFittingCaretRoom = () => window.removeEventListener("resize", fitRoom);
+      // Measured again when the zoom is redrawn, which a resize does too.
+      fitCaretRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom, scale)));
+      fitCaretRoom();
       // The writer can start typing at once, unless a menu opened while the
       // script was being read has the keys.
       const active = document.activeElement;
@@ -527,7 +545,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         page.removeEventListener("contextmenu", onContextMenu);
         contextMenu?.close(false);
         panels.dispose();
-        drawPaperZoom(root, ZOOM_RESET);
+        window.removeEventListener("resize", redrawZoom);
+        drawPaperZoom(root, 1);
         return true;
       }
       // The final save first, and it decides: the paper comes down only once
@@ -537,7 +556,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       gone = true;
       clearTimeout(placeRest);
-      stopFittingCaretRoom?.();
+      window.removeEventListener("resize", redrawZoom);
       clearInterval(goalClock);
       stopListeningForGoals();
       stopListeningForRename();
@@ -549,7 +568,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       searching?.close();
       view?.destroy();
       view = undefined;
-      drawPaperZoom(root, ZOOM_RESET);
+      drawPaperZoom(root, 1);
       return true;
     },
   };

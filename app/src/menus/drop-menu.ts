@@ -17,8 +17,13 @@
  * Alt plus the menu's letter opens it from anywhere. Outside a click closes it.
  * The roles are `menu`, `menuitem` and `separator`, so a screen reader hears a
  * menu.
+ *
+ * **A row of steps** (View ▸ Zoom) is an item with − and + at its end and a dot
+ * for each step between them. Choosing − or + steps and leaves the menu open,
+ * so the writer sees each step land; with the row focused, Left and Right press
+ * them, and Up and Down move on as from any item.
  */
-import { Check, createElement, type IconNode } from "lucide";
+import { Check, createElement, Minus, Plus, type IconNode } from "lucide";
 import { element } from "../screens/element.ts";
 import { asksForMenu } from "../screens/shortcuts.ts";
 
@@ -44,7 +49,23 @@ export interface MenuDivider {
   readonly divider: true;
 }
 
-export type MenuEntry = MenuItem | MenuDivider;
+/** One end of a row of steps: what a screen reader calls it, and what it does. */
+export interface MenuStep {
+  readonly label: string;
+  readonly act: () => void;
+}
+
+/** A row of steps: − (`less`) and + (`more`), and a dot for each step. */
+export interface MenuStepper {
+  readonly label: string;
+  readonly icon?: IconNode;
+  readonly less: MenuStep;
+  readonly more: MenuStep;
+  /** Which step it is on, of how many, smallest first. Asked when the menu opens and after each step. */
+  readonly at: () => { readonly index: number; readonly count: number };
+}
+
+export type MenuEntry = MenuItem | MenuDivider | MenuStepper;
 
 export interface MenuSpec {
   /** What a screen reader calls the menu: "File". */
@@ -66,6 +87,7 @@ export interface DropMenu {
 }
 
 const isDivider = (entry: MenuEntry): entry is MenuDivider => "divider" in entry;
+const isStepper = (entry: MenuEntry): entry is MenuStepper => "less" in entry;
 
 /** Anything that can be told to close, for the rule that only one menu is open. */
 interface Closable {
@@ -105,7 +127,7 @@ export function menuList(
   spec: Pick<MenuSpec, "label" | "items">,
   close: (returnFocus: boolean) => void,
 ): MenuList {
-  const choices: HTMLButtonElement[] = [];
+  const choices: HTMLElement[] = [];
   const marks: (() => void)[] = [];
   const list = element("div", { className: "drop-menu", role: "menu", ariaLabel: spec.label, hidden: true });
   // Focusable, so a menu opened by the pointer can still be walked by the arrows.
@@ -113,6 +135,13 @@ export function menuList(
   for (const entry of spec.items) {
     if (isDivider(entry)) {
       list.append(element("div", { className: "drop-menu__divider", role: "separator" }));
+      continue;
+    }
+    if (isStepper(entry)) {
+      const row = stepperRow(entry);
+      marks.push(row.refresh);
+      choices.push(row.row);
+      list.append(row.row);
       continue;
     }
     const button = element("button", { type: "button", className: "drop-menu__item", role: "menuitem" });
@@ -146,12 +175,13 @@ export function menuList(
     choices.push(button);
     list.append(button);
   }
-  const reachable = (): HTMLButtonElement[] => choices.filter((choice) => !choice.disabled);
+  const reachable = (): HTMLElement[] =>
+    choices.filter((choice) => !(choice instanceof HTMLButtonElement && choice.disabled));
 
   const move = (by: number | "first" | "last"): void => {
     const here = reachable();
     if (here.length === 0) return;
-    const at = here.indexOf(document.activeElement as HTMLButtonElement);
+    const at = here.indexOf(document.activeElement as HTMLElement);
     // Focus on the list and not on an item (a menu opened by the pointer): down
     // goes to the first item and up to the last.
     const next =
@@ -197,6 +227,63 @@ export function menuList(
   });
 
   return { list, refresh: () => marks.forEach((mark) => mark()), move };
+}
+
+/**
+ * A row of steps, and how to make its dots true. It is focused as one item;
+ * − and + are reached by the pointer, or by Left and Right on the row.
+ */
+function stepperRow(entry: MenuStepper): { readonly row: HTMLElement; readonly refresh: () => void } {
+  const row = element("div", { className: "drop-menu__item drop-menu__stepper", role: "menuitem" });
+  row.tabIndex = -1;
+  if (entry.icon !== undefined) {
+    const icon = createElement(entry.icon, { class: "drop-menu__icon" });
+    icon.setAttribute("aria-hidden", "true");
+    row.append(icon);
+  }
+  row.append(element("span", { textContent: entry.label }));
+  const steps = element("span", { className: "drop-menu__steps" });
+  steps.setAttribute("aria-hidden", "true");
+  const end = (step: MenuStep, drawn: IconNode): HTMLButtonElement => {
+    const button = element("button", { type: "button", className: "drop-menu__step", ariaLabel: step.label });
+    button.tabIndex = -1;
+    button.append(createElement(drawn, { class: "drop-menu__icon", "aria-hidden": "true" }));
+    // The row keeps the focus, so the arrows go on from it.
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => press(step));
+    return button;
+  };
+  const less = end(entry.less, Minus);
+  const more = end(entry.more, Plus);
+
+  const refresh = (): void => {
+    const { index, count } = entry.at();
+    row.setAttribute("aria-label", `${entry.label}, ${index + 1} of ${count}`);
+    less.setAttribute("aria-disabled", String(index <= 0));
+    more.setAttribute("aria-disabled", String(index >= count - 1));
+    steps.replaceChildren(
+      less,
+      ...Array.from({ length: count }, (_, at) =>
+        element("span", { className: at === index ? "drop-menu__dot drop-menu__dot--on" : "drop-menu__dot" }),
+      ),
+      more,
+    );
+  };
+  // Not closing: the menu stays open to watch the step land.
+  const press = (step: MenuStep): void => {
+    step.act();
+    refresh();
+    row.focus();
+  };
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    event.stopPropagation();
+    press(event.key === "ArrowLeft" ? entry.less : entry.more);
+  });
+  row.append(steps);
+  refresh();
+  return { row, refresh };
 }
 
 /** Make `trigger` open `spec`'s items. */

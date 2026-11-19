@@ -47,7 +47,6 @@ import {
   Target,
   Undo2,
   ZoomIn,
-  ZoomOut,
   type IconNode,
 } from "lucide";
 import type { EditorView } from "prosemirror-view";
@@ -62,6 +61,7 @@ import {
 import { NUMBERED_TYPES, setElementType } from "../../../../src/screenplay/element-keys.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
 import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
+import { ZOOM_LEVELS } from "./paper-zoom.ts";
 import { jumpToScene } from "./scene-jump.ts";
 
 /** What the window does for the Editor: the parts of a command that need a window. */
@@ -83,10 +83,12 @@ export interface EditorActions {
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
-  /** Draw the paper one step larger or smaller, or back at 100% (`paper-zoom.ts`). */
+  /** Draw the paper one level larger or smaller, or back at 100% (`paper-zoom.ts`). */
   readonly zoomIn: () => void;
   readonly zoomOut: () => void;
   readonly resetZoom: () => void;
+  /** Which of the zoom levels the paper is drawn at, smallest first, for View ▸ Zoom's dots. */
+  readonly zoomLevel: () => number;
   /** Open the Keyboard Shortcuts dialog, or close it if it is open. */
   readonly keyboardShortcuts: () => void;
   readonly search: () => void;
@@ -148,6 +150,17 @@ export interface Command {
   readonly menu?: { readonly name: MenuName; readonly group: string };
   /** Where the Keyboard Shortcuts dialog lists a command no menu offers. Default Writing. */
   readonly listedUnder?: MenuName;
+  /**
+   * Drawn in its menu as a row of steps rather than an item (View ▸ Zoom): −
+   * and + run the two commands named, and a dot for each step shows which
+   * the writer is on. It has no key of its own; the two commands have theirs.
+   */
+  readonly steps?: {
+    readonly less: string;
+    readonly more: string;
+    readonly count: number;
+    readonly at: (host: CommandHost) => number;
+  };
   /**
    * The right-click menu on the paper that offers it. Items are drawn in table
    * order, a rule where `group` changes. A `contextual` group is drawn only
@@ -242,9 +255,11 @@ export const COMMANDS: readonly Command[] = [
     run: (host) => host.toggleSpellcheck(),
   },
   // Zoom is heard wherever focus is, so the webview never takes the key and
-  // zooms the whole window; holding it steps on. Ctrl+Shift+= is `+`.
-  { id: "zoom-in", label: "Zoom In", icon: ZoomIn, chord: { key: "=", alsoKeys: ["+", "Add"], mod: true }, keys: "window", repeats: true, menu: { name: "View", group: "zoom" }, run: (host) => host.zoomIn() },
-  { id: "zoom-out", label: "Zoom Out", icon: ZoomOut, chord: { key: "-", alsoKeys: ["Subtract"], mod: true }, keys: "window", repeats: true, menu: { name: "View", group: "zoom" }, run: (host) => host.zoomOut() },
+  // zooms the whole window; holding it walks the levels. Ctrl+Shift+= is `+`.
+  // View offers the two as the Zoom row's − and +, so they are listed there.
+  { id: "zoom-in", label: "Zoom In", chord: { key: "=", alsoKeys: ["+", "Add"], mod: true }, keys: "window", repeats: true, listedUnder: "View", run: (host) => host.zoomIn() },
+  { id: "zoom-out", label: "Zoom Out", chord: { key: "-", alsoKeys: ["Subtract"], mod: true }, keys: "window", repeats: true, listedUnder: "View", run: (host) => host.zoomOut() },
+  { id: "zoom", label: "Zoom", icon: ZoomIn, steps: { less: "zoom-out", more: "zoom-in", count: ZOOM_LEVELS, at: (host) => host.zoomLevel() }, menu: { name: "View", group: "zoom" }, run: () => {} },
   { id: "reset-zoom", label: "Reset Zoom", icon: Search, chord: { key: "0", mod: true }, keys: "window", menu: { name: "View", group: "zoom" }, run: (host) => host.resetZoom() },
   // Heard wherever focus is, so it closes the dialog it opened as well.
   { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },

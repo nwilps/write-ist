@@ -323,6 +323,8 @@
   --rule-menu: 2px;
   /** Above the paper and the panels' neighbours, below the search dialog. */
   --layer-menu: 5;
+  /** A dot in a row of steps (View ▸ Zoom): one for each step, the one in force filled. */
+  --size-menu-dot: 8px;
 }
 
 /* --- The title page dialog ----------------------------------------------- */
