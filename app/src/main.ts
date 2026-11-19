@@ -23,6 +23,7 @@ import "./style/spellcheck.css";
 import "./style/search.css";
 import "./style/goals.css";
 import "./style/export.css";
+import "./style/shortcuts.css";
 import "./style/panels.css";
 import "./style/menus.css";
 import "./style/title-page.css";

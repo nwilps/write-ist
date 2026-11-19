@@ -365,6 +365,25 @@
   --space-goals-arrow: var(--space-loose);
 }
 
+/* --- The Keyboard Shortcuts dialog ------------------------------------------ */
+
+:root {
+  /** One column of shortcuts: the longest name and the widest key, with room between. */
+  --measure-shortcuts-column: 340px;
+  /** Either side of the divider between the two columns. */
+  --space-shortcuts-columns: calc(var(--space-vast) + var(--space-loose));
+  /** Between a name and its key, at the least. */
+  --space-shortcuts-key: var(--space-loose);
+  /** Between one step arrow's end and the next one's start, so each reads as its own. */
+  --space-shortcuts-arrows: var(--space-tight);
+  /** The side of a Tab order arrowhead's chevron, sized to the 24px rows; a step arrow is twice as wide. */
+  --size-shortcuts-arrowhead: 4px;
+  /** The margin all round: wider than the other dialogs', as this one is read, not filled in. */
+  --space-shortcuts-edge: var(--space-vast);
+  /** The divider's ends to the frame, the same at the top and the bottom: nearer the frame than the margin. */
+  --space-shortcuts-divider-end: var(--space-loose);
+}
+
 /* --- A dialog's switch (`dialog-toggle.ts`) --------------------------------- */
 
 :root {

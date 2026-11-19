@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
     "save", "exportAs", "toProjects", "renameProject", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
-    "toggleSpellcheck", "search", "undo", "redo",
+    "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
   return { ...spies, spellcheckOn: vi.fn(() => true), view: () => view } as never;
@@ -62,12 +62,15 @@ describe("the command a key press asks for", () => {
     }
   });
 
-  it("is nothing for Ctrl+K or Cmd+K: no command has that key", () => {
-    for (const keys of ["editor", "window"] as const) {
-      expect(commandForKey(press("k", { ctrl: true }), keys)).toBeUndefined();
-      expect(commandForKey(press("K", { meta: true }), keys)).toBeUndefined();
+  it("is Keyboard Shortcuts for Ctrl+K or Cmd+K, from anywhere in the window, and nothing else", () => {
+    for (const held of [{ ctrl: true }, { meta: true }] as const) {
+      expect(commandForKey(press("k", held), "window")?.id).toBe("keyboard-shortcuts");
+      expect(commandForKey(press("K", held), "window")?.id).toBe("keyboard-shortcuts");
+      expect(commandForKey(press("k", held), "editor")).toBeUndefined();
     }
-    expect(COMMANDS.filter((command) => command.chord?.key.toLowerCase() === "k")).toEqual([]);
+    expect(COMMANDS.filter((command) => command.chord?.key.toLowerCase() === "k").map((command) => command.id)).toEqual([
+      "keyboard-shortcuts",
+    ]);
     expect(commandById("add-name")).toBeUndefined();
   });
 
@@ -157,7 +160,7 @@ describe("the Editor's menus", () => {
         "Home[Esc]",
       ],
       Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
-      View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]"],
+      View: ["View Title Page", "---", "Spellcheck[Ctrl + ;]", "---", "Keyboard Shortcuts[Ctrl + K]"],
     });
   });
 
