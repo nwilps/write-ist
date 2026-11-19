@@ -3,7 +3,9 @@
  *
  * The Export As dialog and the command behind it read this list and know no
  * format by name, so a new format is a new row here. Each row reaches the
- * format's own writer; like those writers, nothing here saves the project.
+ * format's own writer; like those writers, nothing here saves the project. A
+ * row can be listed before its writer exists (`writable: false`): the dialog
+ * offers it with Export dimmed, and `exportScript` refuses it.
  */
 import type { CourierPrimeFaces } from "../pdf/render.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
@@ -32,6 +34,8 @@ export interface ExportWrite {
 export interface ExportFormat {
   readonly id: string;
   readonly label: string;
+  /** Whether Write-ist can write the format yet. A row that cannot is listed, and nothing writes it. */
+  readonly writable: boolean;
   /** Whether the format is made of numbered pages a writer could choose among. */
   readonly pageRange: boolean;
   /** What the writer is told when the file could not be written. */
@@ -46,6 +50,7 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
   {
     id: "pdf",
     label: "PDF",
+    writable: true,
     pageRange: true,
     failure: "Write-ist could not export the PDF.",
     suggestedName: suggestedPdfName,
@@ -57,12 +62,25 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     // One continuous text file of the whole script: it has no pages to choose.
     id: "fountain",
     label: "Fountain",
+    writable: true,
     pageRange: false,
     failure: "Write-ist could not export the Fountain copy.",
     suggestedName: suggestedCopyName,
     chooseLocation: (places, name) => places.chooseCopyLocation(name),
     write: ({ filesystem, project, document, destination }) =>
       saveFountainCopy(filesystem, project, document, destination),
+  },
+  {
+    // Listed so the writer can see it is coming. There is no writer yet: it asks
+    // nowhere and writes nothing, and `exportScript` turns it away before either.
+    id: "fdx",
+    label: "Final Draft (.fdx)",
+    writable: false,
+    pageRange: false,
+    failure: "Write-ist cannot export Final Draft files yet.",
+    suggestedName: (project) => `${project.marker.name}.fdx`,
+    chooseLocation: async () => undefined,
+    write: () => Promise.reject(new Error("Write-ist cannot export Final Draft files yet.")),
   },
 ];
 
@@ -78,6 +96,7 @@ export interface ExportJob {
 
 /** Ask where, then write. `false`: the writer cancelled the save dialog and nothing was written. */
 export async function exportScript(format: ExportFormat, job: ExportJob): Promise<boolean> {
+  if (!format.writable) throw new Error(format.failure);
   const destination = await format.chooseLocation(job.places, format.suggestedName(job.project));
   if (destination === undefined) return false;
   await format.write({

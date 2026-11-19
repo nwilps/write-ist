@@ -17,6 +17,8 @@
  * it is coming. The arrows and the pointer can rest on it like any row, but
  * Enter, Space and a click do nothing there and the tray stays open. It can
  * never be the value.
+ *
+ * A disabled field (`control.disabled`) is skipped by the keys and never opens.
  */
 import { element } from "./element.ts";
 import { scrollWindow } from "./scroll-window.ts";
@@ -45,6 +47,8 @@ export interface DialogSelect {
   /** To go beside it, in the same box. */
   readonly tray: HTMLElement;
   readonly value: () => string;
+  /** Show this choice without a word to `onChange`, as when the dialog decides it. */
+  readonly set: (value: string) => void;
 }
 
 interface Span {
@@ -139,6 +143,7 @@ export function dialogSelect({ id, label, choices, onChange }: DialogSelectSpec)
   };
 
   const open = (): void => {
+    if (control.disabled) return;
     tray.hidden = false;
     control.setAttribute("aria-expanded", "true");
     place();
@@ -203,5 +208,13 @@ export function dialogSelect({ id, label, choices, onChange }: DialogSelectSpec)
   });
 
   choose(chosen);
-  return { control, tray, value: () => choices[chosen]!.value };
+  return {
+    control,
+    tray,
+    value: () => choices[chosen]!.value,
+    set: (value) => {
+      const index = choices.findIndex((choice) => choice.value === value);
+      if (index >= 0 && canChoose(index)) choose(index);
+    },
+  };
 }
