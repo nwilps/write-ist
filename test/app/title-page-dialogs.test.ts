@@ -155,12 +155,17 @@ describe("Edit Title Page", () => {
     expect(second.closed).toHaveBeenCalledTimes(1);
   });
 
-  it("previews what is typed now, saved or not, without saving", () => {
-    const { modal, save, type, button } = opened();
+  it("saves what was typed on going to View, shows it, and stays open", () => {
+    const { modal, save, closed, type, button } = opened();
     type("credit", "Screenplay by");
     button("View").click();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(saved(save.mock.calls[0]![0])).toBe(
+      "Title:\n\t_**BRICK & STEEL**_\n\t_**FULL RETIRED**_\nCredit: Screenplay by\nAuthor: Stu\nRevision: Blue",
+    );
     expect([...modal.querySelectorAll(".title-page__print text")].map((t) => t.textContent)).toContain("Screenplay by");
-    expect(save).not.toHaveBeenCalled();
+    expect(modal.hasAttribute("open")).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
   });
 });
 
@@ -691,15 +696,36 @@ describe("View Title Page", () => {
     expect(modal.isConnected).toBe(false);
   });
 
-  it("closes at once on Escape even after Ctrl+E from a box being typed in", () => {
+  it("closes at once on Escape even after Ctrl+E from a box being typed in, the typing saved", () => {
     const { modal, box, closed, save, type } = opened(PLAIN);
     type("title", "Changed");
     expect(box("title").classList.contains("dialog-keys__editing")).toBe(true);
     press("e", { ctrlKey: true });
     expect(document.activeElement).toBe(modal);
     expect(box("title").classList.contains("dialog-keys__editing")).toBe(false);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(saved(save.mock.calls[0]![0])).toBe("Title: Changed\nCredit: Written by\nAuthor: John August");
     escape(modal);
     expect(closed).toHaveBeenCalledTimes(1);
+    // Saved on the switch, and not again on the way out.
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps what was typed when View is closed with Close", () => {
+    const { modal, closed, save, type, button } = opened(PLAIN);
+    type("credit", "Screenplay by");
+    button("View").click();
+    expect(modal.querySelector(".title-page__print")!.textContent).toContain("Screenplay by");
+    button("Close").click();
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(saved(save.mock.calls[0]![0])).toBe("Title: Big Fish\nCredit: Screenplay by\nAuthor: John August");
+  });
+
+  it("writes nothing on going to View with nothing changed", () => {
+    const { modal, save, button } = opened(PLAIN);
+    button("View").click();
+    expect(modal.classList.contains("title-page--view")).toBe(true);
     expect(save).not.toHaveBeenCalled();
   });
 
@@ -778,7 +804,34 @@ describe("View Title Page", () => {
     button("View").click();
     expect(modal.querySelector(".title-page__print")!.textContent).toContain("Story by");
     expect(modal.querySelector(".title-page__print")!.textContent).not.toContain("Screenplay by");
-    expect(save).not.toHaveBeenCalled();
+    // Each trip to View saved what was typed then.
+    expect(save.mock.calls.map(([titlePage]) => saved(titlePage))).toEqual([
+      "Title: Big Fish\nCredit: Screenplay by\nAuthor: John August",
+      "Title: Big Fish\nCredit: Story by\nAuthor: John August",
+    ]);
+  });
+
+  it("saves a box typed back to how it opened, after a trip to View saved it changed", () => {
+    const { type, button, save } = opened(PLAIN);
+    type("credit", "Screenplay by");
+    button("View").click();
+    button("Edit").click();
+    type("credit", "Written by");
+    button("View").click();
+    expect(save.mock.calls.map(([titlePage]) => saved(titlePage))).toEqual([
+      "Title: Big Fish\nCredit: Screenplay by\nAuthor: John August",
+      "Title: Big Fish\nCredit: Written by\nAuthor: John August",
+    ]);
+  });
+
+  it("writes nothing more from Save after a trip to View saved everything", () => {
+    const { type, button, save, closed, submit } = opened(PLAIN);
+    type("credit", "Screenplay by");
+    button("View").click();
+    button("Edit").click();
+    submit();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(closed).toHaveBeenCalledTimes(1);
   });
 
   it("can still save after coming back from the page", () => {

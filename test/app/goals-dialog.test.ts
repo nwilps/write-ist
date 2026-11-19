@@ -86,6 +86,14 @@ const change = (box: HTMLInputElement, value: string): void => {
 const dayButton = (modal: HTMLElement, name: string): HTMLButtonElement =>
   [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")].find((button) => button.textContent === name)!;
 const isOn = (toggle: HTMLElement): boolean => toggle.getAttribute("aria-checked") === "true";
+/** A key's text arriving in a box, as the webview asks first; `false` if the box would not take it. */
+const offer = (box: HTMLInputElement, data: string, inputType = "insertText"): boolean =>
+  box.dispatchEvent(new InputEvent("beforeinput", { data, inputType, bubbles: true, cancelable: true }));
+/** No message of any kind: the number boxes never say they were wrong. */
+const saysNothing = (modal: HTMLElement): void => {
+  expect(modal.querySelector(".new-project__problem, .trouble, [role='alert']")).toBeNull();
+  expect(modal.textContent).not.toContain("whole number");
+};
 
 describe("the Goals dialog", () => {
   it("shows total words, today against the goal, and the streak", () => {
@@ -147,17 +155,124 @@ describe("the Goals dialog", () => {
     expect([...modal.querySelectorAll<HTMLButtonElement>(".goals__day")].some((pill) => pill.disabled)).toBe(false);
   });
 
-  it("changes the number, and refuses one that is not a whole number of words", () => {
-    const { q, tracker } = opened({ goal: 500, weekdays: NO_GOALS.weekdays, days: new Map() });
-    change(q<HTMLInputElement>("#goals-daily"), "750");
+  it("changes the number, rounding a fraction and capping one too large, and says nothing", () => {
+    const { modal, q, tracker } = opened({ goal: 500, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    for (const [typed, goal] of [["750", 750], ["1", 1], ["12.5", 13], ["0.5", 1], ["99.4", 99], ["100000", 100_000], ["100001", 100_000], ["250000.7", 100_000]] as const) {
+      change(box, typed);
+      expect(tracker.data().goal, typed).toBe(goal);
+      expect(box.value, typed).toBe(String(goal));
+      expect(isOn(q("#goals-on")), typed).toBe(true);
+      expect(box.disabled, typed).toBe(false);
+    }
+    saysNothing(modal);
+  });
+
+  it("puts the last good goal back in a box left blank, and keeps the goal on", () => {
+    const { modal, q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    change(box, "");
     expect(tracker.data().goal).toBe(750);
-    change(q<HTMLInputElement>("#goals-daily"), "0");
+    expect(box.value).toBe("750");
+    expect(isOn(q("#goals-on"))).toBe(true);
+    change(box, "800");
+    change(box, "   ");
+    expect(tracker.data().goal).toBe(800);
+    expect(box.value).toBe("800");
+    saysNothing(modal);
+  });
+
+  it("turns the goal off for anything that rounds to 0 or less, with 500 back in the box", () => {
+    for (const typed of ["0.3", "0.4", "-5", "-0.5", "-100001"]) {
+      const { modal, q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+      const box = q<HTMLInputElement>("#goals-daily");
+      change(box, typed);
+      expect(tracker.data().goal, typed).toBeUndefined();
+      expect(isOn(q("#goals-on")), typed).toBe(false);
+      expect(box.value, typed).toBe("500");
+      saysNothing(modal);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("takes only digits, a point and a minus as they are typed or pasted", () => {
+    for (const id of ["#goals-daily", "#goals-sprint"]) {
+      const { q } = opened(WITH_GOAL);
+      const box = q<HTMLInputElement>(id);
+      box.value = "";
+      for (const taken of ["7", "0", "-", "12.5", "-3", ".5"]) expect(offer(box, taken), `${id} ${taken}`).toBe(true);
+      for (const blocked of ["a", "e", "E", "x", " ", "+", ",", "1,000", "12a", "1-2", "1.2.3"]) {
+        expect(offer(box, blocked), `${id} ${blocked}`).toBe(false);
+        expect(offer(box, blocked, "insertFromPaste"), `${id} pasted ${blocked}`).toBe(false);
+      }
+      box.value = "12.5";
+      expect(offer(box, "."), `${id} a second point`).toBe(false);
+      expect(offer(box, "-"), `${id} a minus after the number`).toBe(false);
+      expect(offer(box, "3"), id).toBe(true);
+      // Taking away is never stopped.
+      expect(box.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", cancelable: true })), id).toBe(true);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("puts back the last good goal if letters get into the box anyway", () => {
+    const { modal, q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    // A number box holding letters reads as blank, which is what the webview hands over.
+    change(box, "12abc");
     expect(tracker.data().goal).toBe(750);
-    expect(q(".new-project__problem").textContent).toContain("whole number of words");
-    change(q<HTMLInputElement>("#goals-daily"), "12.5");
-    expect(tracker.data().goal).toBe(750);
-    change(q<HTMLInputElement>("#goals-daily"), "");
-    expect(tracker.data().goal).toBe(750);
+    expect(box.value).toBe("750");
+    expect(isOn(q("#goals-on"))).toBe(true);
+    saysNothing(modal);
+  });
+
+  it("turns the goal off for a daily goal of 0, with 500 back in the box", () => {
+    const { q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    change(box, "0");
+    expect(tracker.data().goal).toBeUndefined();
+    expect(isOn(q("#goals-on"))).toBe(false);
+    expect(box.value).toBe("500");
+    expect(box.disabled).toBe(true);
+    q("#goals-on").click();
+    expect(tracker.data().goal).toBe(500);
+    expect(isOn(q("#goals-on"))).toBe(true);
+    expect(box.disabled).toBe(false);
+  });
+
+  it("never leaves the box greyed out while the goal is on, whatever was typed before", () => {
+    const { modal, q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    const on = q("#goals-on");
+    const pills = (): HTMLButtonElement[] => [...modal.querySelectorAll<HTMLButtonElement>(".goals__day")];
+    for (const typed of ["0", "", "12.5", "100001", "-5", "0.3", "abc"]) {
+      change(box, typed);
+      // Off and on again, from whichever state the typing left the switch in.
+      if (isOn(on)) on.click();
+      expect(box.disabled, typed).toBe(true);
+      on.click();
+      expect(isOn(on), typed).toBe(true);
+      expect(box.disabled, typed).toBe(false);
+      expect(pills().some((pill) => pill.disabled), typed).toBe(false);
+      expect(tracker.data().goal, typed).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("turns the goal on at 500 when the box holds no goal, and at the rounded number when it does", () => {
+    const { q, tracker } = opened({ goal: 750, weekdays: NO_GOALS.weekdays, days: new Map() });
+    const box = q<HTMLInputElement>("#goals-daily");
+    const on = q("#goals-on");
+    on.click();
+    expect(tracker.data().goal).toBeUndefined();
+    for (const [typed, goal] of [["", 500], ["abc", 500], ["0", 500], ["-5", 500], ["12.5", 13], ["100001", 100_000]] as const) {
+      // The box is disabled while off; this is what it holds when the switch comes on.
+      box.value = typed;
+      on.click();
+      expect(tracker.data().goal, typed).toBe(goal);
+      expect(box.value, typed).toBe(String(goal));
+      expect(box.disabled, typed).toBe(false);
+      on.click();
+    }
   });
 
   it("has all seven weekdays pressed to begin with, and toggles any subset", () => {
@@ -207,12 +322,102 @@ describe("the Goals dialog", () => {
     expect(q<HTMLInputElement>("#goals-sprint").hidden).toBe(false);
   });
 
-  it("will not start a sprint below 50", () => {
+  it("will not start a sprint below 50, and quietly puts the last good number back", () => {
     const { modal, q, tracker } = opened();
-    q<HTMLInputElement>("#goals-sprint").value = "49";
+    const box = q<HTMLInputElement>("#goals-sprint");
+    for (const typed of ["49", "49.4", "12.5", "0", "0.3", "-5", "", "abc"]) {
+      box.value = typed;
+      action(modal, "Start").click();
+      expect(tracker.view(1).sprint, typed).toBeUndefined();
+      // Not lifted to 50: back to the default, as nothing good was typed before.
+      expect(box.value, typed).toBe("500");
+    }
+    saysNothing(modal);
+  });
+
+  it("goes back to the last good sprint, not the default, once one was typed", () => {
+    const { modal, q, tracker } = opened();
+    const box = q<HTMLInputElement>("#goals-sprint");
+    change(box, "800");
+    for (const typed of ["49", "", "-5"]) {
+      change(box, typed);
+      expect(box.value, typed).toBe("800");
+      box.value = typed;
+      action(modal, "Start").click();
+      expect(tracker.view(1).sprint, typed).toBeUndefined();
+      expect(box.value, typed).toBe("800");
+    }
     action(modal, "Start").click();
+    expect(tracker.view(1).sprint).toEqual({ target: 800, written: 0 });
+    saysNothing(modal);
+  });
+
+  it("rounds a sprint and caps it, and starts it only on Start", () => {
+    for (const [typed, target] of [["49.6", 50], ["50", 50], ["750.4", 750], ["100000", 100_000], ["100001", 100_000], ["250000.5", 100_000]] as const) {
+      const { modal, q, tracker } = opened();
+      const box = q<HTMLInputElement>("#goals-sprint");
+      change(box, typed);
+      expect(box.value, typed).toBe(String(target));
+      expect(tracker.view(1).sprint, typed).toBeUndefined();
+      action(modal, "Start").click();
+      expect(tracker.view(1).sprint, typed).toEqual({ target, written: 0 });
+      saysNothing(modal);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("puts the sprint right as Escape leaves the box, and starts nothing", () => {
+    const { modal, q, tracker } = opened();
+    const box = q<HTMLInputElement>("#goals-sprint");
+    box.focus();
+    press("Enter");
+    typeIn(box, "12.5");
+    escape(modal);
+    expect(modal.hasAttribute("open")).toBe(true);
+    expect(box.value).toBe("500");
+    press("Enter");
+    typeIn(box, "100001");
+    escape(modal);
+    expect(box.value).toBe("100000");
     expect(tracker.view(1).sprint).toBeUndefined();
-    expect(q(".new-project__problem").textContent).toContain("from 50");
+    saysNothing(modal);
+  });
+
+  it("applies a daily goal typed and left by two quick Escapes, closing as before", () => {
+    const { modal, q, tracker, closed } = opened(WITH_GOAL);
+    const box = q<HTMLInputElement>("#goals-daily");
+    box.focus();
+    press("Enter");
+    typeIn(box, "800");
+    escape(modal);
+    expect(modal.hasAttribute("open")).toBe(true);
+    expect(tracker.data().goal).toBe(800);
+    escape(modal);
+    expect(closed).toHaveBeenCalledOnce();
+    expect(tracker.data().goal).toBe(800);
+  });
+
+  it("applies a typed daily goal when the dialog closes, however it closes", () => {
+    for (const [typed, goal] of [["900", 900], ["0", undefined], ["0.3", undefined], ["-5", undefined], ["12.5", 13], ["100001", 100_000], ["", 500]] as const) {
+      const { modal, q, tracker, closed } = opened(WITH_GOAL);
+      typeIn(q<HTMLInputElement>("#goals-daily"), typed);
+      action(modal, "Done").click();
+      expect(closed, typed).toHaveBeenCalledOnce();
+      expect(tracker.data().goal, typed).toBe(goal);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("starts no sprint when one was typed and the dialog left with Escape", () => {
+    const { modal, q, tracker, closed } = opened();
+    const box = q<HTMLInputElement>("#goals-sprint");
+    box.focus();
+    press("Enter");
+    typeIn(box, "900");
+    escape(modal);
+    escape(modal);
+    expect(closed).toHaveBeenCalledOnce();
+    expect(tracker.view(1).sprint).toBeUndefined();
   });
 
   it("is put away by Done, and says so", () => {
@@ -549,16 +754,51 @@ describe("the Goals dialog from the keyboard", () => {
     expect(closed).not.toHaveBeenCalled();
   });
 
-  it("says why on Enter when the number will not do, and stays in the box", () => {
-    const { q, tracker, closed } = opened(WITH_GOAL);
+  it("puts the number right on Enter without a word, and stays in the box", () => {
+    const { modal, q, tracker, closed } = opened(WITH_GOAL);
     const box = q<HTMLInputElement>("#goals-daily");
     box.focus();
-    typeIn(box, "0");
+    typeIn(box, "12.5");
     press("Enter");
-    expect(tracker.data().goal).toBe(500);
-    expect(q(".new-project__problem").textContent).toContain("whole number of words");
+    expect(tracker.data().goal).toBe(13);
+    expect(box.value).toBe("13");
+    typeIn(box, "");
+    press("Enter");
+    expect(tracker.data().goal).toBe(13);
+    expect(box.value).toBe("13");
+    saysNothing(modal);
     expect(document.activeElement).toBe(box);
     expect(closed).not.toHaveBeenCalled();
+  });
+
+  it("starts nothing from Enter in the sprint box when the number is too small", () => {
+    const { modal, q, tracker } = opened();
+    const box = q<HTMLInputElement>("#goals-sprint");
+    box.focus();
+    press("Enter");
+    typeIn(box, "12.5");
+    press("Enter");
+    expect(tracker.view(1).sprint).toBeUndefined();
+    expect(box.value).toBe("500");
+    typeIn(box, "49.6");
+    press("Enter");
+    expect(tracker.view(1).sprint).toEqual({ target: 50, written: 0 });
+    saysNothing(modal);
+  });
+
+  it("turns the goal off on Enter with 0 or less, and moves to the switch rather than a greyed box", () => {
+    for (const typed of ["0", "0.3", "-5"]) {
+      const { q, tracker, closed } = opened(WITH_GOAL);
+      const box = q<HTMLInputElement>("#goals-daily");
+      box.focus();
+      typeIn(box, typed);
+      press("Enter");
+      expect(tracker.data().goal, typed).toBeUndefined();
+      expect(box.value, typed).toBe("500");
+      expect(document.activeElement, typed).toBe(q("#goals-on"));
+      expect(closed, typed).not.toHaveBeenCalled();
+      document.body.replaceChildren();
+    }
   });
 
   it("does not apply a focused box on the Enter that only starts the edit", () => {

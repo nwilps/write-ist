@@ -20,9 +20,14 @@
  * What a value *means* — marks, continuation indent, keys the dialog has no box
  * for — is `src/screenplay/title-page.ts`'s; this draws and listens.
  *
+ * Going from Edit to View saves first, exactly as Save does: nothing is written
+ * if nothing changed, and a problem keeps Edit showing with the problem said.
+ * So View only ever shows the title page as saved, never typing that is not,
+ * and the dialog stays open. Coming back to Edit saves nothing more.
+ *
  * View opens with nothing focused, as Goals does: Escape closes at once, and Tab
- * or an arrow steps onto the buttons. Close and Escape put the whole dialog away,
- * and what was typed and not saved goes with it, as it does with Cancel.
+ * or an arrow steps onto the buttons. Close and Escape put the whole dialog away;
+ * what View showed was already saved, so nothing is lost with it.
  */
 import type { TitlePageField } from "../../../../src/screenplay/document.ts";
 import {
@@ -77,9 +82,11 @@ const savedLines = (text: string): string =>
   text.split("\n").map((line) => line.trim()).filter((line) => line !== "").join("\n");
 
 export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogOptions): HTMLDialogElement {
-  const opened = formOf(options.titlePage);
+  // The title page as last saved: the one opened, until going to View saves another.
+  let saved = options.titlePage;
+  let opened = formOf(saved);
   const boxes = new Map<TitlePageKey, Box>();
-  // What each box showed on opening: a box still showing it is an untouched field.
+  // What each box showed when last saved: a box still showing it is an untouched field.
   const shown = new Map<TitlePageKey, string>();
 
   const fields = new Map(
@@ -163,7 +170,7 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   });
   const keys = dialogKeys(modal, [...TITLE_PAGE_KEYS.map((key) => [box(key)]), [toggle, leave, save]]);
 
-  /** What the boxes hold now, applied to the title page opened. */
+  /** What the boxes hold now, applied to the title page as last saved. */
   const result = () => {
     const values = Object.fromEntries(
       TITLE_PAGE_KEYS.map((key) => [
@@ -172,7 +179,7 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
       ]),
     ) as Record<TitlePageKey, string>;
     const typed: TitlePageForm = { values };
-    return applyForm(options.titlePage, typed);
+    return applyForm(saved, typed);
   };
   const say = (words: string): void => {
     problem.replaceChildren(trouble(words));
@@ -180,6 +187,21 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   for (const one of boxes.values()) {
     one.addEventListener("input", () => problem.replaceChildren());
   }
+  /** Save what the boxes hold, as Save does; `false` if there is a problem, said. */
+  const commit = (): boolean => {
+    const applied = result();
+    if ("problem" in applied) {
+      say(applied.problem);
+      return false;
+    }
+    // Nothing changed: nothing is written, not even an equal write.
+    if (sameTitlePage(applied.titlePage, saved)) return true;
+    options.save(applied.titlePage);
+    saved = applied.titlePage;
+    opened = formOf(saved);
+    for (const [key, one] of boxes) shown.set(key, one.value);
+    return true;
+  };
 
   // A short window cuts the list, and a browser leaves a half-shown box half shown.
   list.addEventListener("focusin", (event) => {
@@ -190,14 +212,7 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (viewing) return;
-    const applied = result();
-    if ("problem" in applied) {
-      say(applied.problem);
-      return;
-    }
-    // Nothing changed: nothing is written, not even an equal write.
-    if (!sameTitlePage(applied.titlePage, options.titlePage)) options.save(applied.titlePage);
-    modal.close();
+    if (commit()) modal.close();
   });
   // After `dialogKeys`, so this is only the Enter it left. Not `enterSubmits`:
   // in a text area being edited, plain Enter is a new line and Ctrl+Enter saves.
@@ -215,18 +230,13 @@ export function openTitlePageDialog(into: HTMLElement, options: TitlePageDialogO
     event.preventDefault();
     if (!event.repeat) toggle.click();
   });
-  // What is typed now, saved or not; the model and the file are not touched.
+  // To View saves first, as Save does, so the page is what is saved; a problem stays on Edit.
   toggle.addEventListener("click", () => {
     if (viewing) {
       showBoxes();
       return;
     }
-    const applied = result();
-    if ("problem" in applied) {
-      say(applied.problem);
-      return;
-    }
-    showPage(applied.titlePage);
+    if (commit()) showPage(saved);
   });
   leave.addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
