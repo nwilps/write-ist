@@ -294,12 +294,13 @@
   --radius-slight: 4px;
   --radius-round: 8px;
   /** The corner of anything that floats on the desk. */
-  --radius-float: 6px;
+  --radius-float: var(--radius-float-rounded);
+  --radius-float-rounded: 6px;
   /**
-   * The corner of each sheet of paper. Today it is the panels' corner; a
-   * setting can later point it at 0 for square sheets.
+   * The corner of each sheet of paper: the panels' corner, or square when
+   * Settings ▸ Appearance ▸ Paper corners says Sharp (below).
    */
-  --radius-paper: var(--radius-float);
+  --radius-paper: var(--radius-float-rounded);
   /** The soft edge of a drawn corner, so it is not stair-stepped. */
   --size-corner-feather: 0.5px;
 
@@ -491,4 +492,42 @@
   /** Between the bottom rule and the foot, and between the foot's labels. */
   --space-open-project-foot: var(--space-loose);
   --space-foot-gap: 48px;
+}
+
+/* --- The Settings dialog (`settings.ts`) ------------------------------------- */
+
+:root {
+  /** The list of sections: the longest name, New Project Defaults, and Home's `>` either side. */
+  --measure-settings-sections: 216px;
+  /** The section shown: one column, a cell's name on the left and its keys or buttons on the right. */
+  --measure-settings-pane: 560px;
+  /** The section's height, the same for every section, so the dialog never jumps; longer ones scroll. */
+  --size-settings-pane: 560px;
+  /** The Day ends at box: `12:00 AM` and room. */
+  --measure-settings-time: 120px;
+  /** A list's cells (keys, defaults, words, the Graveyard): the room either side of them, between them, and inside each. */
+  --space-cell-margin: var(--space-hair);
+  --space-cell-gap: var(--space-tight);
+  --space-cell-x: var(--space-snug);
+  --space-cell-y: var(--space-tight);
+  /** A key chip (`Ctrl + ;`), the + and the ↺ beside it, and the × inside it. */
+  --size-chip: 24px;
+  --size-chip-icon: 12px;
+  /** A button that cannot be pressed now: + when a command has all the keys it may. */
+  --opacity-unavailable: 0.4;
+}
+
+/*
+ * Settings ▸ General ▸ Appearance's corners, set on the root by `applyAppearance`.
+ * Sharp interface corners square every rounded thing but the paper, which
+ * Paper corners answers for on its own.
+ */
+:root[data-interface-corners="sharp"] {
+  --radius-slight: 0px;
+  --radius-round: 0px;
+  --radius-float: 0px;
+}
+
+:root[data-paper-corners="sharp"] {
+  --radius-paper: 0px;
 }

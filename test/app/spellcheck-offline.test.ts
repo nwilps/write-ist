@@ -32,13 +32,15 @@ describe("spellcheck is offline", () => {
     expect(text).not.toMatch(/https?:\/\//);
   });
 
-  it("reaches the dictionary only through its four commands", () => {
+  // The fifth, `spell_words`, only reads: Settings ▸ Dictionary's list.
+  it("reaches the dictionary only through its five commands", () => {
     const text = read("app", "src", "spell-tauri.ts");
     expect([...text.matchAll(/invoke<[^>]*>\("([a-z_]+)"/g)].map((found) => found[1])).toEqual([
       "spell_misspelled",
       "spell_suggest",
       "spell_add_word",
       "spell_remove_word",
+      "spell_words",
     ]);
   });
 

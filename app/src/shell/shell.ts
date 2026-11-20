@@ -29,7 +29,7 @@ import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
 import type { RenameRoute } from "../screens/project-dialogs.ts";
-import type { MountedWorkspace, RenameRequest, SaveState, WorkspaceManifest } from "./workspace.ts";
+import type { MountedWorkspace, RenameRequest, SaveState, SettingsRequest, WorkspaceManifest } from "./workspace.ts";
 import { workspaceAsked } from "./workspace-keys.ts";
 
 export interface ShellScreen {
@@ -68,6 +68,8 @@ export interface ShellScreen {
   readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
   /** Ask for a new name for the open project, and rename it. */
   readonly askToRename: (route: RenameRoute) => void;
+  /** Open the application's Settings. Handed straight to the workspace. */
+  readonly openSettings: (request: SettingsRequest) => void;
 }
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
@@ -226,6 +228,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
           projectName.textContent = now.marker.name;
         },
       }),
+    openSettings: screen.openSettings,
     setSaved: saved.set,
     setSpellcheck: (on) => void (spelling.hidden = !on),
     whenSwitchedAway: screen.whenSwitchedAway,

@@ -36,6 +36,7 @@ describe("the ways out the shell gives a workspace", () => {
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
       askToRename: () => {},
+      openSettings: () => {},
       ledger: () => undefined,
       places: () => undefined,
     });
@@ -63,6 +64,7 @@ describe("the ways out the shell gives a workspace", () => {
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
       askToRename: () => {},
+      openSettings: () => {},
       ledger: () => undefined,
       places: () => undefined,
     });

@@ -22,6 +22,7 @@ import {
   type CommandHost,
 } from "../../app/src/workspaces/editor/commands.ts";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
+import { hintNow } from "../../app/src/menus/drop-menu.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
@@ -41,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 /** A host whose every action is a spy, and whose editor is the one given. */
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
-    "save", "exportAs", "toProjects", "renameProject", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
+    "save", "exportAs", "toProjects", "renameProject", "openSettings", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
     "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo", "zoomIn", "zoomOut", "resetZoom",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
@@ -134,8 +135,9 @@ describe("the command a key press asks for", () => {
     expect(commandForKey(press("Enter", { alt: true }), "editor")).toBeUndefined();
   });
 
-  it("leaves the keys other code answers alone: Ctrl+1…7 are the surface's, Escape the window's", () => {
-    expect(commandForKey(press("1", { ctrl: true }), "editor")).toBeUndefined();
+  it("answers Ctrl+1…7 itself, before the surface's keymap, and leaves Escape to the window", () => {
+    expect(commandForKey(press("1", { ctrl: true }), "editor")?.id).toBe("element-scene-heading");
+    expect(commandForKey(press("7", { ctrl: true }), "editor")?.id).toBe("element-centered");
     expect(commandForKey(press("Escape"), "editor")).toBeUndefined();
     expect(commandForKey(press("Escape"), "window")).toBeUndefined();
   });
@@ -194,7 +196,7 @@ describe("the Editor's menus", () => {
       Object.entries(editorMenus(host())).map(([name, entries]) => [
         name,
         entries.map((entry) =>
-          "divider" in entry ? "---" : "less" in entry ? `${entry.label} − ○○●○○ +` : `${entry.label}${entry.hint ?? ""}`,
+          "divider" in entry ? "---" : "less" in entry ? `${entry.label} − ○○●○○ +` : `${entry.label}${hintNow(entry) ?? ""}`,
         ),
       ]),
     );
@@ -207,6 +209,8 @@ describe("the Editor's menus", () => {
         "---",
         "Open Project",
         "Rename Project…",
+        "---",
+        "Settings…",
         "---",
         "Home[Esc]",
       ],
@@ -238,6 +242,7 @@ describe("the Editor's menus", () => {
     choose("Export As…");
     choose("Open Project");
     choose("Rename Project…");
+    choose("Settings…");
     choose("Home");
     choose("Edit Title Page…");
     choose("View Title Page");
@@ -253,6 +258,7 @@ describe("the Editor's menus", () => {
     expect(act["exportAs"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
     expect(act["renameProject"]).toHaveBeenCalledOnce();
+    expect(act["openSettings"]).toHaveBeenCalledOnce();
     expect(act["toHome"]).toHaveBeenCalledOnce();
     expect(act["editTitlePage"]).toHaveBeenCalledOnce();
     expect(act["viewTitlePage"]).toHaveBeenCalledOnce();

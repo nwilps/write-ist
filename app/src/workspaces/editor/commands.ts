@@ -10,10 +10,19 @@
  * cannot say a key the table does not answer: it is computed from the same
  * chord the key handler matches.
  *
- * **A flat table, deliberately.** Each entry stands alone: one key, no layers,
- * no modes, no user rebinding. Nothing here decides a key by what else is
- * bound; two commands claiming one key in one place is a test failure, not a
- * precedence rule.
+ * **A flat table, deliberately.** Each entry stands alone: its own keys, no
+ * layers, no modes. Nothing here decides a key by what else is bound; two
+ * commands claiming one key in one place is a test failure, not a precedence
+ * rule.
+ *
+ * **The writer's own keys** (Settings ▸ Keyboard Shortcuts). The table holds
+ * each command's own keys; the writer may change the keys of any command that
+ * is not `fixed`, and those changes (`useKeyBindings`) are what the key
+ * handlers, the menus' hints and the Keyboard Shortcuts dialog read, live,
+ * through `chordsOf`. The standard keys — the clipboard, Undo, Redo, Save and
+ * Escape — are fixed, and so are the keys other code answers (the workspace
+ * tabs are the shell's). A key one command has is never given to another, nor
+ * one of the `RESERVED_KEYS`: Settings refuses it, and says whose it is.
  *
  * **The context menu.** ADR-0034 has Write-ist drawing its own right-click
  * menus, and says a menu item "must reach the same code as the keyboard
@@ -43,6 +52,7 @@ import {
   Save,
   Scissors,
   Search,
+  Settings,
   SpellCheck,
   Target,
   Undo2,
@@ -75,6 +85,8 @@ export interface EditorActions {
   readonly toProjects: () => void;
   /** Open the Rename Project dialog, the one Open Project's row menu opens. */
   readonly renameProject: () => void;
+  /** Open the Settings dialog, the one Home's `[s]` opens. */
+  readonly openSettings: () => void;
   readonly toHome: () => void;
   readonly editTitlePage: () => void;
   readonly viewTitlePage: () => void;
@@ -135,8 +147,21 @@ export interface Command {
   readonly label: string;
   /** A Lucide icon drawn before the label in a menu (ADR-0035). */
   readonly icon?: IconNode;
-  /** The key that asks for it. */
+  /** The key that asks for it: the first of its own keys, the one a hint shows. */
   readonly chord?: Chord;
+  /**
+   * More keys of its own that ask for it too, each on its own, with any
+   * modifier: Search is Alt+Enter and Ctrl+F. (`alsoKeys`, inside a chord, is
+   * another name for the same key under the same modifier.)
+   */
+  readonly alsoChords?: readonly Chord[];
+  /**
+   * Its keys are not the writer's to change: the standard ones (the clipboard,
+   * Undo, Redo, Save, Escape). Listed in Settings, locked.
+   */
+  readonly fixed?: true;
+  /** Never given a key, and not listed in Settings ▸ Keyboard Shortcuts (Settings itself). */
+  readonly keyless?: true;
   /** The key is another command's: shown beside this one, and answered by that one. */
   readonly sameKeyAs?: string;
   /** Where the key is answered. Default `editor`. */
@@ -229,17 +254,20 @@ function atPlace(
 
 export const COMMANDS: readonly Command[] = [
   // File
-  { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, menu: { name: "File", group: "save" }, run: (host) => host.save() },
+  { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, fixed: true, menu: { name: "File", group: "save" }, run: (host) => host.save() },
   { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
   { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "project" }, run: (host) => host.toProjects() },
   { id: "rename-project", label: "Rename Project…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.renameProject() },
+  // No key, by Noah's choice: Home's [s] and this item open it. (Ctrl+, is the
+  // usual one, and here it is Previous Scene's.)
+  { id: "settings", label: "Settings…", icon: Settings, keyless: true, menu: { name: "File", group: "settings" }, run: (host) => host.openSettings() },
   // Escape is the shell's: it answers it on every screen (`LEAVE`).
-  { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
+  { id: "to-home", label: "Home", icon: House, chord: { key: "Escape" }, keys: "elsewhere", fixed: true, menu: { name: "File", group: "leave" }, run: (host) => host.toHome() },
 
   // Edit. Undo's keys are the screenplay surface's keymap (`editing.ts`), which
   // runs the same commands; Ctrl+Shift+Z redoes too.
-  { id: "undo", label: "Undo", icon: Undo2, chord: { key: "z", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.undo() },
-  { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
+  { id: "undo", label: "Undo", icon: Undo2, chord: { key: "z", mod: true }, keys: "elsewhere", fixed: true, menu: { name: "Edit", group: "undo" }, run: (host) => host.undo() },
+  { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", fixed: true, menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
 
@@ -273,22 +301,23 @@ export const COMMANDS: readonly Command[] = [
   { id: "previous-workspace", label: "Previous Workspace", chord: PREVIOUS_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
   { id: "next-workspace", label: "Next Workspace", chord: NEXT_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
 
-  // Alt+Enter is heard wherever focus is (the desk design, §2.5).
-  { id: "search", label: "Search", chord: { key: "Enter", alt: true }, keys: "window", run: (host) => host.search() },
+  // Alt+Enter is heard wherever focus is (the desk design, §2.5), and Ctrl+F
+  // too: the key a writer from anywhere else will reach for first (Noah).
+  { id: "search", label: "Search", chord: { key: "Enter", alt: true }, alsoChords: [{ key: "f", mod: true }], keys: "window", run: (host) => host.search() },
 
   // The caret to the previous or next scene heading (`scene-jump.ts`). `<` and
   // `>` are Shift+, and Shift+. on a US keyboard, so either is heard.
   { id: "previous-scene", label: "Previous Scene", chord: { key: "<", alsoKeys: [","], mod: true }, run: (host) => toScene(host, -1) },
   { id: "next-scene", label: "Next Scene", chord: { key: ">", alsoKeys: ["."], mod: true }, run: (host) => toScene(host, 1) },
 
-  // Ctrl+1…7 are the screenplay surface's own keymap, built from the same
-  // `NUMBERED_TYPES`: the table knows them for the panel's rows.
+  // Ctrl+1…7. The Editor answers them, before the screenplay surface's own
+  // keymap (built from the same `NUMBERED_TYPES`) would, so the writer's keys
+  // for them are the ones that work.
   ...NUMBERED_TYPES.map(
     (type, at): Command => ({
       id: `element-${type}`,
       label: ELEMENT_LABELS[type]!,
       chord: { key: String(at + 1), mod: true },
-      keys: "elsewhere",
       run: (host) => {
         const view = host.view();
         if (view === undefined) return;
@@ -301,10 +330,10 @@ export const COMMANDS: readonly Command[] = [
   // The clipboard and selection. The keys are the webview's and the surface's
   // (`clipboard.ts`): the table knows them to draw the hint, and the items
   // reach that same code through the host (ADR-0034).
-  { id: "cut", label: "Cut", icon: Scissors, chord: { key: "x", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.cut() },
-  { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
-  { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.paste() },
-  { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", context: { group: "clipboard" }, run: (host) => host.selectAll() },
+  { id: "cut", label: "Cut", icon: Scissors, chord: { key: "x", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: hasSelection, run: (host) => host.cut() },
+  { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
+  { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.paste() },
+  { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.selectAll() },
 
   // Dual dialogue (ADR-0037), offered on the paper's right-click menu (ADR-0034).
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),
@@ -316,18 +345,120 @@ export function commandById(id: string): Command | undefined {
   return COMMANDS.find((command) => command.id === id);
 }
 
+// --- Keys: the table's, and the writer's -----------------------------------------
+
+/** The writer's own keys, by command id: only the commands whose keys they changed. */
+let writersKeys: Readonly<Record<string, readonly Chord[]>> = {};
+const keysChanged = new Set<() => void>();
+
+/**
+ * Use the writer's own keys from now on (`Settings.keyBindings`), and tell
+ * whatever draws a hint. A command not in `bindings`, or whose keys are
+ * fixed, keeps its own.
+ */
+export function useKeyBindings(bindings: Readonly<Record<string, readonly Chord[]>>): void {
+  writersKeys = bindings;
+  for (const told of keysChanged) told();
+}
+
+/** Be told when the writer's keys change. Answers the call that stops it. */
+export function whenKeyBindingsChange(told: () => void): () => void {
+  keysChanged.add(told);
+  return () => keysChanged.delete(told);
+}
+
+/** A command's own keys, as the table gives them. */
+export function defaultChords(command: Command): readonly Chord[] {
+  return command.chord === undefined ? [] : [command.chord, ...(command.alsoChords ?? [])];
+}
+
+/** Listed in Settings ▸ Keyboard Shortcuts: in a menu or with a key, and never Settings itself. */
+export function isListed(command: Command): boolean {
+  return command.keyless !== true && command.steps === undefined && (command.menu !== undefined || command.chord !== undefined);
+}
+
+/**
+ * Whether the writer may change its keys: listed, not fixed, and answered by
+ * the Editor (a key other code answers — the shell's tabs — is that code's).
+ */
+export function isRebindable(command: Command): boolean {
+  return isListed(command) && command.fixed !== true && command.keys !== "elsewhere";
+}
+
+/** Every key that asks for it now: the writer's, where they changed them, else its own. */
+export function chordsOf(command: Command): readonly Chord[] {
+  return (isRebindable(command) ? writersKeys[command.id] : undefined) ?? defaultChords(command);
+}
+
 /** The command a key press asks for in this place, if it asks for one. */
 export function commandForKey(press: KeyPress, place: KeyPlace): Command | undefined {
   return COMMANDS.find(
-    (command) =>
-      command.chord !== undefined && (command.keys ?? "editor") === place && chordMatches(command.chord, press),
+    (command) => (command.keys ?? "editor") === place && chordsOf(command).some((chord) => chordMatches(chord, press)),
   );
+}
+
+/**
+ * Whether a key press is one of a command's own keys that the writer took
+ * away, and that nothing in this place answers now. Swallowed, so the code
+ * underneath (the surface's Ctrl+1…7) does not answer it either: a key the
+ * writer took away does nothing.
+ */
+export function keyTakenAway(press: KeyPress, place: KeyPlace): boolean {
+  return (
+    commandForKey(press, place) === undefined &&
+    COMMANDS.some(
+      (command) =>
+        isRebindable(command) &&
+        (command.keys ?? "editor") === place &&
+        defaultChords(command).some((chord) => chordMatches(chord, press)),
+    )
+  );
+}
+
+/**
+ * Keys that are no command's in the table and are still taken: the menus'
+ * access keys and the screenplay surface's own. Never given to a command.
+ */
+export const RESERVED_KEYS: readonly { readonly label: string; readonly chord: Chord }[] = [
+  { label: "File menu", chord: { key: "f", alt: true } },
+  { label: "Edit menu", chord: { key: "e", alt: true } },
+  { label: "View menu", chord: { key: "v", alt: true } },
+  { label: "Bold", chord: { key: "b", mod: true } },
+  { label: "Italic", chord: { key: "i", mod: true } },
+  { label: "Underline", chord: { key: "u", mod: true } },
+  { label: "New element", chord: { key: "Enter", mod: true } },
+  { label: "Join with the element before", chord: { key: "Backspace", mod: true } },
+  { label: "Join with the element after", chord: { key: "Delete", mod: true } },
+];
+
+/**
+ * The commands Settings ▸ Keyboard Shortcuts lists, in table order: each with
+ * its own keys, and whether they are locked.
+ */
+export function shortcutCommands(): readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly defaults: readonly Chord[];
+  readonly fixed: boolean;
+}[] {
+  return COMMANDS.filter(isListed).map((command) => ({
+    id: command.id,
+    label: command.label,
+    defaults: defaultChords(command),
+    fixed: !isRebindable(command),
+  }));
 }
 
 /** The hint beside a command — `[Ctrl + S]` — or nothing if it has no key. */
 export function hintOf(command: Command): string | undefined {
-  const chord = command.chord ?? (command.sameKeyAs === undefined ? undefined : commandById(command.sameKeyAs)?.chord);
+  const chord =
+    command.sameKeyAs === undefined ? chordsOf(command)[0] : chordsOf(commandById(command.sameKeyAs) ?? command)[0];
   return chord === undefined ? undefined : chordHint(chord);
+}
+
+/** Every hint for a command, one for each key that asks for it: `[Alt + Enter]`, `[Ctrl + F]`. */
+export function hintsOf(command: Command): readonly string[] {
+  return chordsOf(command).map(chordHint);
 }
 
 /** Whether running it at `at` (default: the caret) would do anything. */

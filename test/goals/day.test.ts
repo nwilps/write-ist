@@ -9,6 +9,7 @@ import {
   DEFAULT_DAY_ENDS_AT,
   daysBetween,
   isDay,
+  setDayEndsAt,
   weekdayOf,
   writingDayOf,
 } from "../../src/goals/day.ts";
@@ -31,6 +32,31 @@ describe("where the day ends", () => {
     expect(writingDayOf(new Date(2026, 10, 4, 3, 59), fourAm)).toBe("2026-11-03");
     expect(writingDayOf(new Date(2026, 10, 4, 4, 0), fourAm)).toBe("2026-11-04");
     expect(writingDayOf(new Date(2026, 10, 1, 1, 0), { hour: 4, minute: 30 })).toBe("2026-10-31");
+  });
+  describe("set from Settings ▸ General", () => {
+    afterEach(() => setDayEndsAt(DEFAULT_DAY_ENDS_AT));
+
+    it("moves the day for everything that asks after it is set", () => {
+      setDayEndsAt({ hour: 0, minute: 1 });
+      expect(dayEndsAt()).toEqual({ hour: 0, minute: 1 });
+      // 12:00:30 AM still belongs to the day before; 12:01 AM is the new day.
+      expect(writingDayOf(new Date(2026, 10, 4, 0, 0, 30))).toBe("2026-11-03");
+      expect(writingDayOf(new Date(2026, 10, 4, 0, 1))).toBe("2026-11-04");
+      setDayEndsAt({ hour: 4, minute: 0 });
+      expect(writingDayOf(new Date(2026, 10, 4, 3, 59))).toBe("2026-11-03");
+    });
+
+    it.each([
+      { hour: 24, minute: 0 },
+      { hour: -1, minute: 0 },
+      { hour: 4, minute: 60 },
+      { hour: 4.5, minute: 0 },
+      { hour: Number.NaN, minute: 0 },
+    ])("is quietly midnight for a time that is not one: %j", (time) => {
+      setDayEndsAt({ hour: 4, minute: 0 });
+      setDayEndsAt(time);
+      expect(dayEndsAt()).toEqual({ hour: 0, minute: 0 });
+    });
   });
 });
 

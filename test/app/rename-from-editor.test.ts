@@ -96,6 +96,7 @@ async function editing() {
     ledger: () => undefined,
     places: () => undefined,
     chooseCopyLocation: async () => undefined,
+    openSettings: () => {},
     choosePdfLocation: async () => undefined,
     askToRename: (route) =>
       askToRenameProject(

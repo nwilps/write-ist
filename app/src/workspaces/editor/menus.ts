@@ -11,7 +11,7 @@
  * which runs the two commands it names.
  */
 import type { MenuEntry } from "../../menus/drop-menu.ts";
-import { COMMANDS, commandById, hintOf, runCommand, type CommandHost, type MenuName } from "./commands.ts";
+import { COMMANDS, commandById, hintOf, isRebindable, runCommand, type CommandHost, type MenuName } from "./commands.ts";
 
 export type { EditorActions } from "./commands.ts";
 
@@ -45,7 +45,12 @@ export function editorMenus(host: CommandHost): Readonly<Record<string, readonly
       }
       entries.push({
         label: command.label,
-        ...(hintOf(command) === undefined ? {} : { hint: hintOf(command)! }),
+        // Asked as the menu opens where the writer may have changed the key since.
+        ...(isRebindable(command)
+          ? { hint: () => hintOf(command) }
+          : hintOf(command) === undefined
+            ? {}
+            : { hint: hintOf(command)! }),
         ...(command.icon === undefined ? {} : { icon: command.icon }),
         act: () => runCommand(command, host),
         ...(checked === undefined ? {} : { checked: () => checked(host) }),

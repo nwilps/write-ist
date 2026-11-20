@@ -188,3 +188,9 @@
 .shortcuts .new-project-dialog__actions {
   justify-content: flex-end;
 }
+
+/* A command with more than one key (Search) shows each, side by side. */
+.shortcuts__keys {
+  display: flex;
+  gap: var(--space-tight);
+}

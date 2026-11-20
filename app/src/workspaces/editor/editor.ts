@@ -53,7 +53,7 @@ import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/scre
 import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { caretPlaceOf, selectionAtPlace, type CaretPlace } from "../../../../src/screenplay/caret-place.ts";
-import { commandForKey, runCommand, type CommandHost } from "./commands.ts";
+import { commandForKey, keyTakenAway, runCommand, type CommandHost } from "./commands.ts";
 import { contextMenuItems } from "./context-menu-items.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
@@ -79,6 +79,7 @@ import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
 import { tauriSpellEngine } from "../../spell-tauri.ts";
 import { message } from "../../screens/trouble.ts";
+import { isCapturedKey } from "../../screens/shortcuts.ts";
 import type {
   MountedWorkspace,
   WorkspaceContext,
@@ -318,6 +319,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     context.renameProject({ into, carryOut: session.moveProject, closed: () => view?.focus() });
   };
   const stopListeningForRename = context.whenRenameAsked(renameProject);
+  // File ▸ Settings…: the application's, over the paper, never over another dialog.
+  const openSettings = (): void => {
+    if (searching !== undefined || into.querySelector("dialog[open]") !== null) return;
+    context.openSettings({ into, closed: () => view?.focus() });
+  };
   // The day turns over without a keystroke: the pill is refreshed each minute.
   const goalClock = setInterval(() => session?.showGoal(), GOAL_REFRESH_MS);
   // Where the caret is, kept in app data so reopening the project puts the
@@ -354,6 +360,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     exportAs,
     toProjects: context.leave.toProjects,
     renameProject,
+    openSettings,
     toHome: context.leave.toHome,
     editTitlePage: () => openTitlePage("edit"),
     viewTitlePage: () => openTitlePage("view"),
@@ -483,7 +490,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
             return true;
           }
           const asked = commandForKey(event, "editor");
-          if (asked === undefined) return false;
+          // A key the writer took away does nothing, not what the surface did with it.
+          if (asked === undefined) return keyTakenAway(event, "editor");
           runCommand(asked, host);
           return true;
         },
@@ -518,8 +526,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       // Capture, so the editor's own Enter handling never sees it.
       const asksForSearch = (event: KeyboardEvent): void => {
+        // A key Settings is recording is the writer's new key, not a command.
+        if (isCapturedKey(event)) return;
         const asked = commandForKey(event, "window");
-        if (asked === undefined) return;
+        if (asked === undefined) {
+          if (keyTakenAway(event, "window")) event.preventDefault();
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         // Not a held key: a dialog this opens must not flicker while it is

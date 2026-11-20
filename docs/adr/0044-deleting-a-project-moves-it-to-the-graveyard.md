@@ -8,7 +8,9 @@ right-clicking a project row on the Open Project screen, and both move folders o
 command that never replaces anything.
 
 **Status: built, 2026-11-06 (Noah's request, on PR #133). The folder was `Deleted Projects` until
-2026-11-18 (PR #145), when it became the Graveyard.**
+2026-11-18 (PR #145), when it became the Graveyard. Amended 2026-11-19 (PR #158): Settings ▸
+Graveyard recovers a project, and **Exile** — the permanent delete of one project already in the
+Graveyard — is built. See *Exile* below.**
 
 ## The forcing reason
 
@@ -39,8 +41,8 @@ moves is a folder the writer can see and move back.
 - **Delete is a move, and nothing else** (`src/project/delete.ts`). The bundle keeps its folder name
   there; a name already there — the same title deleted twice — makes it `Title 2`, as two imports
   would. Nothing already in the Graveyard is replaced, merged into or touched. Nothing is ever
-  emptied: there is no "empty the Graveyard", and no code path deletes a project's files. A future
-  **Exile** action will be the permanent delete; it is not built.
+  emptied: there is no "empty the Graveyard". Delete itself never erases a file; the only code path
+  that does is **Exile**, a later and separate step inside the Graveyard (below).
 - **Every move is `moveFolder`, one atomic rename that never replaces anything** — the port's
   promise (`src/project/filesystem.ts`), kept in the application by the `move_folder` command
   (`src-tauri/src/folders.rs`). The plugin's own `rename` was not used, because a rename of a folder
@@ -73,10 +75,38 @@ moves is a folder the writer can see and move back.
 
 ## Recovering a project
 
-Move its folder from `~/Documents/write-ist/Graveyard/` back into `~/Documents/write-ist/`
-with the file manager (or `mv`). It is listed again next time Open Project is shown, with its id,
-manuscript and everything beside it as they were. If a project of that name has been made since,
-give the folder another name first; the name the list shows is the one in its `project.md`.
+**Settings ▸ Graveyard ▸ Recover** moves the bundle back into `~/Documents/write-ist/` with the
+same `moveFolder` (`src/project/recover.ts`), after checking its project id on disk as delete does;
+if a project of that name has been made since, it comes back as `Title 2`. Moving the folder back
+with the file manager (or `mv`) still works too. Either way it is listed again with its id,
+manuscript and everything beside it as they were.
+
+## Exile
+
+**Exile is the one intentional erase in Write-ist, and it happens only inside the Graveyard**
+(Noah, 2026-11-19: *"Exile should REALLY delete projects, the graveyard is meant as that layer of
+protection"*). Deleting a project is unchanged: it only ever moves the bundle into the Graveyard.
+Exile is the later, explicit, confirmed erase of one bundle that is already there.
+
+- **Reached only from Settings ▸ Graveyard**, one project at a time, and **only after a confirm**:
+  Delete Project's dialog in the alarm colour (`--colour-alarm`: its edge, a warning icon and the
+  Exile button), Cancel [Esc] focused first and Exile [Enter]. No type-to-confirm; Escape and Cancel
+  erase nothing. There is still no "empty the Graveyard".
+- **The project erased is the one on disk now**, as for delete and rename: `exileProject`
+  (`src/project/exile.ts`) re-reads `project.md` and checks the project id against the row the
+  writer chose, and the command checks it again a moment before the erase.
+- **The command is narrower than a recursive delete** (`exile_project` in `src-tauri/src/lib.rs`,
+  `exile_within` in `src-tauri/src/folders.rs`). It erases only a real folder whose parent is
+  exactly `~/Documents/write-ist/Graveyard/` — itself a real folder, not a link — and only when that
+  folder's own `project.md` is a real file holding the chosen project id. It refuses the projects
+  folder, the Graveyard itself, anything outside it or deeper in it, a hidden folder, a link, a
+  file, a relative path or one with `..`, a missing marker and a different id, and touches nothing
+  when it refuses. The erase is `remove_dir_all` on that one folder, which removes a link inside the
+  project without following it.
+- **The writer's history outlives the project.** The ledger (ADR-0017) is `ledger.txt` in
+  `appLocalDataDir()` (`LEDGER_FILE`, `src/project/ledger.ts`), outside every bundle, so an exiled
+  project's days are untouched; nothing is copied out of the bundle or stripped from the ledger.
+  History does not travel with a bundle; it belongs to the writer.
 
 ## Considered options
 
@@ -90,12 +120,17 @@ give the folder another name first; the name the list shows is the one in its `p
 - **Copy, verify, then delete the source, when a rename crosses disks.** Rejected for now: the
   Graveyard is inside the projects folder, so this only happens if the writer mounted something
   there. Refusing with an error is enough, and it has no path that deletes.
-- **A restore screen.** Not built: moving the folder back is the recovery, and this ADR documents
-  it. It can be added later without changing anything here.
+- **A restore screen.** Not built at first: moving the folder back was the recovery. Settings ▸
+  Graveyard now lists the Graveyard with Recover and Exile on each project (PR #158), and moving the
+  folder back by hand still works.
+- **Exile as type-to-confirm, or an "empty the Graveyard".** Rejected (Noah, 2026-11-19): the
+  Graveyard is already the layer of protection, so one regular confirm in the alarm colour is
+  enough, and erasing is one project at a time.
 
 ## Consequences
 
-- The Graveyard grows until the writer empties it themselves. That is deliberate.
+- The Graveyard grows until the writer exiles what is in it, one project at a time. That is
+  deliberate.
 - The ledger keeps a deleted project's days, as it always said it would (ADR-0017).
 - Relocated projects (the registry, ADR-0015) are not handled: delete and rename refuse a project
   not directly inside the default location.

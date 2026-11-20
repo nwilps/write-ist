@@ -96,13 +96,64 @@ export function chordMatches(chord: Chord, press: KeyPress): boolean {
 }
 
 /** Keys the hint names more shortly than `KeyboardEvent.key` does. */
-const KEY_NAMES: Readonly<Record<string, string>> = { Escape: "Esc", ArrowLeft: "Left", ArrowRight: "Right" };
+const KEY_NAMES: Readonly<Record<string, string>> = {
+  Escape: "Esc",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  " ": "Space",
+};
+
+/** A chord's name, as a key chip shows it: `Ctrl + S`, `Alt + Enter`, `Esc`. */
+export function chordName(chord: Chord): string {
+  const key = KEY_NAMES[chord.key] ?? (chord.key.length === 1 ? chord.key.toUpperCase() : chord.key);
+  const modifier = chord.mod === true ? "Ctrl + " : chord.alt === true ? "Alt + " : "";
+  return `${modifier}${key}`;
+}
 
 /** A chord as the desk shows it: `[Ctrl + S]`, `[Alt + Enter]`, `[Esc]`, `[Alt + Left]`. */
 export function chordHint(chord: Chord): string {
-  const key = KEY_NAMES[chord.key] ?? (chord.key.length === 1 ? chord.key.toUpperCase() : chord.key);
-  const modifier = chord.mod === true ? "Ctrl + " : chord.alt === true ? "Alt + " : "";
-  return `[${modifier}${key}]`;
+  return `[${chordName(chord)}]`;
+}
+
+/**
+ * Whether two chords would answer one key press: the same modifier, and a
+ * name in common (`alsoKeys` included, either case).
+ */
+export function chordsOverlap(one: Chord, other: Chord): boolean {
+  if ((one.mod === true) !== (other.mod === true) || (one.alt === true) !== (other.alt === true)) return false;
+  const names = new Set([one.key, ...(one.alsoKeys ?? [])].map((key) => key.toLowerCase()));
+  return [other.key, ...(other.alsoKeys ?? [])].some((key) => names.has(key.toLowerCase()));
+}
+
+/** Keys that are only a modifier, which a chord is never made of on their own. */
+const MODIFIERS = new Set(["Control", "Alt", "Shift", "Meta", "AltGraph", "OS", "Super", "Hyper", "CapsLock", "Fn"]);
+
+/**
+ * The chord a key press makes, as Settings records one, or `undefined` when
+ * it makes none: a modifier alone, a bare key (the writer typing), or Ctrl and
+ * Alt together (the window manager's). Shift is never counted, as
+ * `chordMatches` never counts it; a single character is kept in lower case.
+ */
+export function chordOf(press: KeyPress): Chord | undefined {
+  if (MODIFIERS.has(press.key) || press.key === "" || press.key === "Unidentified" || press.key === "Dead") return undefined;
+  const mod = press.ctrlKey || press.metaKey;
+  if (mod === press.altKey) return undefined;
+  const key = press.key.length === 1 ? press.key.toLowerCase() : press.key;
+  return mod ? { key, mod: true } : { key, alt: true };
+}
+
+/**
+ * Marks an element that is listening for a new key (Settings ▸ Keyboard
+ * Shortcuts, while a key is being recorded). Whoever answers keys from the
+ * whole window leaves such a press alone, so the key is recorded and not run.
+ */
+export const CAPTURES_KEYS = "data-captures-keys";
+
+/** Whether a key press is being recorded, not asked for (`CAPTURES_KEYS`). */
+export function isCapturedKey(event: Event): boolean {
+  return event.target instanceof Element && event.target.closest(`[${CAPTURES_KEYS}]`) !== null;
 }
 
 /**

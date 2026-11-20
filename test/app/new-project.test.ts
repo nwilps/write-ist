@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
-import { chosenBy } from "../../app/src/screens/shortcuts.ts";
+import { answerKey, chosenBy } from "../../app/src/screens/shortcuts.ts";
 import { dialogSelect, placeTray } from "../../app/src/screens/dialog-select.ts";
 import { showNewProject } from "../../app/src/screens/new-project.ts";
 
@@ -54,10 +54,10 @@ describe("Home, as designed", () => {
 });
 
 describe("Home, Metrics and Settings", () => {
-  it("are drawn between Open Project and Quit, with their keys, and do nothing", () => {
+  it("are drawn between Open Project and Quit, with their keys; Metrics does nothing, Settings opens Settings", () => {
     const into = document.createElement("div");
-    const calls = { n: vi.fn(), o: vi.fn(), q: vi.fn() };
-    const { gestures } = renderHome(into, { onNewProject: calls.n, onOpenProject: calls.o, onQuit: calls.q });
+    const calls = { n: vi.fn(), o: vi.fn(), q: vi.fn(), s: vi.fn() };
+    const { gestures } = renderHome(into, { onNewProject: calls.n, onOpenProject: calls.o, onQuit: calls.q, onSettings: calls.s });
     expect(gestures.map((g) => `${g.label} [${g.key}]`)).toEqual([
       "New Project [n]", "Open Project [o]", "Metrics [m]", "Settings [s]", "Quit [q]",
     ]);
@@ -73,15 +73,24 @@ describe("Home, Metrics and Settings", () => {
     expect(calls.n).not.toHaveBeenCalled();
     expect(calls.o).not.toHaveBeenCalled();
     expect(calls.q).not.toHaveBeenCalled();
+    // Settings: once for the click, once for its gesture.
+    expect(calls.s).toHaveBeenCalledTimes(2);
   });
 
-  it("are chosen by their keys, and the choice does nothing", () => {
+  it("are chosen by their keys: [m] does nothing, and [s] opens Settings", () => {
     const into = document.createElement("div");
-    const { gestures } = renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {} });
+    const onSettings = vi.fn();
+    const { gestures } = renderHome(into, { onNewProject: () => {}, onOpenProject: () => {}, onQuit: () => {}, onSettings });
     const press = (key: string) => ({ key, altKey: false, ctrlKey: false, metaKey: false });
     expect(chosenBy(gestures, press("m"))?.label).toBe("Metrics");
     expect(chosenBy(gestures, press("s"))?.label).toBe("Settings");
     expect(() => chosenBy(gestures, press("m"))!.act()).not.toThrow();
+    expect(onSettings).not.toHaveBeenCalled();
+    expect(answerKey(press("s"), { dialogOpen: false, gestures })).toBe(true);
+    expect(onSettings).toHaveBeenCalledOnce();
+    // Not over another dialog: the screen behind a dialog hears nothing.
+    expect(answerKey(press("s"), { dialogOpen: true, gestures })).toBe(false);
+    expect(onSettings).toHaveBeenCalledOnce();
   });
 
   it("are not dimmed: the home menu paints every row muted and has no dimmer rule", () => {

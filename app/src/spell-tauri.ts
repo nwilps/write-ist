@@ -9,10 +9,18 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { SpellEngine } from "../../src/screenplay/spelling.ts";
+import type { SettingsDictionary } from "./screens/settings.ts";
 
 export const tauriSpellEngine: SpellEngine = {
   misspelled: (words) => invoke<string[]>("spell_misspelled", { words }),
   suggest: (word) => invoke<string[]>("spell_suggest", { word }),
   addWord: (word) => invoke<boolean>("spell_add_word", { word }),
   removeWord: (word) => invoke<boolean>("spell_remove_word", { word }),
+};
+
+/** The writer's own words, for Settings ▸ Dictionary: the same engine, and the same file. */
+export const tauriDictionary: SettingsDictionary = {
+  words: () => invoke<string[]>("spell_words"),
+  add: tauriSpellEngine.addWord,
+  remove: tauriSpellEngine.removeWord,
 };

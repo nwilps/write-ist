@@ -103,6 +103,21 @@ export interface Filesystem {
    * was, when anything is, and when it is not a folder.
    */
   removeEmptyFolder(path: string): Promise<void>;
+
+  /**
+   * Erase one project in the Graveyard, for good: **Exile**, the one erase
+   * anywhere in Write-ist (ADR-0044, `exile.ts`).
+   *
+   * Only a real folder directly inside a folder named `Graveyard`, whose own
+   * `project.md` is a real file holding `projectId` when it is read, a moment
+   * before the erase. Rejects, touching nothing, for anything else: a link, a
+   * file, a relative path or one with `..` in it, the Graveyard itself, a
+   * folder deeper in it or outside it, a hidden folder, a missing marker, or
+   * another project id. In the application the command also refuses anything
+   * outside `~/Documents/write-ist/Graveyard/` (`exile_within`,
+   * `src-tauri/src/folders.rs`).
+   */
+  exileFromGraveyard(path: string, projectId: string): Promise<void>;
 }
 
 /**

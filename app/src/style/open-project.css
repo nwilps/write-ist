@@ -315,3 +315,29 @@
 .project-dialog__line--lead {
   color: var(--colour-text);
 }
+
+/* --- Exile Project: the one erase, in the alarm colour ----------------------- */
+
+.new-project-dialog.project-dialog--alarm {
+  border-color: var(--colour-alarm);
+}
+
+.project-dialog__alarm-icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  color: var(--colour-alarm);
+}
+
+.project-dialog--alarm .project-dialog__line--lead {
+  color: var(--colour-alarm);
+}
+
+/* Lit in the alarm colour, never the accent, so it never looks like the safe answer. */
+.dialog-action.project-dialog__alarm-action:hover:not(:disabled),
+.dialog-action.project-dialog__alarm-action:focus:not(:disabled) {
+  color: var(--colour-alarm);
+}
+
+.dialog-action.project-dialog__alarm-action {
+  color: var(--colour-alarm);
+}

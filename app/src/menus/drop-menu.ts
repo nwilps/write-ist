@@ -25,13 +25,17 @@
  */
 import { Check, createElement, Minus, Plus, type IconNode } from "lucide";
 import { element } from "../screens/element.ts";
-import { asksForMenu } from "../screens/shortcuts.ts";
+import { asksForMenu, isCapturedKey } from "../screens/shortcuts.ts";
 
 /** One thing a menu can do. */
 export interface MenuItem {
   readonly label: string;
-  /** The shortcut that does the same, as shown: `[Ctrl + S]`. Only ever one that works. */
-  readonly hint?: string;
+  /**
+   * The shortcut that does the same, as shown: `[Ctrl + S]`. Only ever one that
+   * works. A function is asked each time the menu opens, so a key the writer
+   * has just changed is the one shown.
+   */
+  readonly hint?: string | (() => string | undefined);
   /** A Lucide icon drawn before the label (ADR-0035). */
   readonly icon?: IconNode;
   readonly act: () => void;
@@ -85,6 +89,10 @@ export interface DropMenu {
   /** Stop listening for the access key. */
   readonly dispose: () => void;
 }
+
+/** An item's hint as it would be shown now, if it has one. */
+export const hintNow = (item: MenuItem): string | undefined =>
+  typeof item.hint === "function" ? item.hint() : item.hint;
 
 const isDivider = (entry: MenuEntry): entry is MenuDivider => "divider" in entry;
 const isStepper = (entry: MenuEntry): entry is MenuStepper => "less" in entry;
@@ -164,8 +172,16 @@ export function menuList(
         mark.toggleAttribute("hidden", !on);
       });
     }
-    if (entry.hint !== undefined) {
-      button.append(element("span", { className: "drop-menu__hint", textContent: entry.hint }));
+    const { hint } = entry;
+    if (typeof hint === "string") {
+      button.append(element("span", { className: "drop-menu__hint", textContent: hint }));
+    } else if (hint !== undefined) {
+      const shown = element("span", { className: "drop-menu__hint" });
+      button.append(shown);
+      marks.push(() => {
+        shown.textContent = hint() ?? "";
+        shown.hidden = shown.textContent === "";
+      });
     }
     button.addEventListener("click", () => {
       // Focus goes back first so that an action which moves it elsewhere wins.
@@ -307,7 +323,7 @@ export function dropMenu(trigger: HTMLButtonElement, spec: MenuSpec): DropMenu {
   });
 
   const asksFor = (event: KeyboardEvent): void => {
-    if (!asksForMenu(event, spec.access)) return;
+    if (!asksForMenu(event, spec.access) || isCapturedKey(event)) return;
     event.preventDefault();
     event.stopPropagation();
     if (menu.isOpen()) menu.close(true);

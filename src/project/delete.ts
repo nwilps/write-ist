@@ -12,7 +12,8 @@
  * atomic rename that never replaces anything and refuses to cross disks rather
  * than copy and delete, and `removeEmptyFolder`, which cannot remove a folder
  * with anything in it. There is no recursive delete anywhere on this path, and
- * no fallback to one. A move that fails leaves the project where it was.
+ * no fallback to one. A move that fails leaves the project where it was. The
+ * one erase is a later, separate step inside the Graveyard (`exile.ts`).
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
 import { FORMER_GRAVEYARD_FOLDER, folderNameFor, GRAVEYARD_FOLDER, MARKER_FILE, type Project } from "./bundle.ts";
