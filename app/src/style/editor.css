@@ -156,10 +156,11 @@
   z-index: 0;
   pointer-events: none;
   --fade-to: to bottom;
+  --paper-fade-colour: var(--colour-paper-fade);
   background: linear-gradient(
     var(--fade-to),
-    color-mix(in srgb, var(--colour-base) calc(var(--opacity-paper-fade) * 100%), transparent),
-    color-mix(in srgb, var(--colour-base) 55%, transparent) 40%,
+    color-mix(in srgb, var(--paper-fade-colour) calc(var(--opacity-paper-fade) * 100%), transparent),
+    color-mix(in srgb, var(--paper-fade-colour) 55%, transparent) 40%,
     transparent
   );
 }
@@ -171,6 +172,28 @@
 .paper-fade--bottom {
   --fade-to: to top;
   bottom: 0;
+}
+
+/*
+ * The same fade while the Drift background is drawing (`app/src/background/`).
+ * The paper stays opaque to the window's edge and the writing fades into the
+ * paper's own colour, so the animation never shows through the paper or its
+ * fades, and the paper does not end in a cap of flat desk colour beside the
+ * moving desk. Only the colour changes: the fade is still its own layer over
+ * the paper column, so nothing on the desk, panels included, is drawn any
+ * differently with the background on or off. Its outer corners round with the
+ * paper's, so at the very top and foot the sheet's own corners still show.
+ */
+:root[data-background-animation="on"] .paper-fade {
+  --paper-fade-colour: var(--colour-paper-fade-drift);
+}
+
+:root[data-background-animation="on"] .paper-fade--top {
+  border-radius: var(--radius-paper) var(--radius-paper) 0 0;
+}
+
+:root[data-background-animation="on"] .paper-fade--bottom {
+  border-radius: 0 0 var(--radius-paper) var(--radius-paper);
 }
 
 /*

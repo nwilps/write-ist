@@ -329,7 +329,14 @@ describe("Appearance, inside General", () => {
       "Appearance",
     ]);
     const labels = [...panel.querySelectorAll(".new-project-dialog__label")].map((label) => label.textContent);
-    expect(labels.slice(labels.indexOf("Appearance") + 1)).toEqual(["Theme", "White paper", "Interface corners", "Paper corners"]);
+    expect(labels.slice(labels.indexOf("Appearance") + 1)).toEqual([
+      "Theme",
+      "White paper",
+      "Interface corners",
+      "Paper corners",
+      "Background animation",
+      "Background motion",
+    ]);
     const themes = [...panel.querySelectorAll("#settings-theme-list [role=option]")].map((option) => option.textContent);
     expect(themes).toEqual(["Dark", "Lightsoon"]);
   });
@@ -367,6 +374,32 @@ describe("Appearance, inside General", () => {
     expect(current().appearance.whitePaper).toBe(true);
   });
 
+  it("has the background animation on by default, and turns it off and on at once", () => {
+    const { current, kept } = open();
+    const animation = byId<HTMLButtonElement>("settings-background-animation");
+    expect(animation.getAttribute("role")).toBe("switch");
+    expect(animation.getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector('label[for="settings-background-animation"]')?.textContent).toBe("Background animation");
+
+    animation.click();
+    expect(animation.getAttribute("aria-checked")).toBe("false");
+    expect(current().appearance.backgroundAnimation).toBe(false);
+    // Kept as it is flipped, with nothing to confirm.
+    expect(kept.at(-1)?.appearance.backgroundAnimation).toBe(false);
+    // The rest of Appearance is left as it was.
+    expect(current().appearance.whitePaper).toBe(false);
+
+    animation.click();
+    expect(current().appearance.backgroundAnimation).toBe(true);
+  });
+
+  it("is reached from the keyboard after the paper's corners", () => {
+    open();
+    byId("settings-paper-corners").focus();
+    press("ArrowDown");
+    expect(document.activeElement).toBe(byId("settings-background-animation"));
+  });
+
   it("starts from what is kept", () => {
     open({
       settings: () => settingsFrom({ appearance: { interfaceCorners: "sharp", paperCorners: "sharp", whitePaper: true } }),
@@ -374,6 +407,97 @@ describe("Appearance, inside General", () => {
     expect(byId("settings-interface-corners").textContent).toBe("Sharp");
     expect(byId("settings-paper-corners").textContent).toBe("Sharp");
     expect(byId("settings-white-paper").getAttribute("aria-checked")).toBe("true");
+    expect(byId("settings-background-animation").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows the background animation off when it was kept off", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundAnimation: false } }) });
+    expect(byId("settings-background-animation").getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("has Background motion directly under the animation's switch, a drop-down of Reactive and Ambient, Reactive by default", () => {
+    const { modal } = open();
+    const panel = visiblePanels(modal)[0]!;
+    const motion = byId<HTMLButtonElement>("settings-background-motion");
+    const switchRow = byId("settings-background-animation").closest(".settings__switch")!;
+    expect(switchRow.nextElementSibling).toBe(motion.closest(".new-project-dialog__field"));
+    expect(panel.contains(motion)).toBe(true);
+    expect(document.querySelector('label[for="settings-background-motion"]')?.textContent).toBe("Background motion");
+    // The same control as the corners above it, chevron and all.
+    expect(motion.className).toBe(byId("settings-paper-corners").className);
+    expect(motion.parentElement!.querySelector(".new-project-dialog__chevron")).not.toBeNull();
+    expect(motion.textContent).toBe("Reactive");
+    expect(motion.disabled).toBe(false);
+    const choices = [...document.querySelectorAll("#settings-background-motion-list [role=option]")].map((option) => option.textContent);
+    expect(choices).toEqual(["Reactive", "Ambient"]);
+  });
+
+  it("changes to Ambient and back at once, kept as it is picked, and leaves the rest of Appearance alone", () => {
+    const { current, kept } = open();
+    const motion = byId<HTMLButtonElement>("settings-background-motion");
+    motion.click();
+    document.querySelector<HTMLElement>("#settings-background-motion-list [role=option]:nth-child(2)")!.click();
+    expect(motion.textContent).toBe("Ambient");
+    expect(current().appearance.backgroundMotion).toBe("ambient");
+    expect(kept.at(-1)?.appearance.backgroundMotion).toBe("ambient");
+    expect(current().appearance.backgroundAnimation).toBe(true);
+
+    motion.click();
+    document.querySelector<HTMLElement>("#settings-background-motion-list [role=option]:nth-child(1)")!.click();
+    expect(current().appearance.backgroundMotion).toBe("reactive");
+    expect(kept.at(-1)?.appearance.backgroundMotion).toBe("reactive");
+  });
+
+  it("starts from a kept Ambient", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundMotion: "ambient" } }) });
+    expect(byId("settings-background-motion").textContent).toBe("Ambient");
+  });
+
+  it("dims Background motion while the animation is off, keeping its value, and wakes it when the animation is back", () => {
+    const { current, kept } = open({ settings: () => settingsFrom({ appearance: { backgroundMotion: "ambient" } }) });
+    const animation = byId<HTMLButtonElement>("settings-background-animation");
+    const motion = byId<HTMLButtonElement>("settings-background-motion");
+
+    animation.click();
+    expect(motion.disabled).toBe(true);
+    expect(motion.textContent).toBe("Ambient");
+    expect(kept.at(-1)?.appearance).toMatchObject({ backgroundAnimation: false, backgroundMotion: "ambient" });
+    // Dimmed, it does not open.
+    motion.click();
+    expect(motion.getAttribute("aria-expanded")).toBe("false");
+
+    animation.click();
+    expect(motion.disabled).toBe(false);
+    expect(current().appearance.backgroundMotion).toBe("ambient");
+  });
+
+  it("starts dimmed when the animation was kept off", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundAnimation: false } }) });
+    const motion = byId<HTMLButtonElement>("settings-background-motion");
+    expect(motion.disabled).toBe(true);
+    expect(motion.textContent).toBe("Reactive");
+  });
+
+  it("is reached from the keyboard after the animation's switch, and skipped while dimmed", () => {
+    open();
+    const animation = byId("settings-background-animation");
+    animation.focus();
+    press("ArrowDown");
+    expect(document.activeElement).toBe(byId("settings-background-motion"));
+
+    animation.click();
+    animation.focus();
+    press("ArrowUp");
+    press("ArrowDown");
+    expect(document.activeElement).toBe(animation);
+  });
+
+  it("dims as Export As dims, from the design tokens", () => {
+    const css = readFileSync("app/src/style/settings.css", "utf8");
+    const rule = /\.settings \.dialog-select:disabled \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/color: var\(--colour-faint\);/);
+    expect(rule).toMatch(/border-color: var\(--colour-border\);/);
+    expect(css).toMatch(/\.new-project-dialog__field:has\(\.dialog-select:disabled\) \.new-project-dialog__label \{\s*color: var\(--colour-faint\);/);
   });
 });
 

@@ -77,7 +77,14 @@ describe("settings from anything at all", () => {
 
   it("start the day at midnight, the code's default, with rounded corners and every project type shown", () => {
     expect(DEFAULT_SETTINGS.dayEndsAt).toEqual({ hour: 0, minute: 0 });
-    expect(DEFAULT_SETTINGS.appearance).toEqual({ theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded" });
+    expect(DEFAULT_SETTINGS.appearance).toEqual({
+      theme: "dark",
+      whitePaper: false,
+      interfaceCorners: "rounded",
+      paperCorners: "rounded",
+      backgroundAnimation: true,
+      backgroundMotion: "reactive",
+    });
     // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
     expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
     expect(DEFAULT_SETTINGS.keyBindings).toEqual({});
@@ -97,7 +104,14 @@ describe("settings from anything at all", () => {
     });
     expect(kept.author).toEqual({ name: "Paper Boats Writer", penNames: ["A. Quill"], email: "", phone: "", address: "" });
     expect(kept.dayEndsAt).toEqual({ hour: 4, minute: 30 });
-    expect(kept.appearance).toEqual({ theme: "dark", whitePaper: false, interfaceCorners: "sharp", paperCorners: "rounded" });
+    expect(kept.appearance).toEqual({
+      theme: "dark",
+      whitePaper: false,
+      interfaceCorners: "sharp",
+      paperCorners: "rounded",
+      backgroundAnimation: true,
+      backgroundMotion: "reactive",
+    });
     expect(kept.projectDefaults["Feature"]).toEqual({
       shown: false,
       dailyGoalOn: false,
@@ -121,6 +135,25 @@ describe("settings from anything at all", () => {
     "04:00",
   ])("read a day end that is not a time as midnight: %j", (dayEndsAt) => {
     expect(settingsFrom({ dayEndsAt }).dayEndsAt).toEqual({ hour: 0, minute: 0 });
+  });
+
+  it("keep the background animation on unless it was turned off, and read anything but false as on", () => {
+    // A file from before the setting existed has no key for it: on.
+    expect(settingsFrom({ appearance: { whitePaper: true } }).appearance.backgroundAnimation).toBe(true);
+    expect(settingsFrom({ appearance: { backgroundAnimation: false } }).appearance.backgroundAnimation).toBe(false);
+    expect(settingsFrom({ appearance: { backgroundAnimation: "off" } }).appearance.backgroundAnimation).toBe(true);
+    expect(settingsFrom({ appearance: { backgroundAnimation: 0 } }).appearance.backgroundAnimation).toBe(true);
+  });
+
+  it("read the background's motion as Reactive unless it is Ambient", () => {
+    expect(settingsFrom({ appearance: { backgroundMotion: "ambient" } }).appearance.backgroundMotion).toBe("ambient");
+    expect(settingsFrom({ appearance: { backgroundMotion: "reactive" } }).appearance.backgroundMotion).toBe("reactive");
+    for (const wrong of [undefined, null, "Ambient", "still", 0, true, {}]) {
+      expect(settingsFrom({ appearance: { backgroundMotion: wrong } }).appearance.backgroundMotion).toBe("reactive");
+    }
+    // Kept as it was while the animation itself is off.
+    const off = settingsFrom({ appearance: { backgroundAnimation: false, backgroundMotion: "ambient" } });
+    expect(off.appearance).toMatchObject({ backgroundAnimation: false, backgroundMotion: "ambient" });
   });
 
   it("write the same bytes for the same settings, and read them back as they were", () => {
@@ -152,6 +185,44 @@ describe("the settings file", () => {
     expect(await first.save(settings)).toBe(true);
     expect(readFileSync(join(folder, SETTINGS_FILE), "utf8")).toBe(settingsText(settings));
     expect(await openSettingsStore(nodeFilesystem, folder).load()).toEqual(settings);
+  });
+
+  it("keeps the background animation turned off, and reads a file from before the setting as on", async () => {
+    const store = openSettingsStore(nodeFilesystem, folder);
+    await store.load();
+    const off = settingsFrom({ appearance: { backgroundAnimation: false } });
+    expect(await store.save(off)).toBe(true);
+    const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
+    expect(written.appearance["backgroundAnimation"]).toBe(false);
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundAnimation).toBe(false);
+
+    // The file as the last version wrote it: no key for the animation.
+    writeFileSync(
+      join(folder, SETTINGS_FILE),
+      JSON.stringify({ appearance: { theme: "dark", whitePaper: true, interfaceCorners: "sharp", paperCorners: "rounded" } }),
+    );
+    const older = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(older.appearance.backgroundAnimation).toBe(true);
+    expect(older.appearance.whitePaper).toBe(true);
+  });
+
+  it("keeps Ambient, and reads a file from before the setting as Reactive", async () => {
+    const store = openSettingsStore(nodeFilesystem, folder);
+    await store.load();
+    const ambient = settingsFrom({ appearance: { backgroundMotion: "ambient" } });
+    expect(await store.save(ambient)).toBe(true);
+    const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
+    expect(written.appearance["backgroundMotion"]).toBe("ambient");
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundMotion).toBe("ambient");
+
+    // The file as the last version wrote it: the animation, but no key for its motion.
+    writeFileSync(
+      join(folder, SETTINGS_FILE),
+      JSON.stringify({ appearance: { theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded", backgroundAnimation: false } }),
+    );
+    const older = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(older.appearance.backgroundMotion).toBe("reactive");
+    expect(older.appearance.backgroundAnimation).toBe(false);
   });
 
   it("lands the last of several saves last", async () => {

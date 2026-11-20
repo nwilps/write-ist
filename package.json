@@ -29,6 +29,7 @@
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-fs": "^2.5.2",
+    "asciify-engine": "^4.33.0",
     "lucide": "^1.66.0",
     "pdf-lib": "^1.17.1",
     "prosemirror-commands": "^1.7.2",

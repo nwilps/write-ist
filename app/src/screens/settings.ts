@@ -269,6 +269,26 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     onChange: (value) => changeLook({ paperCorners: value === "sharp" ? "sharp" : "rounded" }),
   });
   paperCorners.set(current.appearance.paperCorners);
+  // Reactive or Ambient: dimmed while the animation is off, and kept as it was.
+  const backgroundMotion = dialogSelect({
+    id: idOf("background-motion"),
+    label: "Background motion",
+    choices: [
+      { value: "reactive", label: "Reactive" },
+      { value: "ambient", label: "Ambient" },
+    ],
+    onChange: (value) => changeLook({ backgroundMotion: value === "ambient" ? "ambient" : "reactive" }),
+  });
+  backgroundMotion.set(current.appearance.backgroundMotion);
+  const backgroundAnimation = dialogToggle({
+    id: idOf("background-animation"),
+    onChange: (on) => {
+      backgroundMotion.control.disabled = !on;
+      changeLook({ backgroundAnimation: on });
+    },
+  });
+  backgroundAnimation.set(current.appearance.backgroundAnimation);
+  backgroundMotion.control.disabled = !current.appearance.backgroundAnimation;
 
   const general: Section = {
     body: [
@@ -285,6 +305,8 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       switchRow("White paper", whitePaper),
       selectField("Interface corners", interfaceCorners),
       selectField("Paper corners", paperCorners),
+      switchRow("Background animation", backgroundAnimation),
+      selectField("Background motion", backgroundMotion),
     ],
     rows: () => [
       [name],
@@ -297,6 +319,8 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       [whitePaper.control],
       [interfaceCorners.control],
       [paperCorners.control],
+      [backgroundAnimation.control],
+      [backgroundMotion.control],
     ],
   };
 

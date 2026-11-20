@@ -18,8 +18,9 @@
  *
  * First pass (Settings, Noah's notes): most of these are kept and shown, and
  * not yet read by anything else. What each one drives today is in the pull
- * request that added them; `dayEndsAt`, the two corner styles and the
- * writer's own keys (`keyBindings`) are live.
+ * request that added them; `dayEndsAt`, the two corner styles, the
+ * background animation and its motion, and the writer's own keys
+ * (`keyBindings`) are live.
  */
 import { join, type Filesystem } from "../project/filesystem.ts";
 import { DEFAULT_DAY_ENDS_AT, type TimeOfDay } from "../goals/day.ts";
@@ -40,6 +41,8 @@ export interface AuthorInfo {
 }
 
 export type Corners = "rounded" | "sharp";
+/** Whether the background answers the pointer, or moves only on its own. */
+export type BackgroundMotion = "reactive" | "ambient";
 /** The one theme there is. Light is drawn as coming. */
 export type Theme = "dark";
 
@@ -50,6 +53,17 @@ export interface Appearance {
   readonly interfaceCorners: Corners;
   /** The corners of each sheet of paper. */
   readonly paperCorners: Corners;
+  /**
+   * The Drift background moving quietly behind every screen. On unless the
+   * writer turns it off; a file from before the setting existed reads as on.
+   */
+  readonly backgroundAnimation: boolean;
+  /**
+   * Reactive: the background stirs where the pointer moves. Ambient: it moves
+   * on its own. Kept while the animation is off; a file from before the
+   * setting existed reads as Reactive.
+   */
+  readonly backgroundMotion: BackgroundMotion;
 }
 
 /** What a new project of one type starts with. Kept; not yet read by New Project. */
@@ -123,7 +137,14 @@ export const DEFAULT_PROJECT_DEFAULTS: ProjectDefaults = {
 export const DEFAULT_SETTINGS: Settings = {
   author: { name: "", penNames: [], email: "", phone: "", address: "" },
   dayEndsAt: DEFAULT_DAY_ENDS_AT,
-  appearance: { theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded" },
+  appearance: {
+    theme: "dark",
+    whitePaper: false,
+    interfaceCorners: "rounded",
+    paperCorners: "rounded",
+    backgroundAnimation: true,
+    backgroundMotion: "reactive",
+  },
   projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
   keyBindings: {},
 };
@@ -138,6 +159,7 @@ const isRecord = (value: unknown): value is Loose =>
 const text = (value: unknown, fallback = ""): string => (typeof value === "string" ? value.trim() : fallback);
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
 const corners = (value: unknown): Corners => (value === "sharp" ? "sharp" : "rounded");
+const motion = (value: unknown): BackgroundMotion => (value === "ambient" ? "ambient" : "reactive");
 
 /**
  * A whole number between `least` and `most`, from whatever was typed or kept.
@@ -284,6 +306,8 @@ export function settingsFrom(value: unknown): Settings {
       whitePaper: flag(appearance["whitePaper"], false),
       interfaceCorners: corners(appearance["interfaceCorners"]),
       paperCorners: corners(appearance["paperCorners"]),
+      backgroundAnimation: flag(appearance["backgroundAnimation"], true),
+      backgroundMotion: motion(appearance["backgroundMotion"]),
     },
     projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, projectDefaultsOf(defaults[type])])),
     keyBindings: keyBindingsOf(kept["keyBindings"]),
