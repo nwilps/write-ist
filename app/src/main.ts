@@ -130,6 +130,7 @@ const settingsRead: Promise<void> = (async () => {
     useSettings(await settingsStore.load());
   } catch {
     // No app data folder: the defaults stand, and a change says it is not kept.
+    ground.react(settings.appearance.backgroundMotion === "reactive");
     ground.set(settings.appearance.backgroundAnimation);
   }
 })();
@@ -139,6 +140,7 @@ function useSettings(next: Settings): void {
   settings = next;
   setDayEndsAt(next.dayEndsAt);
   applyAppearance(document.documentElement, next.appearance);
+  ground.react(next.appearance.backgroundMotion === "reactive");
   ground.set(next.appearance.backgroundAnimation);
   useKeyBindings(next.keyBindings);
 }

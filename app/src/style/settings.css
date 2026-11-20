@@ -134,6 +134,16 @@
   color: var(--colour-faint);
 }
 
+/* A drop-down that does not apply now (Background motion, with the animation off): Export As's dimmed box, its label quiet with it. */
+.settings .dialog-select:disabled {
+  border-color: var(--colour-border);
+  color: var(--colour-faint);
+}
+
+.settings .new-project-dialog__field:has(.dialog-select:disabled) .new-project-dialog__label {
+  color: var(--colour-faint);
+}
+
 .settings__unit {
   font-size: var(--size-label);
   color: var(--colour-muted);

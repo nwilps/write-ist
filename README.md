@@ -87,7 +87,8 @@ Everything below is in the app now.
   [Asciify](https://asciify.org/backgrounds?bg=drift), drawn in faint characters in the app's own
   dark colours. It drifts slowly and stirs a little where the pointer moves. The paper stays
   solid, so it never shows through what you are writing. Turn it off in Settings ▸ General ▸
-  Appearance ▸ Background animation. It also stays off if your system is set to reduce motion,
+  Appearance ▸ Background animation; the row under it, Background motion, chooses Reactive (it
+  follows the pointer anywhere in the window, the default) or Ambient (it moves on its own). It also stays off if your system is set to reduce motion,
   and it pauses while the window is hidden.
 
 **Projects**

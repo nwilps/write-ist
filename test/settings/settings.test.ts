@@ -83,6 +83,7 @@ describe("settings from anything at all", () => {
       interfaceCorners: "rounded",
       paperCorners: "rounded",
       backgroundAnimation: true,
+      backgroundMotion: "reactive",
     });
     // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
     expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
@@ -109,6 +110,7 @@ describe("settings from anything at all", () => {
       interfaceCorners: "sharp",
       paperCorners: "rounded",
       backgroundAnimation: true,
+      backgroundMotion: "reactive",
     });
     expect(kept.projectDefaults["Feature"]).toEqual({
       shown: false,
@@ -141,6 +143,17 @@ describe("settings from anything at all", () => {
     expect(settingsFrom({ appearance: { backgroundAnimation: false } }).appearance.backgroundAnimation).toBe(false);
     expect(settingsFrom({ appearance: { backgroundAnimation: "off" } }).appearance.backgroundAnimation).toBe(true);
     expect(settingsFrom({ appearance: { backgroundAnimation: 0 } }).appearance.backgroundAnimation).toBe(true);
+  });
+
+  it("read the background's motion as Reactive unless it is Ambient", () => {
+    expect(settingsFrom({ appearance: { backgroundMotion: "ambient" } }).appearance.backgroundMotion).toBe("ambient");
+    expect(settingsFrom({ appearance: { backgroundMotion: "reactive" } }).appearance.backgroundMotion).toBe("reactive");
+    for (const wrong of [undefined, null, "Ambient", "still", 0, true, {}]) {
+      expect(settingsFrom({ appearance: { backgroundMotion: wrong } }).appearance.backgroundMotion).toBe("reactive");
+    }
+    // Kept as it was while the animation itself is off.
+    const off = settingsFrom({ appearance: { backgroundAnimation: false, backgroundMotion: "ambient" } });
+    expect(off.appearance).toMatchObject({ backgroundAnimation: false, backgroundMotion: "ambient" });
   });
 
   it("write the same bytes for the same settings, and read them back as they were", () => {
@@ -191,6 +204,25 @@ describe("the settings file", () => {
     const older = await openSettingsStore(nodeFilesystem, folder).load();
     expect(older.appearance.backgroundAnimation).toBe(true);
     expect(older.appearance.whitePaper).toBe(true);
+  });
+
+  it("keeps Ambient, and reads a file from before the setting as Reactive", async () => {
+    const store = openSettingsStore(nodeFilesystem, folder);
+    await store.load();
+    const ambient = settingsFrom({ appearance: { backgroundMotion: "ambient" } });
+    expect(await store.save(ambient)).toBe(true);
+    const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
+    expect(written.appearance["backgroundMotion"]).toBe("ambient");
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundMotion).toBe("ambient");
+
+    // The file as the last version wrote it: the animation, but no key for its motion.
+    writeFileSync(
+      join(folder, SETTINGS_FILE),
+      JSON.stringify({ appearance: { theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded", backgroundAnimation: false } }),
+    );
+    const older = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(older.appearance.backgroundMotion).toBe("reactive");
+    expect(older.appearance.backgroundAnimation).toBe(false);
   });
 
   it("lands the last of several saves last", async () => {

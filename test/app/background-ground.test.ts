@@ -29,14 +29,21 @@ afterEach(() => {
   // Back to jsdom's own answer: the window is showing.
   delete (document as { hidden?: boolean }).hidden;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /** An engine that draws nothing and remembers everything. */
 function fakeEngine(draws = true) {
-  const runs: { host: HTMLElement; play: ReturnType<typeof vi.fn>; pause: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }[] = [];
+  const runs: {
+    host: HTMLElement;
+    play: ReturnType<typeof vi.fn>;
+    pause: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+    pointer: ReturnType<typeof vi.fn>;
+  }[] = [];
   const start = vi.fn<StartDrift>((host) => {
     if (!draws) return undefined;
-    const run = { host, play: vi.fn(), pause: vi.fn(), destroy: vi.fn() };
+    const run = { host, play: vi.fn(), pause: vi.fn(), destroy: vi.fn(), pointer: vi.fn() };
     runs.push(run);
     return run satisfies RunningDrift;
   });
@@ -225,6 +232,171 @@ describe("on and off", () => {
     ground.set(true);
     await settle();
     expect(engine.start).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** The pointer moving over something on the screen, as the webview sends it. */
+const moveOver = (target: EventTarget, clientX: number, clientY: number): void => {
+  target.dispatchEvent(new PointerEvent("pointermove", { clientX, clientY, bubbles: true }));
+};
+
+/** The listeners this file put on the window, by event. */
+function windowListeners() {
+  const added = vi.spyOn(window, "addEventListener");
+  const removed = vi.spyOn(window, "removeEventListener");
+  const live = (type: string): number =>
+    added.mock.calls.filter(([kind]) => kind === type).length - removed.mock.calls.filter(([kind]) => kind === type).length;
+  return { added, removed, live };
+}
+
+describe("answering the pointer (Reactive)", () => {
+  // The bug Noah found: the engine heard the pointer only when the layer was in
+  // the event's path, and a layer that takes no clicks never is. These move the
+  // pointer over the screens, never over the layer.
+  it("hands the engine every move over the screens, the paper and dialogs included, in the layer's own pixels", async () => {
+    motionQuery(false);
+    const { ground, engine, app } = mount();
+    ground.set(true);
+    await settle();
+    const layer = document.querySelector<HTMLElement>(".drift-ground")!;
+    vi.spyOn(layer, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 20, 800, 600));
+    const paper = document.createElement("div");
+    paper.className = "paper";
+    app.append(paper);
+    const dialog = document.createElement("dialog");
+    document.body.append(dialog);
+
+    moveOver(paper, 110, 220);
+    moveOver(dialog, 50, 40);
+    moveOver(document.body, 10, 20);
+    expect(engine.runs[0]!.pointer.mock.calls).toEqual([
+      [100, 200],
+      [40, 20],
+      [0, 0],
+    ]);
+  });
+
+  it("is Reactive by default", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    moveOver(document.body, 5, 6);
+    expect(engine.runs[0]!.pointer).toHaveBeenCalledWith(5, 6);
+  });
+
+  it("lifts the wake when the pointer leaves the window, and not when it only crosses from one thing to another", async () => {
+    motionQuery(false);
+    const { ground, engine, app } = mount();
+    ground.set(true);
+    await settle();
+    app.dispatchEvent(new PointerEvent("pointerout", { relatedTarget: document.body, bubbles: true }));
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
+    app.dispatchEvent(new PointerEvent("pointerout", { relatedTarget: null, bubbles: true }));
+    expect(engine.runs[0]!.pointer.mock.calls).toEqual([[null]]);
+  });
+
+  it("listens passively, before the screens do, and only for the pointer: no key, no input, nothing on the typing path", async () => {
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const onDocument = vi.spyOn(document, "addEventListener");
+    const { ground } = mount();
+    ground.set(true);
+    await settle();
+    expect(onWindow.added.mock.calls.map(([type, , options]) => [type, options])).toEqual([
+      ["pointermove", { capture: true, passive: true }],
+      ["pointerout", { capture: true, passive: true }],
+    ]);
+    expect(onDocument.mock.calls.map(([type]) => type)).toEqual(["visibilitychange"]);
+  });
+
+  it("still answers where the webview has only mouse events", async () => {
+    vi.stubGlobal("PointerEvent", undefined);
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    expect(onWindow.added.mock.calls.map(([type]) => type)).toEqual(["mousemove", "mouseout"]);
+    document.body.dispatchEvent(new MouseEvent("mousemove", { clientX: 30, clientY: 40, bubbles: true }));
+    expect(engine.runs[0]!.pointer).toHaveBeenCalledWith(30, 40);
+  });
+
+  it("stops listening when the background is turned off, and hands nothing to an engine that is gone", async () => {
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    expect(onWindow.live("pointermove")).toBe(1);
+    ground.set(false);
+    expect(onWindow.live("pointermove")).toBe(0);
+    expect(onWindow.live("pointerout")).toBe(0);
+    moveOver(document.body, 1, 2);
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
+  });
+
+  it("does not listen before the engine draws, nor where it cannot", async () => {
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const { ground } = mount(fakeEngine(false));
+    ground.set(true);
+    await settle();
+    expect(onWindow.live("pointermove")).toBe(0);
+  });
+});
+
+describe("moving on its own (Ambient)", () => {
+  it("stops handing the pointer on at once, lifts the wake, and keeps drawing with no restart", async () => {
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    moveOver(document.body, 1, 1);
+
+    ground.react(false);
+    expect(engine.runs[0]!.pointer.mock.calls).toEqual([[1, 1], [null]]);
+    expect(onWindow.live("pointermove")).toBe(0);
+    moveOver(document.body, 2, 2);
+    expect(engine.runs[0]!.pointer).toHaveBeenCalledTimes(2);
+    expect(engine.start).toHaveBeenCalledTimes(1);
+    expect(engine.runs[0]!.destroy).not.toHaveBeenCalled();
+    expect(ground.running()).toBe(true);
+
+    ground.react(true);
+    moveOver(document.body, 3, 4);
+    expect(engine.runs[0]!.pointer).toHaveBeenLastCalledWith(3, 4);
+    expect(engine.start).toHaveBeenCalledTimes(1);
+    expect(onWindow.live("pointermove")).toBe(1);
+  });
+
+  it("is kept while the background is off, and used when it next draws", async () => {
+    motionQuery(false);
+    const onWindow = windowListeners();
+    const { ground, engine } = mount();
+    ground.react(false);
+    ground.set(true);
+    await settle();
+    expect(onWindow.live("pointermove")).toBe(0);
+    moveOver(document.body, 1, 1);
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
+
+    ground.set(false);
+    ground.react(true);
+    ground.set(true);
+    await settle();
+    moveOver(document.body, 7, 8);
+    expect(engine.runs[1]!.pointer).toHaveBeenCalledWith(7, 8);
+  });
+
+  it("asking for the same motion twice does nothing more", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.react(true);
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
   });
 });
 
