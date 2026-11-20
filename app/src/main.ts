@@ -53,6 +53,7 @@ import { showNewProject } from "./screens/new-project.ts";
 import { askToRenameProject, showDeleteProject, type RenameRoute } from "./screens/project-dialogs.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
 import { applyAppearance, openSettingsDialog } from "./screens/settings.ts";
+import { mountGround } from "./background/ground.ts";
 import { tauriDictionary } from "./spell-tauri.ts";
 import { RESERVED_KEYS, shortcutCommands, useKeyBindings } from "./workspaces/editor/commands.ts";
 import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
@@ -73,6 +74,8 @@ const found = document.querySelector<HTMLElement>("#app");
 if (found === null) throw new Error("Write-ist has no window to draw into.");
 /** Where every screen is drawn. Narrowed once, here, rather than at each use. */
 const into: HTMLElement = found;
+/** The animated ground under every screen; started once the settings say whether it is wanted. */
+const ground = mountGround({ body: document.body, root: document.documentElement });
 
 type Screen = "home" | "open-project" | "project";
 
@@ -127,6 +130,7 @@ const settingsRead: Promise<void> = (async () => {
     useSettings(await settingsStore.load());
   } catch {
     // No app data folder: the defaults stand, and a change says it is not kept.
+    ground.set(settings.appearance.backgroundAnimation);
   }
 })();
 
@@ -135,6 +139,7 @@ function useSettings(next: Settings): void {
   settings = next;
   setDayEndsAt(next.dayEndsAt);
   applyAppearance(document.documentElement, next.appearance);
+  ground.set(next.appearance.backgroundAnimation);
   useKeyBindings(next.keyBindings);
 }
 

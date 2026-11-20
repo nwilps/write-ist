@@ -128,6 +128,15 @@
   /** Text drawn on top of the accent. */
   --colour-on-accent: #1d2021;
 
+  /**
+   * The Drift background's characters (`app/src/background/`): the faintest
+   * text colour, drawn at a fraction of itself over the desk, so the ground
+   * moves without asking to be looked at. The engine reads the ink by this
+   * name; how much of it shows is `--opacity-drift`.
+   */
+  --colour-drift-ink: var(--colour-faint);
+  --opacity-drift: 0.22;
+
   /* --- Typeface -------------------------------------------------------- */
 
   /** Everything in the application except a manuscript (ADR-0030). */

@@ -329,7 +329,13 @@ describe("Appearance, inside General", () => {
       "Appearance",
     ]);
     const labels = [...panel.querySelectorAll(".new-project-dialog__label")].map((label) => label.textContent);
-    expect(labels.slice(labels.indexOf("Appearance") + 1)).toEqual(["Theme", "White paper", "Interface corners", "Paper corners"]);
+    expect(labels.slice(labels.indexOf("Appearance") + 1)).toEqual([
+      "Theme",
+      "White paper",
+      "Interface corners",
+      "Paper corners",
+      "Background animation",
+    ]);
     const themes = [...panel.querySelectorAll("#settings-theme-list [role=option]")].map((option) => option.textContent);
     expect(themes).toEqual(["Dark", "Lightsoon"]);
   });
@@ -367,6 +373,32 @@ describe("Appearance, inside General", () => {
     expect(current().appearance.whitePaper).toBe(true);
   });
 
+  it("has the background animation on by default, and turns it off and on at once", () => {
+    const { current, kept } = open();
+    const animation = byId<HTMLButtonElement>("settings-background-animation");
+    expect(animation.getAttribute("role")).toBe("switch");
+    expect(animation.getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector('label[for="settings-background-animation"]')?.textContent).toBe("Background animation");
+
+    animation.click();
+    expect(animation.getAttribute("aria-checked")).toBe("false");
+    expect(current().appearance.backgroundAnimation).toBe(false);
+    // Kept as it is flipped, with nothing to confirm.
+    expect(kept.at(-1)?.appearance.backgroundAnimation).toBe(false);
+    // The rest of Appearance is left as it was.
+    expect(current().appearance.whitePaper).toBe(false);
+
+    animation.click();
+    expect(current().appearance.backgroundAnimation).toBe(true);
+  });
+
+  it("is reached from the keyboard after the paper's corners", () => {
+    open();
+    byId("settings-paper-corners").focus();
+    press("ArrowDown");
+    expect(document.activeElement).toBe(byId("settings-background-animation"));
+  });
+
   it("starts from what is kept", () => {
     open({
       settings: () => settingsFrom({ appearance: { interfaceCorners: "sharp", paperCorners: "sharp", whitePaper: true } }),
@@ -374,6 +406,12 @@ describe("Appearance, inside General", () => {
     expect(byId("settings-interface-corners").textContent).toBe("Sharp");
     expect(byId("settings-paper-corners").textContent).toBe("Sharp");
     expect(byId("settings-white-paper").getAttribute("aria-checked")).toBe("true");
+    expect(byId("settings-background-animation").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows the background animation off when it was kept off", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundAnimation: false } }) });
+    expect(byId("settings-background-animation").getAttribute("aria-checked")).toBe("false");
   });
 });
 

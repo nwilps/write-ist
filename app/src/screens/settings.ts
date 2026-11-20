@@ -269,6 +269,11 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     onChange: (value) => changeLook({ paperCorners: value === "sharp" ? "sharp" : "rounded" }),
   });
   paperCorners.set(current.appearance.paperCorners);
+  const backgroundAnimation = dialogToggle({
+    id: idOf("background-animation"),
+    onChange: (on) => changeLook({ backgroundAnimation: on }),
+  });
+  backgroundAnimation.set(current.appearance.backgroundAnimation);
 
   const general: Section = {
     body: [
@@ -285,6 +290,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       switchRow("White paper", whitePaper),
       selectField("Interface corners", interfaceCorners),
       selectField("Paper corners", paperCorners),
+      switchRow("Background animation", backgroundAnimation),
     ],
     rows: () => [
       [name],
@@ -297,6 +303,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       [whitePaper.control],
       [interfaceCorners.control],
       [paperCorners.control],
+      [backgroundAnimation.control],
     ],
   };
 

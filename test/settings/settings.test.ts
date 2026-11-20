@@ -77,7 +77,13 @@ describe("settings from anything at all", () => {
 
   it("start the day at midnight, the code's default, with rounded corners and every project type shown", () => {
     expect(DEFAULT_SETTINGS.dayEndsAt).toEqual({ hour: 0, minute: 0 });
-    expect(DEFAULT_SETTINGS.appearance).toEqual({ theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded" });
+    expect(DEFAULT_SETTINGS.appearance).toEqual({
+      theme: "dark",
+      whitePaper: false,
+      interfaceCorners: "rounded",
+      paperCorners: "rounded",
+      backgroundAnimation: true,
+    });
     // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
     expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
     expect(DEFAULT_SETTINGS.keyBindings).toEqual({});
@@ -97,7 +103,13 @@ describe("settings from anything at all", () => {
     });
     expect(kept.author).toEqual({ name: "Paper Boats Writer", penNames: ["A. Quill"], email: "", phone: "", address: "" });
     expect(kept.dayEndsAt).toEqual({ hour: 4, minute: 30 });
-    expect(kept.appearance).toEqual({ theme: "dark", whitePaper: false, interfaceCorners: "sharp", paperCorners: "rounded" });
+    expect(kept.appearance).toEqual({
+      theme: "dark",
+      whitePaper: false,
+      interfaceCorners: "sharp",
+      paperCorners: "rounded",
+      backgroundAnimation: true,
+    });
     expect(kept.projectDefaults["Feature"]).toEqual({
       shown: false,
       dailyGoalOn: false,
@@ -121,6 +133,14 @@ describe("settings from anything at all", () => {
     "04:00",
   ])("read a day end that is not a time as midnight: %j", (dayEndsAt) => {
     expect(settingsFrom({ dayEndsAt }).dayEndsAt).toEqual({ hour: 0, minute: 0 });
+  });
+
+  it("keep the background animation on unless it was turned off, and read anything but false as on", () => {
+    // A file from before the setting existed has no key for it: on.
+    expect(settingsFrom({ appearance: { whitePaper: true } }).appearance.backgroundAnimation).toBe(true);
+    expect(settingsFrom({ appearance: { backgroundAnimation: false } }).appearance.backgroundAnimation).toBe(false);
+    expect(settingsFrom({ appearance: { backgroundAnimation: "off" } }).appearance.backgroundAnimation).toBe(true);
+    expect(settingsFrom({ appearance: { backgroundAnimation: 0 } }).appearance.backgroundAnimation).toBe(true);
   });
 
   it("write the same bytes for the same settings, and read them back as they were", () => {
@@ -152,6 +172,25 @@ describe("the settings file", () => {
     expect(await first.save(settings)).toBe(true);
     expect(readFileSync(join(folder, SETTINGS_FILE), "utf8")).toBe(settingsText(settings));
     expect(await openSettingsStore(nodeFilesystem, folder).load()).toEqual(settings);
+  });
+
+  it("keeps the background animation turned off, and reads a file from before the setting as on", async () => {
+    const store = openSettingsStore(nodeFilesystem, folder);
+    await store.load();
+    const off = settingsFrom({ appearance: { backgroundAnimation: false } });
+    expect(await store.save(off)).toBe(true);
+    const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
+    expect(written.appearance["backgroundAnimation"]).toBe(false);
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundAnimation).toBe(false);
+
+    // The file as the last version wrote it: no key for the animation.
+    writeFileSync(
+      join(folder, SETTINGS_FILE),
+      JSON.stringify({ appearance: { theme: "dark", whitePaper: true, interfaceCorners: "sharp", paperCorners: "rounded" } }),
+    );
+    const older = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(older.appearance.backgroundAnimation).toBe(true);
+    expect(older.appearance.whitePaper).toBe(true);
   });
 
   it("lands the last of several saves last", async () => {

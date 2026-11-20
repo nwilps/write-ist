@@ -81,6 +81,15 @@ Everything below is in the app now.
   - **Final Draft (.fdx)** is listed but cannot be exported yet: Export stays dimmed while it is
     chosen.
 
+**The look**
+
+- **A quiet animated background** behind every screen: the Drift background from
+  [Asciify](https://asciify.org/backgrounds?bg=drift), drawn in faint characters in the app's own
+  dark colours. It drifts slowly and stirs a little where the pointer moves. The paper stays
+  solid, so it never shows through what you are writing. Turn it off in Settings ▸ General ▸
+  Appearance ▸ Background animation. It also stays off if your system is set to reduce motion,
+  and it pauses while the window is hidden.
+
 **Projects**
 
 - A **Home** screen and an **Open Project** screen listing your projects.

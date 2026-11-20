@@ -515,7 +515,17 @@ describe("the stylesheet", () => {
     const readers = rules
       .filter(([name, , body]) => name !== "tokens.css" && body.includes("--paper-zoom"))
       .map(([name, selector]) => `${name} ${selector}`);
-    expect(readers.sort()).toEqual(["editor.css .page", "editor.css .paper-fade", "panels.css .desk"]);
+    // The fourth is the fade again, drawn as a mask over the scroller while the
+    // Drift background is behind the paper, so it is the paper's width too.
+    expect(readers.sort()).toEqual([
+      "editor.css .page",
+      "editor.css .paper-fade",
+      'editor.css :root[data-background-animation="on"] .shell__view',
+      "panels.css .desk",
+    ]);
+    expect(rules.find(([, selector]) => selector.endsWith(".shell__view") && selector.startsWith(":root"))![2]).toContain(
+      "--paper-fade-width: min(calc(var(--page-width) * var(--paper-zoom)), 100%)",
+    );
     expect(rules.find(([, selector]) => selector === ".desk")![2]).toContain(
       "grid-template-columns: 0 calc(var(--page-width) * var(--paper-zoom)) 0",
     );

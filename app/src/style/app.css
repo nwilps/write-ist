@@ -53,8 +53,31 @@ body,
   height: 100%;
 }
 
-body {
+/*
+ * The desk's colour is the window's own, on `html`, and `body` is clear. The
+ * Drift background (`app/src/background/`) is a layer between the two, so it
+ * shows behind every screen and is under all of them; when it is off, or
+ * cannot draw, this is the flat desk it always was.
+ */
+html {
   background: var(--colour-base);
+}
+
+/*
+ * The Drift background: the first thing in `body`, fixed to the window and
+ * under everything, and it takes no clicks, drags or typing. The engine hears
+ * the pointer on the window, so it still answers the pointer moving. Its whole
+ * quietness is here, as one opacity over the characters it draws.
+ */
+.drift-ground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--opacity-drift);
+}
+
+body {
   color: var(--colour-text);
   font-family: var(--face-interface);
   font-size: var(--size-body);

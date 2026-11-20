@@ -174,6 +174,43 @@
 }
 
 /*
+ * The same fade while the Drift background is drawing (`app/src/background/`).
+ * A band of desk colour would sit over the animation as a solid strip, so
+ * instead the paper itself goes clear at the window's edges, onto whatever is
+ * behind it: the animation, or the flat desk if it stops. The same band, the
+ * paper's width and centred, with the same curve; either side of it the
+ * scroller is left whole, so the panels on the desk are untouched. A mask
+ * reads only how opaque a colour is, so the desk's colour stands for "shown".
+ * The sides overlap the band by a hairline so no seam opens between them.
+ */
+:root[data-background-animation="on"] .paper-fade {
+  display: none;
+}
+
+:root[data-background-animation="on"] .shell__view {
+  --paper-fade-width: min(calc(var(--page-width) * var(--paper-zoom)), 100%);
+  --paper-fade-side: calc((100% - var(--paper-fade-width)) / 2 + var(--rule-thin));
+  --paper-fade-band: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--colour-base) calc((1 - var(--opacity-paper-fade)) * 100%), transparent),
+    color-mix(in srgb, var(--colour-base) 45%, transparent) calc(var(--size-paper-fade) * 0.4),
+    var(--colour-base) var(--size-paper-fade),
+    var(--colour-base) calc(100% - var(--size-paper-fade)),
+    color-mix(in srgb, var(--colour-base) 45%, transparent) calc(100% - var(--size-paper-fade) * 0.4),
+    color-mix(in srgb, var(--colour-base) calc((1 - var(--opacity-paper-fade)) * 100%), transparent)
+  );
+  --paper-fade-whole: linear-gradient(var(--colour-base), var(--colour-base));
+  -webkit-mask-image: var(--paper-fade-band), var(--paper-fade-whole), var(--paper-fade-whole);
+  mask-image: var(--paper-fade-band), var(--paper-fade-whole), var(--paper-fade-whole);
+  -webkit-mask-size: var(--paper-fade-width) 100%, var(--paper-fade-side) 100%, var(--paper-fade-side) 100%;
+  mask-size: var(--paper-fade-width) 100%, var(--paper-fade-side) 100%, var(--paper-fade-side) 100%;
+  -webkit-mask-position: center top, left top, right top;
+  mask-position: center top, left top, right top;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/*
  * The pills along the foot of the desk (the desk design, §2.3): the project's
  * name at the left, the counts and the save state at the right, each 12px from
  * the window's edge and 12px from its neighbour. They float over the desk and
