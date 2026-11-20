@@ -74,11 +74,18 @@
  * over the foot of the sheet above and one over the head of the sheet below,
  * each a quarter-circle hole in a square. They are out of flow, so no row of
  * the count moves (ADR-0030).
+ *
+ * The paper's shadow is on the whole column (`editor.css`), so it falls beside
+ * every sheet and under the last, but not here. The strip draws the shadow the
+ * sheet above casts on the desk below it, fading out before the next sheet so
+ * the gap still reads as desk. A gradient in the strip's own height, so it is
+ * the same share of the gap at every zoom.
  */
 .sheet-break__desk {
   position: relative;
   height: var(--sheet-gap);
   background: var(--colour-base);
+  background-image: var(--shade-paper-seam);
 }
 
 .sheet-break__desk::before,

@@ -292,10 +292,44 @@
   --paper-zoom: 1;
   --opacity-paper-fade: 1;
   /**
-   * The one shadow, on everything that floats: the workspace bar, the menus,
-   * the dialogs. Darker than the desk, or it would vanish against it.
+   * What every shadow is made of: the desk's own colour taken most of the way
+   * to black. Darker than the desk, or a shadow would vanish against it, and
+   * still the desk's family rather than a grey of its own.
    */
-  --shadow-float: 0 4px 14px color-mix(in srgb, color-mix(in srgb, var(--colour-base) 30%, black) 65%, transparent);
+  --colour-shadow: color-mix(in srgb, var(--colour-base) 30%, black);
+  /**
+   * The shadow on everything that floats: the workspace bar, the bottom pills,
+   * the side panels, the menus, the dialogs, search and autocomplete. Two
+   * layers: a tight one where the surface meets the desk, and the soft one
+   * below it that lifts it towards the writer and off the background.
+   */
+  --shadow-float:
+    0 1px 2px color-mix(in srgb, var(--colour-shadow) 45%, transparent),
+    0 4px 14px color-mix(in srgb, var(--colour-shadow) 65%, transparent);
+  /**
+   * The paper's shadow: the same two layers, a step deeper, because a sheet
+   * is the largest thing on the desk and the one that should sit nearest.
+   * Inside the paper's zoom, so it grows and shrinks with the sheet.
+   */
+  --shadow-paper:
+    0 2px 4px color-mix(in srgb, var(--colour-shadow) 45%, transparent),
+    0 6px 20px color-mix(in srgb, var(--colour-shadow) 70%, transparent);
+  /**
+   * The paper is one column, so a sheet's foot casts no shadow of its own into
+   * the desk between two sheets (`sheets.css`); this draws it there. It starts
+   * at the strength of the paper's shadow at its edge and is gone three
+   * quarters of the way down the gap, so the gap still reads as clean desk.
+   */
+  --shade-paper-seam: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--colour-shadow) 55%, transparent),
+    transparent 75%
+  );
+  /**
+   * How far beside the paper its shadow is worth fading out with it at the
+   * window's edges: as far as the gap to the panels, which cover the rest.
+   */
+  --size-paper-shadow-reach: var(--space-panel-gap);
 
   /*
    * The side panels (the desk design, §2.2): columns 240px wide, 12px off the

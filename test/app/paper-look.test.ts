@@ -28,7 +28,11 @@ describe("the paper", () => {
     const paper = rule(".page");
     expect(paper).toContain("background: var(--colour-page)");
     expect(paper).toContain("border-radius: var(--radius-paper)");
-    expect(paper).not.toMatch(/outline|border(?!-radius)|box-shadow/);
+    expect(paper).not.toMatch(/outline|border(?!-radius)/);
+  });
+
+  it("lifts off the desk with the paper's shadow, which takes no room", () => {
+    expect(rule(".page")).toContain("box-shadow: var(--shadow-paper)");
   });
 
   it("runs the full height of the window, with nothing reserved above it", () => {
