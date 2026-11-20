@@ -18,6 +18,9 @@
  * Enter, Space and a click do nothing there and the tray stays open. It can
  * never be the value.
  *
+ * A choice can also carry a tag and still be picked, drawn in the menus' own
+ * dim hint after its name, to say which kind it is.
+ *
  * A disabled field (`control.disabled`) is skipped by the keys and never opens.
  */
 import { element } from "./element.ts";
@@ -28,6 +31,8 @@ export interface DialogChoice {
   readonly label: string;
   /** The tag on a choice that cannot be picked yet, such as "soon". */
   readonly unavailable?: string;
+  /** A tag on a choice that can be picked, such as "classic". */
+  readonly tag?: string;
 }
 
 export interface DialogSelectSpec {
@@ -94,6 +99,8 @@ export function dialogSelect({ id, label, choices, onChange }: DialogSelectSpec)
       option.classList.add("dialog-select__option--unavailable");
       option.setAttribute("aria-disabled", "true");
       option.append(element("span", { className: "drop-menu__hint", textContent: choice.unavailable }));
+    } else if (choice.tag !== undefined) {
+      option.append(element("span", { className: "drop-menu__hint", textContent: choice.tag }));
     }
     return option;
   });

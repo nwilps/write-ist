@@ -41,11 +41,13 @@ import {
   timeFrom,
   timeSaid,
   wholeNumber,
+  presetOf,
   type Appearance,
   type KeyBinding,
   type ProjectDefaults,
   type Settings,
 } from "../../../src/settings/settings.ts";
+import { LOOKS } from "../background/presets.ts";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys } from "./dialog-keys.ts";
 import { dialogSelect, type DialogSelect } from "./dialog-select.ts";
@@ -280,14 +282,25 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     onChange: (value) => changeLook({ backgroundMotion: value === "ambient" ? "ambient" : "reactive" }),
   });
   backgroundMotion.set(current.appearance.backgroundMotion);
+  // Which look: Drift first, the engine's retired looks last and tagged. Dimmed
+  // with the motion while the animation is off, and kept as it was.
+  const backgroundPreset = dialogSelect({
+    id: idOf("background-preset"),
+    label: "Background",
+    choices: LOOKS.map((look) => ({ value: look.id, label: look.label, ...(look.retired ? { tag: "classic" } : {}) })),
+    onChange: (value) => changeLook({ backgroundPreset: presetOf(value) }),
+  });
+  backgroundPreset.set(current.appearance.backgroundPreset);
   const backgroundAnimation = dialogToggle({
     id: idOf("background-animation"),
     onChange: (on) => {
+      backgroundPreset.control.disabled = !on;
       backgroundMotion.control.disabled = !on;
       changeLook({ backgroundAnimation: on });
     },
   });
   backgroundAnimation.set(current.appearance.backgroundAnimation);
+  backgroundPreset.control.disabled = !current.appearance.backgroundAnimation;
   backgroundMotion.control.disabled = !current.appearance.backgroundAnimation;
 
   const general: Section = {
@@ -306,6 +319,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       selectField("Interface corners", interfaceCorners),
       selectField("Paper corners", paperCorners),
       switchRow("Background animation", backgroundAnimation),
+      selectField("Background", backgroundPreset),
       selectField("Background motion", backgroundMotion),
     ],
     rows: () => [
@@ -320,6 +334,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       [interfaceCorners.control],
       [paperCorners.control],
       [backgroundAnimation.control],
+      [backgroundPreset.control],
       [backgroundMotion.control],
     ],
   };

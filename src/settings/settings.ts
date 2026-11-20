@@ -19,7 +19,7 @@
  * First pass (Settings, Noah's notes): most of these are kept and shown, and
  * not yet read by anything else. What each one drives today is in the pull
  * request that added them; `dayEndsAt`, the two corner styles, the
- * background animation and its motion, and the writer's own keys
+ * background animation with its motion and its look, and the writer's own keys
  * (`keyBindings`) are live.
  */
 import { join, type Filesystem } from "../project/filesystem.ts";
@@ -43,6 +43,28 @@ export interface AuthorInfo {
 export type Corners = "rounded" | "sharp";
 /** Whether the background answers the pointer, or moves only on its own. */
 export type BackgroundMotion = "reactive" | "ambient";
+/**
+ * Every look the background can take, by the engine's own id for it
+ * (`asciify-engine`'s presets): Drift, the first and the default, then the
+ * engine's current presets, then the ones it has retired but still ships.
+ * Settings ▸ General ▸ Appearance ▸ Background lists them in this order.
+ */
+export const BACKGROUND_PRESETS = [
+  "drift",
+  "contour",
+  "mesh",
+  "estuary",
+  "capillary",
+  "field",
+  "fluid",
+  "dune",
+  "etch",
+  "morph",
+  "noise",
+  "silk",
+  "weave",
+] as const;
+export type BackgroundPreset = (typeof BACKGROUND_PRESETS)[number];
 /** The one theme there is. Light is drawn as coming. */
 export type Theme = "dark";
 
@@ -54,7 +76,7 @@ export interface Appearance {
   /** The corners of each sheet of paper. */
   readonly paperCorners: Corners;
   /**
-   * The Drift background moving quietly behind every screen. On unless the
+   * The background moving quietly behind every screen. On unless the
    * writer turns it off; a file from before the setting existed reads as on.
    */
   readonly backgroundAnimation: boolean;
@@ -64,6 +86,12 @@ export interface Appearance {
    * setting existed reads as Reactive.
    */
   readonly backgroundMotion: BackgroundMotion;
+  /**
+   * Which look the background draws. Kept while the animation is off; a file
+   * from before the setting existed, or naming a look this version does not
+   * have, reads as Drift.
+   */
+  readonly backgroundPreset: BackgroundPreset;
 }
 
 /** What a new project of one type starts with. Kept; not yet read by New Project. */
@@ -144,6 +172,7 @@ export const DEFAULT_SETTINGS: Settings = {
     paperCorners: "rounded",
     backgroundAnimation: true,
     backgroundMotion: "reactive",
+    backgroundPreset: "drift",
   },
   projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
   keyBindings: {},
@@ -160,6 +189,10 @@ const text = (value: unknown, fallback = ""): string => (typeof value === "strin
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
 const corners = (value: unknown): Corners => (value === "sharp" ? "sharp" : "rounded");
 const motion = (value: unknown): BackgroundMotion => (value === "ambient" ? "ambient" : "reactive");
+const isPreset = (value: unknown): value is BackgroundPreset =>
+  (BACKGROUND_PRESETS as readonly unknown[]).includes(value);
+/** A kept look, or Drift for anything this version does not draw. */
+export const presetOf = (value: unknown): BackgroundPreset => (isPreset(value) ? value : "drift");
 
 /**
  * A whole number between `least` and `most`, from whatever was typed or kept.
@@ -308,6 +341,7 @@ export function settingsFrom(value: unknown): Settings {
       paperCorners: corners(appearance["paperCorners"]),
       backgroundAnimation: flag(appearance["backgroundAnimation"], true),
       backgroundMotion: motion(appearance["backgroundMotion"]),
+      backgroundPreset: presetOf(appearance["backgroundPreset"]),
     },
     projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, projectDefaultsOf(defaults[type])])),
     keyBindings: keyBindingsOf(kept["keyBindings"]),

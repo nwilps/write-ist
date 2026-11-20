@@ -55,26 +55,76 @@ body,
 
 /*
  * The desk's colour is the window's own, on `html`, and `body` is clear. The
- * Drift background (`app/src/background/`) is a layer between the two, so it
- * shows behind every screen and is under all of them; when it is off, or
- * cannot draw, this is the flat desk it always was.
+ * background (`app/src/background/`) is a layer between the two, so it shows
+ * behind every screen and is under all of them; when it is off, or cannot
+ * draw, this is the flat desk it always was.
  */
 html {
   background: var(--colour-base);
 }
 
 /*
- * The Drift background: the first thing in `body`, fixed to the window and
- * under everything, and it takes no clicks, drags or typing. The engine hears
- * the pointer on the window, so it still answers the pointer moving. Its whole
- * quietness is here, as one opacity over the characters it draws.
+ * The background: the first thing in `body`, fixed to the window and under
+ * everything, and it takes no clicks, drags or typing. The engine hears the
+ * pointer on the window, so it still answers the pointer moving. Its whole
+ * quietness is here, as one opacity over the characters it draws, one for
+ * each look (`data-look`), eased as the engine cross-fades between them.
  */
-.drift-ground {
+.background-ground {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: var(--opacity-drift);
+  opacity: var(--opacity-background-drift);
+  transition: opacity var(--duration-background-swap);
+}
+
+.background-ground[data-look="contour"] {
+  opacity: var(--opacity-background-contour);
+}
+
+.background-ground[data-look="mesh"] {
+  opacity: var(--opacity-background-mesh);
+}
+
+.background-ground[data-look="estuary"] {
+  opacity: var(--opacity-background-estuary);
+}
+
+.background-ground[data-look="capillary"] {
+  opacity: var(--opacity-background-capillary);
+}
+
+.background-ground[data-look="field"] {
+  opacity: var(--opacity-background-field);
+}
+
+.background-ground[data-look="fluid"] {
+  opacity: var(--opacity-background-fluid);
+}
+
+.background-ground[data-look="dune"] {
+  opacity: var(--opacity-background-dune);
+}
+
+.background-ground[data-look="etch"] {
+  opacity: var(--opacity-background-etch);
+}
+
+.background-ground[data-look="morph"] {
+  opacity: var(--opacity-background-morph);
+}
+
+.background-ground[data-look="noise"] {
+  opacity: var(--opacity-background-noise);
+}
+
+.background-ground[data-look="silk"] {
+  opacity: var(--opacity-background-silk);
+}
+
+.background-ground[data-look="weave"] {
+  opacity: var(--opacity-background-weave);
 }
 
 body {

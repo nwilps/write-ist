@@ -129,19 +129,45 @@
   --colour-on-accent: #1d2021;
 
   /**
-   * The Drift background's characters (`app/src/background/`): the faintest
-   * text colour, drawn at a fraction of itself over the desk, so the ground
-   * moves without asking to be looked at. The engine reads the ink by this
-   * name; how much of it shows is `--opacity-drift`.
+   * The background's characters (`app/src/background/`): the faintest text
+   * colour, drawn at a fraction of itself over the desk, so the ground moves
+   * without asking to be looked at. The engine reads the ink, and the accent
+   * for the peaks and lit letters some looks draw, by these names. Every look
+   * is drawn in them, so none brings a colour of its own.
    */
-  --colour-drift-ink: var(--colour-faint);
-  --opacity-drift: 0.3;
+  --colour-background-ink: var(--colour-faint);
+  --colour-background-accent: var(--colour-faint);
+
+  /**
+   * How much of each look shows (`.background-ground`). Drift's 0.3 is the
+   * mark; the others were measured against it, each drawn full strength over
+   * the desk in the same window, and set so its characters lift the desk about
+   * as much as Drift's do. The busiest (Fluid, Noise) sit lowest. Contour,
+   * Estuary and Capillary draw fine or dim letters and are held at 0.5, the
+   * most any look is given: Capillary rests almost unseen until the pointer
+   * lights it, which is the look itself.
+   */
+  --opacity-background-drift: 0.3;
+  --opacity-background-contour: 0.5;
+  --opacity-background-mesh: 0.26;
+  --opacity-background-estuary: 0.5;
+  --opacity-background-capillary: 0.5;
+  --opacity-background-field: 0.17;
+  --opacity-background-fluid: 0.12;
+  --opacity-background-dune: 0.21;
+  --opacity-background-etch: 0.17;
+  --opacity-background-morph: 0.25;
+  --opacity-background-noise: 0.13;
+  --opacity-background-silk: 0.28;
+  --opacity-background-weave: 0.18;
+  /** The engine's own cross-fade from one look to the next, which the layer's quietness follows. */
+  --duration-background-swap: 320ms;
 
   /**
    * What the paper's writing fades into at the window's top and bottom edges
    * (`.paper-fade`): the desk's colour on the flat desk, and the paper's own
-   * while the Drift background is drawing, so the paper stays opaque to the
-   * edge and the animation never shows through it.
+   * while the background is drawing, so the paper stays opaque to the edge and
+   * the animation never shows through it.
    */
   --colour-paper-fade: var(--colour-base);
   --colour-paper-fade-drift: var(--colour-page);
