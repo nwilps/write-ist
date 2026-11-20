@@ -17,8 +17,9 @@
  * the writer's business.
  *
  * While it is drawing, the root carries `data-background-animation="on"`, and
- * the stylesheet uses that to fade the paper out at the window's edges onto
- * the animation instead of onto a band of desk colour (`editor.css`).
+ * the stylesheet uses that to fade the writing into the paper's own colour at
+ * the window's edges rather than into the desk's (`editor.css`). The paper
+ * stays opaque, and nothing else on the screen is drawn differently.
  *
  * Kept out of the shell (ADR-0005): the shell hosts workspaces and knows
  * nothing of what is drawn behind it.

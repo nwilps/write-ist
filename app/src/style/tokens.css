@@ -135,7 +135,16 @@
    * name; how much of it shows is `--opacity-drift`.
    */
   --colour-drift-ink: var(--colour-faint);
-  --opacity-drift: 0.22;
+  --opacity-drift: 0.3;
+
+  /**
+   * What the paper's writing fades into at the window's top and bottom edges
+   * (`.paper-fade`): the desk's colour on the flat desk, and the paper's own
+   * while the Drift background is drawing, so the paper stays opaque to the
+   * edge and the animation never shows through it.
+   */
+  --colour-paper-fade: var(--colour-base);
+  --colour-paper-fade-drift: var(--colour-page);
 
   /* --- Typeface -------------------------------------------------------- */
 

@@ -8,7 +8,8 @@
  * leaves the flat desk.
  */
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mountGround, type StartDrift } from "../../app/src/background/ground.ts";
 import type { RunningDrift } from "../../app/src/background/drift-engine.ts";
@@ -97,7 +98,53 @@ describe("one layer under every screen", () => {
     expect(/\nbody \{([^}]*)\}/.exec(app)?.[1]).not.toContain("background");
     const tokens = readFileSync("app/src/style/tokens.css", "utf8");
     expect(tokens).toMatch(/--colour-drift-ink: var\(--colour-faint\);/);
-    expect(tokens).toMatch(/--opacity-drift: 0\.\d+;/);
+    expect(tokens).toMatch(/--opacity-drift: 0\.3;/);
+  });
+});
+
+describe("the Editor with the background on", () => {
+  const style = "app/src/style";
+  const sheets = readdirSync(style)
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => [name, readFileSync(join(style, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")] as const);
+  /** Every rule as `[file, selector, declarations]`. */
+  const rules = sheets.flatMap(([name, sheet]) =>
+    [...sheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => [name, match[1]!.trim(), match[2]!] as const),
+  );
+  const tokens = readFileSync(join(style, "tokens.css"), "utf8");
+  const token = (name: string): string => new RegExp(`${name}:\\s*([^;]+);`).exec(tokens)?.[1]?.trim() ?? "";
+
+  it("changes only the paper's fades, so the panels and every control sit and draw as they do with it off", () => {
+    // A mask on the scroller is what cut the side panels off (#159): every rule
+    // the background turns on is about the fades and nothing else.
+    const gated = rules.filter(([, selector]) => selector.includes("data-background-animation"));
+    expect(gated.length).toBeGreaterThan(0);
+    for (const [, selector] of gated) expect(selector).toMatch(/ \.paper-fade(--top|--bottom)?$/);
+  });
+
+  it("clips and masks nothing on the desk", () => {
+    const clipping = rules.filter(([, , body]) => /(?:^|[\s;])(-webkit-)?(mask[\w-]*|clip-path|isolation)\s*:/.test(body));
+    expect(clipping.map(([name, selector]) => `${name} ${selector}`)).toEqual([]);
+  });
+
+  it("keeps the paper and its fades opaque, fading the writing into the paper's own colour", () => {
+    expect(rules.find(([name, selector]) => name === "editor.css" && selector === ".page")![2]).toContain(
+      "background: var(--colour-page);",
+    );
+    expect(token("--colour-paper-fade")).toBe("var(--colour-base)");
+    expect(token("--colour-paper-fade-drift")).toBe("var(--colour-page)");
+    expect(token("--opacity-paper-fade")).toBe("1");
+    const on = rules.find(([, selector]) => selector === ':root[data-background-animation="on"] .paper-fade')![2];
+    expect(on.trim()).toBe("--paper-fade-colour: var(--colour-paper-fade-drift);");
+    // The fade's every stop is that colour or clear, laid over the opaque paper.
+    const fade = rules.find(([name, selector]) => name === "editor.css" && selector === ".paper-fade")![2];
+    expect(fade).toContain("--paper-fade-colour: var(--colour-paper-fade);");
+    expect(fade).toContain("color-mix(in srgb, var(--paper-fade-colour) calc(var(--opacity-paper-fade) * 100%), transparent)");
+    expect(fade).not.toContain("--colour-base");
+    // Nothing the background turns on hides the fade, or lightens the paper.
+    for (const [, , body] of rules.filter(([, selector]) => selector.includes("data-background-animation"))) {
+      expect(body).not.toMatch(/display:\s*none|opacity:|visibility:|background:/);
+    }
   });
 });
 
