@@ -515,7 +515,14 @@ describe("the stylesheet", () => {
     const readers = rules
       .filter(([name, , body]) => name !== "tokens.css" && body.includes("--paper-zoom"))
       .map(([name, selector]) => `${name} ${selector}`);
-    expect(readers.sort()).toEqual(["editor.css .page", "editor.css .paper-fade", "panels.css .desk"]);
+    // The second fade rule is the fade with the background off, run out over
+    // the paper's shadow beside it (`editor.css`).
+    expect(readers.sort()).toEqual([
+      "editor.css .page",
+      "editor.css .paper-fade",
+      'editor.css :root:not([data-background-animation="on"]) .paper-fade',
+      "panels.css .desk",
+    ]);
     expect(rules.find(([, selector]) => selector === ".desk")![2]).toContain(
       "grid-template-columns: 0 calc(var(--page-width) * var(--paper-zoom)) 0",
     );

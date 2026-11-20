@@ -1,7 +1,8 @@
 /**
  * Everything that floats over the app wears one shadow, the workspace bar's:
- * the menus, the dialogs, the search panel and the autocomplete list. The
- * veil behind a dialog does not, and no rule brings a shadow of its own.
+ * the bottom pills, the side panels, the menus, the dialogs, the search panel
+ * and the autocomplete list. The paper wears its own, a step deeper. The veil
+ * behind a dialog does not, and no rule brings a shadow of its own.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -27,6 +28,9 @@ describe("the shadow on floating surfaces", () => {
     ["home.css", ".new-project-dialog"],
     ["search.css", ".search__panel"],
     ["autocomplete.css", ".autocomplete__list"],
+    ["editor.css", ".workspace-bar__pill"],
+    ["editor.css", ".pills > .pill"],
+    ["panels.css", ".panel"],
   ])("%s gives %s the shared shadow", (file, selector) => {
     expect(rule(file, selector)).toContain("box-shadow: var(--shadow-float)");
   });
@@ -36,10 +40,14 @@ describe("the shadow on floating surfaces", () => {
     expect(rule("menus.css", ".drop-menu--context")).not.toContain("box-shadow");
   });
 
-  it("is the only shadow in the styles", () => {
+  it("gives the paper the paper's shadow", () => {
+    expect(rule("editor.css", ".page")).toContain("box-shadow: var(--shadow-paper)");
+  });
+
+  it("are the only shadows in the styles", () => {
     const shadows = readdirSync(style)
       .filter((name) => name.endsWith(".css"))
       .flatMap((name) => [...sheet(name).matchAll(/box-shadow:\s*([^;]+);/g)].map((match) => match[1]));
-    expect(new Set(shadows)).toEqual(new Set(["var(--shadow-float)"]));
+    expect(new Set(shadows)).toEqual(new Set(["var(--shadow-float)", "var(--shadow-paper)"]));
   });
 });

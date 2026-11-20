@@ -188,6 +188,21 @@
   --paper-fade-colour: var(--colour-paper-fade-drift);
 }
 
+/*
+ * With the background off the paper dissolves into the desk at the window's
+ * edges, so its shadow must dissolve with it, or a dark outline would be left
+ * standing where the paper has gone. The fade is the desk's colour, so it can
+ * run out over the shadow beside the paper — as far as the gap to the panels,
+ * never over them. With the background on the paper stays opaque to the edge
+ * and so does its shadow, and the fade keeps to the paper's width above.
+ */
+:root:not([data-background-animation="on"]) .paper-fade {
+  width: min(
+    calc(var(--page-width) * var(--paper-zoom) + 2 * var(--size-paper-shadow-reach)),
+    100%
+  );
+}
+
 :root[data-background-animation="on"] .paper-fade--top {
   border-radius: var(--radius-paper) var(--radius-paper) 0 0;
 }
@@ -232,6 +247,14 @@
   font-size: var(--size-label);
   color: var(--colour-muted);
   white-space: nowrap;
+}
+
+/*
+ * Lifted off the desk like the workspace bar. Only the pills along the foot:
+ * the Goals dialog borrows `.pill` for its days, which sit in the dialog.
+ */
+.pills > .pill {
+  box-shadow: var(--shadow-float);
 }
 
 .pill[hidden] {
@@ -342,11 +365,18 @@ button.pill:focus-visible,
      (`sheets.css`). */
   border-radius: var(--radius-paper);
   /*
-   * No outline, no border, no shadow: the paper is the same family of grey as
-   * the panels that will sit beside it, and its edge is where the desk's darker
-   * ground begins (the desk design, §2.1). A hairline here would also have
-   * been taken out of the paper's width under `box-sizing: border-box`.
+   * No outline and no border: the paper is the same family of grey as the
+   * panels beside it, and its edge is where the desk's darker ground begins
+   * (the desk design, §2.1). A hairline here would also have been taken out of
+   * the paper's width under `box-sizing: border-box`.
+   *
+   * A shadow, though, which takes no room: with a background moving behind the
+   * desk, a flat sheet sank into it. A `box-shadow` on this one box and not a
+   * `filter`, so it is painted with the sheet and costs nothing per keystroke
+   * or per scroll; the seams
+   * draw the foot of each sheet into the gap below it (`sheets.css`).
    */
+  box-shadow: var(--shadow-paper);
   padding: var(--page-inset-top) var(--page-inset-right) var(--page-inset-bottom)
     var(--page-inset-left);
   /*
