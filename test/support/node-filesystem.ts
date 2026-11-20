@@ -7,9 +7,9 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { access, lstat, mkdir, open, readdir, readFile, rename, rm, rmdir, stat } from "node:fs/promises";
+import { access, lstat, mkdir, open, readdir, readFile, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
 
 let written = 0;
@@ -133,6 +133,36 @@ export const nodeFilesystem: Filesystem = {
   async removeEmptyFolder(path: string): Promise<void> {
     // `rmdir`, as `remove_empty_folder` does: it cannot take a folder with anything in it.
     await rmdir(path);
+  },
+
+  async exileFromGraveyard(path: string, projectId: string): Promise<void> {
+    // The checks `exile_within` makes in `src-tauri/src/folders.rs`, so the
+    // tests hold the promise the application keeps. Every one before the erase.
+    if (!isAbsolute(path) || path.split(/[\\/]/).some((part) => part === ".." || part === ".")) {
+      throw new Error(`${path} is not a plain path.`);
+    }
+    if (projectId.trim() === "") throw new Error("No project id was given.");
+    const graveyard = dirname(path);
+    if (basename(graveyard) !== "Graveyard" || basename(path).startsWith(".")) {
+      throw new Error(`${path} is not a project in the Graveyard.`);
+    }
+    if (!(await lstat(graveyard)).isDirectory() || (await realpath(graveyard)) !== resolve(graveyard)) {
+      throw new Error(`${graveyard} is not the Graveyard.`);
+    }
+    if (!(await lstat(path)).isDirectory() || (await realpath(path)) !== resolve(path)) {
+      throw new Error(`${path} is not a plain folder.`);
+    }
+    const marker = join(path, "project.md");
+    if (!(await lstat(marker)).isFile()) throw new Error(`${path} has no project marker.`);
+    const held = (await readFile(marker, "utf8"))
+      .split(/\r\n?|\n/)
+      .find((line) => line.startsWith("Project id:"))
+      ?.slice("Project id:".length)
+      .trim();
+    if (held === undefined || held === "" || held !== projectId.trim()) {
+      throw new Error(`${path} is not the project that was chosen.`);
+    }
+    await rm(path, { recursive: true });
   },
 };
 

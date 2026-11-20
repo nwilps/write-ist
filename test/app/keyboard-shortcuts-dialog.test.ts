@@ -14,13 +14,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHome } from "../../app/src/screens/home.ts";
 import { answerKey } from "../../app/src/screens/shortcuts.ts";
 import type { MountedWorkspace, WorkspaceContext } from "../../app/src/shell/workspace.ts";
-import { COMMANDS, commandById, hintOf, type CommandHost } from "../../app/src/workspaces/editor/commands.ts";
+import {
+  COMMANDS,
+  commandById,
+  hintOf,
+  hintsOf,
+  useKeyBindings,
+  type CommandHost,
+} from "../../app/src/workspaces/editor/commands.ts";
 import {
   openKeyboardShortcutsDialog,
   shortcutGroups,
   tabCircuit,
 } from "../../app/src/workspaces/editor/keyboard-shortcuts-dialog.ts";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
+import { hintNow, type MenuItem } from "../../app/src/menus/drop-menu.ts";
 import { importProject } from "../../src/project/import.ts";
 import { openProject } from "../../src/project/open.ts";
 import { NUMBERED_TYPES, TAB_CYCLE } from "../../src/screenplay/element-keys.ts";
@@ -81,7 +89,7 @@ const drawnGroups = (modal: HTMLElement): Record<string, [string, string][]> =>
       group.querySelector(".shortcuts__label")!.textContent,
       [...group.querySelectorAll(":scope > .shortcuts__rows > .shortcuts__row")].map((row) => [
         row.firstElementChild!.textContent!,
-        row.querySelector(".shortcuts__key")!.textContent!,
+        row.querySelector(".shortcuts__keys")!.textContent!,
       ]),
     ]),
   );
@@ -89,21 +97,40 @@ const drawnGroups = (modal: HTMLElement): Record<string, [string, string][]> =>
 describe("the list, generated from the command table", () => {
   const keyed = COMMANDS.filter((command) => hintOf(command) !== undefined);
 
-  it("lists every command with a key, once, with the hint the menus draw", () => {
+  it("lists every command with a key, once, the hint the menus draw first and then any other key", () => {
     const { modal } = opened();
     const rows = Object.values(drawnGroups(modal)).flat();
     expect(rows).toHaveLength(keyed.length);
     expect(new Set(rows.map(([label]) => label))).toEqual(new Set(keyed.map((command) => command.label)));
     for (const [label, hint] of rows) {
       const command = COMMANDS.find((one) => one.label === label)!;
-      expect(hint, label).toBe(hintOf(command));
+      expect(hint.startsWith(hintOf(command)!), label).toBe(true);
+      expect(hint, label).toBe(hintsOf(command).join(""));
+    }
+  });
+
+  it("lists both of Search's keys, Alt+Enter and Ctrl+F, each in a key of its own", () => {
+    const { modal } = opened();
+    const search = [...modal.querySelectorAll(".shortcuts__row")].find((row) => row.firstElementChild!.textContent === "Search")!;
+    expect([...search.querySelectorAll(".shortcuts__key")].map((key) => key.textContent)).toEqual(["[Alt + Enter]", "[Ctrl + F]"]);
+  });
+
+  it("lists the writer's own keys when they have changed them, and leaves out a command they took every key from", () => {
+    useKeyBindings({ "toggle-spellcheck": [{ key: "l", alt: true }], "reset-zoom": [] });
+    try {
+      const { modal } = opened();
+      const view = drawnGroups(modal)["View"]!;
+      expect(view).toContainEqual(["Spellcheck", "[Alt + L]"]);
+      expect(view.map(([label]) => label)).not.toContain("Reset Zoom");
+    } finally {
+      useKeyBindings({});
     }
   });
 
   it("draws exactly what the generator gives, in its groups and order", () => {
     const { modal } = opened();
     expect(drawnGroups(modal)).toEqual(
-      Object.fromEntries(shortcutGroups().map((group) => [group.name, group.rows.map((row) => [row.label, row.hint])])),
+      Object.fromEntries(shortcutGroups().map((group) => [group.name, group.rows.map((row) => [row.label, row.hints.join("")])])),
     );
   });
 
@@ -134,9 +161,9 @@ describe("the list, generated from the command table", () => {
     const view = shortcutGroups().find((group) => group.name === "View")!;
     expect(view.rows).toEqual(
       expect.arrayContaining([
-        { label: "Zoom In", hint: "[Ctrl + =]" },
-        { label: "Zoom Out", hint: "[Ctrl + -]" },
-        { label: "Reset Zoom", hint: "[Ctrl + 0]" },
+        { label: "Zoom In", hints: ["[Ctrl + =]"] },
+        { label: "Zoom Out", hints: ["[Ctrl + -]"] },
+        { label: "Reset Zoom", hints: ["[Ctrl + 0]"] },
       ]),
     );
     const { modal } = opened();
@@ -157,7 +184,7 @@ describe("the list, generated from the command table", () => {
   it("lists Previous Scene and Next Scene under Writing, after Search, as Ctrl + < and Ctrl + >", () => {
     const { modal } = opened();
     expect(drawnGroups(modal)["Writing"]!.slice(0, 3)).toEqual([
-      ["Search", "[Alt + Enter]"],
+      ["Search", "[Alt + Enter][Ctrl + F]"],
       ["Previous Scene", "[Ctrl + <]"],
       ["Next Scene", "[Ctrl + >]"],
     ]);
@@ -165,7 +192,7 @@ describe("the list, generated from the command table", () => {
 
   it("includes itself, at Ctrl+K", () => {
     const view = shortcutGroups().find((group) => group.name === "View")!;
-    expect(view.rows).toContainEqual({ label: commandById("keyboard-shortcuts")!.label, hint: "[Ctrl + K]" });
+    expect(view.rows).toContainEqual({ label: commandById("keyboard-shortcuts")!.label, hints: ["[Ctrl + K]"] });
   });
 
   it("leaves out every command with no key", () => {
@@ -180,7 +207,7 @@ describe("the list, generated from the command table", () => {
 
   it("shows no key the table does not answer", () => {
     const { modal } = opened();
-    const known = new Set(keyed.map((command) => hintOf(command)));
+    const known = new Set(keyed.map((command) => hintsOf(command).join("")));
     for (const [label, hint] of Object.values(drawnGroups(modal)).flat()) expect(known.has(hint), label).toBe(true);
     expect(modal.textContent).not.toContain("Shift + Z");
   });
@@ -469,7 +496,8 @@ describe("the keys, drawn as the menus' hints", () => {
   it("are plain text, in the rows and beside Tab Order: no `.pill`, and none is a button", () => {
     const { modal } = opened();
     const keys = [...modal.querySelectorAll(".shortcuts__key")];
-    expect(keys).toHaveLength(COMMANDS.filter((command) => hintOf(command) !== undefined).length + 2);
+    // One for each key of each command (Search has two), and Tab and Shift+Tab.
+    expect(keys).toHaveLength(COMMANDS.reduce((count, command) => count + hintsOf(command).length, 0) + 2);
     expect(keys.map((key) => key.textContent)).toEqual(expect.arrayContaining(["[Ctrl + S]", "[Tab]", "[Shift + Tab]"]));
     for (const key of keys) {
       expect(key.className, key.textContent!).toBe("shortcuts__key");
@@ -569,7 +597,7 @@ describe("View ▸ Keyboard Shortcuts", () => {
     const host = { keyboardShortcuts, spellcheckOn: () => false, view: () => undefined } as unknown as CommandHost;
     const view = editorMenus(host)["View"]!;
     const item = view.find((entry) => "label" in entry && entry.label === "Keyboard Shortcuts");
-    expect(item).toMatchObject({ hint: "[Ctrl + K]" });
+    expect(hintNow(item as MenuItem)).toBe("[Ctrl + K]");
     expect(view[view.indexOf(item!) - 1]).toEqual({ divider: true });
     expect(commandById("keyboard-shortcuts")).toMatchObject({ keys: "window", menu: { name: "View", group: "shortcuts" } });
     expect(commandById("keyboard-shortcuts")!.icon).toBeDefined();

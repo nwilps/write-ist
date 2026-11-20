@@ -11,6 +11,7 @@
  * the dialog left open; and nothing to press twice while the disk is answering. What is done on disk is the
  * project layer's (`src/project/rename.ts`, `src/project/delete.ts`).
  */
+import { createElement, TriangleAlert } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import { CannotRename, renameProject } from "../../../src/project/rename.ts";
@@ -155,23 +156,30 @@ export interface ExileProjectDialog {
   /** The project's name, as the Graveyard lists it. */
   readonly name: string;
   /**
-   * Erase it for good. **Absent in this first pass**: nothing in Write-ist can
-   * erase a project yet (ADR-0044), so the dialog is drawn and its Exile button
-   * stays disabled until this is given.
+   * Erase it for good (`src/project/exile.ts`). Resolves to words for the
+   * writer when it was refused; the dialog then stays, with them.
    */
-  readonly onExile?: () => Promise<string | undefined>;
+  readonly onExile: () => Promise<string | undefined>;
   readonly onClose: () => void;
 }
 
-/** Ask before a project in the Graveyard is deleted forever (Settings ▸ Graveyard). */
+/**
+ * Ask before a project in the Graveyard is erased forever (Settings ▸
+ * Graveyard). Delete Project's dialog, dressed in the alarm colour so it reads
+ * as the serious one: Cancel [Esc] is where focus starts, and Exile [Enter]
+ * is the only way through.
+ */
 export function showExileProject(
   into: HTMLElement,
   { name, onExile, onClose }: ExileProjectDialog,
 ): HTMLDialogElement {
+  const warning = createElement(TriangleAlert, { class: "project-dialog__alarm-icon" });
+  warning.setAttribute("aria-hidden", "true");
   const shown = dialog(into, {
     label: "Exile Project",
     body: [
-      element("div", { className: "project-dialog__message" }, [
+      element("div", { className: "project-dialog__message project-dialog__message--alarm" }, [
+        warning,
         element("p", {
           className: "project-dialog__line project-dialog__line--lead",
           textContent: `Exile "${name}"?`,
@@ -180,16 +188,22 @@ export function showExileProject(
           className: "project-dialog__line",
           textContent: "This permanently deletes the project. It cannot be recovered.",
         }),
+        element("p", {
+          className: "project-dialog__line",
+          textContent: "Your writing history for it stays in your metrics.",
+        }),
       ]),
     ],
     stops: [],
     confirm: "Exile",
-    ready: () => onExile !== undefined,
-    attempt: onExile ?? (async () => undefined),
+    ready: () => true,
+    attempt: onExile,
     failed: `“${name}” could not be exiled, so it is still in the Graveyard.`,
     resume: () => shown.cancel.focus(),
     onClose,
   });
+  shown.modal.classList.add("project-dialog--alarm");
+  shown.confirm.classList.add("project-dialog__alarm-action");
   // Cancel first: the safe answer is the one under the writer's hand.
   shown.cancel.focus();
   return shown.modal;

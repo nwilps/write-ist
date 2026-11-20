@@ -22,6 +22,7 @@ import {
   type CommandHost,
 } from "../../app/src/workspaces/editor/commands.ts";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
+import { hintNow } from "../../app/src/menus/drop-menu.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
@@ -134,8 +135,9 @@ describe("the command a key press asks for", () => {
     expect(commandForKey(press("Enter", { alt: true }), "editor")).toBeUndefined();
   });
 
-  it("leaves the keys other code answers alone: Ctrl+1…7 are the surface's, Escape the window's", () => {
-    expect(commandForKey(press("1", { ctrl: true }), "editor")).toBeUndefined();
+  it("answers Ctrl+1…7 itself, before the surface's keymap, and leaves Escape to the window", () => {
+    expect(commandForKey(press("1", { ctrl: true }), "editor")?.id).toBe("element-scene-heading");
+    expect(commandForKey(press("7", { ctrl: true }), "editor")?.id).toBe("element-centered");
     expect(commandForKey(press("Escape"), "editor")).toBeUndefined();
     expect(commandForKey(press("Escape"), "window")).toBeUndefined();
   });
@@ -194,7 +196,7 @@ describe("the Editor's menus", () => {
       Object.entries(editorMenus(host())).map(([name, entries]) => [
         name,
         entries.map((entry) =>
-          "divider" in entry ? "---" : "less" in entry ? `${entry.label} − ○○●○○ +` : `${entry.label}${entry.hint ?? ""}`,
+          "divider" in entry ? "---" : "less" in entry ? `${entry.label} − ○○●○○ +` : `${entry.label}${hintNow(entry) ?? ""}`,
         ),
       ]),
     );

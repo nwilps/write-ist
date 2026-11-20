@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_SETTINGS,
+  MOST_BINDINGS,
   MOST_PAGES,
   MOST_WORDS,
   openSettingsStore,
@@ -77,7 +78,9 @@ describe("settings from anything at all", () => {
   it("start the day at midnight, the code's default, with rounded corners and every project type shown", () => {
     expect(DEFAULT_SETTINGS.dayEndsAt).toEqual({ hour: 0, minute: 0 });
     expect(DEFAULT_SETTINGS.appearance).toEqual({ theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded" });
-    expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film"]);
+    // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
+    expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
+    expect(DEFAULT_SETTINGS.keyBindings).toEqual({});
     expect(Object.values(DEFAULT_SETTINGS.projectDefaults).every((defaults) => defaults.shown)).toBe(true);
   });
 
@@ -89,6 +92,7 @@ describe("settings from anything at all", () => {
       projectDefaults: {
         Feature: { shown: false, dailyGoal: 1e9, targetPages: 110.4, blankLinesBeforeSceneHeadings: 2, boldTransitions: true },
         Novel: { shown: false },
+        Epic: { shown: false },
       },
     });
     expect(kept.author).toEqual({ name: "Paper Boats Writer", penNames: ["A. Quill"], email: "", phone: "", address: "" });
@@ -103,8 +107,10 @@ describe("settings from anything at all", () => {
       boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });
-    // Only the types a project can be made as are kept.
-    expect(Object.keys(kept.projectDefaults)).toEqual(["Feature", "Episode", "Short Film"]);
+    // Every type New Project lists is kept, the coming ones too; a type it does not list is not.
+    expect(Object.keys(kept.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
+    expect(kept.projectDefaults["Novel"]!.shown).toBe(false);
+    expect(kept.projectDefaults["Episode"]!.shown).toBe(true);
   });
 
   it.each([
@@ -177,5 +183,47 @@ describe("the settings file", () => {
     const store = openSettingsStore(nodeFilesystem, folder);
     expect(await store.load()).toEqual(DEFAULT_SETTINGS);
     expect(await store.save(DEFAULT_SETTINGS)).toBe(false);
+  });
+});
+
+describe("the writer's own keys", () => {
+  it("keep each command's keys, put right: one modifier, a named key, each once, single characters in lower case", () => {
+    const kept = settingsFrom({
+      keyBindings: {
+        search: [{ key: "F", mod: true }, { key: "Enter", alt: true }, { key: "f", mod: true }],
+        "toggle-spellcheck": [],
+        "zoom-in": [
+          { key: "=" },
+          { key: "=", mod: true, alt: true },
+          { key: "", mod: true },
+          { key: 7, mod: true },
+          { key: "a\tb", alt: true },
+          "Ctrl+Q",
+          { key: "q", mod: "yes" },
+          { key: "PageDown", alt: true },
+        ],
+        "Not An Id": [{ key: "x", mod: true }],
+        "previous-scene": "Ctrl+,",
+      },
+    });
+    expect(kept.keyBindings).toEqual({
+      search: [{ key: "f", mod: true }, { key: "Enter", alt: true }],
+      "toggle-spellcheck": [],
+      "zoom-in": [{ key: "PageDown", alt: true }],
+    });
+  });
+
+  it("keep at most eight keys for one command", () => {
+    const many = "abcdefghijk".split("").map((key) => ({ key, alt: true }));
+    expect(settingsFrom({ keyBindings: { search: many } }).keyBindings["search"]).toHaveLength(MOST_BINDINGS);
+  });
+
+  it("read nothing that is not a list of commands as no changes", () => {
+    for (const keyBindings of [null, [], "search", 4]) expect(settingsFrom({ keyBindings }).keyBindings).toEqual({});
+  });
+
+  it("round-trip through the file's text", () => {
+    const settings = settingsFrom({ keyBindings: { search: [{ key: "f", mod: true }], "reset-zoom": [] } });
+    expect(settingsFrom(JSON.parse(settingsText(settings)))).toEqual(settings);
   });
 });

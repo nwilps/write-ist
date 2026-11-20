@@ -7,8 +7,9 @@
 //!
 //! `commit_write` is here because the plugin cannot do what ADR-0008 rule 5
 //! asks for, `move_folder` because the plugin's rename replaces an empty folder
-//! without a word, and `remove_empty_folder` so that the application is never
-//! given the plugin's recursive remove (`folders.rs`). The five `spell_*` commands are here
+//! without a word, `remove_empty_folder` so that the application is never
+//! given the plugin's recursive remove, and `exile_project`, the one erase,
+//! which takes only a single checked project out of the Graveyard (`folders.rs`). The five `spell_*` commands are here
 //! because spellcheck is ours, in Rust, off the thread that draws (ADR-0032):
 //! see `spelling.rs`.
 
@@ -116,6 +117,17 @@ fn remove_empty_folder(app: tauri::AppHandle, path: String) -> Result<(), String
     folders::remove_empty_within(&root, Path::new(&path)).map_err(|error| error.to_string())
 }
 
+/// Exile: erase one project in the Graveyard, for good (ADR-0044). Only a real
+/// folder directly inside `~/Documents/write-ist/Graveyard/` whose `project.md`
+/// holds `project_id` now; everything else is refused and left as it was
+/// (`folders::exile_within`). The ledger is in app data, outside every bundle,
+/// and is never touched (ADR-0017).
+#[tauri::command(async)]
+fn exile_project(app: tauri::AppHandle, path: String, project_id: String) -> Result<(), String> {
+    let root = projects_folder(&app)?;
+    folders::exile_within(&root, Path::new(&path), &project_id).map_err(|error| error.to_string())
+}
+
 fn projects_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     use tauri::Manager;
     Ok(app
@@ -209,6 +221,7 @@ pub fn run() {
             commit_write,
             move_folder,
             remove_empty_folder,
+            exile_project,
             spell_misspelled,
             spell_suggest,
             spell_add_word,

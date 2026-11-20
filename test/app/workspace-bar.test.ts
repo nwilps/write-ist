@@ -245,11 +245,11 @@ describe("the tab keys in the command table and the Keyboard Shortcuts list", ()
   it("are listed under View", () => {
     const view = shortcutGroups().find((group) => group.name === "View")!;
     expect(view.rows.slice(-5)).toEqual([
-      { label: "Editor", hint: "[Alt + 1]" },
-      { label: "Notes", hint: "[Alt + 2]" },
-      { label: "Plan", hint: "[Alt + 3]" },
-      { label: "Previous Workspace", hint: "[Alt + Left]" },
-      { label: "Next Workspace", hint: "[Alt + Right]" },
+      { label: "Editor", hints: ["[Alt + 1]"] },
+      { label: "Notes", hints: ["[Alt + 2]"] },
+      { label: "Plan", hints: ["[Alt + 3]"] },
+      { label: "Previous Workspace", hints: ["[Alt + Left]"] },
+      { label: "Next Workspace", hints: ["[Alt + Right]"] },
     ]);
   });
 });

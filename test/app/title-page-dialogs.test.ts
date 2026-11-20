@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { editorMenus } from "../../app/src/workspaces/editor/menus.ts";
+import { hintNow } from "../../app/src/menus/drop-menu.ts";
 import { sidePanels } from "../../app/src/workspaces/editor/panels.ts";
 import { openTitlePageDialog } from "../../app/src/workspaces/editor/title-page-dialog.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -878,10 +879,10 @@ describe("the Edit and View menus", () => {
     ]);
     // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck, Reset Zoom and Keyboard Shortcuts
     // have one here. The Zoom row is − and +, whose keys the Keyboard Shortcuts dialog lists.
-    expect(menus["View"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual([
+    expect(menus["View"]!.flatMap((entry) => ("act" in entry && hintNow(entry) !== undefined ? [hintNow(entry)] : []))).toEqual([
       "[Ctrl + ;]", "[Ctrl + 0]", "[Ctrl + K]",
     ]);
-    expect(menus["Edit"]!.flatMap((entry) => ("hint" in entry ? [entry.hint] : []))).toEqual(["[Ctrl + Z]", "[Ctrl + Y]"]);
+    expect(menus["Edit"]!.flatMap((entry) => ("act" in entry && hintNow(entry) !== undefined ? [hintNow(entry)] : []))).toEqual(["[Ctrl + Z]", "[Ctrl + Y]"]);
   });
 
   it("open from their rows like File, and the items run the actions", () => {

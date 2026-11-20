@@ -112,12 +112,6 @@
   min-height: var(--size-row);
 }
 
-.settings__pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-roomy);
-}
-
 .settings__line {
   display: flex;
   align-items: center;
@@ -145,23 +139,38 @@
   color: var(--colour-muted);
 }
 
-/* --- The dictionary's words and the Graveyard's projects ---------------------- */
+/* --- Every list: one column of cells, each a pill the width of the section ------ */
 
+/*
+ * The editor's pills, set in a dialog: the same raised surface and corners
+ * (`--radius-float`, so Interface corners squares them too), with a hairline
+ * edge because the dialog behind is the same grey. A margin either side, and
+ * a little room between one cell and the next.
+ */
 .settings__list {
   display: grid;
-  gap: var(--space-hair);
+  gap: var(--space-cell-gap);
   margin: 0;
-  padding: 0;
+  padding: 0 var(--space-cell-margin);
   list-style: none;
 }
 
-.settings__row {
+.settings__cell {
   display: flex;
   align-items: center;
   gap: var(--space-tight);
   min-height: var(--size-row);
+  padding: var(--space-cell-y) var(--space-cell-x);
+  box-sizing: border-box;
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  background: var(--colour-raised);
   font-size: var(--size-label);
   line-height: var(--leading-tight);
+}
+
+.settings__cell:focus-within {
+  border-color: var(--colour-border-strong);
 }
 
 .settings__row-name {
@@ -183,6 +192,13 @@
   padding: 0 var(--space-tight);
 }
 
+/* Exile, the one erase: in the alarm colour, at rest and lit. */
+.dialog-action.settings__row-action--alarm,
+.dialog-action.settings__row-action--alarm:hover:not(:disabled),
+.dialog-action.settings__row-action--alarm:focus:not(:disabled) {
+  color: var(--colour-alarm);
+}
+
 .settings__row-input {
   flex: 1;
   height: var(--size-row);
@@ -190,47 +206,198 @@
 
 .settings__empty {
   margin: 0;
+  padding: 0 var(--space-cell-margin);
   font-size: var(--size-label);
   color: var(--colour-faint);
 }
 
-/* --- Keyboard Shortcuts: two columns of names and keys ------------------------ */
+/* --- New Project Defaults: a cell that opens ---------------------------------- */
 
-.settings__key-columns {
+.settings__cell--collapsible {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-loose);
+  gap: var(--space-roomy);
+  align-items: stretch;
 }
 
-.settings__key-column {
+.settings__cell-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-row);
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--colour-text);
+  cursor: pointer;
+}
+
+.settings__cell-head:focus {
+  outline: none;
+}
+
+.settings__cell-head:hover .settings__row-name,
+.settings__cell-head:focus .settings__row-name,
+.settings__cell-head:hover .settings__cell-chevron,
+.settings__cell-head:focus .settings__cell-chevron {
+  color: var(--colour-accent);
+}
+
+.settings__cell-chevron {
+  flex: none;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  color: var(--colour-faint);
+}
+
+.settings__cell-head[aria-expanded="true"] .settings__cell-chevron {
+  transform: rotate(90deg);
+}
+
+.settings__cell-body {
   display: grid;
+  gap: var(--space-roomy);
+  padding-block-end: var(--space-tight);
+}
+
+.settings__cell-body[hidden] {
+  display: none;
+}
+
+/* --- Keyboard Shortcuts: a command, and its keys at the far right ---------------- */
+
+.settings__cell:has(.settings__cell-line) {
+  display: grid;
+  gap: var(--space-hair);
+  align-items: stretch;
+}
+
+.settings__cell-line {
+  display: flex;
+  align-items: center;
   gap: var(--space-roomy);
 }
 
-.settings__keys {
-  display: grid;
+.settings__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: var(--space-tight);
 }
 
-.settings__key-rows {
-  display: grid;
-  gap: var(--space-hair);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.settings__chip-pair {
+  display: inline-flex;
+  align-items: center;
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  background: var(--colour-overlay);
 }
 
-.settings__key-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-roomy);
+.settings__chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-chip);
+  padding: 0 var(--space-tight);
+  box-sizing: border-box;
+  font-family: inherit;
   font-size: var(--size-label);
   line-height: var(--leading-tight);
+  white-space: nowrap;
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  background: var(--colour-overlay);
   color: var(--colour-text);
+  cursor: pointer;
 }
 
-.settings__key {
-  flex: none;
+/* In a pair, the pair draws the edge. */
+.settings__chip-pair .settings__chip {
+  border: none;
+  background: transparent;
+}
+
+.settings__chip:focus,
+.settings__chip-remove:focus,
+.settings__icon-button:focus {
+  outline: none;
+}
+
+.settings__chip:hover,
+.settings__chip:focus {
+  color: var(--colour-accent);
+}
+
+/* A locked key: words, not a button. */
+.settings__chip--fixed {
+  color: var(--colour-muted);
+  cursor: default;
+}
+
+.settings__chip--blank {
   color: var(--colour-faint);
+}
+
+.settings__chip--capturing {
+  border-color: var(--colour-accent);
+  color: var(--colour-accent);
+}
+
+.settings__chip-remove,
+.settings__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--colour-faint);
+  cursor: pointer;
+}
+
+.settings__chip-remove {
+  height: var(--size-chip);
+  padding: 0 var(--space-tight) 0 0;
+}
+
+.settings__chip-remove:hover,
+.settings__chip-remove:focus,
+.settings__icon-button:hover:not(:disabled),
+.settings__icon-button:focus:not(:disabled) {
+  color: var(--colour-accent);
+}
+
+.settings__icon-button {
+  width: var(--size-chip);
+  height: var(--size-chip);
+}
+
+.settings__icon-button:disabled {
+  cursor: default;
+  opacity: var(--opacity-unavailable);
+}
+
+.settings__chip-icon {
+  width: var(--size-chip-icon);
+  height: var(--size-chip-icon);
+}
+
+.settings__icon {
+  width: var(--size-icon-large);
+  height: var(--size-icon-large);
+}
+
+/* "Ctrl + F is already used by Search." Quiet, and only in its own cell. */
+.settings__cell-note {
+  margin: 0;
+  text-align: right;
+  font-size: var(--size-label);
+  color: var(--colour-muted);
+}
+
+.settings__cell-note[hidden] {
+  display: none;
 }

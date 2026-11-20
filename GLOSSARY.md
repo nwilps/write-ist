@@ -119,10 +119,12 @@ _Avoid_: project identity, uuid, key, path
 
 **Graveyard**:
 Where deleted projects go: the folder `Graveyard` inside the default location
-(`~/Documents/write-ist/`). Deleting a project moves its bundle there whole and unchanged; it is
-never erased, and the writer brings it back by moving the folder back out. It is not a project and
-is never listed as one, and no project may take its name (ADR-0044). A future **Exile** action will
-be what deletes a project permanently; it is not built. The names come from Magic: The Gathering.
+(`~/Documents/write-ist/`). Deleting a project moves its bundle there whole and unchanged, and
+the writer brings it back with Recover in Settings ▸ Graveyard (or by moving the folder back out).
+It is not a project and is never listed as one, and no project may take its name (ADR-0044).
+**Exile**, in Settings ▸ Graveyard, is the one permanent delete: it erases a single project in the
+Graveyard after a confirm. The ledger keeps that project's days (ADR-0017). The names come from
+Magic: The Gathering.
 A `Deleted Projects` folder, the Graveyard's former name, is moved into it.
 _Avoid_: Deleted Projects, deleted folder, trash, bin, recycle bin, archive (nothing here is
 emptied or packed)

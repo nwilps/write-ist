@@ -24,7 +24,7 @@ import { screenplaySchema } from "../../../../src/screenplay/schema.ts";
 import { dropMenu, type DropMenu, type MenuEntry } from "../../menus/drop-menu.ts";
 import { element } from "../../screens/element.ts";
 import { chordHint } from "../../screens/shortcuts.ts";
-import { commandById, hintOf, type Command } from "./commands.ts";
+import { commandById, hintOf, whenKeyBindingsChange, type Command } from "./commands.ts";
 import { sceneHeadings } from "./scene-jump.ts";
 
 /** The three menu rows, and the letter each answers to with Alt held. */
@@ -153,6 +153,11 @@ export function sidePanels(
   ]);
   scenes.addEventListener("wheel", (event) => keepWheelIn(sceneList, event), { passive: false });
 
+  // The rows that show a command's key, drawn again when the writer changes one.
+  const hinted: [HTMLElement, Command][] = [];
+  const stopHearingKeys = whenKeyBindingsChange(() => {
+    for (const [button, command] of hinted) button.querySelector(".panel__hint")!.textContent = hintOf(command) ?? "";
+  });
   const typeRows = new Map<ElementType, HTMLButtonElement>();
   const types = element(
     "section",
@@ -161,7 +166,8 @@ export function sidePanels(
       // The label and the key are the table's; Ctrl+1…7 themselves are the
       // surface's keymap, built from the same `NUMBERED_TYPES`.
       const entry = tableEntry(`element-${type}`);
-      const button = row(entry.label, hintOf(entry)!);
+      const button = row(entry.label, hintOf(entry) ?? "");
+      hinted.push([button, entry]);
       const command = setElementType(type);
       acts(button, (editor) => void command(editor.state, editor.dispatch));
       typeRows.set(type, button);
@@ -170,7 +176,8 @@ export function sidePanels(
   );
 
   const searchEntry = tableEntry("search");
-  const search = row(searchEntry.label, hintOf(searchEntry)!);
+  const search = row(searchEntry.label, hintOf(searchEntry) ?? "");
+  hinted.push([search, searchEntry]);
   search.prepend(icon(Search));
   search.classList.add("panel__row--search");
   // The dialog takes focus itself, so unlike `acts` this hands it back nothing.
@@ -209,6 +216,9 @@ export function sidePanels(
       view = editor;
     },
     update,
-    dispose: () => openMenus.forEach((opened) => opened.dispose()),
+    dispose: () => {
+      stopHearingKeys();
+      openMenus.forEach((opened) => opened.dispose());
+    },
   };
 }

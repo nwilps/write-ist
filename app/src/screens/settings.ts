@@ -1,13 +1,19 @@
 /**
  * Settings: one dialog for the whole application, opened from Home (`[s]`) and
- * from an open project (File ▸ Settings…).
+ * from an open project (File ▸ Settings…). It has no key of its own.
  *
  * A list of sections down the left and the one chosen on the right, so the
- * dialog keeps one size and fits the window: General, Appearance, New Project
- * Defaults, Keyboard Shortcuts, Dictionary and Graveyard (Noah's notes,
- * *INT. SETTINGS - DAY*). Nothing is "saved" with a button, as in Goals:
- * a choice changes the setting at once and **Done** only puts the dialog away.
- * A field is put right quietly when it is left, and never says it was wrong.
+ * dialog keeps one size and fits the window: General (with Appearance inside
+ * it), New Project Defaults, Keyboard Shortcuts, Dictionary and Graveyard
+ * (Noah's notes, *INT. SETTINGS - DAY*). Nothing is "saved" with a button, as
+ * in Goals: a choice changes the setting at once and **Done** only puts the
+ * dialog away. A field is put right quietly when it is left, and never says it
+ * was wrong. The one message a section says of its own is Keyboard Shortcuts'
+ * "already used", for a key another command has.
+ *
+ * **Every list is one column of cells**, each a pill the width of the section
+ * (`.settings__cell`): the keys, the defaults for each project type, the
+ * writer's words and the Graveyard.
  *
  * New Project's dialog, built from its pieces: a modal `<dialog>` with no
  * heading, Escape closes it natively, and the shared button, drop-down, switch
@@ -17,21 +23,26 @@
  *
  * Here, not in the shell: the shell knows nothing about what it hosts
  * (ADR-0005), and Settings is reached before any project is open. Everything
- * that touches the disk arrives as a port, so this draws and listens.
+ * that touches the disk arrives as a port, and the commands and their keys
+ * arrive as data, so this draws and listens.
  */
+import { ChevronRight, CirclePlus, createElement, RotateCcw, X, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import {
-  DEFAULTS_COMING,
+  DEFAULTS_ALL,
   DEFAULTS_FOR,
   DEFAULT_PROJECT_DEFAULTS,
+  MOST_BINDINGS,
   MOST_PAGES,
   MOST_WORDS,
   penNamesFrom,
+  sameBinding,
   settingsFrom,
   timeFrom,
   timeSaid,
   wholeNumber,
   type Appearance,
+  type KeyBinding,
   type ProjectDefaults,
   type Settings,
 } from "../../../src/settings/settings.ts";
@@ -43,12 +54,12 @@ import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
 import { chevron, field } from "./new-project.ts";
 import { showExileProject } from "./project-dialogs.ts";
+import { CAPTURES_KEYS, chordName, chordOf, chordsOverlap, type Chord } from "./shortcuts.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
 /** The sections, in the order the list draws them. */
 export const SETTINGS_SECTIONS = [
   "General",
-  "Appearance",
   "New Project Defaults",
   "Keyboard Shortcuts",
   "Dictionary",
@@ -56,10 +67,21 @@ export const SETTINGS_SECTIONS = [
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
-/** A group of keys, as the Keyboard Shortcuts dialog draws them. */
-export interface ShortcutListing {
-  readonly name: string;
-  readonly rows: readonly { readonly label: string; readonly hint: string }[];
+/** A command Keyboard Shortcuts lists, as the application's command table gives it. */
+export interface ShortcutCommand {
+  readonly id: string;
+  readonly label: string;
+  /** Its own keys, before the writer changed any. */
+  readonly defaults: readonly Chord[];
+  /** Standard keys (Copy, Save, Escape…): shown, and never changed. */
+  readonly fixed: boolean;
+}
+
+/** What Keyboard Shortcuts edits: the commands, and the keys no command may take. */
+export interface SettingsShortcuts {
+  readonly commands: readonly ShortcutCommand[];
+  /** Keys that are taken without being a command's here: the menus' Alt+F, the surface's Ctrl+B. */
+  readonly reserved: readonly { readonly label: string; readonly chord: Chord }[];
 }
 
 /** The writer's own words (ADR-0032): the custom dictionary, never the shipped one. */
@@ -71,13 +93,13 @@ export interface SettingsDictionary {
   readonly remove: (word: string) => Promise<boolean>;
 }
 
-/** The Graveyard (ADR-0044): what is in it, and bringing a project back. */
+/** The Graveyard (ADR-0044): what is in it, bringing a project back, and Exile. */
 export interface SettingsGraveyard {
   readonly list: () => Promise<readonly Project[]>;
   /** Move it back to the projects folder. Resolves to words for the writer when refused. */
   readonly recover: (project: Project) => Promise<string | undefined>;
-  /** Erase it for good. Absent until it is built: Exile's confirm is drawn, and its button stays disabled. */
-  readonly exile?: (project: Project) => Promise<string | undefined>;
+  /** Erase it for good, after the confirm. Resolves to words for the writer when refused. */
+  readonly exile: (project: Project) => Promise<string | undefined>;
 }
 
 export interface SettingsDialogOptions {
@@ -85,8 +107,7 @@ export interface SettingsDialogOptions {
   readonly settings: () => Settings;
   /** Use these from now on, and keep them. Resolves to words for the writer when they could not be kept. */
   readonly change: (settings: Settings) => Promise<string | undefined>;
-  /** Every key the Editor answers, grouped (`shortcutGroups()`). */
-  readonly shortcuts: readonly ShortcutListing[];
+  readonly shortcuts: SettingsShortcuts;
   readonly dictionary: SettingsDictionary;
   readonly graveyard: SettingsGraveyard;
   /** The section shown first. Default General. */
@@ -145,6 +166,21 @@ function onEnterWhileEditing(input: HTMLInputElement, act: () => void): void {
 /** What the dictionary takes as one word: something, with no space and no slash in it. */
 const isWord = (word: string): boolean => word !== "" && !/[\s/]/.test(word);
 
+/** A Lucide icon on a button, which a screen reader skips for the button's own name. */
+function icon(node: IconNode, className: string): SVGElement {
+  const drawn = createElement(node, { class: className });
+  drawn.setAttribute("aria-hidden", "true");
+  return drawn;
+}
+
+/** One cell of a list: a pill the width of the section (`.settings__cell`). */
+const cell = (children: readonly Node[], className = ""): HTMLLIElement =>
+  element("li", { className: `settings__cell ${className}`.trim() }, children);
+
+/** Whether two lists of keys are the same keys, in the same order. */
+const sameKeys = (one: readonly KeyBinding[], other: readonly KeyBinding[]): boolean =>
+  one.length === other.length && one.every((binding, at) => sameBinding(binding, other[at]!));
+
 export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOptions): HTMLDialogElement {
   let current = settingsFrom(options.settings());
   const problem = element("div", { className: "new-project__problem" });
@@ -178,7 +214,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     return input;
   };
 
-  // --- General ---------------------------------------------------------------
+  // --- General, with Appearance inside it -------------------------------------
   const author = (key: "name" | "email" | "phone" | "address"): HTMLInputElement =>
     keptText(idOf(`author-${key}`), current.author[key], (typed) => {
       const kept = typed.trim();
@@ -201,21 +237,8 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     return timeSaid(time);
   });
   dayEnds.classList.add("settings__time");
-  const general: Section = {
-    body: [
-      subheading("Author"),
-      field("Name", name),
-      field("Pen names", penNames),
-      element("div", { className: "settings__pair" }, [field("Email", email), field("Phone", phone)]),
-      field("Address", address),
-      subheading("Goals"),
-      field("Day ends at", dayEnds),
-    ],
-    rows: () => [[name], [penNames], [email, phone], [address], [dayEnds]],
-  };
   penNames.placeholder = "Separate names with commas";
 
-  // --- Appearance ------------------------------------------------------------
   const changeLook = (next: Partial<Appearance>): void =>
     update({ ...current, appearance: { ...current.appearance, ...next } });
   const theme = dialogSelect({
@@ -246,41 +269,38 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     onChange: (value) => changeLook({ paperCorners: value === "sharp" ? "sharp" : "rounded" }),
   });
   paperCorners.set(current.appearance.paperCorners);
-  const appearance: Section = {
+
+  const general: Section = {
     body: [
+      subheading("Author"),
+      field("Name", name),
+      field("Pen names", penNames),
+      field("Email", email),
+      field("Phone", phone),
+      field("Address", address),
+      subheading("Goals"),
+      field("Day ends at", dayEnds),
+      subheading("Appearance"),
       selectField("Theme", theme),
       switchRow("White paper", whitePaper),
       selectField("Interface corners", interfaceCorners),
       selectField("Paper corners", paperCorners),
     ],
-    rows: () => [[theme.control], [whitePaper.control], [interfaceCorners.control], [paperCorners.control]],
+    rows: () => [
+      [name],
+      [penNames],
+      [email],
+      [phone],
+      [address],
+      [dayEnds],
+      [theme.control],
+      [whitePaper.control],
+      [interfaceCorners.control],
+      [paperCorners.control],
+    ],
   };
 
-  // --- New Project Defaults ---------------------------------------------------
-  let type = DEFAULTS_FOR[0]!;
-  const defaultsOf = (): ProjectDefaults => current.projectDefaults[type] ?? DEFAULT_PROJECT_DEFAULTS;
-  const changeDefaults = (next: Partial<ProjectDefaults>): void =>
-    update({ ...current, projectDefaults: { ...current.projectDefaults, [type]: { ...defaultsOf(), ...next } } });
-  const typeSelect = dialogSelect({
-    id: idOf("defaults-type"),
-    label: "Project type",
-    choices: [
-      ...DEFAULTS_FOR.map((value) => ({ value, label: value })),
-      ...DEFAULTS_COMING.map((value) => ({ value, label: value, unavailable: "soon" })),
-    ],
-    onChange: (value) => {
-      type = value;
-      showDefaults();
-    },
-  });
-  const shown = dialogToggle({ id: idOf("defaults-shown"), onChange: (on) => changeDefaults({ shown: on }) });
-  const goalOn = dialogToggle({
-    id: idOf("defaults-goal-on"),
-    onChange: (on) => {
-      changeDefaults({ dailyGoalOn: on });
-      goal.disabled = !on;
-    },
-  });
+  // --- New Project Defaults: a cell for every type, each opened on its own ---------
   const numberBox = (id: string, label: string, keep: (typed: string) => number, blankAt?: number): HTMLInputElement => {
     const box = element("input", {
       id,
@@ -305,40 +325,58 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     });
     return box;
   };
-  const goal = numberBox(idOf("defaults-goal"), "Daily word goal", (typed) => {
-    const words = wholeNumber(typed, 1, MOST_WORDS, defaultsOf().dailyGoal);
-    changeDefaults({ dailyGoal: words });
-    return words;
-  });
-  goal.min = "1";
-  goal.max = String(MOST_WORDS);
-  const pages = numberBox(
-    idOf("defaults-pages"),
-    "Target page count",
-    (typed) => {
-      // Blank is "no target".
-      const count = typed.trim() === "" ? 0 : wholeNumber(typed, 0, MOST_PAGES, defaultsOf().targetPages);
-      changeDefaults({ targetPages: count });
-      return count;
-    },
-    0,
-  );
-  pages.min = "0";
-  pages.max = String(MOST_PAGES);
-  pages.placeholder = "None";
-  const boldHeadings = dialogToggle({ id: idOf("defaults-bold-headings"), onChange: (on) => changeDefaults({ boldSceneHeadings: on }) });
-  const boldTransitions = dialogToggle({ id: idOf("defaults-bold-transitions"), onChange: (on) => changeDefaults({ boldTransitions: on }) });
-  const blankLines = dialogSelect({
-    id: idOf("defaults-blank-lines"),
-    label: "Blank lines before scene headings",
-    choices: [
-      { value: "1", label: "1" },
-      { value: "2", label: "2" },
-    ],
-    onChange: (value) => changeDefaults({ blankLinesBeforeSceneHeadings: value === "2" ? 2 : 1 }),
-  });
-  /** Show the chosen type's defaults. */
-  function showDefaults(): void {
+  /** Which types are open. Each stays as the writer left it until the dialog closes. */
+  const expanded = new Set<string>();
+  const typeCells = DEFAULTS_ALL.map((type) => defaultsCell(type));
+  /** One type's cell: its name, a chevron, and, opened, the options New Project will start it with. */
+  function defaultsCell(type: string): { readonly cell: HTMLLIElement; readonly rows: () => HTMLElement[][] } {
+    const key = idOf(`defaults-${type}`);
+    const defaultsOf = (): ProjectDefaults => current.projectDefaults[type] ?? DEFAULT_PROJECT_DEFAULTS;
+    const change = (next: Partial<ProjectDefaults>): void =>
+      update({ ...current, projectDefaults: { ...current.projectDefaults, [type]: { ...defaultsOf(), ...next } } });
+    const coming = !DEFAULTS_FOR.includes(type);
+    const screenplay = !coming;
+
+    const shown = dialogToggle({ id: `${key}-shown`, onChange: (on) => change({ shown: on }) });
+    const goalOn = dialogToggle({
+      id: `${key}-goal-on`,
+      onChange: (on) => {
+        change({ dailyGoalOn: on });
+        goal.disabled = !on;
+      },
+    });
+    const goal = numberBox(`${key}-goal`, `Daily word goal for ${type}`, (typed) => {
+      const words = wholeNumber(typed, 1, MOST_WORDS, defaultsOf().dailyGoal);
+      change({ dailyGoal: words });
+      return words;
+    });
+    goal.min = "1";
+    goal.max = String(MOST_WORDS);
+    const pages = numberBox(
+      `${key}-pages`,
+      `Target page count for ${type}`,
+      (typed) => {
+        // Blank is "no target".
+        const count = typed.trim() === "" ? 0 : wholeNumber(typed, 0, MOST_PAGES, defaultsOf().targetPages);
+        change({ targetPages: count });
+        return count;
+      },
+      0,
+    );
+    pages.min = "0";
+    pages.max = String(MOST_PAGES);
+    pages.placeholder = "None";
+    const boldHeadings = dialogToggle({ id: `${key}-bold-headings`, onChange: (on) => change({ boldSceneHeadings: on }) });
+    const boldTransitions = dialogToggle({ id: `${key}-bold-transitions`, onChange: (on) => change({ boldTransitions: on }) });
+    const blankLines = dialogSelect({
+      id: `${key}-blank-lines`,
+      label: "Blank lines before scene headings",
+      choices: [
+        { value: "1", label: "1" },
+        { value: "2", label: "2" },
+      ],
+      onChange: (value) => change({ blankLinesBeforeSceneHeadings: value === "2" ? 2 : 1 }),
+    });
     const defaults = defaultsOf();
     shown.set(defaults.shown);
     goalOn.set(defaults.dailyGoalOn);
@@ -348,11 +386,8 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     boldHeadings.set(defaults.boldSceneHeadings);
     boldTransitions.set(defaults.boldTransitions);
     blankLines.set(String(defaults.blankLinesBeforeSceneHeadings));
-  }
-  showDefaults();
-  const newProjectDefaults: Section = {
-    body: [
-      selectField("Project type", typeSelect),
+
+    const options = element("div", { id: `${key}-options`, className: "settings__cell-body", hidden: true }, [
       switchRow("Show in New Project", shown),
       element("div", { className: "new-project-dialog__field" }, [
         switchRow("Daily word goal", goalOn),
@@ -362,49 +397,214 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
         element("label", { htmlFor: pages.id, className: "new-project-dialog__label", textContent: "Target page count" }),
         element("div", { className: "settings__line" }, [pages, element("span", { className: "settings__unit", textContent: "pages" })]),
       ]),
-      subheading("Screenplay"),
-      switchRow("Bold scene headings", boldHeadings),
-      switchRow("Bold transitions", boldTransitions),
-      selectField("Blank lines before scene headings", blankLines),
-    ],
-    rows: () => [
-      [typeSelect.control],
-      [shown.control],
-      [goalOn.control],
-      [goal],
-      [pages],
-      [boldHeadings.control],
-      [boldTransitions.control],
-      [blankLines.control],
-    ],
+      ...(screenplay
+        ? [
+            subheading("Screenplay"),
+            switchRow("Bold scene headings", boldHeadings),
+            switchRow("Bold transitions", boldTransitions),
+            selectField("Blank lines before scene headings", blankLines),
+          ]
+        : []),
+    ]);
+    const head = element("button", { id: `${key}-head`, type: "button", className: "settings__cell-head" }, [
+      icon(ChevronRight, "settings__cell-chevron"),
+      element("span", { className: "settings__row-name", textContent: type }),
+      ...(coming ? [element("span", { className: "settings__row-aside", textContent: "Coming soon" })] : []),
+    ]);
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("aria-controls", options.id);
+    head.addEventListener("click", () => {
+      const open = !expanded.has(type);
+      if (open) expanded.add(type);
+      else expanded.delete(type);
+      head.setAttribute("aria-expanded", String(open));
+      options.hidden = !open;
+      refreshRows();
+    });
+    return {
+      cell: cell([head, options], "settings__cell--collapsible"),
+      rows: () => [
+        [head],
+        ...(expanded.has(type)
+          ? [
+              [shown.control],
+              [goalOn.control],
+              [goal],
+              [pages],
+              ...(screenplay ? [[boldHeadings.control], [boldTransitions.control], [blankLines.control]] : []),
+            ]
+          : []),
+      ],
+    };
+  }
+  const newProjectDefaults: Section = {
+    body: [element("ul", { className: "settings__list", ariaLabel: "Project types" }, typeCells.map((type) => type.cell))],
+    rows: () => typeCells.flatMap((type) => type.rows()),
   };
 
-  // --- Keyboard Shortcuts -----------------------------------------------------
-  const listing = (group: ShortcutListing): HTMLElement =>
-    element("section", { className: "settings__keys" }, [
-      element("h3", { className: "new-project-dialog__label settings__subheading", textContent: group.name }),
-      element(
-        "ul",
-        { className: "settings__key-rows" },
-        group.rows.map((row) =>
-          element("li", { className: "settings__key-row" }, [
-            element("span", { textContent: row.label }),
-            element("span", { className: "settings__key", textContent: row.hint }),
+  // --- Keyboard Shortcuts: one list, each command's keys changed in place --------
+  const commands = options.shortcuts.commands;
+  /** The keys a command answers now: the writer's, where they changed them. */
+  const keysOf = (command: ShortcutCommand): readonly KeyBinding[] =>
+    (command.fixed ? undefined : current.keyBindings[command.id]) ?? command.defaults;
+  /** Who has this key now, if anyone but `except`: a command, or a reserved key. */
+  const ownerOf = (chord: Chord, except: ShortcutCommand): string | undefined =>
+    commands.find((command) => command !== except && keysOf(command).some((held) => chordsOverlap(held, chord)))?.label ??
+    options.shortcuts.reserved.find((reserved) => chordsOverlap(reserved.chord, chord))?.label;
+  /** Keep a command's keys: dropped from the file when they are its own again. */
+  const setKeys = (command: ShortcutCommand, keys: readonly KeyBinding[]): void => {
+    const { [command.id]: _old, ...others } = current.keyBindings;
+    update({ ...current, keyBindings: sameKeys(keys, command.defaults) ? others : { ...others, [command.id]: keys } });
+  };
+  const keyCells = commands.map((command) => keyCell(command));
+  /**
+   * One command's cell: its name, and at the far right its keys as chips, or
+   * `Blank`; then + to add a key, and ↺ to put back its own keys when they
+   * have changed. A fixed command's chips are only words.
+   */
+  function keyCell(command: ShortcutCommand): { readonly cell: HTMLLIElement; readonly rows: () => HTMLElement[][] } {
+    const chips = element("div", { className: "settings__chips" });
+    const note = element("p", { className: "settings__cell-note", hidden: true });
+    note.setAttribute("aria-live", "polite");
+    let controls: HTMLElement[] = [];
+    const say = (words: string | undefined): void => {
+      note.textContent = words ?? "";
+      note.hidden = words === undefined;
+    };
+
+    /** Draw the chips again, and put focus on the one at `focusAt` (an index in `controls`, or `"add"`). */
+    const draw = (focusAt?: number | "add"): void => {
+      if (command.fixed) {
+        chips.replaceChildren(
+          ...command.defaults.map((chord) => element("span", { className: "settings__chip settings__chip--fixed", textContent: chordName(chord) })),
+        );
+        controls = [];
+        return;
+      }
+      const keys = keysOf(command);
+      controls = [];
+      const drawn: HTMLElement[] = keys.map((chord, at) => {
+        const chip = element("button", { type: "button", className: "settings__chip", textContent: chordName(chord) });
+        chip.setAttribute("aria-label", `Change ${command.label}: ${chordName(chord)}`);
+        chip.addEventListener("click", () => capture(chip, at));
+        const remove = element("button", { type: "button", className: "settings__chip-remove", ariaLabel: `Remove ${chordName(chord)} from ${command.label}` }, [
+          icon(X, "settings__chip-icon"),
+        ]);
+        remove.addEventListener("click", () => {
+          say(undefined);
+          setKeys(command, keys.filter((_key, other) => other !== at));
+          draw(keys.length > 1 ? Math.max(0, at - 1) * 2 : "add");
+        });
+        controls.push(chip, remove);
+        return element("span", { className: "settings__chip-pair" }, [chip, remove]);
+      });
+      if (keys.length === 0) {
+        const blank = element("button", { type: "button", className: "settings__chip settings__chip--blank", textContent: "Blank" });
+        blank.setAttribute("aria-label", `Set a key for ${command.label}`);
+        blank.addEventListener("click", () => capture(blank, 0));
+        controls.push(blank);
+        drawn.push(blank);
+      }
+      const add = element("button", { type: "button", className: "settings__icon-button", ariaLabel: `Add a key for ${command.label}` }, [
+        icon(CirclePlus, "settings__icon"),
+      ]);
+      add.disabled = keys.length >= MOST_BINDINGS;
+      add.addEventListener("click", () => capture(add, keys.length));
+      controls.push(add);
+      drawn.push(add);
+      if (!sameKeys(keys, command.defaults)) {
+        const reset = element("button", { type: "button", className: "settings__icon-button settings__icon-button--quiet", ariaLabel: `Reset ${command.label} to its own keys` }, [
+          icon(RotateCcw, "settings__icon"),
+        ]);
+        reset.addEventListener("click", () => {
+          say(undefined);
+          setKeys(command, command.defaults);
+          draw(0);
+        });
+        controls.push(reset);
+        drawn.push(reset);
+      }
+      chips.replaceChildren(...drawn);
+      // Drawn the first time before the dialog has rows to refresh.
+      if (focusAt === undefined) return;
+      refreshRows();
+      if (focusAt === "add") add.focus();
+      else if (focusAt !== undefined) (controls[focusAt] ?? add).focus();
+    };
+
+    /**
+     * Listen for a new key in place of `from`: the key at `at` replaced, or
+     * one more added when `at` is past the last. Escape leaves it as it was,
+     * and the dialog open. A key another command has is refused, and its name
+     * said in the cell.
+     */
+    function capture(from: HTMLElement, at: number): void {
+      say(undefined);
+      const listening = element("button", { type: "button", className: "settings__chip settings__chip--capturing", textContent: "Press keys…" });
+      listening.setAttribute(CAPTURES_KEYS, "");
+      listening.setAttribute("aria-label", `Press the new key for ${command.label}, or Escape to cancel`);
+      const swapped = from.closest(".settings__chip-pair") ?? from;
+      swapped.replaceWith(listening);
+      controls = [listening];
+      refreshRows();
+      listening.focus();
+      let done = false;
+      const finish = (focusAt: number | "add"): void => {
+        if (done) return;
+        done = true;
+        draw(focusAt);
+      };
+      listening.addEventListener("keydown", (event) => {
+        // Recorded here: never a step through the dialog, and never the dialog's Escape.
+        event.preventDefault();
+        if (event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          finish(Math.min(at, keysOf(command).length) * 2);
+          return;
+        }
+        const chord = chordOf(event);
+        // A modifier on its own, or a key with none: still listening.
+        if (chord === undefined) return;
+        const keys = keysOf(command);
+        if (keys.some((held, other) => other !== at && sameBinding(held, chord))) {
+          // Already this command's: nothing changes.
+          finish(at * 2);
+          return;
+        }
+        const owner = ownerOf(chord, command);
+        if (owner !== undefined) {
+          finish(Math.min(at, keys.length) * 2);
+          say(`${chordName(chord)} is already used by ${owner}.`);
+          return;
+        }
+        const next = [...keys];
+        next.splice(at, at < keys.length ? 1 : 0, chord);
+        setKeys(command, next);
+        finish(at * 2);
+      });
+      // Leaving it is Escape.
+      listening.addEventListener("blur", () => {
+        if (!done) finish(Math.min(at, keysOf(command).length) * 2);
+      });
+    }
+
+    draw();
+    return {
+      cell: cell(
+        [
+          element("div", { className: "settings__cell-line" }, [
+            element("span", { className: "settings__row-name", textContent: command.label }),
+            chips,
           ]),
-        ),
+          note,
+        ],
+        command.fixed ? "settings__cell--fixed" : "",
       ),
-    ]);
-  // As the Keyboard Shortcuts dialog draws them: every group but the last down one side, the last on the other.
-  const groups = options.shortcuts.filter((group) => group.rows.length > 0);
-  const half = Math.max(1, groups.length - 1);
+      rows: () => (controls.length === 0 ? [] : [controls]),
+    };
+  }
   const keyboardShortcuts: Section = {
-    body: [
-      element("div", { className: "settings__key-columns" }, [
-        element("div", { className: "settings__key-column" }, groups.slice(0, half).map(listing)),
-        element("div", { className: "settings__key-column" }, groups.slice(half).map(listing)),
-      ]),
-    ],
-    rows: () => [],
+    body: [element("ul", { className: "settings__list", ariaLabel: "Keyboard shortcuts" }, keyCells.map((key) => key.cell))],
+    rows: () => keyCells.flatMap((key) => key.rows()),
   };
 
   // --- Dictionary -------------------------------------------------------------
@@ -452,7 +652,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
         const remove = rowAction("Remove");
         edit.setAttribute("aria-label", `Edit ${word}`);
         remove.setAttribute("aria-label", `Remove ${word}`);
-        const row = element("li", { className: "settings__row" }, [label, edit, remove]);
+        const row = cell([label, edit, remove]);
         const controls: HTMLElement[] = [edit, remove];
         wordRows.push(controls);
         remove.addEventListener("click", () => {
@@ -559,6 +759,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
         const exile = rowAction("Exile");
         recover.setAttribute("aria-label", `Recover ${project.marker.name}`);
         exile.setAttribute("aria-label", `Exile ${project.marker.name}`);
+        exile.classList.add("settings__row-action--alarm");
         const controls = [recover, exile];
         buriedRows.push(controls);
         recover.addEventListener("click", () => {
@@ -569,16 +770,15 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
           });
         });
         exile.addEventListener("click", () => {
-          const exiling = options.graveyard.exile;
           // On the body: keys inside it must not reach this dialog's.
           showExileProject(document.body, {
             name: project.marker.name,
-            ...(exiling === undefined ? {} : { onExile: () => exiling(project) }),
+            onExile: () => options.graveyard.exile(project),
             // Read again: back to the same row, or its neighbour if it is gone.
             onClose: () => void reloadGraveyard(buriedRows.indexOf(controls)),
           });
         });
-        return element("li", { className: "settings__row" }, [
+        return cell([
           element("span", { className: "settings__row-name", textContent: project.marker.name }),
           element("span", { className: "settings__row-aside", textContent: project.marker.format }),
           recover,
@@ -602,7 +802,6 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
   // --- The frame --------------------------------------------------------------
   const sections: Readonly<Record<SettingsSection, Section>> = {
     General: general,
-    Appearance: appearance,
     "New Project Defaults": newProjectDefaults,
     "Keyboard Shortcuts": keyboardShortcuts,
     Dictionary: dictionary,

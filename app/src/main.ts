@@ -39,6 +39,7 @@ import { newProjectId } from "../../src/project/import.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import { CannotDelete, deleteProject, moveDeletedProjectsToGraveyard } from "../../src/project/delete.ts";
 import { CannotRecover, listGraveyard, recoverProject } from "../../src/project/recover.ts";
+import { CannotExile, exileProject } from "../../src/project/exile.ts";
 import { setDayEndsAt } from "../../src/goals/day.ts";
 import {
   DEFAULT_SETTINGS,
@@ -53,7 +54,7 @@ import { askToRenameProject, showDeleteProject, type RenameRoute } from "./scree
 import { openProjectSearch } from "./screens/project-search.ts";
 import { applyAppearance, openSettingsDialog } from "./screens/settings.ts";
 import { tauriDictionary } from "./spell-tauri.ts";
-import { shortcutGroups } from "./workspaces/editor/keyboard-shortcuts-dialog.ts";
+import { RESERVED_KEYS, shortcutCommands, useKeyBindings } from "./workspaces/editor/commands.ts";
 import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -129,11 +130,12 @@ const settingsRead: Promise<void> = (async () => {
   }
 })();
 
-/** Use these settings from now on: where the day ends, and how the window looks. */
+/** Use these settings from now on: where the day ends, how the window looks, and the writer's keys. */
 function useSettings(next: Settings): void {
   settings = next;
   setDayEndsAt(next.dayEndsAt);
   applyAppearance(document.documentElement, next.appearance);
+  useKeyBindings(next.keyBindings);
 }
 
 /**
@@ -502,7 +504,7 @@ function openSettings(over: HTMLElement = document.body, closed: () => void = ()
         return `Your settings could not be kept, so this change will last only until you quit. ${message(error)}`;
       }
     },
-    shortcuts: shortcutGroups(),
+    shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: tauriDictionary,
     graveyard: {
       list: async () => listGraveyard(tauriFilesystem, await defaultProjectsDirectory()),
@@ -518,7 +520,18 @@ function openSettings(over: HTMLElement = document.body, closed: () => void = ()
           void rereadProjects();
         }
       },
-      // Exile, the permanent delete, is not built (ADR-0044): its confirm is drawn, and its button stays disabled.
+      // The one erase, after its confirm (ADR-0044). The ledger is in app
+      // data, outside every bundle, so the project's history stays (ADR-0017).
+      exile: async (project) => {
+        try {
+          await exileProject(tauriFilesystem, await defaultProjectsDirectory(), project);
+          return undefined;
+        } catch (error) {
+          return error instanceof CannotExile
+            ? error.message
+            : `“${project.marker.name}” could not be exiled, so it is still in the Graveyard. ${message(error)}`;
+        }
+      },
     },
     closed,
   });

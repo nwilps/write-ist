@@ -14,7 +14,8 @@ import { openSettingsDialog } from "../../app/src/screens/settings.ts";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
 import type { SettingsRequest } from "../../app/src/shell/workspace.ts";
 import { importProject } from "../../src/project/import.ts";
-import { DEFAULT_SETTINGS } from "../../src/settings/settings.ts";
+import { DEFAULT_SETTINGS, type Settings } from "../../src/settings/settings.ts";
+import { RESERVED_KEYS, shortcutCommands, useKeyBindings } from "../../app/src/workspaces/editor/commands.ts";
 import { readFixtureBytes } from "../support/files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { fakeEngine } from "../support/spell-engine.ts";
@@ -45,15 +46,26 @@ beforeEach(() => {
   temporary = temporaryDirectory();
 });
 
-/** What `main.ts` does with the request: the real dialog, with ports that hold nothing. */
+/** The settings in force, as `main.ts` holds them. */
+let inForce: Settings = DEFAULT_SETTINGS;
+afterEach(() => {
+  inForce = DEFAULT_SETTINGS;
+  useKeyBindings({});
+});
+
+/** What `main.ts` does with the request: the real dialog and keys, with ports that hold nothing. */
 const openSettings = vi.fn(({ into, closed }: SettingsRequest) => {
   if (document.querySelector("dialog[open]") !== null) return;
   openSettingsDialog(into, {
-    settings: () => DEFAULT_SETTINGS,
-    change: async () => undefined,
-    shortcuts: [],
+    settings: () => inForce,
+    change: async (next) => {
+      inForce = next;
+      useKeyBindings(next.keyBindings);
+      return undefined;
+    },
+    shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: { words: async () => [], add: async () => true, remove: async () => true },
-    graveyard: { list: async () => [], recover: async () => undefined },
+    graveyard: { list: async () => [], recover: async () => undefined, exile: async () => undefined },
     closed,
   });
 });
@@ -123,5 +135,67 @@ describe("File ▸ Settings…", () => {
     expect(openSettings.mock.calls.length).toBe(asked);
     expect(settings()).toBeNull();
     expect(document.querySelectorAll("dialog[open]")).toHaveLength(1);
+  });
+});
+
+describe("Search's two keys, and keys changed in Settings, on the paper", () => {
+  const key = (key: string, init: KeyboardEventInit = {}): KeyboardEvent => {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    (document.activeElement ?? document.body).dispatchEvent(event);
+    return event;
+  };
+  const searching = (into: HTMLElement) => into.querySelector(".search__query") !== null;
+  const closeSearch = () => key("Escape");
+
+  it("opens Search with Ctrl+F and with Alt+Enter", async () => {
+    const { into, sheet } = await editing();
+    sheet.focus();
+    expect(key("f", { ctrlKey: true }).defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(searching(into)).toBe(true));
+    closeSearch();
+    await vi.waitFor(() => expect(searching(into)).toBe(false));
+    sheet.focus();
+    key("Enter", { altKey: true });
+    await vi.waitFor(() => expect(searching(into)).toBe(true));
+  });
+
+  it("uses a key changed in Settings at once: the new key opens Search, the one taken away does nothing", async () => {
+    const { into, sheet } = await editing();
+    fileItem(into, "Settings…").click();
+    const modal = document.querySelector<HTMLDialogElement>('dialog[aria-label="Settings"]')!;
+    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Keyboard Shortcuts"))!.click();
+    modal.querySelector<HTMLButtonElement>('[aria-label="Remove Ctrl + F from Search"]')!.click();
+    modal.querySelector<HTMLButtonElement>('[aria-label="Add a key for Search"]')!.click();
+    // Recorded, not run: Alt+G is the writer's new key, and nothing opens while it is pressed.
+    key("g", { altKey: true });
+    expect(searching(into)).toBe(false);
+    modal.querySelector<HTMLButtonElement>(".new-project-dialog__actions .dialog-action")!.click();
+    expect(inForce.keyBindings["search"]).toEqual([{ key: "Enter", alt: true }, { key: "g", alt: true }]);
+
+    sheet.focus();
+    key("f", { ctrlKey: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(searching(into)).toBe(false);
+    key("g", { altKey: true });
+    await vi.waitFor(() => expect(searching(into)).toBe(true));
+  });
+
+  it("answers a key given to an element type, and the surface no longer answers the one taken away", async () => {
+    const { into, sheet } = await editing();
+    fileItem(into, "Settings…").click();
+    const modal = document.querySelector<HTMLDialogElement>('dialog[aria-label="Settings"]')!;
+    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Keyboard Shortcuts"))!.click();
+    modal.querySelector<HTMLButtonElement>('[aria-label="Change Transition: Ctrl + 6"]')!.click();
+    key("t", { altKey: true });
+    modal.querySelector<HTMLButtonElement>(".new-project-dialog__actions .dialog-action")!.click();
+    // The side panel's hint follows.
+    const panelRow = [...into.querySelectorAll(".panel__row")].find((row) => row.firstElementChild?.textContent === "Transition")!;
+    expect(panelRow.querySelector(".panel__hint")!.textContent).toBe("[Alt + T]");
+
+    sheet.focus();
+    // Swallowed: the surface's keymap would have made the line a transition.
+    const before = sheet.innerHTML;
+    expect(key("6", { ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(sheet.innerHTML).toBe(before);
   });
 });

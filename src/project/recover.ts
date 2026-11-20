@@ -52,14 +52,19 @@ export async function listGraveyard(filesystem: Filesystem, projectsDirectory: s
  * Check that the project the writer pointed at is the one in the Graveyard now:
  * directly inside it, and holding the same project id. Anything else is refused.
  */
-export async function confirmBuried(filesystem: Filesystem, projectsDirectory: string, project: Project): Promise<void> {
+export async function confirmBuried(
+  filesystem: Filesystem,
+  projectsDirectory: string,
+  project: Project,
+  Refusal: new (message: string) => Error = CannotRecover,
+): Promise<void> {
   const name = basename(project.path);
   if (name === "" || name.startsWith(".") || project.path !== join(graveyardIn(projectsDirectory), name)) {
-    throw new CannotRecover(`“${project.marker.name}” is not in the Graveyard, so it has been left alone.`);
+    throw new Refusal(`“${project.marker.name}” is not in the Graveyard, so it has been left alone.`);
   }
   const marker = await readMarker(filesystem, project.path);
   if (typeof marker === "string" || marker.projectId !== project.marker.projectId) {
-    throw new CannotRecover(
+    throw new Refusal(
       `“${project.marker.name}” has changed on disk since the Graveyard was read, so it has been left alone.`,
     );
   }

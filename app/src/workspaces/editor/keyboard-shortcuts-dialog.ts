@@ -1,11 +1,12 @@
 /**
  * Keyboard Shortcuts: a glance at the keys that matter while writing.
  *
- * Read-only. Every row is generated from the command table (`commands.ts`):
- * a command with a key is listed, under the group it belongs to, with the same
- * hint the menus draw beside it (`hintOf`). A command with no key is not, and
- * nothing is listed that the table does not answer, so this list and the keys
- * cannot drift apart.
+ * Read-only: keys are changed in Settings ▸ Keyboard Shortcuts. Every row is
+ * generated from the command table (`commands.ts`) when the dialog opens: a
+ * command with a key is listed, under the group it belongs to, with every key
+ * that asks for it now, the writer's own included (`hintsOf`), the first being
+ * the hint the menus draw. A command with no key is not, and nothing is listed
+ * that the table does not answer, so this list and the keys cannot drift apart.
  *
  * Under Writing, with no heading of its own, the Tab order: a row each for Tab
  * and Shift+Tab, then the loop they step a line's element type round, read from
@@ -21,7 +22,7 @@ import { dialogAction } from "../../screens/dialog-action.ts";
 import { dialogKeys } from "../../screens/dialog-keys.ts";
 import { element } from "../../screens/element.ts";
 import { chordMatches } from "../../screens/shortcuts.ts";
-import { COMMANDS, commandById, hintOf, type Command } from "./commands.ts";
+import { chordsOf, COMMANDS, commandById, hintsOf, type Command } from "./commands.ts";
 
 export interface KeyboardShortcutsDialogOptions {
   readonly closed: () => void;
@@ -32,8 +33,8 @@ export type ShortcutGroupName = "File" | "Edit" | "View" | "Writing";
 
 export interface ShortcutRow {
   readonly label: string;
-  /** `[Ctrl + S]`: the hint the menus draw. */
-  readonly hint: string;
+  /** `[Ctrl + S]`, one for each key that asks for it; the first is the hint the menus draw. */
+  readonly hints: readonly string[];
 }
 
 export interface ShortcutGroup {
@@ -62,8 +63,8 @@ export function shortcutGroups(): readonly ShortcutGroup[] {
   return names.map((name) => ({
     name,
     rows: COMMANDS.flatMap((command) => {
-      const hint = hintOf(command);
-      return hint === undefined || groupOf(command) !== name ? [] : [{ label: command.label, hint }];
+      const hints = hintsOf(command);
+      return hints.length === 0 || groupOf(command) !== name ? [] : [{ label: command.label, hints }];
     }),
   }));
 }
@@ -83,7 +84,10 @@ function drawGroup(group: ShortcutGroup, after: readonly HTMLElement[] = []): HT
       "ul",
       { className: "shortcuts__rows" },
       group.rows.map((row) =>
-        element("li", { className: "shortcuts__row" }, [element("span", { textContent: row.label }), keyHint(row.hint)]),
+        element("li", { className: "shortcuts__row" }, [
+          element("span", { textContent: row.label }),
+          element("span", { className: "shortcuts__keys" }, row.hints.map(keyHint)),
+        ]),
       ),
     ),
     ...after,
@@ -156,9 +160,9 @@ export function openKeyboardShortcutsDialog(into: HTMLElement, options: Keyboard
 
   // Heard here too, so the key that opened it closes it from anywhere inside.
   // Not a held key: the dialog must not flicker while it is down.
-  const own = commandById(KEYBOARD_SHORTCUTS)?.chord;
+  const own = commandById(KEYBOARD_SHORTCUTS);
   modal.addEventListener("keydown", (event) => {
-    if (own === undefined || !chordMatches(own, event)) return;
+    if (own === undefined || !chordsOf(own).some((chord) => chordMatches(chord, event))) return;
     event.preventDefault();
     if (!event.repeat) modal.close();
   });

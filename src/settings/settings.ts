@@ -18,7 +18,8 @@
  *
  * First pass (Settings, Noah's notes): most of these are kept and shown, and
  * not yet read by anything else. What each one drives today is in the pull
- * request that added them; `dayEndsAt` and the two corner styles are live.
+ * request that added them; `dayEndsAt`, the two corner styles and the
+ * writer's own keys (`keyBindings`) are live.
  */
 import { join, type Filesystem } from "../project/filesystem.ts";
 import { DEFAULT_DAY_ENDS_AT, type TimeOfDay } from "../goals/day.ts";
@@ -64,19 +65,46 @@ export interface ProjectDefaults {
   readonly blankLinesBeforeSceneHeadings: 1 | 2;
 }
 
+/**
+ * One key binding: a key and the one modifier held with it, as the
+ * application's `Chord` names them (`app/src/screens/shortcuts.ts`). Ctrl (or
+ * Cmd) is `mod`; Alt is `alt`. Exactly one of the two: a bare key is the
+ * writer typing, and Ctrl with Alt is the window manager's.
+ */
+export interface KeyBinding {
+  readonly key: string;
+  /** Other names the same key arrives under (`=` is `+` with Shift), kept with a command's own key. */
+  readonly alsoKeys?: readonly string[];
+  readonly mod?: true;
+  readonly alt?: true;
+}
+
 export interface Settings {
   readonly author: AuthorInfo;
   /** Where the writer's day ends (`src/goals/day.ts`). */
   readonly dayEndsAt: TimeOfDay;
   readonly appearance: Appearance;
-  /** By project type, for the types New Project offers. */
+  /** By project type: every type New Project lists, the coming ones too. */
   readonly projectDefaults: Readonly<Record<string, ProjectDefaults>>;
+  /**
+   * The writer's own keys, by command id: only the commands whose keys they
+   * changed, each with every key it answers now (none, for a command they took
+   * every key from). A command not here has its own keys. Which ids are
+   * commands, and which keys may be changed, is the application's to say.
+   */
+  readonly keyBindings: Readonly<Record<string, readonly KeyBinding[]>>;
 }
 
 /** The project types a default can be kept for: those New Project can make. */
 export const DEFAULTS_FOR: readonly string[] = FORMATS;
-/** Drawn in the list as coming, as New Project draws them. */
+/** Drawn in the list as coming, as New Project draws them. Their defaults are kept too. */
 export const DEFAULTS_COMING: readonly string[] = COMING_FORMATS;
+/** Every type a default is kept for, in the order New Project lists them. */
+export const DEFAULTS_ALL: readonly string[] = [...DEFAULTS_FOR, ...DEFAULTS_COMING];
+
+/** At most this many keys for one command, and this many commands changed. */
+export const MOST_BINDINGS = 8;
+const MOST_COMMANDS = 200;
 
 /** The largest daily goal or target page count kept. */
 export const MOST_WORDS = 100_000;
@@ -96,7 +124,8 @@ export const DEFAULT_SETTINGS: Settings = {
   author: { name: "", penNames: [], email: "", phone: "", address: "" },
   dayEndsAt: DEFAULT_DAY_ENDS_AT,
   appearance: { theme: "dark", whitePaper: false, interfaceCorners: "rounded", paperCorners: "rounded" },
-  projectDefaults: Object.fromEntries(DEFAULTS_FOR.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
+  projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
+  keyBindings: {},
 };
 
 // --- Putting values right ----------------------------------------------------
@@ -191,6 +220,50 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
   };
 }
 
+/**
+ * One key binding, put right, or `undefined` when it cannot be one: a key
+ * named, with exactly one of Ctrl and Alt. A single character is kept in
+ * lower case, as a chord matches it either way.
+ */
+export function keyBindingOf(value: unknown): KeyBinding | undefined {
+  if (!isRecord(value)) return undefined;
+  const name = (key: unknown): string | undefined =>
+    typeof key !== "string" || key === "" || key.length > 32 || /[\t\n\r]/.test(key)
+      ? undefined
+      : [...key].length === 1
+        ? key.toLowerCase()
+        : key;
+  const key = name(value["key"]);
+  if (key === undefined) return undefined;
+  const mod = value["mod"] === true;
+  const alt = value["alt"] === true;
+  if (mod === alt) return undefined;
+  const listed = Array.isArray(value["alsoKeys"]) ? (value["alsoKeys"] as unknown[]) : [];
+  const alsoKeys = [...new Set(listed.slice(0, 4).map(name).filter((also): also is string => also !== undefined && also !== key))];
+  return { key, ...(alsoKeys.length === 0 ? {} : { alsoKeys }), ...(mod ? { mod: true } : { alt: true }) };
+}
+
+/** Whether two bindings are the same key with the same modifier (the other names it arrives under aside). */
+export const sameBinding = (one: KeyBinding, other: KeyBinding): boolean =>
+  one.key.toLowerCase() === other.key.toLowerCase() && one.mod === other.mod && one.alt === other.alt;
+
+/** Every command's keys put right: each binding once, at most `MOST_BINDINGS`, and nothing that is not one. */
+function keyBindingsOf(value: unknown): Readonly<Record<string, readonly KeyBinding[]>> {
+  if (!isRecord(value)) return {};
+  const kept: [string, readonly KeyBinding[]][] = [];
+  for (const [id, listed] of Object.entries(value)) {
+    if (kept.length >= MOST_COMMANDS || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id) || !Array.isArray(listed)) continue;
+    const bindings: KeyBinding[] = [];
+    for (const each of listed) {
+      const binding = keyBindingOf(each);
+      if (binding === undefined || bindings.some((held) => sameBinding(held, binding))) continue;
+      if (bindings.length < MOST_BINDINGS) bindings.push(binding);
+    }
+    kept.push([id, bindings]);
+  }
+  return Object.fromEntries(kept);
+}
+
 /** Settings from anything at all, every part of it put right. */
 export function settingsFrom(value: unknown): Settings {
   const kept = isRecord(value) ? value : {};
@@ -212,7 +285,8 @@ export function settingsFrom(value: unknown): Settings {
       interfaceCorners: corners(appearance["interfaceCorners"]),
       paperCorners: corners(appearance["paperCorners"]),
     },
-    projectDefaults: Object.fromEntries(DEFAULTS_FOR.map((type) => [type, projectDefaultsOf(defaults[type])])),
+    projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, projectDefaultsOf(defaults[type])])),
+    keyBindings: keyBindingsOf(kept["keyBindings"]),
   };
 }
 

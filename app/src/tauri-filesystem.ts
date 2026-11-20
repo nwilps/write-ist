@@ -89,6 +89,12 @@ export const tauriFilesystem: Filesystem = {
     // A command, so that nothing here is given the plugin's recursive remove.
     await invoke("remove_empty_folder", { path });
   },
+
+  async exileFromGraveyard(path: string, projectId: string): Promise<void> {
+    // A command, which checks the folder and its project id itself, on disk,
+    // just before the one erase (`exile_project`, `src-tauri/src/lib.rs`).
+    await invoke("exile_project", { path, projectId });
+  },
 };
 
 /** The folder inside `Documents` that holds every project (ADR-0016). */
