@@ -18,6 +18,17 @@
  * `pointer` is the engine's own way in — the field's `pointer(x, y)`, in CSS
  * pixels from the canvas's corner — and `ground.ts` calls it from the window.
  *
+ * **Capillary, Estuary and Fluid hear the host itself**, not the window and not
+ * the field: each adds its own `pointermove` and `pointerleave` listeners to the
+ * host element, and turns the move into its own wake (the veins lit, the
+ * currents stirred, the folds pushed). Their field's `pointer` reaches none of
+ * that. Under `pointer-events: none` the host is never an event's target, so
+ * those listeners never ran. For these three the move is said to the host
+ * instead, as an event of the same name that does not bubble, at the window
+ * place the engine reads (`clientX`, `clientY`); the pointer gone is a
+ * `pointerleave`. Dispatching does not need the host to take clicks, so the
+ * layer still lets everything through.
+ *
  * **The retired looks hear the window themselves.** They draw on a 2D canvas,
  * have no field, and follow the pointer wherever it is, or not at all, by the
  * engine's `cursor` option. So Reactive and Ambient are also said through that
@@ -55,6 +66,22 @@ const FIELD_WORD = "Write-ist";
 /** The engine's `cursor` for a look: its own response, or none. */
 const cursorFor = (look: Look, reactive: boolean): boolean => reactive && look.cursor;
 
+/** The looks that listen for the pointer on their host element (above). */
+const HEARS_HOST: ReadonlySet<string> = new Set(["capillary", "estuary", "fluid"]);
+
+/** The pointer, said to the host as the look's own listeners expect it. */
+function tellHost(host: HTMLElement, x: number | null, y: number | undefined): void {
+  const view = host.ownerDocument.defaultView;
+  if (view === null) return;
+  if (x === null) {
+    host.dispatchEvent(new view.Event("pointerleave"));
+    return;
+  }
+  const box = host.getBoundingClientRect();
+  const Move = typeof view.PointerEvent === "function" ? view.PointerEvent : view.MouseEvent;
+  host.dispatchEvent(new Move("pointermove", { clientX: x + box.left, clientY: (y ?? 0) + box.top }));
+}
+
 /**
  * `look` drawing on `host`, or `undefined` when it cannot be drawn here: no
  * WebGL2 for a GPU look, a GPU the engine will not use, or anything thrown on
@@ -82,7 +109,10 @@ export function startBackground(host: HTMLElement, look: Look, reactive: boolean
     play: () => handle.play(),
     pause: () => handle.pause(),
     destroy: () => handle.destroy(),
-    pointer: (x, y) => handle.field?.pointer(x, y),
+    pointer(x, y) {
+      if (HEARS_HOST.has(handle.preset.id)) tellHost(host, x, y);
+      else handle.field?.pointer(x, y);
+    },
     react(on) {
       hearing = on;
       handle.update({ cursor: cursorFor(handle.preset, on) });

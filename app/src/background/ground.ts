@@ -16,7 +16,8 @@
  *
  * **Reactive or Ambient** (the next row in Settings). Reactive, this file
  * hears the pointer move on the window and hands it to the engine
- * (`engine.ts` says why the engine cannot hear it itself), so the layer lets
+ * (`engine.ts` says why the engine cannot hear it itself, and how it reaches
+ * Capillary, Estuary and Fluid, which listen on the layer), so the layer lets
  * every click, drag and keystroke through and still answers the pointer over
  * the paper, the panels and every dialog. Ambient, nothing is heard and the
  * look moves on its own. Changing between them changes only that: the engine
@@ -136,7 +137,9 @@ export function mountGround({ body, root, load = loadEngine, loadLook = loadLook
   const LISTEN = { capture: true, passive: true } as const;
 
   const onMove = (event: MouseEvent): void => {
-    if (drawing === undefined) return;
+    // A move said to the layer itself is the engine's hand-off to a look
+    // (`engine.ts`), passing this listener on its way: not the writer's.
+    if (drawing === undefined || event.target === host) return;
     const shown = drawing;
     // The layer is the window's size, but measured all the same, so the engine
     // is told the place on its own canvas whatever the window does.

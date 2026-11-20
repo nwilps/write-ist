@@ -298,6 +298,16 @@ describe("answering the pointer (Reactive)", () => {
     ]);
   });
 
+  it("does not hand on a move said to the layer itself, which is the engine's own hand-off to a look", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    const layer = document.querySelector<HTMLElement>(".background-ground")!;
+    layer.dispatchEvent(new PointerEvent("pointermove", { clientX: 1, clientY: 1 }));
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
+  });
+
   it("is Reactive by default", async () => {
     motionQuery(false);
     const { ground, engine } = mount();
@@ -587,10 +597,14 @@ describe("each look, quiet in Write-ist's own tokens", () => {
   const tokens = readFileSync("app/src/style/tokens.css", "utf8");
   const LOOK_IDS = ["drift", "contour", "mesh", "estuary", "capillary", "field", "fluid", "dune", "etch", "morph", "noise", "silk", "weave"];
 
-  it.each(LOOK_IDS)("%s has its own opacity token, at most half and above nothing", (id) => {
+  // Estuary draws the dimmest letters of all, and is the one look let past half
+  // (`tokens.css`); three quarters of the faint ink is still faint.
+  const UP_TO = (id: string): number => (id === "estuary" ? 0.75 : 0.5);
+
+  it.each(LOOK_IDS)("%s has its own opacity token, at most half (Estuary three quarters) and above nothing", (id) => {
     const value = Number(new RegExp(`--opacity-background-${id}: ([\\d.]+);`).exec(tokens)?.[1]);
     expect(value).toBeGreaterThan(0);
-    expect(value).toBeLessThanOrEqual(0.5);
+    expect(value).toBeLessThanOrEqual(UP_TO(id));
     if (id !== "drift") {
       const rule = new RegExp(`\\.background-ground\\[data-look="${id}"\\] \\{([^}]*)\\}`).exec(app)?.[1] ?? "";
       expect(rule.trim()).toBe(`opacity: var(--opacity-background-${id});`);
@@ -746,12 +760,15 @@ describe("offline, and only as open as it must be", () => {
     for (const name of ["ground.ts", "presets.ts"]) {
       expect(readFileSync(`app/src/background/${name}`, "utf8")).not.toMatch(/from "asciify-engine/);
     }
-    // One export each, so the build puts each look in its own chunk.
+    // One preset each, so the build puts each look in its own chunk: the
+    // engine's own, or (Etch) a copy of it with its own tuning.
     const looks = readdirSync("app/src/background/looks");
     expect(looks).toHaveLength(13);
+    const ONE_PRESET = /^export \{ \w+ as look \} from "asciify-engine\/kit";$/;
+    const TUNED = /^import \{ (\w+) \} from "asciify-engine\/kit";\s+export const look: typeof \1 = \{ \.\.\.\1, [^}]*\};$/;
     for (const name of looks) {
       const text = code(readFileSync(`app/src/background/looks/${name}`, "utf8")).trim();
-      expect(text).toMatch(/^export \{ \w+ as look \} from "asciify-engine\/kit";$/);
+      expect(text, name).toMatch(name === "etch.ts" ? TUNED : ONE_PRESET);
     }
     // The looks are reached only by `import()`, never statically.
     const presets = code(readFileSync("app/src/background/presets.ts", "utf8"));

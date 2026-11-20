@@ -89,6 +89,60 @@ describe("the pointer, handed to the look", () => {
   });
 });
 
+describe("the pointer, for the looks that hear their host (Capillary, Estuary, Fluid)", () => {
+  // The bug Noah found on his laptop: these three never stirred. Each listens
+  // for `pointermove` and `pointerleave` on the host element itself (in the
+  // installed engine, `simPreset` for Capillary and Estuary, Fluid's own mount),
+  // and the host takes no clicks, so nothing reached them, and the field's
+  // `pointer` is not where their wake comes from.
+  const HEARS_HOST = ["capillary", "estuary", "fluid"].map((id) => ({ id, cursor: true }));
+
+  /** Everything said on the host, as the look's own listeners would hear it. */
+  function listen(host: HTMLElement): Event[] {
+    const heard: Event[] = [];
+    host.addEventListener("pointermove", (event) => heard.push(event));
+    host.addEventListener("pointerleave", (event) => heard.push(event));
+    return heard;
+  }
+
+  it.each(HEARS_HOST)("$id hears the move on its host, at the window place, and the pointer leaving", (preset) => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    vi.spyOn(host, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 20, 800, 600));
+    const heard = listen(host);
+    handle.preset = preset;
+    const run = startBackground(host, look(preset), true)!;
+    run.pointer(120, 48);
+    run.pointer(null);
+    expect(heard.map((event) => event.type)).toEqual(["pointermove", "pointerleave"]);
+    const move = heard[0] as MouseEvent;
+    expect([move.clientX, move.clientY]).toEqual([130, 68]);
+    expect(move.target).toBe(host);
+    // Said to the host only: nothing above it hears it bubble up.
+    expect(move.bubbles).toBe(false);
+    expect(field.pointer).not.toHaveBeenCalled();
+    host.remove();
+  });
+
+  it("reaches the look swapped in, and not the one swapped out", () => {
+    const host = document.createElement("div");
+    const heard = listen(host);
+    const run = startBackground(host, look(drift), true)!;
+    run.pointer(1, 2);
+    expect(heard).toHaveLength(0);
+    run.show(look(HEARS_HOST[2]!));
+    run.pointer(3, 4);
+    expect(heard).toHaveLength(1);
+    run.show(look(drift));
+    run.pointer(5, 6);
+    expect(heard).toHaveLength(1);
+    expect(field.pointer.mock.calls).toEqual([
+      [1, 2],
+      [5, 6],
+    ]);
+  });
+});
+
 describe("Reactive and Ambient, for every look", () => {
   it("starts Ambient with the look's response off", () => {
     startBackground(document.createElement("div"), look(noise), false);
@@ -138,5 +192,52 @@ describe("another look", () => {
     });
     expect(run.show(look(drift))).toBe(false);
     expect(handle.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the writer's pointer, from the window to the look, through the layer", () => {
+  // `ground.ts` and this file together, the kit stood in for: a move over the
+  // paper reaches a look that hears its host, once, and Ambient hands on none.
+  const fluid = { id: "fluid", cursor: true };
+
+  async function drawing(reactive: boolean) {
+    window.matchMedia ??= (() => ({ matches: false })) as unknown as typeof window.matchMedia;
+    const { mountGround } = await import("../../app/src/background/ground.ts");
+    const paper = document.createElement("div");
+    document.body.append(paper);
+    handle.preset = fluid;
+    const ground = mountGround({
+      body: document.body,
+      root: document.documentElement,
+      load: async () => startBackground,
+      loadLook: async () => look(fluid),
+    });
+    ground.react(reactive);
+    ground.set(true);
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    expect(ground.running()).toBe(true);
+    const host = document.querySelector<HTMLElement>(".background-ground")!;
+    const heard: MouseEvent[] = [];
+    host.addEventListener("pointermove", (event) => heard.push(event as MouseEvent));
+    return { ground, paper, heard };
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete document.documentElement.dataset["backgroundAnimation"];
+  });
+
+  it("Reactive: a move over the paper reaches the look, once, at the place it was", async () => {
+    const { ground, paper, heard } = await drawing(true);
+    paper.dispatchEvent(new PointerEvent("pointermove", { clientX: 210, clientY: 90, bubbles: true }));
+    expect(heard.map((event) => [event.clientX, event.clientY])).toEqual([[210, 90]]);
+    ground.set(false);
+  });
+
+  it("Ambient: the look hears nothing", async () => {
+    const { ground, paper, heard } = await drawing(false);
+    paper.dispatchEvent(new PointerEvent("pointermove", { clientX: 210, clientY: 90, bubbles: true }));
+    expect(heard).toHaveLength(0);
+    ground.set(false);
   });
 });

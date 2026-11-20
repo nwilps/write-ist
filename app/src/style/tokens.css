@@ -142,23 +142,27 @@
    * How much of each look shows (`.background-ground`). Drift's 0.3 is the
    * mark; the others were measured against it, each drawn full strength over
    * the desk in the same window, and set so its characters lift the desk about
-   * as much as Drift's do. The busiest (Fluid, Noise) sit lowest. Contour,
-   * Estuary and Capillary draw fine or dim letters and are held at 0.5, the
-   * most any look is given: Capillary rests almost unseen until the pointer
-   * lights it, which is the look itself.
+   * as much as Drift's do. On a real screen (Noah's laptop) Estuary, Etch,
+   * Field, Fluid, Mesh, Morph, Noise and Silk still read dimmer than Drift, so
+   * they were raised by about half again. The busiest (Fluid, Noise) still sit
+   * lowest. Contour and Capillary draw fine letters and are held at 0.5;
+   * Estuary's are the dimmest of all (its currents are mostly near-empty
+   * letters) and it alone goes to 0.75, the most any look is given. Capillary
+   * rests almost unseen until the pointer lights it, which is the look itself.
+   * Each is a fraction of the faint ink, never more, so none can shout.
    */
   --opacity-background-drift: 0.3;
   --opacity-background-contour: 0.5;
-  --opacity-background-mesh: 0.26;
-  --opacity-background-estuary: 0.5;
+  --opacity-background-mesh: 0.4;
+  --opacity-background-estuary: 0.75;
   --opacity-background-capillary: 0.5;
-  --opacity-background-field: 0.17;
-  --opacity-background-fluid: 0.12;
+  --opacity-background-field: 0.28;
+  --opacity-background-fluid: 0.22;
   --opacity-background-dune: 0.21;
-  --opacity-background-etch: 0.17;
-  --opacity-background-morph: 0.25;
-  --opacity-background-noise: 0.13;
-  --opacity-background-silk: 0.28;
+  --opacity-background-etch: 0.26;
+  --opacity-background-morph: 0.4;
+  --opacity-background-noise: 0.22;
+  --opacity-background-silk: 0.42;
   --opacity-background-weave: 0.18;
   /** The engine's own cross-fade from one look to the next, which the layer's quietness follows. */
   --duration-background-swap: 320ms;

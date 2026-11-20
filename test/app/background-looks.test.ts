@@ -91,12 +91,49 @@ describe("the looks Settings offers", () => {
     ]);
   });
 
-  it.each(BACKGROUND_PRESETS)("%s loads the engine's own preset of that id, under the engine's name for it", async (id) => {
+  it.each(BACKGROUND_PRESETS.filter((id) => id !== "etch"))("%s loads the engine's own preset of that id, under the engine's name for it", async (id) => {
     const kit = (await import("asciify-engine/kit")) as unknown as Record<string, Look>;
     const look = await loadLook(id);
     expect(look).toBe(kit[EXPORTS[id]!]);
     expect(look.id).toBe(id);
     expect(look.name).toBe(LOOKS.find((choice) => choice.id === id)!.label);
+  });
+
+  it("etch is the engine's own Etch, drawn with the engine's own mount, quicker and finer", async () => {
+    const { etch } = await import("asciify-engine/kit");
+    const look = await loadLook("etch");
+    // Noah: too subtle on his laptop. Faster than the engine's pace, and finer
+    // letters so the cut lines show whole; nothing else of the engine's changed.
+    expect(etch.speed).toBe(1);
+    expect(etch.cellSize).toBe(12);
+    expect(look).toEqual({ ...etch, speed: 2.4, cellSize: 10 });
+    expect(look.mount).toBe(etch.mount);
+  });
+
+  it("etch draws at its own pace and size, and the next look comes in at that look's own", async () => {
+    vi.useFakeTimers();
+    try {
+      // Each look's mount, watched, to read the settings the engine hands it.
+      const settings: Record<string, () => { speed: number; cellSize: number }> = {};
+      const watched = (preset: Look): Look => ({
+        ...preset,
+        mount: (context) => {
+          settings[preset.id] = () => context.settings();
+          return preset.mount(context);
+        },
+      });
+      const { dune } = await import("asciify-engine/kit");
+      const host = layer();
+      const run = startBackground(host, watched(await loadLook("etch")), true)!;
+      expect(settings["etch"]!()).toMatchObject({ speed: 2.4, cellSize: 10 });
+      expect(run.show(watched(dune))).toBe(true);
+      vi.advanceTimersByTime(400);
+      expect(settings["dune"]!()).toMatchObject({ speed: dune.speed, cellSize: dune.cellSize });
+      run.destroy();
+      expect(host.childElementCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
