@@ -1,5 +1,6 @@
 /**
- * The Drift background behind every screen (`app/src/background/`).
+ * The background behind every screen (`app/src/background/`), in whichever
+ * look the writer chose.
  *
  * The engine draws with WebGL2, which jsdom does not have, so most of this
  * drives the layer with a stand-in engine that records what was asked of it:
@@ -11,8 +12,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { mountGround, type StartDrift } from "../../app/src/background/ground.ts";
-import type { RunningDrift } from "../../app/src/background/drift-engine.ts";
+import { mountGround, type StartBackground } from "../../app/src/background/ground.ts";
+import type { Look, RunningBackground } from "../../app/src/background/engine.ts";
+import type { BackgroundPreset } from "../../src/settings/settings.ts";
 
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
@@ -32,23 +34,43 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** A look as the fake engine sees it: only its id. */
+const lookOf = (id: BackgroundPreset): Look => ({ id }) as unknown as Look;
+const idOf = (look: Look): string => (look as unknown as { id: string }).id;
+
 /** An engine that draws nothing and remembers everything. */
 function fakeEngine(draws = true) {
   const runs: {
     host: HTMLElement;
+    look: string;
+    reactive: boolean;
     play: ReturnType<typeof vi.fn>;
     pause: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
     pointer: ReturnType<typeof vi.fn>;
+    react: ReturnType<typeof vi.fn>;
+    show: ReturnType<typeof vi.fn<(look: Look) => boolean>>;
   }[] = [];
-  const start = vi.fn<StartDrift>((host) => {
+  const start = vi.fn<StartBackground>((host, look, reactive) => {
     if (!draws) return undefined;
-    const run = { host, play: vi.fn(), pause: vi.fn(), destroy: vi.fn(), pointer: vi.fn() };
+    const run = {
+      host,
+      look: idOf(look),
+      reactive,
+      play: vi.fn(),
+      pause: vi.fn(),
+      destroy: vi.fn(),
+      pointer: vi.fn(),
+      react: vi.fn(),
+      show: vi.fn((_: Look) => true),
+    };
     runs.push(run);
-    return run satisfies RunningDrift;
+    return run satisfies RunningBackground;
   });
   const load = vi.fn(async () => start);
-  return { start, load, runs };
+  /** Each look loads as itself, and the test can see which were asked for. */
+  const loadLook = vi.fn(async (id: BackgroundPreset) => lookOf(id));
+  return { start, load, loadLook, runs };
 }
 
 /** `prefers-reduced-motion`, as the system says it, and able to change its mind. */
@@ -78,7 +100,7 @@ function mount(engine = fakeEngine()) {
   const app = document.createElement("div");
   app.id = "app";
   document.body.append(app);
-  const ground = mountGround({ body: document.body, root: document.documentElement, load: engine.load });
+  const ground = mountGround({ body: document.body, root: document.documentElement, load: engine.load, loadLook: engine.loadLook });
   return { ground, engine, app };
 }
 
@@ -86,26 +108,26 @@ describe("one layer under every screen", () => {
   it("is put first in the body, before the screens, and hidden from assistive technology", () => {
     const { app } = mount();
     const layer = document.body.firstElementChild as HTMLElement;
-    expect(layer.className).toBe("drift-ground");
+    expect(layer.className).toBe("background-ground");
     expect(layer.getAttribute("aria-hidden")).toBe("true");
     expect(layer.nextElementSibling).toBe(app);
-    expect(document.querySelectorAll(".drift-ground")).toHaveLength(1);
+    expect(document.querySelectorAll(".background-ground")).toHaveLength(1);
   });
 
   it("is styled to take no clicks and to sit under everything, its quietness a token", () => {
     const app = readFileSync("app/src/style/app.css", "utf8");
-    const rule = /\.drift-ground \{([^}]*)\}/.exec(app)?.[1] ?? "";
+    const rule = /\.background-ground \{([^}]*)\}/.exec(app)?.[1] ?? "";
     expect(rule).toContain("position: fixed;");
     expect(rule).toContain("inset: 0;");
     expect(rule).toContain("z-index: -1;");
     expect(rule).toContain("pointer-events: none;");
-    expect(rule).toContain("opacity: var(--opacity-drift);");
+    expect(rule).toContain("opacity: var(--opacity-background-drift);");
     // The desk colour is the window's, so a layer between `html` and `body` shows.
     expect(app).toMatch(/\nhtml \{\s*background: var\(--colour-base\);\s*\}/);
     expect(/\nbody \{([^}]*)\}/.exec(app)?.[1]).not.toContain("background");
     const tokens = readFileSync("app/src/style/tokens.css", "utf8");
-    expect(tokens).toMatch(/--colour-drift-ink: var\(--colour-faint\);/);
-    expect(tokens).toMatch(/--opacity-drift: 0\.3;/);
+    expect(tokens).toMatch(/--colour-background-ink: var\(--colour-faint\);/);
+    expect(tokens).toMatch(/--opacity-background-drift: 0\.3;/);
   });
 });
 
@@ -171,7 +193,7 @@ describe("on and off", () => {
     ground.set(true);
     await settle();
     expect(engine.start).toHaveBeenCalledTimes(1);
-    expect(engine.runs[0]!.host).toBe(document.querySelector(".drift-ground"));
+    expect(engine.runs[0]!.host).toBe(document.querySelector(".background-ground"));
     expect(ground.running()).toBe(true);
     expect(document.documentElement.dataset["backgroundAnimation"]).toBe("on");
   });
@@ -258,7 +280,7 @@ describe("answering the pointer (Reactive)", () => {
     const { ground, engine, app } = mount();
     ground.set(true);
     await settle();
-    const layer = document.querySelector<HTMLElement>(".drift-ground")!;
+    const layer = document.querySelector<HTMLElement>(".background-ground")!;
     vi.spyOn(layer, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 20, 800, 600));
     const paper = document.createElement("div");
     paper.className = "paper";
@@ -274,6 +296,16 @@ describe("answering the pointer (Reactive)", () => {
       [40, 20],
       [0, 0],
     ]);
+  });
+
+  it("does not hand on a move said to the layer itself, which is the engine's own hand-off to a look", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    const layer = document.querySelector<HTMLElement>(".background-ground")!;
+    layer.dispatchEvent(new PointerEvent("pointermove", { clientX: 1, clientY: 1 }));
+    expect(engine.runs[0]!.pointer).not.toHaveBeenCalled();
   });
 
   it("is Reactive by default", async () => {
@@ -400,6 +432,195 @@ describe("moving on its own (Ambient)", () => {
   });
 });
 
+describe("one look at a time", () => {
+  it("draws Drift unless told otherwise, loading only its code", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    expect(engine.runs[0]!.look).toBe("drift");
+    expect(engine.loadLook.mock.calls).toEqual([["drift"]]);
+    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("drift");
+  });
+
+  it("starts in the look kept, loading only that one", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.look("contour");
+    ground.set(true);
+    await settle();
+    expect(engine.runs[0]!.look).toBe("contour");
+    expect(engine.loadLook.mock.calls).toEqual([["contour"]]);
+  });
+
+  it("starts in the motion kept", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.react(false);
+    ground.set(true);
+    await settle();
+    expect(engine.runs[0]!.reactive).toBe(false);
+  });
+
+  it("swaps the look in place while it draws: the same engine, no restart, and the layer says which", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.look("dune");
+    await settle();
+    const run = engine.runs[0]!;
+    expect(run.show.mock.calls.map(([look]) => idOf(look))).toEqual(["dune"]);
+    expect(run.destroy).not.toHaveBeenCalled();
+    expect(engine.start).toHaveBeenCalledTimes(1);
+    expect(engine.load).toHaveBeenCalledTimes(1);
+    expect(ground.running()).toBe(true);
+    expect(document.documentElement.dataset["backgroundAnimation"]).toBe("on");
+    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("dune");
+  });
+
+  it("keeps the pointer flowing to the look swapped in", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.look("noise");
+    await settle();
+    moveOver(document.body, 9, 9);
+    expect(engine.runs[0]!.pointer).toHaveBeenCalledWith(9, 9);
+  });
+
+  it("tells the look of Ambient and Reactive as they change, without a restart", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.react(false);
+    ground.react(true);
+    expect(engine.runs[0]!.react.mock.calls).toEqual([[false], [true]]);
+    expect(engine.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows only the last of several looks picked quickly", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.look("mesh");
+    ground.look("silk");
+    ground.look("weave");
+    await settle();
+    expect(engine.runs[0]!.show.mock.calls.map(([look]) => idOf(look))).toEqual(["weave"]);
+    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("weave");
+  });
+
+  it("keeps a look picked while it is off, starts nothing, and draws it when turned on", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.look("fluid");
+    await settle();
+    expect(engine.load).not.toHaveBeenCalled();
+    expect(engine.loadLook).not.toHaveBeenCalled();
+    ground.set(true);
+    await settle();
+    expect(engine.runs[0]!.look).toBe("fluid");
+  });
+
+  it("asking for the look already drawn does nothing more", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    ground.look("drift");
+    await settle();
+    expect(engine.runs[0]!.show).not.toHaveBeenCalled();
+    expect(engine.loadLook).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes quietly to the flat desk when the look picked cannot draw here", async () => {
+    motionQuery(false);
+    const said = vi.spyOn(console, "error");
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    engine.runs[0]!.show.mockReturnValueOnce(false);
+    ground.look("estuary");
+    await settle();
+    expect(ground.running()).toBe(false);
+    expect(engine.runs[0]!.destroy).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.dataset["backgroundAnimation"]).toBeUndefined();
+    expect(said).not.toHaveBeenCalled();
+  });
+
+  it("goes quietly to the flat desk when the look picked will not load", async () => {
+    motionQuery(false);
+    const { ground, engine } = mount();
+    ground.set(true);
+    await settle();
+    engine.loadLook.mockRejectedValueOnce(new Error("no chunk"));
+    ground.look("capillary");
+    await settle();
+    expect(ground.running()).toBe(false);
+    expect(document.documentElement.dataset["backgroundAnimation"]).toBeUndefined();
+  });
+
+  it("tries a look that can draw after one that could not", async () => {
+    motionQuery(false);
+    const engine = fakeEngine();
+    const start = engine.start.getMockImplementation()!;
+    // Drift needs WebGL2, which this machine has not got; Dune draws on a 2D canvas.
+    engine.start.mockImplementation((host, look, reactive) => (idOf(look) === "drift" ? undefined : start(host, look, reactive)));
+    const { ground } = mount(engine);
+    ground.set(true);
+    await settle();
+    expect(ground.running()).toBe(false);
+    ground.look("dune");
+    await settle();
+    expect(ground.running()).toBe(true);
+    expect(engine.runs.map((run) => run.look)).toEqual(["dune"]);
+  });
+
+  it("still never runs for a writer who asked the system for less motion, whichever the look", async () => {
+    motionQuery(true);
+    const { ground, engine } = mount();
+    ground.set(true);
+    ground.look("noise");
+    await settle();
+    expect(engine.load).not.toHaveBeenCalled();
+    expect(engine.loadLook).not.toHaveBeenCalled();
+    expect(ground.running()).toBe(false);
+  });
+});
+
+describe("each look, quiet in Write-ist's own tokens", () => {
+  const app = readFileSync("app/src/style/app.css", "utf8");
+  const tokens = readFileSync("app/src/style/tokens.css", "utf8");
+  const LOOK_IDS = ["drift", "contour", "mesh", "estuary", "capillary", "field", "fluid", "dune", "etch", "morph", "noise", "silk", "weave"];
+
+  // Estuary draws the dimmest letters of all, and is the one look let past half
+  // (`tokens.css`); three quarters of the faint ink is still faint.
+  const UP_TO = (id: string): number => (id === "estuary" ? 0.75 : 0.5);
+
+  it.each(LOOK_IDS)("%s has its own opacity token, at most half (Estuary three quarters) and above nothing", (id) => {
+    const value = Number(new RegExp(`--opacity-background-${id}: ([\\d.]+);`).exec(tokens)?.[1]);
+    expect(value).toBeGreaterThan(0);
+    expect(value).toBeLessThanOrEqual(UP_TO(id));
+    if (id !== "drift") {
+      const rule = new RegExp(`\\.background-ground\\[data-look="${id}"\\] \\{([^}]*)\\}`).exec(app)?.[1] ?? "";
+      expect(rule.trim()).toBe(`opacity: var(--opacity-background-${id});`);
+    }
+  });
+
+  it("draws every look in the muted ink, the accent too", () => {
+    expect(tokens).toMatch(/--colour-background-accent: var\(--colour-faint\);/);
+  });
+
+  it("eases the quietness from one look to the next with the engine's cross-fade", () => {
+    const rule = /\.background-ground \{([^}]*)\}/.exec(app)?.[1] ?? "";
+    expect(rule).toContain("transition: opacity var(--duration-background-swap);");
+  });
+});
+
 describe("costing nothing it need not", () => {
   it("starts paused when the window is hidden as it starts", async () => {
     motionQuery(false);
@@ -465,7 +686,7 @@ describe("failing quietly, to the flat desk", () => {
   it("when starting it throws, or it will not load", async () => {
     motionQuery(false);
     const said = quietly();
-    const throwing = { start: vi.fn(), runs: [], load: vi.fn(async () => (() => { throw new Error("no context"); }) as StartDrift) };
+    const throwing = { start: vi.fn(), runs: [], load: vi.fn(async () => (() => { throw new Error("no context"); }) as StartBackground) };
     const first = mountGround({ body: document.body, root: document.documentElement, load: throwing.load });
     first.set(true);
     const missing = mountGround({ body: document.body, root: document.documentElement, load: () => Promise.reject(new Error("no chunk")) });
@@ -500,12 +721,13 @@ describe("failing quietly, to the flat desk", () => {
     ground.set(true);
     await vi.waitFor(async () => {
       // The engine's own chunk has loaded and answered.
-      const { startDrift } = await import("../../app/src/background/drift-engine.ts");
-      expect(startDrift(document.createElement("div"))).toBeUndefined();
+      const { startBackground } = await import("../../app/src/background/engine.ts");
+      const { loadLook } = await import("../../app/src/background/presets.ts");
+      expect(startBackground(document.createElement("div"), await loadLook("drift"), true)).toBeUndefined();
     });
     await settle();
     expect(ground.running()).toBe(false);
-    expect(document.querySelector(".drift-ground")!.childElementCount).toBe(0);
+    expect(document.querySelector(".background-ground")!.childElementCount).toBe(0);
     expect(document.documentElement.dataset["backgroundAnimation"]).toBeUndefined();
     ground.set(false);
     window.removeEventListener("unhandledrejection", onRejection);
@@ -517,18 +739,41 @@ describe("failing quietly, to the flat desk", () => {
 describe("offline, and only as open as it must be", () => {
   const code = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-  it.each(["ground.ts", "drift-engine.ts"])("app/src/background/%s makes no network request", (name) => {
+  const files = [
+    "ground.ts",
+    "engine.ts",
+    "presets.ts",
+    ...readdirSync("app/src/background/looks").map((name) => `looks/${name}`),
+  ];
+
+  it.each(files)("app/src/background/%s makes no network request", (name) => {
     const text = code(readFileSync(`app/src/background/${name}`, "utf8"));
     expect(text).not.toMatch(/\bfetch\s*\(/);
     expect(text).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon/);
     expect(text).not.toMatch(/https?:\/\//);
   });
 
-  it("imports the engine in one file, and only Drift and the background from its kit", () => {
-    const engine = readFileSync("app/src/background/drift-engine.ts", "utf8");
+  it("imports the engine's background in one file, and each look in a file of its own", () => {
+    const engine = readFileSync("app/src/background/engine.ts", "utf8");
     expect([...engine.matchAll(/from "(asciify-engine[^"]*)"/g)].map((found) => found[1])).toEqual(["asciify-engine/kit"]);
-    expect(engine).toMatch(/import \{ background, drift \} from "asciify-engine\/kit";/);
-    expect(readFileSync("app/src/background/ground.ts", "utf8")).not.toMatch(/from "asciify-engine/);
+    expect(engine).toMatch(/import \{ background, type BackgroundPreset \} from "asciify-engine\/kit";/);
+    for (const name of ["ground.ts", "presets.ts"]) {
+      expect(readFileSync(`app/src/background/${name}`, "utf8")).not.toMatch(/from "asciify-engine/);
+    }
+    // One preset each, so the build puts each look in its own chunk: the
+    // engine's own, or (Etch) a copy of it with its own tuning.
+    const looks = readdirSync("app/src/background/looks");
+    expect(looks).toHaveLength(13);
+    const ONE_PRESET = /^export \{ \w+ as look \} from "asciify-engine\/kit";$/;
+    const TUNED = /^import \{ (\w+) \} from "asciify-engine\/kit";\s+export const look: typeof \1 = \{ \.\.\.\1, [^}]*\};$/;
+    for (const name of looks) {
+      const text = code(readFileSync(`app/src/background/looks/${name}`, "utf8")).trim();
+      expect(text, name).toMatch(name === "etch.ts" ? TUNED : ONE_PRESET);
+    }
+    // The looks are reached only by `import()`, never statically.
+    const presets = code(readFileSync("app/src/background/presets.ts", "utf8"));
+    expect(presets).not.toMatch(/^import [^;]*\.\/looks\//m);
+    expect([...presets.matchAll(/import\("\.\/looks\/(\w+)\.ts"\)/g)]).toHaveLength(13);
   });
 
   it("lets the window start the engine's worker from its own blob, and loosens nothing else", () => {

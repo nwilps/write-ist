@@ -84,6 +84,7 @@ describe("settings from anything at all", () => {
       paperCorners: "rounded",
       backgroundAnimation: true,
       backgroundMotion: "reactive",
+      backgroundPreset: "drift",
     });
     // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
     expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
@@ -111,6 +112,7 @@ describe("settings from anything at all", () => {
       paperCorners: "rounded",
       backgroundAnimation: true,
       backgroundMotion: "reactive",
+      backgroundPreset: "drift",
     });
     expect(kept.projectDefaults["Feature"]).toEqual({
       shown: false,
@@ -224,6 +226,39 @@ describe("the settings file", () => {
     expect(older.appearance.backgroundMotion).toBe("reactive");
     expect(older.appearance.backgroundAnimation).toBe(false);
   });
+
+  it("keeps the background's look by the engine's id, and reads a file from before the setting as Drift", async () => {
+    const store = openSettingsStore(nodeFilesystem, folder);
+    await store.load();
+    expect(await store.save(settingsFrom({ appearance: { backgroundPreset: "field" } }))).toBe(true);
+    const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
+    expect(written.appearance["backgroundPreset"]).toBe("field");
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundPreset).toBe("field");
+
+    // The file as the last version wrote it: the animation and its motion, but no key for the look.
+    writeFileSync(
+      join(folder, SETTINGS_FILE),
+      JSON.stringify({ appearance: { theme: "dark", backgroundAnimation: false, backgroundMotion: "ambient" } }),
+    );
+    const older = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(older.appearance).toMatchObject({ backgroundPreset: "drift", backgroundAnimation: false, backgroundMotion: "ambient" });
+  });
+
+  it.each([["aurora"], ["wordField"], ["Drift"], [""], [7], [null], [["mesh"]]])(
+    "reads a look this version does not have (%j) as Drift, and leaves the rest alone",
+    (preset) => {
+      const kept = settingsFrom({ appearance: { backgroundPreset: preset, backgroundMotion: "ambient" } });
+      expect(kept.appearance.backgroundPreset).toBe("drift");
+      expect(kept.appearance.backgroundMotion).toBe("ambient");
+    },
+  );
+
+  it.each(["drift", "contour", "mesh", "estuary", "capillary", "field", "fluid", "dune", "etch", "morph", "noise", "silk", "weave"])(
+    "keeps %s through the file",
+    (preset) => {
+      expect(settingsFrom(JSON.parse(settingsText(settingsFrom({ appearance: { backgroundPreset: preset } })))).appearance.backgroundPreset).toBe(preset);
+    },
+  );
 
   it("lands the last of several saves last", async () => {
     const store = openSettingsStore(nodeFilesystem, folder);

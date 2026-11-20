@@ -18,6 +18,7 @@ import {
   type SettingsDialogOptions,
   type SettingsGraveyard,
 } from "../../app/src/screens/settings.ts";
+import { mountGround } from "../../app/src/background/ground.ts";
 import { CAPTURES_KEYS, isCapturedKey } from "../../app/src/screens/shortcuts.ts";
 import {
   commandById,
@@ -335,6 +336,7 @@ describe("Appearance, inside General", () => {
       "Interface corners",
       "Paper corners",
       "Background animation",
+      "Background",
       "Background motion",
     ]);
     const themes = [...panel.querySelectorAll("#settings-theme-list [role=option]")].map((option) => option.textContent);
@@ -415,12 +417,15 @@ describe("Appearance, inside General", () => {
     expect(byId("settings-background-animation").getAttribute("aria-checked")).toBe("false");
   });
 
-  it("has Background motion directly under the animation's switch, a drop-down of Reactive and Ambient, Reactive by default", () => {
+  it("has Background motion under the animation's switch and the look, a drop-down of Reactive and Ambient, Reactive by default", () => {
     const { modal } = open();
     const panel = visiblePanels(modal)[0]!;
     const motion = byId<HTMLButtonElement>("settings-background-motion");
     const switchRow = byId("settings-background-animation").closest(".settings__switch")!;
-    expect(switchRow.nextElementSibling).toBe(motion.closest(".new-project-dialog__field"));
+    // The switch, then which look, then how it moves.
+    const look = byId("settings-background-preset").closest(".new-project-dialog__field")!;
+    expect(switchRow.nextElementSibling).toBe(look);
+    expect(look.nextElementSibling).toBe(motion.closest(".new-project-dialog__field"));
     expect(panel.contains(motion)).toBe(true);
     expect(document.querySelector('label[for="settings-background-motion"]')?.textContent).toBe("Background motion");
     // The same control as the corners above it, chevron and all.
@@ -478,10 +483,12 @@ describe("Appearance, inside General", () => {
     expect(motion.textContent).toBe("Reactive");
   });
 
-  it("is reached from the keyboard after the animation's switch, and skipped while dimmed", () => {
+  it("is reached from the keyboard after the animation's switch and the look, and skipped while dimmed", () => {
     open();
     const animation = byId("settings-background-animation");
     animation.focus();
+    press("ArrowDown");
+    expect(document.activeElement).toBe(byId("settings-background-preset"));
     press("ArrowDown");
     expect(document.activeElement).toBe(byId("settings-background-motion"));
 
@@ -490,6 +497,139 @@ describe("Appearance, inside General", () => {
     press("ArrowUp");
     press("ArrowDown");
     expect(document.activeElement).toBe(animation);
+  });
+
+  it("has Background, which look, directly under the animation's switch: Drift first and chosen, then the rest by name in one plain list", () => {
+    const { modal } = open();
+    const panel = visiblePanels(modal)[0]!;
+    const look = byId<HTMLButtonElement>("settings-background-preset");
+    expect(panel.contains(look)).toBe(true);
+    expect(byId("settings-background-animation").closest(".settings__switch")!.nextElementSibling).toBe(
+      look.closest(".new-project-dialog__field"),
+    );
+    expect(document.querySelector('label[for="settings-background-preset"]')?.textContent).toBe("Background");
+    // The same control as the corners and the motion, chevron and all.
+    expect(look.className).toBe(byId("settings-paper-corners").className);
+    expect(look.parentElement!.querySelector(".new-project-dialog__chevron")).not.toBeNull();
+    expect(look.textContent).toBe("Drift");
+    expect(look.disabled).toBe(false);
+    const choices = [...document.querySelectorAll("#settings-background-preset-list [role=option]")];
+    expect(choices.map((option) => option.firstElementChild!.textContent)).toEqual([
+      "Drift",
+      "Capillary",
+      "Contour",
+      "Dune",
+      "Estuary",
+      "Etch",
+      "Field",
+      "Fluid",
+      "Mesh",
+      "Morph",
+      "Noise",
+      "Silk",
+      "Weave",
+    ]);
+    // One plain list: no tag on any choice, and every one can be picked.
+    for (const option of choices) expect(option.textContent).toBe(option.firstElementChild!.textContent);
+    for (const option of choices) expect(option.querySelector(".drop-menu__hint")).toBeNull();
+    for (const option of choices) expect(option.getAttribute("aria-disabled")).toBeNull();
+  });
+
+  it("changes the look at once, kept by the engine's id as it is picked, and leaves the rest of Appearance alone", () => {
+    const { current, kept } = open();
+    const look = byId<HTMLButtonElement>("settings-background-preset");
+    look.click();
+    // Field is the seventh: the engine's `wordField`, whose id is `field`.
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(7)")!.click();
+    expect(look.textContent).toBe("Field");
+    expect(current().appearance.backgroundPreset).toBe("field");
+    expect(kept.at(-1)?.appearance.backgroundPreset).toBe("field");
+    expect(current().appearance).toMatchObject({ backgroundAnimation: true, backgroundMotion: "reactive" });
+
+    look.click();
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(11)")!.click();
+    expect(look.textContent).toBe("Noise");
+    expect(kept.at(-1)?.appearance.backgroundPreset).toBe("noise");
+    expect(kept.at(-1)?.appearance).toEqual(settingsFrom(JSON.parse(settingsText(kept.at(-1)!))).appearance);
+  });
+
+  it("starts from the look kept, and from Drift for one this version does not have", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundPreset: "weave" } }) });
+    expect(byId("settings-background-preset").textContent).toBe("Weave");
+    document.body.replaceChildren();
+    open({ settings: () => settingsFrom({ appearance: { backgroundPreset: "aurora" } }) });
+    expect(byId("settings-background-preset").textContent).toBe("Drift");
+  });
+
+  it("dims Background while the animation is off, keeping the look, and wakes it when the animation is back", () => {
+    const { current, kept } = open({ settings: () => settingsFrom({ appearance: { backgroundPreset: "mesh" } }) });
+    const animation = byId<HTMLButtonElement>("settings-background-animation");
+    const look = byId<HTMLButtonElement>("settings-background-preset");
+
+    animation.click();
+    expect(look.disabled).toBe(true);
+    expect(look.textContent).toBe("Mesh");
+    expect(kept.at(-1)?.appearance).toMatchObject({ backgroundAnimation: false, backgroundPreset: "mesh" });
+    // Dimmed, it does not open, and the keys pass it by.
+    look.click();
+    expect(look.getAttribute("aria-expanded")).toBe("false");
+    animation.focus();
+    press("ArrowUp");
+    press("ArrowDown");
+    expect(document.activeElement).toBe(animation);
+
+    animation.click();
+    expect(look.disabled).toBe(false);
+    expect(current().appearance.backgroundPreset).toBe("mesh");
+  });
+
+  it("applies the look live: the background on the desk swaps in place as it is picked, with no restart", async () => {
+    window.matchMedia ??= (() => ({ matches: false, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    const shown: string[] = [];
+    const run = {
+      play() {},
+      pause() {},
+      destroy: vi.fn(),
+      pointer() {},
+      react() {},
+      show: (look: unknown) => (shown.push((look as { id: string }).id), true),
+    };
+    const start = vi.fn(() => run);
+    const ground = mountGround({
+      body: document.body,
+      root: document.documentElement,
+      load: async () => start,
+      loadLook: async (id) => ({ id }) as never,
+    });
+    // As `main.ts` does with every change: the look, the motion, then the switch.
+    const live = (next: Settings): void => {
+      ground.look(next.appearance.backgroundPreset);
+      ground.react(next.appearance.backgroundMotion === "reactive");
+      ground.set(next.appearance.backgroundAnimation);
+    };
+    live(DEFAULT_SETTINGS);
+    await vi.waitFor(() => expect(ground.running()).toBe(true));
+    open({
+      change: async (next) => {
+        live(next);
+        return undefined;
+      },
+    });
+    byId<HTMLButtonElement>("settings-background-preset").click();
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(3)")!.click();
+    await vi.waitFor(() => expect(shown).toEqual(["contour"]));
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(run.destroy).not.toHaveBeenCalled();
+    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("contour");
+    ground.set(false);
+    delete document.documentElement.dataset["backgroundAnimation"];
+  });
+
+  it("starts with Background dimmed when the animation was kept off", () => {
+    open({ settings: () => settingsFrom({ appearance: { backgroundAnimation: false, backgroundPreset: "etch" } }) });
+    const look = byId<HTMLButtonElement>("settings-background-preset");
+    expect(look.disabled).toBe(true);
+    expect(look.textContent).toBe("Etch");
   });
 
   it("dims as Export As dims, from the design tokens", () => {

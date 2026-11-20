@@ -4,15 +4,23 @@
  *
  * **One layer for the life of the app**, the first thing in `body`, fixed to
  * the window under everything else and taking no clicks (`app.css`,
- * `.drift-ground`). The screens are drawn and redrawn over it without knowing
- * it is there.
+ * `.background-ground`). The screens are drawn and redrawn over it without
+ * knowing it is there.
+ *
+ * **One look at a time** (Background, the row below). Drift unless the writer
+ * chose another. Changing it while the background draws hands the engine the
+ * new look, and the engine cross-fades from one to the other on the same
+ * layer: no blank desk between, no flash. Each look's code is loaded only when
+ * it is first shown (`presets.ts`). The layer carries the look's id
+ * (`data-look`), so the stylesheet can give each look its own quietness.
  *
  * **Reactive or Ambient** (the next row in Settings). Reactive, this file
  * hears the pointer move on the window and hands it to the engine
- * (`drift-engine.ts` says why the engine cannot hear it itself), so the layer
- * lets every click, drag and keystroke through and still answers the pointer
- * over the paper, the panels and every dialog. Ambient, nothing is heard and
- * Drift moves on its own. Changing between them changes only that: the engine
+ * (`engine.ts` says why the engine cannot hear it itself, and how it reaches
+ * Capillary, Estuary and Fluid, which listen on the layer), so the layer lets
+ * every click, drag and keystroke through and still answers the pointer over
+ * the paper, the panels and every dialog. Ambient, nothing is heard and the
+ * look moves on its own. Changing between them changes only that: the engine
  * keeps drawing, with no flash. Listening is passive and on the pointer only;
  * typing never reaches it.
  *
@@ -31,10 +39,12 @@
  * Kept out of the shell (ADR-0005): the shell hosts workspaces and knows
  * nothing of what is drawn behind it.
  */
-import type { RunningDrift } from "./drift-engine.ts";
+import type { BackgroundPreset } from "../../../src/settings/settings.ts";
+import type { Look, RunningBackground } from "./engine.ts";
+import { loadLook as loadLookCode } from "./presets.ts";
 
-/** Starts the engine on a host, or says it cannot (`drift-engine.ts`). */
-export type StartDrift = (host: HTMLElement) => RunningDrift | undefined;
+/** Starts the engine on a host, or says it cannot (`engine.ts`). */
+export type StartBackground = (host: HTMLElement, look: Look, reactive: boolean) => RunningBackground | undefined;
 
 export interface GroundOptions {
   /** Where the layer goes: it is put first, under everything after it. */
@@ -45,7 +55,9 @@ export interface GroundOptions {
    * Loads the engine. By default its own chunk, fetched from the app's own
    * files only the first time the background is wanted.
    */
-  readonly load?: () => Promise<StartDrift>;
+  readonly load?: () => Promise<StartBackground>;
+  /** Loads one look. By default its own small chunk (`presets.ts`). */
+  readonly loadLook?: (id: BackgroundPreset) => Promise<Look>;
 }
 
 export interface Ground {
@@ -56,17 +68,22 @@ export interface Ground {
    * engine. Used at once while it draws, and kept for when it next does.
    */
   readonly react: (on: boolean) => void;
+  /**
+   * Which look to draw. Swapped in place while it draws, and kept for when it
+   * next does.
+   */
+  readonly look: (id: BackgroundPreset) => void;
   /** Whether the engine is drawing now. */
   readonly running: () => boolean;
 }
 
-const loadEngine = async (): Promise<StartDrift> => (await import("./drift-engine.ts")).startDrift;
+const loadEngine = async (): Promise<StartBackground> => (await import("./engine.ts")).startBackground;
 
 const LESS_MOTION = "(prefers-reduced-motion: reduce)";
 
-export function mountGround({ body, root, load = loadEngine }: GroundOptions): Ground {
+export function mountGround({ body, root, load = loadEngine, loadLook = loadLookCode }: GroundOptions): Ground {
   const host = body.ownerDocument.createElement("div");
-  host.className = "drift-ground";
+  host.className = "background-ground";
   host.setAttribute("aria-hidden", "true");
   body.prepend(host);
 
@@ -76,12 +93,17 @@ export function mountGround({ body, root, load = loadEngine }: GroundOptions): G
 
   let wanted = false;
   let reactive = true;
+  let chosen: BackgroundPreset = "drift";
   /** Whether this file is listening for the pointer now. */
   let hearing = false;
-  let engine: Promise<StartDrift | undefined> | undefined;
-  let drawing: RunningDrift | undefined;
+  let engine: Promise<StartBackground | undefined> | undefined;
+  /** Each look's code, loading or loaded; `undefined` where it would not load. */
+  const looks = new Map<BackgroundPreset, Promise<Look | undefined>>();
+  let drawing: RunningBackground | undefined;
   /** Bumped on every change, so a start still loading can tell it was overtaken. */
   let turn = 0;
+  /** Bumped on every change of look, so a look still loading can tell it was overtaken. */
+  let swap = 0;
 
   const quiet = (act: () => void): void => {
     try {
@@ -89,6 +111,15 @@ export function mountGround({ body, root, load = loadEngine }: GroundOptions): G
     } catch {
       // The engine is decoration: a failure in it is the flat desk, never a message.
     }
+  };
+
+  const lookCode = (id: BackgroundPreset): Promise<Look | undefined> => {
+    let code = looks.get(id);
+    if (code === undefined) {
+      code = loadLook(id).catch(() => undefined);
+      looks.set(id, code);
+    }
+    return code;
   };
 
   const onVisibility = (): void => {
@@ -106,7 +137,9 @@ export function mountGround({ body, root, load = loadEngine }: GroundOptions): G
   const LISTEN = { capture: true, passive: true } as const;
 
   const onMove = (event: MouseEvent): void => {
-    if (drawing === undefined) return;
+    // A move said to the layer itself is the engine's hand-off to a look
+    // (`engine.ts`), passing this listener on its way: not the writer's.
+    if (drawing === undefined || event.target === host) return;
     const shown = drawing;
     // The layer is the window's size, but measured all the same, so the engine
     // is told the place on its own canvas whatever the window does.
@@ -146,19 +179,41 @@ export function mountGround({ body, root, load = loadEngine }: GroundOptions): G
 
   async function start(at: number): Promise<void> {
     engine ??= load().catch(() => undefined);
-    const begin = await engine;
-    if (at !== turn || begin === undefined) return;
-    let started: RunningDrift | undefined;
+    const id = chosen;
+    const [begin, look] = await Promise.all([engine, lookCode(id)]);
+    if (at !== turn || begin === undefined || look === undefined) return;
+    let started: RunningBackground | undefined;
     try {
-      started = begin(host);
+      started = begin(host, look, reactive);
     } catch {
       started = undefined;
     }
     if (started === undefined) return;
     drawing = started;
+    host.dataset["look"] = id;
     root.dataset["backgroundAnimation"] = "on";
     hear();
     if (document.hidden) onVisibility();
+  }
+
+  /** Hand the engine the chosen look once its code is here, unless it was overtaken. */
+  async function change(at: number): Promise<void> {
+    const id = chosen;
+    const look = await lookCode(id);
+    if (at !== swap || drawing === undefined) return;
+    if (look === undefined) {
+      // That look will not load here: the flat desk, as for one that cannot draw.
+      stop();
+      return;
+    }
+    const shown = drawing;
+    let showing = false;
+    quiet(() => (showing = shown.show(look)));
+    if (!showing) {
+      stop();
+      return;
+    }
+    host.dataset["look"] = id;
   }
 
   function apply(): void {
@@ -189,12 +244,25 @@ export function mountGround({ body, root, load = loadEngine }: GroundOptions): G
     react(on) {
       if (on === reactive) return;
       reactive = on;
-      // Ambient lifts the wake the pointer left, so it does not hang there.
-      if (!reactive && drawing !== undefined) {
+      if (drawing !== undefined) {
         const shown = drawing;
-        quiet(() => shown.pointer(null));
+        // Ambient lifts the wake the pointer left, so it does not hang there.
+        if (!reactive) quiet(() => shown.pointer(null));
+        quiet(() => shown.react(reactive));
       }
       hear();
+    },
+    look(id) {
+      if (id === chosen) return;
+      chosen = id;
+      swap += 1;
+      if (drawing !== undefined) {
+        void change(swap).catch(() => {});
+        return;
+      }
+      // Not drawing: it may be the look that could not draw, so try this one
+      // if the background is wanted.
+      if (wanted) apply();
     },
     running: () => drawing !== undefined,
   };
