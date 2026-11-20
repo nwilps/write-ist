@@ -73,23 +73,22 @@ const layer = (): HTMLElement => {
 };
 
 describe("the looks Settings offers", () => {
-  it("are the thirteen asked for, Drift first, the retired ones last", () => {
+  it("are the thirteen asked for, Drift first, then the rest by name", () => {
     expect(LOOKS.map((look) => look.label)).toEqual([
       "Drift",
-      "Contour",
-      "Mesh",
-      "Estuary",
       "Capillary",
+      "Contour",
+      "Dune",
+      "Estuary",
+      "Etch",
       "Field",
       "Fluid",
-      "Dune",
-      "Etch",
+      "Mesh",
       "Morph",
       "Noise",
       "Silk",
       "Weave",
     ]);
-    expect(LOOKS.filter((look) => look.retired).map((look) => look.id)).toEqual(RETIRED);
   });
 
   it.each(BACKGROUND_PRESETS)("%s loads the engine's own preset of that id, under the engine's name for it", async (id) => {

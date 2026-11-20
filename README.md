@@ -88,8 +88,7 @@ Everything below is in the app now.
   dark colours. It drifts slowly and stirs a little where the pointer moves. The paper stays
   solid, so it never shows through what you are writing. Turn it off in Settings ▸ General ▸
   Appearance ▸ Background animation. The row under it, Background, picks the look: Drift,
-  Contour, Mesh, Estuary, Capillary, Field or Fluid, or one of Asciify's classic looks (Dune,
-  Etch, Morph, Noise, Silk, Weave). Each is drawn just as quietly, and a new pick fades in at
+  Capillary, Contour, Dune, Estuary, Etch, Field, Fluid, Mesh, Morph, Noise, Silk or Weave. Each is drawn just as quietly, and a new pick fades in at
   once. Background motion, under that, chooses Reactive (it
   follows the pointer anywhere in the window, the default) or Ambient (it moves on its own). It also stays off if your system is set to reduce motion,
   and it pauses while the window is hidden.

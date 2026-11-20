@@ -46,19 +46,19 @@ export type BackgroundMotion = "reactive" | "ambient";
 /**
  * Every look the background can take, by the engine's own id for it
  * (`asciify-engine`'s presets): Drift, the first and the default, then the
- * engine's current presets, then the ones it has retired but still ships.
- * Settings ▸ General ▸ Appearance ▸ Background lists them in this order.
+ * rest by name. Settings ▸ General ▸ Appearance ▸ Background lists them in
+ * this order, as one list.
  */
 export const BACKGROUND_PRESETS = [
   "drift",
-  "contour",
-  "mesh",
-  "estuary",
   "capillary",
+  "contour",
+  "dune",
+  "estuary",
+  "etch",
   "field",
   "fluid",
-  "dune",
-  "etch",
+  "mesh",
   "morph",
   "noise",
   "silk",

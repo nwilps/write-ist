@@ -282,12 +282,12 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     onChange: (value) => changeLook({ backgroundMotion: value === "ambient" ? "ambient" : "reactive" }),
   });
   backgroundMotion.set(current.appearance.backgroundMotion);
-  // Which look: Drift first, the engine's retired looks last and tagged. Dimmed
+  // Which look: Drift first, then the rest by name, in one list. Dimmed
   // with the motion while the animation is off, and kept as it was.
   const backgroundPreset = dialogSelect({
     id: idOf("background-preset"),
     label: "Background",
-    choices: LOOKS.map((look) => ({ value: look.id, label: look.label, ...(look.retired ? { tag: "classic" } : {}) })),
+    choices: LOOKS.map((look) => ({ value: look.id, label: look.label })),
     onChange: (value) => changeLook({ backgroundPreset: presetOf(value) }),
   });
   backgroundPreset.set(current.appearance.backgroundPreset);

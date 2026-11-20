@@ -499,7 +499,7 @@ describe("Appearance, inside General", () => {
     expect(document.activeElement).toBe(animation);
   });
 
-  it("has Background, which look, directly under the animation's switch: Drift first and chosen, the classic looks last", () => {
+  it("has Background, which look, directly under the animation's switch: Drift first and chosen, then the rest by name in one plain list", () => {
     const { modal } = open();
     const panel = visiblePanels(modal)[0]!;
     const look = byId<HTMLButtonElement>("settings-background-preset");
@@ -516,22 +516,22 @@ describe("Appearance, inside General", () => {
     const choices = [...document.querySelectorAll("#settings-background-preset-list [role=option]")];
     expect(choices.map((option) => option.firstElementChild!.textContent)).toEqual([
       "Drift",
-      "Contour",
-      "Mesh",
-      "Estuary",
       "Capillary",
+      "Contour",
+      "Dune",
+      "Estuary",
+      "Etch",
       "Field",
       "Fluid",
-      "Dune",
-      "Etch",
+      "Mesh",
       "Morph",
       "Noise",
       "Silk",
       "Weave",
     ]);
-    // The retired looks carry a quiet tag and can still be picked.
-    const tags = choices.map((option) => option.querySelector(".drop-menu__hint")?.textContent ?? "");
-    expect(tags).toEqual(["", "", "", "", "", "", "", "classic", "classic", "classic", "classic", "classic", "classic"]);
+    // One plain list: no tag on any choice, and every one can be picked.
+    for (const option of choices) expect(option.textContent).toBe(option.firstElementChild!.textContent);
+    for (const option of choices) expect(option.querySelector(".drop-menu__hint")).toBeNull();
     for (const option of choices) expect(option.getAttribute("aria-disabled")).toBeNull();
   });
 
@@ -539,8 +539,8 @@ describe("Appearance, inside General", () => {
     const { current, kept } = open();
     const look = byId<HTMLButtonElement>("settings-background-preset");
     look.click();
-    // Field is the sixth: the engine's `wordField`, whose id is `field`.
-    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(6)")!.click();
+    // Field is the seventh: the engine's `wordField`, whose id is `field`.
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(7)")!.click();
     expect(look.textContent).toBe("Field");
     expect(current().appearance.backgroundPreset).toBe("field");
     expect(kept.at(-1)?.appearance.backgroundPreset).toBe("field");
@@ -616,7 +616,7 @@ describe("Appearance, inside General", () => {
       },
     });
     byId<HTMLButtonElement>("settings-background-preset").click();
-    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(2)")!.click();
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(3)")!.click();
     await vi.waitFor(() => expect(shown).toEqual(["contour"]));
     expect(start).toHaveBeenCalledTimes(1);
     expect(run.destroy).not.toHaveBeenCalled();
