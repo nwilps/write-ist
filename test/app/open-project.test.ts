@@ -56,7 +56,7 @@ function draw(overrides: Partial<OpenProjectScreen> = {}) {
     onNewProject: vi.fn(),
     onSearch: vi.fn(),
     onImport: vi.fn(),
-    onRename: vi.fn(),
+    onEditDetails: vi.fn(),
     onDelete: vi.fn(),
   };
   const drawn = renderOpenProject(into, {

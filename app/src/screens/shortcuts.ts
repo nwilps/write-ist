@@ -61,6 +61,11 @@ export function shortcutOf(press: KeyPress): string | undefined {
  * `mod` is Ctrl, or Cmd on a Mac. A chord is never a bare letter: a bare
  * letter is the writer typing, which is why `shortcutOf` cannot answer for
  * one. The one exception is Escape, which is how a screen is left.
+ *
+ * **Ctrl and Alt together only with a named key** (Enter, an arrow, F5…),
+ * never with a character: on many keyboards Ctrl+Alt and a letter is AltGr
+ * typing a character (`@`, `€`), which is the writer writing, not asking.
+ * `ctrlAltAllowed` is the one place that says so.
  */
 export interface Chord {
   /** The key, as `KeyboardEvent.key` names it: `s`, `;`, `Enter`, `Escape`. */
@@ -76,15 +81,21 @@ export interface Chord {
   readonly alt?: true;
 }
 
+/** Whether Ctrl and Alt may be held together with this key: a named key, never a character. */
+export const ctrlAltAllowed = (key: string): boolean => [...key].length > 1;
+
 /**
  * Whether a key press is exactly this chord: the key (or another name it
  * arrives under), in either case, with the
  * modifiers the chord names and no others. Shift is never counted, so a
- * capital still finds its command. Ctrl or Cmd together with Alt is the window
- * manager's, and matches nothing.
+ * capital still finds its command. Ctrl or Cmd together with Alt matches only
+ * a chord that names both (Ctrl+Alt+Enter); for any other it is the window
+ * manager's, or AltGr typing, and matches nothing.
  */
 export function chordMatches(chord: Chord, press: KeyPress): boolean {
-  if (chord.mod === true) {
+  if (chord.mod === true && chord.alt === true) {
+    if (!press.altKey || (!press.ctrlKey && !press.metaKey)) return false;
+  } else if (chord.mod === true) {
     if (press.altKey || (!press.ctrlKey && !press.metaKey)) return false;
   } else if (chord.alt === true) {
     if (!press.altKey || press.ctrlKey || press.metaKey) return false;
@@ -108,7 +119,7 @@ const KEY_NAMES: Readonly<Record<string, string>> = {
 /** A chord's name, as a key chip shows it: `Ctrl + S`, `Alt + Enter`, `Esc`. */
 export function chordName(chord: Chord): string {
   const key = KEY_NAMES[chord.key] ?? (chord.key.length === 1 ? chord.key.toUpperCase() : chord.key);
-  const modifier = chord.mod === true ? "Ctrl + " : chord.alt === true ? "Alt + " : "";
+  const modifier = `${chord.mod === true ? "Ctrl + " : ""}${chord.alt === true ? "Alt + " : ""}`;
   return `${modifier}${key}`;
 }
 
@@ -133,15 +144,17 @@ const MODIFIERS = new Set(["Control", "Alt", "Shift", "Meta", "AltGraph", "OS", 
 /**
  * The chord a key press makes, as Settings records one, or `undefined` when
  * it makes none: a modifier alone, a bare key (the writer typing), or Ctrl and
- * Alt together (the window manager's). Shift is never counted, as
+ * Alt together with a character (AltGr typing it; `ctrlAltAllowed`). Ctrl and
+ * Alt with a named key is a chord (Ctrl+Alt+Enter). Shift is never counted, as
  * `chordMatches` never counts it; a single character is kept in lower case.
  */
 export function chordOf(press: KeyPress): Chord | undefined {
   if (MODIFIERS.has(press.key) || press.key === "" || press.key === "Unidentified" || press.key === "Dead") return undefined;
   const mod = press.ctrlKey || press.metaKey;
-  if (mod === press.altKey) return undefined;
+  if (!mod && !press.altKey) return undefined;
+  if (mod && press.altKey && !ctrlAltAllowed(press.key)) return undefined;
   const key = press.key.length === 1 ? press.key.toLowerCase() : press.key;
-  return mod ? { key, mod: true } : { key, alt: true };
+  return { key, ...(mod ? { mod: true as const } : {}), ...(press.altKey ? { alt: true as const } : {}) };
 }
 
 /**

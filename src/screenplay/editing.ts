@@ -61,6 +61,7 @@ import type { Spellcheck } from "./spellcheck.ts";
 import { clipboard, pastedComments } from "./clipboard.ts";
 import { dualCaretKey } from "./dual-dialogue.ts";
 import { elementKeys, endsUndoStep, keepHiddenSyntax } from "./element-keys.ts";
+import { HISTORY_DEPTH, PAUSE_MS, undoGrouping } from "./undo-grouping.ts";
 import { maintainElements } from "./maintenance.ts";
 import type { Node as EditorNode } from "prosemirror-model";
 import type { Comment, CommentEnd } from "../comments.ts";
@@ -134,11 +135,13 @@ export const maintainComments = new Plugin<readonly PlacedComment[]>({
 
 /**
  * Undo and redo (#45): a stack over the editor's transactions that lives in the
- * state, so it dies with the session and is never saved (ADR-0019). Typing
- * within half a second, in one place, is one step; a structural change
- * (`./element-keys.ts`) or a longer pause begins another.
+ * state, so it dies with the session and is never saved (ADR-0019). A step is a
+ * phrase: a burst of typing, ended by a sentence's end, a new line or element,
+ * a pause, a caret moved elsewhere, or typing turning into deleting
+ * (`./undo-grouping.ts`, which decides, and runs before this). It keeps
+ * `HISTORY_DEPTH` steps.
  */
-const undoStack = history({ newGroupDelay: 500 });
+const undoStack = history({ depth: HISTORY_DEPTH, newGroupDelay: PAUSE_MS });
 
 /** The undo keys, bound to `prosemirror-history`'s commands unless the window brings its own. */
 const undoKeys = (commands: UndoCommands = { undo, redo }) =>
@@ -203,7 +206,9 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
     selection: outsidePageBreak(doc, startOfScript(doc)),
     // `maintainElements` comes before `endsUndoStep` so that what it appends to a
     // structural change joins that change's undo step rather than following it.
-    plugins: [undoStack, undoKeys(options.undo), markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
+    // `undoGrouping` before `undoStack`: it marks where a new step begins
+    // before the history reads the transaction.
+    plugins: [undoGrouping, undoStack, undoKeys(options.undo), markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
   });
 }
 

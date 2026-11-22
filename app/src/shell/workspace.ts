@@ -9,7 +9,9 @@
  *
  * The Editor is the one real workspace. The workspace bar is drawn, and beside
  * the Editor it lists Notes and Plan, which are placeholders for now
- * (`app/src/workspaces/placeholders.ts`). That is the whole point of the
+ * (`app/src/workspaces/placeholders.ts`). Which of them a project shows is the
+ * project's (Edit Project Details, `src/project/details.ts`); the shell shows
+ * those, and every workspace that is `alwaysOn`. That is the whole point of the
  * manifest: those tabs, and the real Notes, Plan and Log workspaces after them,
  * arrive as entries in a registry rather than as changes in here. ADR-0005 records that stating this rule is what failed
  * last time — v1's architecture document already said modes must never be
@@ -23,13 +25,15 @@ import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
-import type { RenameRoute } from "../screens/project-dialogs.ts";
+import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
 
 /**
- * How a workspace has the open project renamed: where the dialog goes, how the
- * move fits around the workspace's own writing, and what to do when it closes.
+ * How a workspace has the open project's details edited (Edit Project
+ * Details): where the dialog goes, how a rename's move fits around the
+ * workspace's own writing, and what to do when it closes. The shell follows
+ * the name and the workspaces shown itself.
  */
-export type RenameRequest = Omit<RenameRoute, "renamed">;
+export type DetailsRequest = Omit<ProjectDetailsRoute, "renamed" | "detailsChanged">;
 
 /** Where the Settings dialog goes, and what to do when it closes. */
 export interface SettingsRequest {
@@ -100,16 +104,18 @@ export interface WorkspaceContext {
    */
   readonly whenGoalsAsked: (act: () => void) => () => void;
   /**
-   * Hear the writer choose Rename Project on the project name pill. The shell
-   * owns the pill; the workspace decides whether it can be renamed just now.
-   * Answers how to stop listening.
+   * Hear the writer choose Edit Project Details on the project name pill. The
+   * shell owns the pill; the workspace decides whether the details can be
+   * edited just now (a rename moves the folder under its writing). Answers how
+   * to stop listening.
    */
-  readonly whenRenameAsked: (act: () => void) => () => void;
+  readonly whenDetailsAsked: (act: () => void) => () => void;
   /**
-   * Ask the writer for a new name for this project, and rename it. The shell's
-   * name pill and `project` follow; the workspace stays mounted.
+   * Open Edit Project Details for this project: its name, type, target page
+   * count and workspaces. The shell's name pill, `project` and the workspace
+   * bar follow; the workspace stays mounted.
    */
-  readonly renameProject: (request: RenameRequest) => void;
+  readonly editProjectDetails: (request: DetailsRequest) => void;
   /**
    * Open the application's Settings dialog into `into`, over the workspace.
    * The shell passes this through and does not know what is in it.
@@ -201,6 +207,20 @@ export interface WorkspaceManifest {
   readonly key: string;
   /** The Lucide icon drawn before its name in the workspace bar (ADR-0035). */
   readonly icon: IconNode;
+  /**
+   * Always on: shown in every project, and not offered as a switch in Edit
+   * Project Details. The Editor is; a project with no workspace for its
+   * manuscript would be a project that cannot be written in.
+   */
+  readonly alwaysOn?: true;
+  /**
+   * The files in a project's folder that hold this workspace's work, by name
+   * (ADR-0025: `plan.md` is Plan's, `notes.md` Notes'). Declared so what
+   * belongs to a workspace is said where the workspace is. Turning a
+   * workspace off for a project hides its tab and **never touches these**:
+   * turning it on again finds them as they were.
+   */
+  readonly files: readonly string[];
   /**
    * **The third thing ADR-0005 names is deliberately absent**: *"which formats
    * show it by default"*.

@@ -286,9 +286,9 @@ _Avoid_: canvas, sheet, page (that is the counted unit)
 The menu that opens where the writer right-clicks the paper (or at the caret, from the Menu key). It
 is Write-ist's own, drawn from the same list as File, Edit and View, and its items are the command
 table's entries that carry a `context` (ADR-0039). The webview's own right-click menu is never shown on
-the paper. On the Open Project screen a project row has one too — Rename Project and Delete Project,
-for the row right-clicked (ADR-0044). In the Editor the project name pill has one with the single item
-Rename Project.
+the paper. On the Open Project screen a project row has one too — Edit Project Details and Delete
+Project, for the row right-clicked (ADR-0044). The project name pill in the Editor has none: a click on
+it opens Edit Project Details.
 _Avoid_: popup
 
 **Spacing table**:

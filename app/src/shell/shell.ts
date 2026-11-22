@@ -19,17 +19,16 @@
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
  */
-import { createElement, Pencil, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
+import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
-import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
-import type { RenameRoute } from "../screens/project-dialogs.ts";
-import type { MountedWorkspace, RenameRequest, SaveState, SettingsRequest, WorkspaceManifest } from "./workspace.ts";
+import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
+import type { DetailsRequest, MountedWorkspace, SaveState, SettingsRequest, WorkspaceManifest } from "./workspace.ts";
 import { workspaceAsked } from "./workspace-keys.ts";
 
 export interface ShellScreen {
@@ -37,12 +36,17 @@ export interface ShellScreen {
   readonly project: Project;
   readonly filesystem: Filesystem;
   /**
-   * The workspaces this project shows, in the order the bar lists them. The
-   * first is the one on screen. The Editor is the only real workspace; Notes
-   * and Plan are placeholder tabs, so choosing one selects its tab and leaves
-   * the first mounted and on screen.
+   * The workspaces the application offers, in the order the bar lists them.
+   * The first is the one on screen. The Editor is the only real workspace;
+   * Notes and Plan are placeholder tabs, so choosing one selects its tab and
+   * leaves the first mounted and on screen.
    */
   readonly workspaces: readonly WorkspaceManifest[];
+  /**
+   * The ids of the workspaces this project shows (its details), or `undefined`
+   * for every one. One that is `alwaysOn` is shown either way.
+   */
+  readonly shown?: readonly string[] | undefined;
   /** Close the project and go back to where it was chosen. */
   readonly onClose: () => void;
   /** Close the project and go to the home screen. */
@@ -66,8 +70,8 @@ export interface ShellScreen {
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
   /** Where the PDF should go, asked the same way. */
   readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
-  /** Ask for a new name for the open project, and rename it. */
-  readonly askToRename: (route: RenameRoute) => void;
+  /** Open Edit Project Details for the open project. */
+  readonly askToEditDetails: (route: ProjectDetailsRoute) => void;
   /** Open the application's Settings. Handed straight to the workspace. */
   readonly openSettings: (request: SettingsRequest) => void;
 }
@@ -86,6 +90,12 @@ export interface MountedShell {
   readonly unmount: () => Promise<boolean>;
   /** Say something beside the workspace, the way a workspace does. */
   readonly report: (wrong: string) => void;
+  /**
+   * Show these workspaces' tabs (ids; `undefined` for every one), as the
+   * project's details now say. If the tab selected is one no longer shown,
+   * the first workspace's is selected: the writer is back in it.
+   */
+  readonly showWorkspaces: (shown: readonly string[] | undefined) => void;
 }
 
 /**
@@ -125,46 +135,24 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   // The project as it is now: a rename replaces it with the workspace still up.
   let project = screen.project;
-  // The project's name is which work they are in. Focusable so that the Menu
-  // key can open its menu, as it does on a row of Open Project.
-  const projectName = element("span", {
+  // The project's name is which work they are in, and a click on it opens
+  // Edit Project Details (Noah): a button, so Enter and Space open it too.
+  // Right-click opens nothing; there is only the one thing to do here.
+  const projectName = element("button", {
     className: "pill pill--project",
+    type: "button",
     textContent: project.marker.name,
-    tabIndex: 0,
   });
-  const renameAskers = new Set<() => void>();
-  let nameMenu: ContextMenu | undefined;
-  const openNameMenu = (x: number, y: number, fromKeyboard: boolean): void => {
-    nameMenu = openContextMenu({
-      label: project.marker.name,
-      items: [{ label: "Rename Project", icon: Pencil, act: () => renameAskers.forEach((act) => act()) }],
-      x,
-      y,
-      fromKeyboard,
-      restoreFocus: () => (fromKeyboard ? projectName.focus() : mounted.focus?.()),
-    });
-  };
-  projectName.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openNameMenu(event.clientX, event.clientY, false);
-  });
-  // The Menu key and Shift+F10, as a native menu opens (ADR-0034): at the pill.
-  projectName.addEventListener("keydown", (event) => {
-    if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const box = projectName.getBoundingClientRect();
-    openNameMenu(box.left, box.top, true);
-  });
+  const detailsAskers = new Set<() => void>();
+  projectName.addEventListener("click", () => detailsAskers.forEach((act) => act()));
 
-  const bar = workspaceBar(screen.workspaces);
+  const bar = workspaceBar(screen.workspaces, screen.shown);
   // Alt and a tab's key, or Alt+Left and Alt+Right, choose a tab as a click
   // does. Heard first, so the webview never takes Alt+Left for Back; and not
   // while a dialog has the writer's attention.
   const askedForTab = (event: KeyboardEvent): void => {
     if (document.querySelector("dialog[open]") !== null) return;
-    const to = workspaceAsked(screen.workspaces, bar.selected(), event);
+    const to = workspaceAsked(bar.shown(), bar.selected(), event);
     if (to === undefined) return;
     event.preventDefault();
     if (!event.repeat) bar.select(to);
@@ -204,7 +192,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     goal.dataset["state"] = pill.state;
   };
 
-  const mounted: MountedWorkspace = first(screen.workspaces).mount(host, {
+  const mounted: MountedWorkspace = first(bar.shown()).mount(host, {
     get project() {
       return project;
     },
@@ -216,17 +204,18 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
       askers.add(act);
       return () => void askers.delete(act);
     },
-    whenRenameAsked: (act) => {
-      renameAskers.add(act);
-      return () => void renameAskers.delete(act);
+    whenDetailsAsked: (act) => {
+      detailsAskers.add(act);
+      return () => void detailsAskers.delete(act);
     },
-    renameProject: (request: RenameRequest) =>
-      screen.askToRename({
+    editProjectDetails: (request: DetailsRequest) =>
+      screen.askToEditDetails({
         ...request,
         renamed: (now) => {
           project = now;
           projectName.textContent = now.marker.name;
         },
+        detailsChanged: (details) => bar.show(details.workspaces),
       }),
     openSettings: screen.openSettings,
     setSaved: saved.set,
@@ -242,12 +231,10 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   const unmount = async (): Promise<boolean> => {
     const down = await mounted.unmount();
-    // The menu is on the body, so it would outlive the frame it belongs to.
-    if (down) nameMenu?.close(false);
     if (down) window.removeEventListener("keydown", askedForTab, true);
     return down;
   };
-  return { gestures, unmount, report };
+  return { gestures, unmount, report, showWorkspaces: bar.show };
 }
 
 /** What the save pill says, in words, for a screen reader. */
@@ -350,35 +337,56 @@ function first(workspaces: readonly WorkspaceManifest[]): WorkspaceManifest {
  * keys (`workspace-keys.ts`). Only the first workspace is mounted, and it stays
  * mounted and on screen whichever tab is selected: the others are placeholders
  * until they are real workspaces, and taking the first down would end its work.
+ *
+ * **Which tabs** is the project's: every workspace offered that is `alwaysOn`
+ * or in `shown` (`undefined` is every one). `show` draws them again when the
+ * project's details change; the tab selected stays selected if it is still
+ * shown, and otherwise the first is, which is the workspace on screen.
  */
-function workspaceBar(workspaces: readonly WorkspaceManifest[]): {
+function workspaceBar(
+  offered: readonly WorkspaceManifest[],
+  initially: readonly string[] | undefined,
+): {
   readonly element: HTMLElement;
   readonly selected: () => number;
   readonly select: (index: number) => void;
+  /** The workspaces whose tabs are drawn, in order. */
+  readonly shown: () => readonly WorkspaceManifest[];
+  readonly show: (shown: readonly string[] | undefined) => void;
 } {
+  const pill = element("div", { className: "workspace-bar__pill", role: "tablist" });
+  let visible: readonly WorkspaceManifest[] = [];
+  let tabs: HTMLButtonElement[] = [];
   let selected = 0;
   const select = (index: number): void => {
     selected = index;
     tabs.forEach((tab, at) => tab.setAttribute("aria-selected", String(at === index)));
   };
-  const tabs = workspaces.map((workspace, index) => {
-    const icon = createElement(workspace.icon as IconNode, { class: "workspace-bar__icon" });
-    icon.setAttribute("aria-hidden", "true");
-    const tab = element(
-      "button",
-      { type: "button", className: "workspace-bar__tab", role: "tab", ariaSelected: String(index === selected) },
-      [icon, element("span", { textContent: workspace.name })],
-    );
-    // The click leaves the focus where it was, so the writer keeps their caret.
-    tab.addEventListener("mousedown", (event) => event.preventDefault());
-    tab.addEventListener("click", () => select(index));
-    return tab;
-  });
+  const show = (shown: readonly string[] | undefined): void => {
+    const was = visible[selected]?.id;
+    visible = offered.filter((workspace) => workspace.alwaysOn === true || shown === undefined || shown.includes(workspace.id));
+    tabs = visible.map((workspace, index) => {
+      const icon = createElement(workspace.icon as IconNode, { class: "workspace-bar__icon" });
+      icon.setAttribute("aria-hidden", "true");
+      const tab = element(
+        "button",
+        { type: "button", className: "workspace-bar__tab", role: "tab", ariaSelected: "false" },
+        [icon, element("span", { textContent: workspace.name })],
+      );
+      // The click leaves the focus where it was, so the writer keeps their caret.
+      tab.addEventListener("mousedown", (event) => event.preventDefault());
+      tab.addEventListener("click", () => select(index));
+      return tab;
+    });
+    pill.replaceChildren(...tabs);
+    select(Math.max(0, visible.findIndex((workspace) => workspace.id === was)));
+  };
+  show(initially);
   return {
-    element: element("div", { className: "workspace-bar" }, [
-      element("div", { className: "workspace-bar__pill", role: "tablist" }, tabs),
-    ]),
+    element: element("div", { className: "workspace-bar" }, [pill]),
     selected: () => selected,
     select,
+    shown: () => visible,
+    show,
   };
 }

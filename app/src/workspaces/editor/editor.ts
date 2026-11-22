@@ -42,6 +42,7 @@ import { PenLine } from "lucide";
 import { Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { EXPORT_FORMATS, exportScript } from "../../../../src/project/export-formats.ts";
+import { MANUSCRIPT_FILE } from "../../../../src/project/bundle.ts";
 import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
 import {
   manuscriptSession,
@@ -60,7 +61,9 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
+import { caretFromMargins } from "./margin-click.ts";
 import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
+import { centreCaretLine } from "./caret-centre.ts";
 import {
   drawPaperZoom,
   measureZoomRoom,
@@ -101,6 +104,9 @@ export const editorWorkspace: WorkspaceManifest = {
   // (`../placeholders.ts`): selecting one leaves the Editor where it is.
   key: "1",
   icon: PenLine,
+  // The manuscript is written here, so a project always has it.
+  alwaysOn: true,
+  files: [MANUSCRIPT_FILE],
   mount,
 };
 
@@ -154,11 +160,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     searching = openSearch(into, {
       doc: () => writing.state.doc,
       pageOf: (index) => writing.layout.pagination.pageOfElement[index],
+      // A result is a jump: its line in the middle of the window (`caret-centre.ts`).
       jump: ({ from, to }) => {
         if (view === undefined) return;
-        view.dispatch(
-          view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView(),
-        );
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+        centreCaretLine(view);
       },
       closed: () => {
         searching = undefined;
@@ -217,6 +223,18 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       restoreFocus: () => editing.focus(),
     });
   };
+  /**
+   * The right-click menu as if the writer had right-clicked at the caret, or at
+   * the end of a selection, which stays for Cut and Copy: the Menu key's,
+   * Shift+F10's and Ctrl+Alt+Enter's, with the first item lit.
+   */
+  const openContextAtCaret = (): void => {
+    if (view === undefined || session === undefined) return;
+    const { empty, head, to } = view.state.selection;
+    const at = empty ? head : to;
+    const where = view.coordsAtPos(at);
+    void openContext(where.left, where.bottom, at, true);
+  };
   const onContextMenu = (event: MouseEvent): void => {
     // Suppressed whatever happens: the webview's own menu is never wanted here.
     event.preventDefault();
@@ -233,6 +251,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     void openContext(event.clientX, event.clientY, at, false);
   };
   page.addEventListener("contextmenu", onContextMenu);
+  // A click in the paper's left or right margin: the caret to that line's start or end.
+  const stopMarginClicks = caretFromMargins(page, () => view);
 
   const toggleSpelling = (): void => {
     if (session === undefined || view === undefined) return;
@@ -312,13 +332,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       },
     });
   };
-  // File ▸ Rename Project… and the name pill's menu. The session fits the move
-  // between its writes; the paper, the caret and the undo history stay as they are.
-  const renameProject = (): void => {
+  // File ▸ Edit Project Details… and a click on the name pill. The session fits a
+  // rename's move between its writes; the paper, the caret and the undo history
+  // stay as they are.
+  const editProjectDetails = (): void => {
     if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
-    context.renameProject({ into, carryOut: session.moveProject, closed: () => view?.focus() });
+    context.editProjectDetails({ into, carryOut: session.moveProject, closed: () => view?.focus() });
   };
-  const stopListeningForRename = context.whenRenameAsked(renameProject);
+  const stopListeningForDetails = context.whenDetailsAsked(editProjectDetails);
   // File ▸ Settings…: the application's, over the paper, never over another dialog.
   const openSettings = (): void => {
     if (searching !== undefined || into.querySelector("dialog[open]") !== null) return;
@@ -359,7 +380,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     save: saveNow,
     exportAs,
     toProjects: context.leave.toProjects,
-    renameProject,
+    editProjectDetails,
     openSettings,
     toHome: context.leave.toHome,
     editTitlePage: () => openTitlePage("edit"),
@@ -379,6 +400,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     selectAll: () => viaWebview("selectAll"),
     undo: () => undoOrRedo("undo"),
     redo: () => undoOrRedo("redo"),
+    openContextMenu: openContextAtCaret,
     misspellingAt: (at) => {
       const writing = session;
       const editing = view;
@@ -481,12 +503,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         // the screenplay surface.
         handleKeyDown: (_editor, event) => {
           // The Menu key and Shift+F10 open the right-click menu at the caret,
-          // as a native one would (ADR-0034's accessibility cost).
+          // as a native one would (ADR-0034's accessibility cost). Ctrl+Alt+Enter,
+          // or the writer's own key for it, is the table's `context-menu`.
           if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
             event.preventDefault();
-            const head = writing.state.selection.head;
-            const where = view!.coordsAtPos(head);
-            void openContext(where.left, where.bottom, head, true);
+            openContextAtCaret();
             return true;
           }
           const asked = commandForKey(event, "editor");
@@ -515,10 +536,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       // script was being read has the keys.
       const active = document.activeElement;
       if (active === null || active === document.body) editing.focus();
-      // And the caret it opened at is on screen, with the same room around it.
+      // And the caret it opened at is on screen: where the writer left it, in
+      // the middle of the window, at once rather than gliding down from the top
+      // (`caret-centre.ts`); at the top of the script, with the usual room.
       // Asked for directly: ProseMirror's `scrollIntoView` does nothing for a
       // view without focus.
-      scrollCaretIntoView(editing);
+      if (resumed !== undefined) centreCaretLine(editing, { smooth: false });
+      else scrollCaretIntoView(editing);
       panels.attach(view);
       shown(writing);
       writing.showCounts();
@@ -562,8 +586,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         clearTimeout(placeRest);
         clearInterval(goalClock);
         stopListeningForGoals();
-        stopListeningForRename();
+        stopListeningForDetails();
         page.removeEventListener("contextmenu", onContextMenu);
+        stopMarginClicks();
         contextMenu?.close(false);
         panels.dispose();
         window.removeEventListener("resize", redrawZoom);
@@ -582,9 +607,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       document.removeEventListener("scroll", holdCentred, true);
       clearInterval(goalClock);
       stopListeningForGoals();
-      stopListeningForRename();
+      stopListeningForDetails();
       session = undefined;
       page.removeEventListener("contextmenu", onContextMenu);
+      stopMarginClicks();
       contextMenu?.close(false);
       stopListeningForSearch?.();
       panels.dispose();

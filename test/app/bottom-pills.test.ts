@@ -38,6 +38,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
         name: "X",
         key: "1",
         icon: [],
+        files: [],
         mount: (_host, context) => {
           given = context;
           return { unmount: async () => true };
@@ -50,7 +51,7 @@ function shell(): { into: HTMLElement; context: () => WorkspaceContext } {
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
-    askToRename: () => {},
+    askToEditDetails: () => {},
     openSettings: () => {},
     ledger: () => undefined,
     places: () => undefined,

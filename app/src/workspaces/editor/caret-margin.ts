@@ -98,6 +98,9 @@ export function scrollCaretIntoView(view: EditorView): boolean {
   if (!(view.state.selection instanceof TextSelection)) return false;
   const scroller = scrollerOf(view.dom);
   if (scroller === undefined) return true;
+  // A jump is already taking the caret's line to the middle of the window, well
+  // clear of these margins; a move from here would stop it on the way.
+  if (glides.has(scroller)) return true;
   const threshold = view.someProp("scrollThreshold");
   const margin = view.someProp("scrollMargin");
   if (typeof threshold !== "object" || typeof margin !== "object") return false;
@@ -115,6 +118,44 @@ export function scrollCaretIntoView(view: EditorView): boolean {
   return true;
 }
 
+/** The longest a glide is waited for, in milliseconds; webviews take about half this. */
+export const GLIDE_LIMIT_MS = 1500;
+
+/** The windows a glide is moving now, each with what ends it. */
+const glides = new WeakMap<HTMLElement, () => void>();
+
+/**
+ * Scroll `scroller` smoothly to `top`, and keep the caret's own scrolling off it
+ * until it gets there (`caret-centre.ts`). Any write to a window's scroll
+ * position stops a smooth scroll on it, so while one is on its way the caret is
+ * left to it. It is over when the window arrives or says it has stopped, when
+ * the writer scrolls it themselves, or after `GLIDE_LIMIT_MS`, whichever is first.
+ */
+export function glideTo(scroller: HTMLElement, top: number): void {
+  stopGlide(scroller);
+  if (Math.abs(scroller.scrollTop - top) < 1) return;
+  const ended = ["scrollend", "wheel", "touchstart"] as const;
+  const arrived = (): void => {
+    if (Math.abs(scroller.scrollTop - top) < 1) over();
+  };
+  const over = (): void => {
+    clearTimeout(limit);
+    for (const event of ended) scroller.removeEventListener(event, over);
+    scroller.removeEventListener("scroll", arrived);
+    glides.delete(scroller);
+  };
+  const limit = setTimeout(over, GLIDE_LIMIT_MS);
+  for (const event of ended) scroller.addEventListener(event, over, { passive: true });
+  scroller.addEventListener("scroll", arrived, { passive: true });
+  glides.set(scroller, over);
+  scroller.scrollTo({ top, behavior: "smooth" });
+}
+
+/** Forget any glide on `scroller`: one going at once instead, or the Editor leaving. */
+export function stopGlide(scroller: HTMLElement): void {
+  glides.get(scroller)?.();
+}
+
 type CaretRect = ReturnType<EditorView["coordsAtPos"]>;
 
 /**
@@ -122,7 +163,7 @@ type CaretRect = ReturnType<EditorView["coordsAtPos"]>;
  * follows, which at a wrap is the line it is still on. A selection dragged
  * backwards has its text on the other side.
  */
-function caretRect(view: EditorView): CaretRect {
+export function caretRect(view: EditorView): CaretRect {
   const { head, anchor } = view.state.selection;
   const after = view.coordsAtPos(head, 1);
   if (head < anchor) return after;
@@ -172,11 +213,20 @@ export function holdCaretWhile(view: EditorView, change: () => void): void {
  * trackpad and the keys nothing to move, and the Editor calls this again on
  * every scroll, so whatever else moves it across (the webview showing the
  * caret or a focused menu item) is put straight back.
+ *
+ * **It writes only when the paper is off-centre.** Any write to a scroll
+ * position, even of the value it already has, stops a smooth scroll running on
+ * the same window, in WebKit and in Chromium alike. Called on every scroll, an
+ * unconditional write stopped each jump's glide (`caret-centre.ts`) on its first
+ * frame, a few pixels from where it started.
  */
 export function centrePaper(paper: HTMLElement, scroller: HTMLElement): void {
   const sheet = paper.getBoundingClientRect();
   const box = scroller.getBoundingClientRect();
-  scroller.scrollLeft += sheet.left + sheet.width / 2 - (box.left + scroller.clientWidth / 2);
+  const move = sheet.left + sheet.width / 2 - (box.left + scroller.clientWidth / 2);
+  const furthest = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  const wanted = Math.min(furthest, Math.max(0, scroller.scrollLeft + move));
+  if (Math.abs(wanted - scroller.scrollLeft) >= 1) scroller.scrollLeft = wanted;
 }
 
 /**

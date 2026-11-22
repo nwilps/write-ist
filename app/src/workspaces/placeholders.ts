@@ -9,9 +9,10 @@
 import { ListChecks, StickyNote } from "lucide";
 import type { WorkspaceManifest } from "../shell/workspace.ts";
 
-function placeholder(id: string, name: string, key: string, icon: WorkspaceManifest["icon"]): WorkspaceManifest {
-  return { id, name, key, icon, mount: () => ({ unmount: async () => true }) };
+function placeholder(id: string, name: string, key: string, icon: WorkspaceManifest["icon"], file: string): WorkspaceManifest {
+  return { id, name, key, icon, files: [file], mount: () => ({ unmount: async () => true }) };
 }
 
-export const notesPlaceholder = placeholder("notes", "Notes", "2", StickyNote);
-export const planPlaceholder = placeholder("plan", "Plan", "3", ListChecks);
+// Their files are ADR-0025's, named now so turning a tab off is known to leave them be.
+export const notesPlaceholder = placeholder("notes", "Notes", "2", StickyNote, "notes.md");
+export const planPlaceholder = placeholder("plan", "Plan", "3", ListChecks, "plan.md");

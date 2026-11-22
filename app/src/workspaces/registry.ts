@@ -6,9 +6,18 @@
  * arrives as a line here plus a manifest of its own — never as a change in the
  * shell.
  *
- * Slice 1 has one. **Which workspaces a project shows is a format's default to
- * set**, and a format is data (ADR-0005, ADR-0006); with one workspace and one
- * format there is nothing yet to choose between, so nothing here chooses.
+ * **Adding a workspace is one entry here and one manifest of its own**: its
+ * id, name, key and icon for its tab, the files it keeps its work in, and how
+ * it is drawn (`mount`). Nothing else changes: the shell, Edit Project Details
+ * and the project's `details.md` all read this list. It is a list in code, not
+ * a plugin system; one could read it from elsewhere one day without the shell
+ * noticing.
+ *
+ * **Which workspaces a project shows is the project's** (Edit Project Details,
+ * `src/project/details.ts`), every one but the `alwaysOn` Editor switchable
+ * (ADR-0006). A project that never chose shows them all. Which a *new* project
+ * starts with would be a format's default (ADR-0005); every format today
+ * starts with all of them, so nothing here chooses yet.
  */
 import type { WorkspaceManifest } from "../shell/workspace.ts";
 import { editorWorkspace } from "./editor/editor.ts";

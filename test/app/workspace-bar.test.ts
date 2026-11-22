@@ -34,7 +34,7 @@ afterEach(async () => {
 /** How many times each workspace was mounted, and how many taken down. */
 const mounts = new Map<string, { mounted: number; unmounted: number }>();
 
-function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
+function shellOf(workspaces: readonly WorkspaceManifest[], shown?: readonly string[]): HTMLElement {
   const into = document.createElement("div");
   document.body.append(into);
   const quiet = (): (() => void) => () => {};
@@ -63,7 +63,8 @@ function shellOf(workspaces: readonly WorkspaceManifest[]): HTMLElement {
     whenSwitchedBack: quiet,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
-    askToRename: () => {},
+    askToEditDetails: () => {},
+    shown,
     openSettings: () => {},
     ledger: () => undefined,
     places: () => undefined,
@@ -251,5 +252,30 @@ describe("the tab keys in the command table and the Keyboard Shortcuts list", ()
       { label: "Previous Workspace", hints: ["[Alt + Left]"] },
       { label: "Next Workspace", hints: ["[Alt + Right]"] },
     ]);
+  });
+});
+
+describe("the tabs a project shows", () => {
+  it("are the ones its details name, the always-on Editor among them whether named or not", () => {
+    const into = shellOf(WORKSPACES, ["plan"]);
+    expect(tabsOf(into).map((tab) => tab.textContent)).toEqual(["Editor", "Plan"]);
+    // Alt and the key of a tab that is not shown asks for nothing.
+    expect(alt("2").defaultPrevented).toBe(false);
+    expect(selectedOf(into)).toEqual(["Editor"]);
+    alt("3");
+    expect(selectedOf(into)).toEqual(["Plan"]);
+  });
+
+  it("are every workspace for a project that never chose", () => {
+    expect(tabsOf(shellOf(WORKSPACES, undefined)).map((tab) => tab.textContent)).toEqual(["Editor", "Notes", "Plan"]);
+  });
+
+  it("declare the files their work is kept in, so turning one off is known to leave them be", () => {
+    expect(Object.fromEntries(WORKSPACES.map((workspace) => [workspace.id, workspace.files]))).toEqual({
+      editor: ["manuscript.fountain"],
+      notes: ["notes.md"],
+      plan: ["plan.md"],
+    });
+    expect(WORKSPACES.filter((workspace) => workspace.alwaysOn === true).map((workspace) => workspace.id)).toEqual(["editor"]);
   });
 });

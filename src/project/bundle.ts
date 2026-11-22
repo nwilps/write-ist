@@ -31,6 +31,14 @@ export const NAMES_FILE = "names.txt";
 export const GOALS_FILE = "goals.md";
 
 /**
+ * The project's details that are not its marker's (ADR-0025, amended): its
+ * target page count and which workspaces it shows. A sidecar file in ADR-0025's
+ * shape, written by Edit Project Details (`details.ts`). Absent in a project
+ * made before it, which then shows every workspace and has no target.
+ */
+export const DETAILS_FILE = "details.md";
+
+/**
  * Where a deleted project goes: a folder of this name in the default location,
  * `~/Documents/write-ist/Graveyard/` (`delete.ts`). It holds whole bundles,
  * moved and never changed, so bringing one back is moving its folder back out.

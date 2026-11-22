@@ -213,7 +213,7 @@ describe("in the Editor", () => {
       setStatus: (text: string) => statuses.push(text),
       setGoal: () => {},
       whenGoalsAsked: quiet,
-      whenRenameAsked: quiet,
+      whenDetailsAsked: quiet,
       setSaved: () => {},
       setSpellcheck: () => {},
       whenSwitchedAway: quiet,
