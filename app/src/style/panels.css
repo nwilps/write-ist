@@ -183,4 +183,12 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--colour-faint);
+  border-radius: var(--radius-slight);
+  cursor: default;
+}
+
+/* A scene can be chosen: the caret goes to its heading (`panels.ts`). Lit as a row is. */
+.panel__scene:hover {
+  background: var(--colour-overlay);
+  color: var(--colour-muted);
 }

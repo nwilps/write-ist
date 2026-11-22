@@ -70,8 +70,8 @@ export class OffPaperHistory {
   applied(transaction: Transaction, before: EditorState, after: EditorState): void {
     if (isHistoryTransaction(transaction) || transaction.getMeta("addToHistory") === false) return;
     if (transaction.docChanged) this.undone = [];
-    // The text history keeps a hundred-odd steps and drops the oldest at once
-    // when it outgrows that. Dropping only happens as a step is added, so the
+    // The text history keeps `HISTORY_DEPTH` steps, and some over, and drops
+    // the oldest at once when it outgrows that. Dropping only happens as a step is added, so the
     // number dropped is one more than the depth fell by.
     const was = undoDepth(before);
     const now = undoDepth(after);

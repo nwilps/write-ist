@@ -219,7 +219,7 @@ function editing(text: string, wrong?: Misspelling) {
     focus: () => {},
   } as unknown as EditorView;
   const spies = Object.fromEntries(
-    ["save", "exportAs", "toProjects", "renameProject", "toHome", "editTitlePage", "viewTitlePage",
+    ["save", "exportAs", "toProjects", "editProjectDetails", "toHome", "editTitlePage", "viewTitlePage",
       "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
   );
   const host = { ...spies, spellcheckOn: () => false, misspellingAt: () => wrong, view: () => view } as unknown as CommandHost &

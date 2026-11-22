@@ -83,8 +83,8 @@ export interface EditorActions {
   /** Open the Export As dialog, which offers every format the script can leave in. */
   readonly exportAs: () => void;
   readonly toProjects: () => void;
-  /** Open the Rename Project dialog, the one Open Project's row menu opens. */
-  readonly renameProject: () => void;
+  /** Open Edit Project Details: the name, type, target page count and workspaces. */
+  readonly editProjectDetails: () => void;
   /** Open the Settings dialog, the one Home's `[s]` opens. */
   readonly openSettings: () => void;
   readonly toHome: () => void;
@@ -111,6 +111,12 @@ export interface EditorActions {
   readonly selectAll: () => void;
   /** The misspelt word at a position, if the spelling pass is on and has underlined one there. */
   readonly misspellingAt: (at: number) => Misspelling | undefined;
+  /**
+   * Open the paper's right-click menu at the caret (the end of a selection),
+   * as if the writer had right-clicked there: the Menu key's and Shift+F10's
+   * menu (ADR-0034), on a key the writer can change.
+   */
+  readonly openContextMenu: () => void;
 }
 
 /** A word the spelling pass has underlined, and what can be done about it. */
@@ -257,7 +263,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, fixed: true, menu: { name: "File", group: "save" }, run: (host) => host.save() },
   { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
   { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "project" }, run: (host) => host.toProjects() },
-  { id: "rename-project", label: "Rename Project…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.renameProject() },
+  { id: "edit-project-details", label: "Edit Project Details…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.editProjectDetails() },
   // No key, by Noah's choice: Home's [s] and this item open it. (Ctrl+, is the
   // usual one, and here it is Previous Scene's.)
   { id: "settings", label: "Settings…", icon: Settings, keyless: true, menu: { name: "File", group: "settings" }, run: (host) => host.openSettings() },
@@ -326,6 +332,13 @@ export const COMMANDS: readonly Command[] = [
       },
     }),
   ),
+
+  // The right-click menu, at the caret, from the keyboard (Noah). The Menu key
+  // and Shift+F10 open it too, as a native menu opens (ADR-0034); those two are
+  // fixed and the Editor answers them itself, and this one the writer may
+  // change. Ctrl with Alt is allowed here because Enter is a named key, never a
+  // character AltGr types (`ctrlAltAllowed`).
+  { id: "context-menu", label: "Right-Click Menu", chord: { key: "Enter", mod: true, alt: true }, run: (host) => host.openContextMenu() },
 
   // The clipboard and selection. The keys are the webview's and the surface's
   // (`clipboard.ts`): the table knows them to draw the hint, and the items

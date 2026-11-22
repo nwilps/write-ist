@@ -12,7 +12,8 @@
  * and Ctrl+1…7 say the same thing from the keyboard. A menu row opens the menu
  * it is handed (`app/src/menus/`), and a row with none
  * is drawn and does nothing yet. Add comment is the same: a button that
- * pretended would be worse than one that is plainly waiting.
+ * pretended would be worse than one that is plainly waiting. A scene in the
+ * Scenes list takes the caret to its heading, as Next Scene does.
  */
 import { Bold, createElement, Italic, MessageSquareText, Search, Underline, type IconNode } from "lucide";
 import { toggleMark } from "prosemirror-commands";
@@ -25,7 +26,7 @@ import { dropMenu, type DropMenu, type MenuEntry } from "../../menus/drop-menu.t
 import { element } from "../../screens/element.ts";
 import { chordHint } from "../../screens/shortcuts.ts";
 import { commandById, hintOf, whenKeyBindingsChange, type Command } from "./commands.ts";
-import { sceneHeadings } from "./scene-jump.ts";
+import { jumpToHeading, sceneHeadings } from "./scene-jump.ts";
 
 /** The three menu rows, and the letter each answers to with Alt held. */
 const MENUS: readonly (readonly [string, string])[] = [
@@ -147,6 +148,16 @@ export function sidePanels(
   ]);
 
   const sceneList = element("ul", { className: "panel__scenes" });
+  // Choosing a scene takes the caret to its heading, centred in the window. Its
+  // place is read when it is chosen: the list is redrawn only when the headings'
+  // words change, and their places move with every edit above them.
+  sceneList.addEventListener("mousedown", (event) => event.preventDefault());
+  sceneList.addEventListener("click", (event) => {
+    const chosen = event.target instanceof Element ? event.target.closest(".panel__scene") : null;
+    if (chosen === null || view === undefined) return;
+    const heading = sceneHeadings(view.state.doc)[[...sceneList.children].indexOf(chosen)];
+    if (heading !== undefined) jumpToHeading(view, heading.start);
+  });
   const scenes = element("section", { className: "panel panel--scenes", ariaLabel: "Scenes" }, [
     element("h2", { className: "panel__heading", textContent: "Scenes" }),
     sceneList,

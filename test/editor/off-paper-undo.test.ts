@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { EditorState, Transaction } from "prosemirror-state";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { OffPaperHistory } from "../../src/screenplay/off-paper-undo.ts";
+import { HISTORY_DEPTH } from "../../src/screenplay/undo-grouping.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { startOfElement } from "../support/editor-positions.ts";
@@ -42,13 +43,15 @@ describe("undo steps off the paper", () => {
   it("keep their place when the text history drops its oldest steps", () => {
     const writing = editor();
     const log: string[] = [];
-    for (let n = 0; n < 30; n++) writing.type("a");
+    // Counted from what the text history keeps (`HISTORY_DEPTH`, and twenty
+    // over), so some of the typing before the step is dropped while the step
+    // stays in reach.
+    const after = 100;
+    for (let n = 0; n < HISTORY_DEPTH - after + 30; n++) writing.type("a");
     writing.step(log, "added");
     const before = writing.text();
-    // Past what the text history keeps (a hundred, and twenty over), so some
-    // of the typing before the step is dropped while the step stays in reach.
-    for (let n = 0; n < 100; n++) writing.type("b");
-    for (let n = 0; n < 100; n++) writing.press("undo");
+    for (let n = 0; n < after; n++) writing.type("b");
+    for (let n = 0; n < after; n++) writing.press("undo");
     expect(writing.text()).toBe(before);
     expect(log).toEqual(["added"]);
     writing.press("undo");
@@ -60,7 +63,7 @@ describe("undo steps off the paper", () => {
     const writing = editor();
     const log: string[] = [];
     writing.step(log, "added");
-    for (let n = 0; n < 150; n++) writing.type("b");
+    for (let n = 0; n < HISTORY_DEPTH + 50; n++) writing.type("b");
     // Undo runs out where the text history does, without reaching the step.
     while (writing.press("undo"));
     expect(log).toEqual(["added"]);

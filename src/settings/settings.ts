@@ -108,10 +108,11 @@ export interface ProjectDefaults {
 }
 
 /**
- * One key binding: a key and the one modifier held with it, as the
- * application's `Chord` names them (`app/src/screens/shortcuts.ts`). Ctrl (or
- * Cmd) is `mod`; Alt is `alt`. Exactly one of the two: a bare key is the
- * writer typing, and Ctrl with Alt is the window manager's.
+ * One key binding: a key and the modifiers held with it, as the application's
+ * `Chord` names them (`app/src/screens/shortcuts.ts`). Ctrl (or Cmd) is `mod`;
+ * Alt is `alt`. At least one of the two: a bare key is the writer typing. Both
+ * only with a named key (Ctrl+Alt+Enter), never a character, which on many
+ * keyboards is AltGr typing it.
  */
 export interface KeyBinding {
   readonly key: string;
@@ -277,8 +278,8 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
 
 /**
  * One key binding, put right, or `undefined` when it cannot be one: a key
- * named, with exactly one of Ctrl and Alt. A single character is kept in
- * lower case, as a chord matches it either way.
+ * named, with Ctrl, Alt, or both for a named key (Enter, not `q`). A single
+ * character is kept in lower case, as a chord matches it either way.
  */
 export function keyBindingOf(value: unknown): KeyBinding | undefined {
   if (!isRecord(value)) return undefined;
@@ -292,10 +293,12 @@ export function keyBindingOf(value: unknown): KeyBinding | undefined {
   if (key === undefined) return undefined;
   const mod = value["mod"] === true;
   const alt = value["alt"] === true;
-  if (mod === alt) return undefined;
+  if (!mod && !alt) return undefined;
+  // Ctrl+Alt and a character is AltGr typing it, never a key (`shortcuts.ts`).
+  if (mod && alt && [...key].length === 1) return undefined;
   const listed = Array.isArray(value["alsoKeys"]) ? (value["alsoKeys"] as unknown[]) : [];
   const alsoKeys = [...new Set(listed.slice(0, 4).map(name).filter((also): also is string => also !== undefined && also !== key))];
-  return { key, ...(alsoKeys.length === 0 ? {} : { alsoKeys }), ...(mod ? { mod: true } : { alt: true }) };
+  return { key, ...(alsoKeys.length === 0 ? {} : { alsoKeys }), ...(mod ? { mod: true } : {}), ...(alt ? { alt: true } : {}) };
 }
 
 /** Whether two bindings are the same key with the same modifier (the other names it arrives under aside). */

@@ -154,7 +154,7 @@ describe("the list, generated from the command table", () => {
       "previous-workspace",
       "next-workspace",
     ]);
-    expect(ids("Writing")).toEqual(["search", "previous-scene", "next-scene", ...NUMBERED_TYPES.map((type) => `element-${type}`)]);
+    expect(ids("Writing")).toEqual(["search", "previous-scene", "next-scene", ...NUMBERED_TYPES.map((type) => `element-${type}`), "context-menu"]);
   });
 
   it("lists Zoom In, Zoom Out and Reset Zoom under View, with their keys", () => {
@@ -200,7 +200,7 @@ describe("the list, generated from the command table", () => {
     const labels = Object.values(drawnGroups(modal)).flat().map(([label]) => label);
     const keyless = COMMANDS.filter((command) => hintOf(command) === undefined);
     expect(keyless.map((command) => command.id)).toEqual(
-      expect.arrayContaining(["export-as", "rename-project", "edit-title-page", "view-title-page", "make-dual-dialogue"]),
+      expect.arrayContaining(["export-as", "edit-project-details", "edit-title-page", "view-title-page", "make-dual-dialogue"]),
     );
     for (const command of keyless) expect(labels, command.id).not.toContain(command.label);
   });
@@ -633,7 +633,7 @@ describe("Ctrl+K in the Editor", () => {
       setStatus: () => {},
       setGoal: () => {},
       whenGoalsAsked: quiet,
-      whenRenameAsked: quiet,
+      whenDetailsAsked: quiet,
       setSaved: () => {},
       setSpellcheck: () => {},
       whenSwitchedAway: quiet,
@@ -776,10 +776,12 @@ describe("one page, nothing scrolled, in the app's window", () => {
     // It was 579.6, with Writing the taller side by 28.8. Writing has gained the
     // two scene rows and View the five workspace rows, so File, Edit and View
     // are now the taller side, by 43.2, and the dialog is taller by View's five
-    // rows less the 28.8 Writing used to lead by: 91.2.
+    // rows less the 28.8 Writing used to lead by: 91.2. Writing has since
+    // gained Right-Click Menu (Ctrl + Alt + Enter), a third row, so File, Edit
+    // and View lead by 19.2 and the dialog is the same height as it was.
     expect(packed().left).toBeGreaterThan(packed().right);
-    expect(packed().left - packed().right).toBeCloseTo(5 * px("--size-row") - 2 * px("--size-row") - 28.8, 5);
-    expect(packed().left - packed().right).toBeCloseTo(43.2, 5);
+    expect(packed().left - packed().right).toBeCloseTo(5 * px("--size-row") - 3 * px("--size-row") - 28.8, 5);
+    expect(packed().left - packed().right).toBeCloseTo(19.2, 5);
     expect(packed().height - 579.6).toBeCloseTo(5 * px("--size-row") - 28.8, 5);
     // Room to spare all round, so nothing scrolls.
     expect(packed().width + px("--space-loose") * 2).toBeLessThanOrEqual(appWindow.width);

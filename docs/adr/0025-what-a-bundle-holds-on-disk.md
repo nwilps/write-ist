@@ -16,6 +16,7 @@ The Pilot/
   notes.md             notes
   names.txt            the characters and locations the writer confirmed by hand
   goals.md             the daily goal, the weekdays that count, and the words written each day
+  details.md           the target page count and which workspaces the project shows
 ```
 
 **`names.txt` is the exception (slice 2, step 8).** It holds only names the writer confirmed,
@@ -24,6 +25,16 @@ change cheaply. It is project-level and never frozen at lock, like the other sid
 
 **`goals.md` follows the shape below** (ADR-0040): a heading, a labelled header (`Daily goal`, `Days`), and
 one line per day under *Words written*. Project-level and never frozen at lock.
+
+**`details.md` is added by amendment (2026-11-21, Edit Project Details).** It holds what the
+writer sets about the project that is not its marker's: the **target page count** and **which
+workspaces it shows** (ADR-0006: the writer may add or remove any workspace). A heading and two
+labelled lines, `Target pages:` and `Workspaces:` (workspace ids). It is **not** in `project.md`,
+which keeps its four things: the marker decides whether a folder is a bundle at all, so it is
+written only when a project is made or renamed, never on a toggle. A project without the file shows
+every workspace and has no target; one whose file cannot be read shows the same and the file is
+never written over (ADR-0008 rule 3). Project-level, and never frozen at lock. Turning a workspace
+off never touches its files (`plan.md`, `notes.md`).
 
 **Every other sidecar file is written in the same Pandoc Markdown subset the prose surface uses**
 (ADR-0023), with each record as a section: the writer's words in the body, the application's

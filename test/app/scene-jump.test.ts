@@ -1,7 +1,8 @@
 /**
  * Previous Scene and Next Scene: Ctrl+< and Ctrl+> (Ctrl+, and Ctrl+. without
  * Shift) put the caret at the start of a scene heading, the ones the Scenes
- * list shows, and ask for the caret to be scrolled into view.
+ * list shows, and ask for the caret's line to be centred in the window
+ * (`caret-centre.ts`): a jump, not typing.
  */
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +16,7 @@ import { startOfElement } from "../support/editor-positions.ts";
 
 // jsdom lays nothing out, so the scroll itself is not here: what is checked is that it is asked for.
 const scrolled = vi.hoisted(() => vi.fn(() => true));
-vi.mock("../../app/src/workspaces/editor/caret-margin.ts", () => ({ scrollCaretIntoView: scrolled }));
+vi.mock("../../app/src/workspaces/editor/caret-centre.ts", () => ({ centreCaretLine: scrolled }));
 const { sceneHeadings } = await import("../../app/src/workspaces/editor/scene-jump.ts");
 
 /** An invented script: a title page, action before the first heading, and three scenes. */
@@ -132,7 +133,7 @@ describe("Next Scene", () => {
     expect(scrolled).not.toHaveBeenCalled();
   });
 
-  it("asks for the caret to be scrolled into view, with the paper focused", () => {
+  it("asks for the caret's line to be centred, with the paper focused", () => {
     const script = editing(SCRIPT);
     scrolled.mockClear();
     press(script.host, ctrl("."));

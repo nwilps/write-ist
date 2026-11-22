@@ -1,8 +1,10 @@
 /**
  * Rename Project and Delete Project: the two dialogs the Open Project screen's
- * right-click menu opens, for the project that was right-clicked. Rename Project
- * is opened for the open project from the Editor too (`askToRenameProject`).
- * Exile Project is Settings ▸ Graveyard's, for a project already deleted.
+ * right-click menu opens, for the project that was right-clicked. Edit Project
+ * Details is the open project's (File ▸ Edit Project Details… and the name
+ * pill): its name, type, target page count and workspaces, with Rename's own
+ * rules for the name. Exile Project is Settings ▸ Graveyard's, for a project
+ * already deleted.
  *
  * Both are the New Project dialog's look (ADR-0042) and its manners, from the
  * same shared button and keys: a modal `<dialog>`, so Escape cancels and the
@@ -13,12 +15,24 @@
  */
 import { createElement, TriangleAlert } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
+import {
+  CannotEditDetails,
+  readDetails,
+  saveProjectDetails,
+  workspaceShown,
+  type ProjectDetails,
+  type WantedDetails,
+} from "../../../src/project/details.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
+import { FORMATS, type ProjectFormat } from "../../../src/project/marker.ts";
 import { CannotRename, renameProject } from "../../../src/project/rename.ts";
+import { MOST_PAGES, wholeNumber } from "../../../src/settings/settings.ts";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys, enterSubmits, type DialogKeys } from "./dialog-keys.ts";
+import { dialogSelect } from "./dialog-select.ts";
+import { dialogToggle, type DialogToggle } from "./dialog-toggle.ts";
 import { element } from "./element.ts";
-import { field } from "./new-project.ts";
+import { chevron, field } from "./new-project.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
 /**
@@ -110,6 +124,224 @@ export function askToRenameProject(ports: RenamePorts, project: Project, route: 
       return wrong;
     },
     onClose: route.closed,
+  });
+}
+
+// --- Edit Project Details ----------------------------------------------------------
+
+/** A workspace as Edit Project Details offers it: from the registry, by its manifest. */
+export interface WorkspaceChoice {
+  readonly id: string;
+  readonly name: string;
+  /** Shown in every project: drawn on, and not a switch (the Editor). */
+  readonly alwaysOn: boolean;
+}
+
+export interface ProjectDetailsDialog {
+  readonly project: Project;
+  /** The details as the project's folder holds them now. */
+  readonly details: ProjectDetails;
+  /** Every workspace the application offers, in the workspace bar's order. */
+  readonly workspaces: readonly WorkspaceChoice[];
+  /** Save it all. Words for the writer when it could not be; nothing when it was, and the dialog closes. */
+  readonly onSave: (wanted: WantedDetails) => Promise<string | undefined>;
+  readonly onClose: () => void;
+}
+
+/**
+ * The target page count as typed, put right quietly, as Goals and Settings
+ * put a number right: blank is no target (0), a fraction is rounded, and too
+ * large is the largest. Never a refusal.
+ */
+export function targetPagesFrom(typed: string, fallback: number): number {
+  return typed.trim() === "" ? 0 : wholeNumber(typed, 0, MOST_PAGES, fallback);
+}
+
+/**
+ * Edit Project Details: the project's name, its type within its surface, its
+ * target page count and which workspaces it shows. New Project's look, Rename
+ * Project's manners: Confirm [Enter] saves the lot, Cancel [Esc] changes
+ * nothing, and a refusal is said inside it with the dialog left open.
+ */
+export function showProjectDetails(
+  into: HTMLElement,
+  { project, details, workspaces, onSave, onClose }: ProjectDetailsDialog,
+): HTMLDialogElement {
+  const name = element("input", {
+    id: "project-details-name",
+    className: "new-project-dialog__input",
+    type: "text",
+    value: project.marker.name,
+    autocomplete: "off",
+    spellcheck: false,
+  });
+  // Only this surface's types: a screenplay can change format, never surface (ADR-0005).
+  const type = dialogSelect({
+    id: "project-details-type",
+    label: "Project type",
+    choices: FORMATS.map((format) => ({ value: format, label: format })),
+    onChange: () => shown.settle(),
+  });
+  type.set(project.marker.format);
+
+  const pages = element("input", {
+    id: "project-details-pages",
+    className: "new-project-dialog__input settings__number",
+    type: "number",
+    step: "1",
+    min: "0",
+    max: String(MOST_PAGES),
+    placeholder: "None",
+    autocomplete: "off",
+  });
+  let targetPages = details.targetPages;
+  const showPages = (): void => void (pages.value = targetPages === 0 ? "" : String(targetPages));
+  showPages();
+  const settlePages = (): void => {
+    targetPages = targetPagesFrom(pages.value, targetPages);
+    showPages();
+    shown.settle();
+  };
+  pages.addEventListener("change", settlePages);
+
+  // A switch for each workspace; the Editor's is drawn on and cannot be pressed.
+  let workspacesTouched = false;
+  const switches: [WorkspaceChoice, DialogToggle][] = workspaces.map((workspace) => {
+    const toggle = dialogToggle({
+      id: `project-details-workspace-${workspace.id}`,
+      onChange: () => {
+        workspacesTouched = true;
+        shown.settle();
+      },
+    });
+    toggle.set(workspaceShown(details, workspace.id, workspace.alwaysOn));
+    toggle.control.disabled = workspace.alwaysOn;
+    return [workspace, toggle];
+  });
+  const switchRow = ([workspace, toggle]: [WorkspaceChoice, DialogToggle]): HTMLElement =>
+    element("div", { className: "settings__switch" }, [
+      element("label", { htmlFor: toggle.control.id, className: "new-project-dialog__label", textContent: workspace.name }),
+      toggle.control,
+    ]);
+
+  /** What the dialog says now. The workspaces stay "every one" until the writer changes one. */
+  const wanted = (): WantedDetails => {
+    const offered = new Set(workspaces.map((workspace) => workspace.id));
+    return {
+      name: name.value,
+      format: type.value() as ProjectFormat,
+      details: {
+        targetPages,
+        workspaces: workspacesTouched
+          ? [
+              ...switches.filter(([, toggle]) => toggle.on()).map(([workspace]) => workspace.id),
+              // One this version does not offer stays as the project had it.
+              ...(details.workspaces ?? []).filter((id) => !offered.has(id)),
+            ]
+          : details.workspaces,
+      },
+    };
+  };
+  const changed = (): boolean => {
+    const now = wanted();
+    const sameWorkspaces = switches.every(
+      ([workspace, toggle]) => toggle.on() === workspaceShown(details, workspace.id, workspace.alwaysOn),
+    );
+    return (
+      now.name.trim() !== project.marker.name ||
+      now.format !== project.marker.format ||
+      now.details.targetPages !== details.targetPages ||
+      !sameWorkspaces
+    );
+  };
+
+  const shown = dialog(into, {
+    label: "Edit Project Details",
+    body: [
+      field("Project name", name),
+      field("Project type", type.control, [chevron(), type.tray]),
+      element("div", { className: "new-project-dialog__field" }, [
+        element("label", { htmlFor: pages.id, className: "new-project-dialog__label", textContent: "Target page count" }),
+        element("div", { className: "settings__line" }, [pages, element("span", { className: "settings__unit", textContent: "pages" })]),
+      ]),
+      element("div", { className: "new-project-dialog__field" }, [
+        element("h3", { className: "new-project-dialog__label settings__subheading", textContent: "Workspaces" }),
+        ...switches.map(switchRow),
+      ]),
+    ],
+    stops: [name, type.control, pages, ...switches.filter(([workspace]) => !workspace.alwaysOn).map(([, toggle]) => toggle.control)],
+    confirm: "Confirm",
+    ready: () => name.value.trim() !== "" && changed(),
+    attempt: () => {
+      // Enter in the number box submits before its `change` would put it right.
+      targetPages = targetPagesFrom(pages.value, targetPages);
+      showPages();
+      return onSave(wanted());
+    },
+    failed: "The project's details could not be saved, so nothing was changed.",
+    resume: () => shown.keys.edit(name),
+    onClose,
+  });
+  name.addEventListener("input", shown.settle);
+  pages.addEventListener("input", () => {
+    // Settled as typed for Confirm, and put right when the box is left.
+    targetPages = targetPagesFrom(pages.value, targetPages);
+    shown.settle();
+  });
+  shown.modal.classList.add("project-details");
+  shown.keys.edit(name);
+  name.select();
+  return shown.modal;
+}
+
+/** Edit Project Details for the open project: where the dialog goes, and what follows a save. */
+export interface ProjectDetailsRoute extends RenameRoute {
+  /** Saved: these are the project's details now (the workspaces it shows among them). */
+  readonly detailsChanged: (details: ProjectDetails) => void;
+}
+
+export interface ProjectDetailsPorts extends RenamePorts {
+  /** Every workspace the application offers (the registry's). */
+  readonly workspaces: readonly WorkspaceChoice[];
+}
+
+/**
+ * The one way a project's details are edited (`src/project/details.ts`), in a
+ * dialog over the open project. Read from its folder first, so the dialog
+ * starts from what is on disk; saved inside `carryOut`, so a rename's move
+ * fits between the Editor's writes. Nothing opens over another dialog.
+ */
+export function askToEditProjectDetails(ports: ProjectDetailsPorts, project: Project, route: ProjectDetailsRoute): void {
+  if (document.querySelector("dialog[open]") !== null) return;
+  void readDetails(ports.filesystem, project.path).then(({ details }) => {
+    if (document.querySelector("dialog[open]") !== null) return;
+    showProjectDetails(route.into, {
+      project,
+      details,
+      workspaces: ports.workspaces,
+      onSave: async (wanted) => {
+        let wrong: string | undefined;
+        try {
+          const directory = await ports.projectsDirectory();
+          let saved: ProjectDetails = details;
+          const now = await route.carryOut(async () => {
+            const done = await saveProjectDetails(ports.filesystem, directory, project, wanted);
+            saved = done.details;
+            return done.project;
+          });
+          route.renamed(now);
+          route.detailsChanged(saved);
+        } catch (error) {
+          wrong =
+            error instanceof CannotEditDetails
+              ? error.message
+              : `The project's details could not be saved, so nothing was changed. ${message(error)}`;
+        }
+        await ports.reread();
+        return wrong;
+      },
+      onClose: route.closed,
+    });
   });
 }
 

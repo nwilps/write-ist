@@ -92,7 +92,7 @@ async function editing() {
     places: () => undefined,
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
-    askToRename: () => {},
+    askToEditDetails: () => {},
     openSettings,
   });
   await vi.waitFor(() => expect(into.querySelector(".ProseMirror")).not.toBeNull());

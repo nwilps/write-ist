@@ -36,27 +36,9 @@ export async function renameProject(
   project: Project,
   newName: string,
 ): Promise<Project> {
-  const typed = newName.replace(/\s+/g, " ").trim();
-  if (typed === "") throw new CannotRename("A project needs a name.");
-  const folder = cleanFolderName(typed);
-  const refused = refusedProjectName(folder);
-  if (refused !== undefined) throw new CannotRename(refused);
-
-  await confirmProject(filesystem, projectsDirectory, project, CannotRename);
+  const folder = await checkRename(filesystem, projectsDirectory, project, newName);
   const current = basename(project.path);
   if (folder === current && project.marker.name === folder) return project;
-
-  // Compared without case, as `folderNameFor` compares: two names differing
-  // only in case are one folder on macOS and Windows. The project's own
-  // folder does not count, so a rename that only changes case is allowed.
-  const clash = (await filesystem.readDirectory(projectsDirectory)).find(
-    (entry) => entry.name !== current && entry.name.toLowerCase() === folder.toLowerCase(),
-  );
-  if (clash !== undefined) {
-    throw new CannotRename(
-      `There is already something called “${clash.name}” in your projects folder. Choose another name.`,
-    );
-  }
 
   const path = join(projectsDirectory, folder);
   const moved = path !== project.path;
@@ -80,4 +62,39 @@ export async function renameProject(
     throw error;
   }
   return { path, marker };
+}
+
+/**
+ * Everything that can refuse a rename, with nothing written: the name is one,
+ * the project is the one on disk now, and no other folder has the name.
+ * Answers the folder name the project would have. Edit Project Details asks
+ * this before it writes anything, so a refused name changes nothing at all.
+ */
+export async function checkRename(
+  filesystem: Filesystem,
+  projectsDirectory: string,
+  project: Project,
+  newName: string,
+): Promise<string> {
+  const typed = newName.replace(/\s+/g, " ").trim();
+  if (typed === "") throw new CannotRename("A project needs a name.");
+  const folder = cleanFolderName(typed);
+  const refused = refusedProjectName(folder);
+  if (refused !== undefined) throw new CannotRename(refused);
+
+  await confirmProject(filesystem, projectsDirectory, project, CannotRename);
+  const current = basename(project.path);
+
+  // Compared without case, as `folderNameFor` compares: two names differing
+  // only in case are one folder on macOS and Windows. The project's own
+  // folder does not count, so a rename that only changes case is allowed.
+  const clash = (await filesystem.readDirectory(projectsDirectory)).find(
+    (entry) => entry.name !== current && entry.name.toLowerCase() === folder.toLowerCase(),
+  );
+  if (clash !== undefined) {
+    throw new CannotRename(
+      `There is already something called “${clash.name}” in your projects folder. Choose another name.`,
+    );
+  }
+  return folder;
 }

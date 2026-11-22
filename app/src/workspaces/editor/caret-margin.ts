@@ -122,7 +122,7 @@ type CaretRect = ReturnType<EditorView["coordsAtPos"]>;
  * follows, which at a wrap is the line it is still on. A selection dragged
  * backwards has its text on the other side.
  */
-function caretRect(view: EditorView): CaretRect {
+export function caretRect(view: EditorView): CaretRect {
   const { head, anchor } = view.state.selection;
   const after = view.coordsAtPos(head, 1);
   if (head < anchor) return after;

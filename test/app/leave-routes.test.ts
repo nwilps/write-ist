@@ -23,6 +23,7 @@ describe("the ways out the shell gives a workspace", () => {
           name: "X",
           key: "1",
           icon: [],
+          files: [],
           mount: (_host, context) => {
             given = context;
             return { unmount: async () => true };
@@ -35,7 +36,7 @@ describe("the ways out the shell gives a workspace", () => {
       whenSwitchedBack: quiet,
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
-      askToRename: () => {},
+      askToEditDetails: () => {},
       openSettings: () => {},
       ledger: () => undefined,
       places: () => undefined,
@@ -55,7 +56,7 @@ describe("the ways out the shell gives a workspace", () => {
       project: { path: "/p", marker: { name: "Big Fish" } } as never,
       filesystem: {} as never,
       workspaces: [
-        { id: "x", name: "X", key: "1", icon: [], mount: () => ({ unmount: async () => true }) },
+        { id: "x", name: "X", key: "1", icon: [], files: [], mount: () => ({ unmount: async () => true }) },
       ],
       onClose,
       onHome,
@@ -63,7 +64,7 @@ describe("the ways out the shell gives a workspace", () => {
       whenSwitchedBack: quiet,
       chooseCopyLocation: async () => undefined,
       choosePdfLocation: async () => undefined,
-      askToRename: () => {},
+      askToEditDetails: () => {},
       openSettings: () => {},
       ledger: () => undefined,
       places: () => undefined,

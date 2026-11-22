@@ -853,7 +853,7 @@ describe("View Title Page", () => {
 
 describe("the Edit and View menus", () => {
   const act = {
-    save: vi.fn(), exportAs: vi.fn(), toProjects: vi.fn(), renameProject: vi.fn(), openSettings: vi.fn(), toHome: vi.fn(),
+    save: vi.fn(), exportAs: vi.fn(), toProjects: vi.fn(), editProjectDetails: vi.fn(), openContextMenu: vi.fn(), openSettings: vi.fn(), toHome: vi.fn(),
     editTitlePage: vi.fn(), viewTitlePage: vi.fn(), editGoals: vi.fn(),
     toggleSpellcheck: vi.fn(), spellcheckOn: vi.fn(() => false), keyboardShortcuts: vi.fn(),
     zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(), zoomLevel: () => 2,

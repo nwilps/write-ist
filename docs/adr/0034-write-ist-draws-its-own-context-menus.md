@@ -11,6 +11,14 @@ as later work in [issue #105](https://github.com/nwilps/write-ist/issues/105).
 
 **Update, 2026-11-03: the menu on the paper is built — [ADR-0039](0039-the-paper-has-a-right-click-menu-read-from-the-command-table.md).** The rest of this record stands.
 
+**Update, 2026-11-21: the system's menu is suppressed everywhere (Noah).** One listener on the
+window cancels every right-click (`app/src/menus/native-menu.ts`), on Home, the desk, the panels,
+the dialogs, Settings, and text fields too. Write-ist's own menus (the paper, the name pill, a row
+of Open Project) open as before; everywhere else a right-click does nothing. **Text fields are
+therefore the acknowledged exception** the consequences below ask for: they have no right-click
+menu, and cut, copy and paste in them are the keys. The paper's menu also opens on **Ctrl+Alt+Enter**,
+a command in the table the writer can rebind, beside the fixed Menu key and Shift+F10.
+
 ## The forcing reason
 
 [ADR-0029](0029-spellcheck-is-the-systems-and-skips-names-and-headings.md) kept right-click the

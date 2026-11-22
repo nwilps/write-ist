@@ -50,10 +50,18 @@ import {
 import { renderHome } from "./screens/home.ts";
 import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
-import { askToRenameProject, showDeleteProject, type RenameRoute } from "./screens/project-dialogs.ts";
+import {
+  askToEditProjectDetails,
+  askToRenameProject,
+  showDeleteProject,
+  type ProjectDetailsRoute,
+  type RenameRoute,
+} from "./screens/project-dialogs.ts";
+import { readDetails } from "../../src/project/details.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
 import { applyAppearance, openSettingsDialog } from "./screens/settings.ts";
 import { mountGround } from "./background/ground.ts";
+import { suppressNativeMenus } from "./menus/native-menu.ts";
 import { tauriDictionary } from "./spell-tauri.ts";
 import { RESERVED_KEYS, shortcutCommands, useKeyBindings } from "./workspaces/editor/commands.ts";
 import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
@@ -70,6 +78,10 @@ import {
   tauriFilesystem,
 } from "./tauri-filesystem.ts";
 
+// The webview's own right-click menu never opens, on any screen: only
+// Write-ist's, where it draws one (ADR-0034).
+suppressNativeMenus(window);
+
 const found = document.querySelector<HTMLElement>("#app");
 if (found === null) throw new Error("Write-ist has no window to draw into.");
 /** Where every screen is drawn. Narrowed once, here, rather than at each use. */
@@ -82,6 +94,8 @@ type Screen = "home" | "open-project" | "project";
 let screen: Screen = "home";
 /** The project on screen, while one is. */
 let opened: Project | undefined;
+/** The workspaces it shows, from its details (`undefined`: every one). */
+let openedShows: readonly string[] | undefined;
 /**
  * The shell, while a project is open.
  *
@@ -178,6 +192,7 @@ function draw(): void {
       project: projectOnScreen(),
       filesystem: tauriFilesystem,
       workspaces: WORKSPACES,
+      shown: openedShows,
       onClose: () => go("open-project"),
       onHome: () => go("home"),
       whenSwitchedAway,
@@ -199,13 +214,17 @@ function draw(): void {
           filters: [{ name: "PDF", extensions: ["pdf"] }],
         })) ?? undefined,
       openSettings: ({ into: over, closed }) => openSettings(over, closed),
-      askToRename: (route) =>
-        askToRename(projectOnScreen(), {
+      askToEditDetails: (route) =>
+        askToEditDetails(projectOnScreen(), {
           ...route,
           renamed: (now) => {
             // Still this project: the writer may have closed it meanwhile.
             if (opened?.marker.projectId === now.marker.projectId) opened = now;
             route.renamed(now);
+          },
+          detailsChanged: (details) => {
+            openedShows = details.workspaces;
+            route.detailsChanged(details);
           },
         }),
     });
@@ -274,10 +293,17 @@ function projectOnScreen(): Project {
   return opened;
 }
 
-/** Open a project: the shell, hosting the workspaces it shows. */
+/**
+ * Open a project: the shell, hosting the workspaces it shows. Its details are
+ * read first, so the bar is drawn once with the right tabs; a details file
+ * that will not read shows every workspace (`readDetails` never throws).
+ */
 function goToProject(project: Project): void {
-  opened = project;
-  go("project");
+  void readDetails(tauriFilesystem, project.path).then(({ details }) => {
+    opened = project;
+    openedShows = details.workspaces;
+    go("project");
+  });
 }
 
 /**
@@ -447,6 +473,23 @@ async function rereadProjects(): Promise<void> {
 function askToRename(project: Project, route: RenameRoute): void {
   askToRenameProject(
     { filesystem: tauriFilesystem, projectsDirectory: defaultProjectsDirectory, reread: rereadProjects },
+    project,
+    route,
+  );
+}
+
+/**
+ * Edit Project Details for the open project: File ▸ Edit Project Details… and
+ * the name pill. The list is read again, so a rename is true there next time.
+ */
+function askToEditDetails(project: Project, route: ProjectDetailsRoute): void {
+  askToEditProjectDetails(
+    {
+      filesystem: tauriFilesystem,
+      projectsDirectory: defaultProjectsDirectory,
+      reread: rereadProjects,
+      workspaces: WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true })),
+    },
     project,
     route,
   );
