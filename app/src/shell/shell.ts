@@ -19,12 +19,11 @@
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
  */
-import { createElement, Pencil, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
+import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
-import { openContextMenu, type ContextMenu } from "../menus/context-menu.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
@@ -136,38 +135,16 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   // The project as it is now: a rename replaces it with the workspace still up.
   let project = screen.project;
-  // The project's name is which work they are in. Focusable so that the Menu
-  // key can open its menu, as it does on a row of Open Project.
-  const projectName = element("span", {
+  // The project's name is which work they are in, and a click on it opens
+  // Edit Project Details (Noah): a button, so Enter and Space open it too.
+  // Right-click opens nothing; there is only the one thing to do here.
+  const projectName = element("button", {
     className: "pill pill--project",
+    type: "button",
     textContent: project.marker.name,
-    tabIndex: 0,
   });
   const detailsAskers = new Set<() => void>();
-  let nameMenu: ContextMenu | undefined;
-  const openNameMenu = (x: number, y: number, fromKeyboard: boolean): void => {
-    nameMenu = openContextMenu({
-      label: project.marker.name,
-      items: [{ label: "Edit Project Details", icon: Pencil, act: () => detailsAskers.forEach((act) => act()) }],
-      x,
-      y,
-      fromKeyboard,
-      restoreFocus: () => (fromKeyboard ? projectName.focus() : mounted.focus?.()),
-    });
-  };
-  projectName.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openNameMenu(event.clientX, event.clientY, false);
-  });
-  // The Menu key and Shift+F10, as a native menu opens (ADR-0034): at the pill.
-  projectName.addEventListener("keydown", (event) => {
-    if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const box = projectName.getBoundingClientRect();
-    openNameMenu(box.left, box.top, true);
-  });
+  projectName.addEventListener("click", () => detailsAskers.forEach((act) => act()));
 
   const bar = workspaceBar(screen.workspaces, screen.shown);
   // Alt and a tab's key, or Alt+Left and Alt+Right, choose a tab as a click
@@ -254,8 +231,6 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   const unmount = async (): Promise<boolean> => {
     const down = await mounted.unmount();
-    // The menu is on the body, so it would outlive the frame it belongs to.
-    if (down) nameMenu?.close(false);
     if (down) window.removeEventListener("keydown", askedForTab, true);
     return down;
   };

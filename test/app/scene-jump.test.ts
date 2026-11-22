@@ -1,6 +1,6 @@
 /**
  * Previous Scene and Next Scene: Ctrl+< and Ctrl+> (Ctrl+, and Ctrl+. without
- * Shift) put the caret at the start of a scene heading, the ones the Scenes
+ * Shift) put the caret at the end of a scene heading's text, the ones the Scenes
  * list shows, and ask for the caret's line to be centred in the window
  * (`caret-centre.ts`): a jump, not typing.
  */
@@ -59,7 +59,12 @@ function editing(text: string) {
   const caretAt = (at: number): void => view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, at)));
   const caret = (): number => state.selection.head;
   const element = (index: number): number => startOfElement(state, index);
-  return { view, host, caretAt, caret, element, state: () => state };
+  /** Where a jump to the heading at `index` leaves the caret: after its last letter. */
+  const end = (index: number): number => {
+    const at = startOfElement(state, index);
+    return at + state.doc.resolve(at).parent.content.size;
+  };
+  return { view, host, caretAt, caret, element, end, state: () => state };
 }
 
 const ctrl = (key: string, shift = false) => ({ key, ctrlKey: true, altKey: false, metaKey: false, shiftKey: shift });
@@ -108,20 +113,23 @@ describe("the keys", () => {
 });
 
 describe("Next Scene", () => {
-  it("goes from before the first heading to the first, then on to each, to the start of its heading", () => {
+  it("goes from before the first heading to the first, then on to each, to the end of its heading", () => {
     const script = editing(SCRIPT);
     script.caretAt(script.element(0) + 3);
     for (const heading of HEADINGS) {
       press(script.host, ctrl("."));
-      expect(script.caret()).toBe(script.element(heading));
+      expect(script.caret()).toBe(script.end(heading));
+      expect(script.state().selection.$head.parent.textContent).toMatch(/ - (DAY|NIGHT)$/);
     }
   });
 
-  it("goes from inside a heading's own text to the next heading", () => {
+  it("goes from anywhere on a heading's line, its start included, to the next heading", () => {
     const script = editing(SCRIPT);
-    script.caretAt(script.element(3) + 4);
-    press(script.host, ctrl(">", true));
-    expect(script.caret()).toBe(script.element(5));
+    for (const at of [script.element(3), script.element(3) + 4, script.end(3)]) {
+      script.caretAt(at);
+      press(script.host, ctrl(">", true));
+      expect(script.caret()).toBe(script.end(5));
+    }
   });
 
   it("does nothing in the last scene: no move, no scroll, no wrap", () => {
@@ -144,32 +152,38 @@ describe("Next Scene", () => {
 });
 
 describe("Previous Scene", () => {
-  it("goes from inside a scene to that scene's own heading first", () => {
+  it("goes from inside a scene to the end of that scene's own heading first", () => {
     const script = editing(SCRIPT);
     script.caretAt(script.element(4) + 5);
     press(script.host, ctrl(","));
-    expect(script.caret()).toBe(script.element(3));
-  });
-
-  it("goes from the middle of a heading to its start", () => {
-    const script = editing(SCRIPT);
-    script.caretAt(script.element(5) + 3);
-    press(script.host, ctrl("<", true));
-    expect(script.caret()).toBe(script.element(5));
-  });
-
-  it("goes from the start of a heading to the heading before it, back to the first", () => {
-    const script = editing(SCRIPT);
-    script.caretAt(script.element(5));
+    expect(script.caret()).toBe(script.end(3));
+    // From the very start of the scene's first line too.
+    script.caretAt(script.element(4));
     press(script.host, ctrl(","));
-    expect(script.caret()).toBe(script.element(3));
-    press(script.host, ctrl(","));
-    expect(script.caret()).toBe(script.element(1));
+    expect(script.caret()).toBe(script.end(3));
   });
 
-  it("does nothing at the first heading, or before it: no move, no scroll, no wrap", () => {
+  it("goes from anywhere on a heading's line to the heading before it", () => {
     const script = editing(SCRIPT);
-    for (const at of [script.element(1), script.element(0) + 2]) {
+    for (const at of [script.element(5), script.element(5) + 3, script.end(5)]) {
+      script.caretAt(at);
+      press(script.host, ctrl("<", true));
+      expect(script.caret()).toBe(script.end(3));
+    }
+  });
+
+  it("steps back heading by heading to the first", () => {
+    const script = editing(SCRIPT);
+    script.caretAt(script.end(5));
+    press(script.host, ctrl(","));
+    expect(script.caret()).toBe(script.end(3));
+    press(script.host, ctrl(","));
+    expect(script.caret()).toBe(script.end(1));
+  });
+
+  it("does nothing on the first heading, or before it: no move, no scroll, no wrap", () => {
+    const script = editing(SCRIPT);
+    for (const at of [script.end(1), script.element(1), script.element(0) + 2]) {
       script.caretAt(at);
       scrolled.mockClear();
       press(script.host, ctrl(","));
@@ -201,7 +215,7 @@ describe("on Big Fish", () => {
       press(script.host, ctrl("."));
       if (script.caret() === before) break;
       const there = script.state().selection.$head;
-      expect(there.parentOffset).toBe(0);
+      expect(there.parentOffset).toBe(there.parent.content.size);
       expect(there.parent.attrs["type"]).toBe("scene-heading");
       forward.push(there.parent.textContent);
     }

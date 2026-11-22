@@ -332,7 +332,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       },
     });
   };
-  // File ▸ Edit Project Details… and the name pill's menu. The session fits a
+  // File ▸ Edit Project Details… and a click on the name pill. The session fits a
   // rename's move between its writes; the paper, the caret and the undo history
   // stay as they are.
   const editProjectDetails = (): void => {

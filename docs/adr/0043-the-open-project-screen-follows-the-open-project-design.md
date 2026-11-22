@@ -8,6 +8,10 @@ listing of the default location, ADR-0015, ADR-0016) and what choosing a project
 
 **Status: built, 2026-11-06.**
 
+**Update, 2026-11-21 (PR #162, Noah): the row menu's first item is Edit Project Details**, the same
+dialog File ▸ Edit Project Details… opens in the Editor, for the row's project. A rename is its name
+field, through the same `renameProject`; the rename-only dialog is gone.
+
 ## What it decides
 
 - **The typeface is the one already bundled**, as in ADR-0042: the handoff's "JetBrains Mono is not

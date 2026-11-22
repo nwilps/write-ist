@@ -27,7 +27,7 @@
  *
  * **Right-click on a project** — or the Menu key, or Shift+F10, on the lit one
  * — opens the menu File, Edit and View are drawn from (ADR-0034), with two
- * items: Rename Project and Delete Project. It acts on the row that was
+ * items: Edit Project Details and Delete Project. It acts on the row that was
  * pointed at, which the right-click lights first, so the lit row and the
  * menu's project are always the same one. Right-click anywhere else on the
  * screen opens nothing, and not the webview's own menu either.
@@ -60,8 +60,8 @@ export interface OpenProjectScreen {
   readonly onOpen: (project: Project) => void;
   /** Ask for a new, empty project: the New Project dialog, over this screen. */
   readonly onNewProject: () => void;
-  /** Rename a project: the right-click menu's first item, for the row pointed at. */
-  readonly onRename: (project: Project) => void;
+  /** Edit a project's details (its name among them): the right-click menu's first item, for the row pointed at. */
+  readonly onEditDetails: (project: Project) => void;
   /** Move a project to the Graveyard: the menu's second item. */
   readonly onDelete: (project: Project) => void;
   /** Search the projects: Alt+Enter, and nothing drawn. */
@@ -350,8 +350,8 @@ function oneHighlight(
 }
 
 /**
- * Give every project row its right-click menu: Rename Project and Delete
- * Project, **for that row's project** — each item's action is bound to the row
+ * Give every project row its right-click menu: Edit Project Details and
+ * Delete Project, **for that row's project** — each item's action is bound to the row
  * it was opened on, never read from whichever row is lit when it is chosen.
  *
  * A right-click lights the row it lands on and takes focus there, as hover and
@@ -382,7 +382,7 @@ function menuOnRows(
     projectMenu = openContextMenu({
       label: project.marker.name,
       items: [
-        { label: "Rename Project", icon: Pencil, act: () => screen.onRename(project) },
+        { label: "Edit Project Details", icon: Pencil, act: () => screen.onEditDetails(project) },
         { label: "Delete Project", icon: Trash, act: () => screen.onDelete(project) },
       ],
       x,

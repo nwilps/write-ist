@@ -46,7 +46,7 @@ function draw(overrides: Partial<OpenProjectScreen> = {}) {
     onNewProject: vi.fn(),
     onSearch: vi.fn(),
     onImport: vi.fn(),
-    onRename: vi.fn(),
+    onEditDetails: vi.fn(),
     onDelete: vi.fn(),
   };
   const drawn = renderOpenProject(into, {
@@ -152,8 +152,8 @@ describe("Home's `>` on Open Project", () => {
     hover(foot[2]!);
     hover(rows[0]!);
     expect(lit()).toEqual(["row 1"]);
-    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((i) => i.textContent === "Rename Project")!.click();
-    expect(calls.onRename).toHaveBeenCalledExactlyOnceWith(project("Quiet Road"));
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((i) => i.textContent === "Edit Project Details")!.click();
+    expect(calls.onEditDetails).toHaveBeenCalledExactlyOnceWith(project("Quiet Road"));
   });
 
   it("works along the foot with no projects to light", () => {

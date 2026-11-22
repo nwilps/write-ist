@@ -86,7 +86,7 @@ function draw(names: readonly string[] = NAMES, overrides: Partial<OpenProjectSc
     onNewProject: vi.fn(),
     onSearch: vi.fn(),
     onImport: vi.fn(),
-    onRename: vi.fn(),
+    onEditDetails: vi.fn(),
     onDelete: vi.fn(),
   };
   const drawn = renderOpenProject(into, { listing: listing(names), importing: false, ...calls, ...overrides });
@@ -258,8 +258,8 @@ describe("the right-click menu, once the list has scrolled", () => {
     expect(lit()).toEqual([10]);
     expect(menu()!.style.getPropertyValue("--menu-x")).toBe("300");
     expect(menu()!.style.getPropertyValue("--menu-y")).toBe("120");
-    choose("Rename Project");
-    expect(calls.onRename).toHaveBeenCalledExactlyOnceWith(project(NAMES[10]!));
+    choose("Edit Project Details");
+    expect(calls.onEditDetails).toHaveBeenCalledExactlyOnceWith(project(NAMES[10]!));
 
     rows[9]!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: 90 }));
     choose("Delete Project");
@@ -275,8 +275,8 @@ describe("the right-click menu, once the list has scrolled", () => {
     key(press("ContextMenu"));
     // Row 9's box in the made-up layout: top 288, 24 tall.
     expect(menu()!.style.getPropertyValue("--menu-y")).toBe(String(9 * (ROW + GAP) + ROW));
-    choose("Rename Project");
-    expect(calls.onRename).toHaveBeenCalledExactlyOnceWith(project(NAMES[9]!));
+    choose("Edit Project Details");
+    expect(calls.onEditDetails).toHaveBeenCalledExactlyOnceWith(project(NAMES[9]!));
   });
 });
 

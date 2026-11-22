@@ -52,10 +52,8 @@ import { renderOpenProject } from "./screens/open-project.ts";
 import { showNewProject } from "./screens/new-project.ts";
 import {
   askToEditProjectDetails,
-  askToRenameProject,
   showDeleteProject,
   type ProjectDetailsRoute,
-  type RenameRoute,
 } from "./screens/project-dialogs.ts";
 import { readDetails } from "../../src/project/details.ts";
 import { openProjectSearch } from "./screens/project-search.ts";
@@ -253,11 +251,13 @@ function draw(): void {
     onImport: askToImport,
     onOpen: goToProject,
     onNewProject: askForNewProject,
-    onRename: (project) =>
-      askToRename(project, {
+    // The same dialog as the open project's; no project is open to follow it.
+    onEditDetails: (project) =>
+      askToEditDetails(project, {
         into: document.body,
         carryOut: (move) => move(),
         renamed: () => {},
+        detailsChanged: () => {},
         closed: () => {},
       }),
     onDelete: askToDelete,
@@ -466,21 +466,9 @@ async function rereadProjects(): Promise<void> {
 }
 
 /**
- * Rename a project: the one right-clicked on Open Project, or the one open in
- * the Editor. The list is read again either way, so that it is true when the
- * writer next sees it.
- */
-function askToRename(project: Project, route: RenameRoute): void {
-  askToRenameProject(
-    { filesystem: tauriFilesystem, projectsDirectory: defaultProjectsDirectory, reread: rereadProjects },
-    project,
-    route,
-  );
-}
-
-/**
- * Edit Project Details for the open project: File ▸ Edit Project Details… and
- * the name pill. The list is read again, so a rename is true there next time.
+ * Edit Project Details: for the open project (File ▸ Edit Project Details… and
+ * the name pill), or for the one right-clicked on Open Project. The list is
+ * read again either way, so a rename is true there next time.
  */
 function askToEditDetails(project: Project, route: ProjectDetailsRoute): void {
   askToEditProjectDetails(

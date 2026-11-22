@@ -19,6 +19,11 @@
  * Near the top or the foot of the script there is not enough paper to centre
  * on, and the scroll stops where the window does: no space is invented.
  *
+ * **Nothing may write a scroll position while the glide runs**, because any
+ * write stops it where it is. The Editor's sideways centring once wrote on every
+ * scroll event and stopped every jump a few pixels in (`centrePaper`); the
+ * caret's own scrolling stands aside until the glide is over (`glideTo`).
+ *
  * **Typewriter Mode, later.** A mode that keeps the line being written in the
  * middle of the window can call `centreCaretLine` after every edit (from the
  * view's `handleScrollToSelection`), with `smooth: false` so a fast typist is
@@ -26,7 +31,7 @@
  */
 import { TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { caretRect, scrollerOf } from "./caret-margin.ts";
+import { caretRect, glideTo, scrollerOf, stopGlide } from "./caret-margin.ts";
 
 /** What centring is measured from, all in pixels, in the window's coordinates. */
 export interface CentreMeasures {
@@ -74,5 +79,10 @@ export function centreCaretLine(view: EditorView, { smooth = true }: CentreOptio
   });
   // A writer who has asked for less motion is taken there at once.
   const still = view.dom.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-  scroller.scrollTo({ top, behavior: smooth && !still ? "smooth" : "auto" });
+  if (smooth && !still) {
+    glideTo(scroller, top);
+    return;
+  }
+  stopGlide(scroller);
+  scroller.scrollTo({ top, behavior: "auto" });
 }

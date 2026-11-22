@@ -1,6 +1,6 @@
 /**
- * Edit Project Details from the Editor: File ▸ Edit Project Details… and the
- * name pill's menu open one dialog for the open project — its name, type,
+ * Edit Project Details from the Editor: File ▸ Edit Project Details… and a
+ * click on the name pill open one dialog for the open project — its name, type,
  * target page count and workspaces. A rename changes the project under the
  * paper without taking the paper down; a type changes only the label; the
  * workspaces' tabs follow the switches, and their files are never touched.
@@ -13,6 +13,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditorView } from "prosemirror-view";
+import { suppressNativeMenus } from "../../app/src/menus/native-menu.ts";
 import { askToEditProjectDetails, type WorkspaceChoice } from "../../app/src/screens/project-dialogs.ts";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
 import { notesPlaceholder, planPlaceholder } from "../../app/src/workspaces/placeholders.ts";
@@ -262,26 +263,12 @@ describe("File ▸ Edit Project Details…, renaming", () => {
   });
 });
 
-describe("the project name pill's menu", () => {
-  it("opens on a right-click with Edit Project Details alone, in the menus' own look, and no other menu", async () => {
-    const { into, pill } = await editing();
-    const heard = vi.fn();
-    into.addEventListener("contextmenu", heard);
-    const event = rightClick(pill);
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(heard).not.toHaveBeenCalled();
-    expect(document.querySelectorAll(".drop-menu--context")).toHaveLength(1);
-    expect(contextItems().map((item) => item.textContent)).toEqual(["Edit Project Details"]);
-    expect(contextItems()[0]!.querySelector("svg.drop-menu__icon")).not.toBeNull();
-    expect(pill.hasAttribute("title")).toBe(false);
-  });
-
-  it("opens the same dialog, and a rename from it updates the pill", async () => {
+describe("the project name pill", () => {
+  it("opens Edit Project Details on a plain click, and a rename from it updates the pill", async () => {
     const { pill } = await editing();
-    rightClick(pill);
-    contextItems()[0]!.click();
-    expect(contextMenu()).toBeNull();
+    expect(pill.tagName).toBe("BUTTON");
+    expect(pill.hasAttribute("title")).toBe(false);
+    pill.click();
     await vi.waitFor(() => expect(dialog()).not.toBeNull());
     expect(dialog()!.getAttribute("aria-label")).toBe("Edit Project Details");
     expect(nameBox().value).toBe(TITLE);
@@ -290,31 +277,36 @@ describe("the project name pill's menu", () => {
     await vi.waitFor(() => expect(dialog()).toBeNull());
     expect(pill.textContent).toBe("A B Steel");
 
-    // And the next rename starts from the name it has now.
-    rightClick(pill);
-    expect(contextMenu()!.getAttribute("aria-label")).toBe("A B Steel");
-    contextItems()[0]!.click();
+    // And the next one starts from the name it has now.
+    pill.click();
     await vi.waitFor(() => expect(dialog()).not.toBeNull());
     expect(nameBox().value).toBe("A B Steel");
   });
 
-  it("opens from the keyboard with the item ready, and Escape gives the keys back to the pill", async () => {
+  it("opens nothing on a right-click: no menu of its own, and not the webview's", async () => {
     const { pill } = await editing();
+    // The webview's own menu is the window's to stop, as `main.ts` has it.
+    const stop = suppressNativeMenus(window);
+    const event = rightClick(pill);
+    stop();
+    expect(event.defaultPrevented).toBe(true);
+    expect(contextMenu()).toBeNull();
+    await new Promise((settled) => setTimeout(settled, 20));
+    expect(dialog()).toBeNull();
+    // Nor do the Menu key and Shift+F10 on it.
     for (const press of [{ key: "ContextMenu" }, { key: "F10", shiftKey: true }]) {
       pill.focus();
       pill.dispatchEvent(new KeyboardEvent("keydown", { ...press, bubbles: true, cancelable: true }));
-      expect(document.activeElement).toBe(contextItems()[0]);
-      contextMenu()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       expect(contextMenu()).toBeNull();
-      expect(document.activeElement).toBe(pill);
     }
   });
 
-  it("gives the keys back to the paper when a right-click's menu is dismissed", async () => {
-    const { pill, sheet } = await editing();
-    rightClick(pill);
-    contextMenu()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect(document.activeElement).toBe(sheet);
+  it("is a button, so Tab reaches it and Enter or Space opens the dialog, as a click does", async () => {
+    const { pill } = await editing();
+    pill.focus();
+    expect(document.activeElement).toBe(pill);
+    // A button's own Enter and Space are its click.
+    expect((pill as HTMLButtonElement).type).toBe("button");
   });
 });
 
@@ -379,11 +371,12 @@ describe("Edit Project Details: the target page count", () => {
 });
 
 describe("Edit Project Details: the workspaces", () => {
-  it("draws a switch for each, the Editor always on and not a switch the writer can press", async () => {
+  it("draws a switch for each workspace a project may do without, and none for the Editor, which every project has", async () => {
     const { into } = await editing();
     await openDetails(into);
-    expect(workspaceSwitch("editor").disabled).toBe(true);
-    expect(workspaceSwitch("editor").getAttribute("aria-checked")).toBe("true");
+    expect(dialog()!.querySelector("#project-details-workspace-editor")).toBeNull();
+    const listed = [...dialog()!.querySelectorAll(".settings__switch label")].map((label) => label.textContent);
+    expect(listed).toEqual(["Notes", "Plan"]);
     expect(workspaceSwitch("notes").disabled).toBe(false);
     expect(workspaceSwitch("notes").getAttribute("aria-checked")).toBe("true");
     expect(workspaceSwitch("plan").getAttribute("aria-checked")).toBe("true");

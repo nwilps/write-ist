@@ -100,13 +100,13 @@ describe("Write-ist's own menus", () => {
       onNewProject: vi.fn(),
       onSearch: vi.fn(),
       onImport: vi.fn(),
-      onRename: vi.fn(),
+      onEditDetails: vi.fn(),
       onDelete: vi.fn(),
     });
     const event = rightClick(into.querySelector("button.project")!);
     expect(event.defaultPrevented).toBe(true);
     const items = [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((item) => item.textContent);
-    expect(items).toEqual(["Rename Project", "Delete Project"]);
+    expect(items).toEqual(["Edit Project Details", "Delete Project"]);
     document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   });
 });

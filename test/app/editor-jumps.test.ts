@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditorView } from "prosemirror-view";
 import { centredScrollTop } from "../../app/src/workspaces/editor/caret-centre.ts";
+import { centrePaper, GLIDE_LIMIT_MS, scrollCaretIntoView } from "../../app/src/workspaces/editor/caret-margin.ts";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
 import {
   chordMatches,
@@ -124,6 +125,42 @@ const headingStarts = (view: EditorView): number[] => {
   });
   return starts;
 };
+/** Where a scene jump leaves the caret: the end of each heading's text. */
+const headingEnds = (view: EditorView): number[] => {
+  const ends: number[] = [];
+  view.state.doc.forEach((node, offset) => {
+    if (node.attrs["type"] === "scene-heading") ends.push(offset + 1 + node.content.size);
+  });
+  return ends;
+};
+
+/**
+ * The window the paper scrolls in, with its scroll position watched: every
+ * write to it is kept, because any write stops a glide running on it.
+ */
+function watchedScroller(view: EditorView) {
+  const scroller = view.dom.parentElement!.parentElement!;
+  scroller.style.overflowY = "auto";
+  let top = 0;
+  let left = 0;
+  const writes: string[] = [];
+  const glides: number[] = [];
+  Object.defineProperties(scroller, {
+    clientHeight: { value: 768 },
+    clientWidth: { value: 1000 },
+    scrollHeight: { value: 200_000 },
+    scrollWidth: { value: 1000 },
+    scrollTop: { get: () => top, set: (value: number) => (writes.push(`top=${value}`), (top = value)) },
+    scrollLeft: { get: () => left, set: (value: number) => (writes.push(`left=${value}`), (left = value)) },
+    scrollTo: {
+      value: (options: ScrollToOptions) => {
+        if (options.behavior === "smooth") glides.push(options.top!);
+        else top = options.top!;
+      },
+    },
+  });
+  return { scroller, writes, glides };
+}
 
 describe("centring the caret's line", () => {
   it("puts the caret line in the middle, and stops at the top and the foot of the script", () => {
@@ -149,20 +186,80 @@ describe("centring the caret's line", () => {
     expect(scrolls[0]!.top).toBe(8);
   });
 
+  it("with the measures real WebKit gave, at 164% zoom, centres the caret line", () => {
+    // Big Fish at 1366 × 768, the paper at View ▸ Zoom's third step in (1.6446),
+    // scrolled to 3000 and the twelfth scene chosen. The caret is measured in the
+    // window's pixels, zoomed, and the scroll position in the window's own; both
+    // engines give the zoomed paper's caret in window pixels, so no scale is
+    // applied. Scrolled there, the caret line's middle was the window's (384).
+    const measured = { caretTop: 12338.34375, caretBottom: 12368.34375, viewTop: 0, viewHeight: 768, scrollTop: 3000, scrollHeight: 217479 };
+    expect(centredScrollTop(measured)).toBe(14969);
+  });
+
+  it("is not stopped by the paper being held centred across: no scroll position is written while it glides", async () => {
+    // The cause of #162's jumps that moved a few lines: the Editor wrote the
+    // sideways position on every scroll event, the value it already had, and
+    // a write stops a smooth scroll where it is.
+    const { into, view } = await editing();
+    const { scroller, writes, glides } = watchedScroller(view);
+    view.coordsAtPos = () => ({ left: 200, right: 200, top: 9000, bottom: 9016 });
+    into.querySelectorAll<HTMLElement>(".panel__scene")[3]!.click();
+    expect(glides).toHaveLength(1);
+    scroller.dispatchEvent(new Event("scroll"));
+    scroller.dispatchEvent(new Event("scroll"));
+    expect(writes).toEqual([]);
+  });
+
+  it("is not undone by the caret's own scrolling, which stands aside until the glide is over", async () => {
+    const { into, view } = await editing();
+    const { scroller, writes, glides } = watchedScroller(view);
+    // The caret far below the window, as it is the moment a jump is chosen.
+    view.coordsAtPos = () => ({ left: 200, right: 200, top: 9000, bottom: 9016 });
+    into.querySelectorAll<HTMLElement>(".panel__scene")[3]!.click();
+    expect(glides).toEqual([9000 + 8 - 384]);
+    // A transaction asking for the caret to be shown, mid-glide.
+    view.dispatch(view.state.tr.scrollIntoView());
+    expect(scrollCaretIntoView(view)).toBe(true);
+    expect(writes).toEqual([]);
+    // Once the window says it has stopped, the caret's own scrolling is back.
+    scroller.dispatchEvent(new Event("scrollend"));
+    scrollCaretIntoView(view);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatch(/^top=/);
+  });
+
+  it("is let go after a while even if the window never says it has stopped", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { into, view } = await editing();
+      const { writes } = watchedScroller(view);
+      view.coordsAtPos = () => ({ left: 200, right: 200, top: 9000, bottom: 9016 });
+      into.querySelectorAll<HTMLElement>(".panel__scene")[3]!.click();
+      scrollCaretIntoView(view);
+      expect(writes).toEqual([]);
+      vi.advanceTimersByTime(GLIDE_LIMIT_MS);
+      scrollCaretIntoView(view);
+      expect(writes).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("is used by Next and Previous Scene", async () => {
     const { view } = await editing();
     key(view.dom, { key: ">", ctrlKey: true });
     expect(centred).toHaveBeenCalledOnce();
-    expect(view.state.selection.head).toBe(headingStarts(view)[1]);
+    expect(view.state.selection.head).toBe(headingEnds(view)[1]);
     key(view.dom, { key: "<", ctrlKey: true });
     expect(centred).toHaveBeenCalledTimes(2);
   });
 
-  it("is used by a scene chosen in the Scenes panel, which takes the caret to its heading", async () => {
+  it("is used by a scene chosen in the Scenes panel, which takes the caret to the end of its heading", async () => {
     const { into, view } = await editing();
     const scenes = [...into.querySelectorAll<HTMLElement>(".panel__scene")];
     scenes[2]!.click();
-    expect(view.state.selection.head).toBe(headingStarts(view)[2]);
+    expect(view.state.selection.head).toBe(headingEnds(view)[2]);
+    expect(view.state.selection.$head.parent.textContent).toBe(scenes[2]!.textContent);
     expect(centred).toHaveBeenCalledOnce();
   });
 
@@ -198,6 +295,44 @@ describe("centring the caret's line", () => {
     menuItem(into, "Redo").click();
     key(view.dom, { key: "z", ctrlKey: true });
     expect(centred).not.toHaveBeenCalled();
+  });
+});
+
+describe("holding the paper centred across", () => {
+  const drawn = (left: number, width: number) => ({ left, width, right: left + width, top: 0, bottom: 0, height: 0, x: left, y: 0, toJSON: () => ({}) });
+  function scene(sheetLeft: number, scrollWidth: number) {
+    const scroller = document.createElement("div");
+    const paper = document.createElement("div");
+    let left = 0;
+    const writes: number[] = [];
+    Object.defineProperties(scroller, {
+      clientWidth: { value: 1000 },
+      scrollWidth: { value: scrollWidth },
+      scrollLeft: { get: () => left, set: (value: number) => (writes.push(value), (left = value)) },
+    });
+    scroller.getBoundingClientRect = () => drawn(0, 1000);
+    paper.getBoundingClientRect = () => drawn(sheetLeft - left, 800);
+    return { scroller, paper, writes };
+  }
+
+  it("writes nothing when the paper is already centred, or can go no further", () => {
+    const centred = scene(100, 1000);
+    centrePaper(centred.paper, centred.scroller);
+    expect(centred.writes).toEqual([]);
+    // Off by a rounding, not a move.
+    const nearly = scene(100.4, 1000);
+    centrePaper(nearly.paper, nearly.scroller);
+    expect(nearly.writes).toEqual([]);
+    // Wanting to go further across than the window can, where it already is.
+    const stuck = scene(300, 1000);
+    centrePaper(stuck.paper, stuck.scroller);
+    expect(stuck.writes).toEqual([]);
+  });
+
+  it("puts a paper moved across back in the middle", () => {
+    const wide = scene(400, 1600);
+    centrePaper(wide.paper, wide.scroller);
+    expect(wide.writes).toEqual([300]);
   });
 });
 

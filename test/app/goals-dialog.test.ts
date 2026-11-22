@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { showDeleteProject, showRenameProject } from "../../app/src/screens/project-dialogs.ts";
+import { showDeleteProject, showProjectDetails } from "../../app/src/screens/project-dialogs.ts";
 import { mountShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext } from "../../app/src/shell/workspace.ts";
 import { commandById, runCommand, type CommandHost } from "../../app/src/workspaces/editor/commands.ts";
@@ -659,8 +659,15 @@ describe("the Goals dialog from the keyboard", () => {
     expect(document.activeElement).not.toBe(title);
     const exporting = openExportDialog(into, { formats: EXPORT_FORMATS, pageCount: () => 1, write: async () => true, report: vi.fn(), closed: vi.fn() });
     expect(document.activeElement).toBe(exporting.querySelector("#export-format"));
-    const rename = showRenameProject(into, { project, onRename: async () => undefined, onClose: vi.fn() });
-    expect(document.activeElement).toBe(rename.querySelector("input"));
+    const details = showProjectDetails(into, {
+      project: { marker: { name: "Big Fish", format: "Feature" } } as never,
+      details: { targetPages: 0, workspaces: undefined },
+      workspaces: [],
+      onSave: async () => undefined,
+      onClose: vi.fn(),
+    });
+    expect(document.activeElement).toBe(details.querySelector("#project-details-name"));
+    details.close();
     const remove = showDeleteProject(into, { project, onDelete: async () => undefined, onClose: vi.fn() });
     expect(document.activeElement).toBe([...remove.querySelectorAll(".new-project-dialog__action")].at(-1));
   });

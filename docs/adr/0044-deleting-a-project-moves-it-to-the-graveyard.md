@@ -12,6 +12,10 @@ command that never replaces anything.
 Graveyard recovers a project, and **Exile** — the permanent delete of one project already in the
 Graveyard — is built. See *Exile* below.**
 
+**Update, 2026-11-21 (PR #162, Noah): the row menu's first item is Edit Project Details**, the same
+dialog File ▸ Edit Project Details… opens in the Editor, for the row's project. A rename is its name
+field, through the same `renameProject`; the rename-only dialog is gone.
+
 ## The forcing reason
 
 Write-ist had no way to remove or rename a project, and nothing in the record planned one. No

@@ -148,7 +148,7 @@ export function sidePanels(
   ]);
 
   const sceneList = element("ul", { className: "panel__scenes" });
-  // Choosing a scene takes the caret to its heading, centred in the window. Its
+  // Choosing a scene takes the caret to the end of its heading, centred in the window. Its
   // place is read when it is chosen: the list is redrawn only when the headings'
   // words change, and their places move with every edit above them.
   sceneList.addEventListener("mousedown", (event) => event.preventDefault());
@@ -156,7 +156,7 @@ export function sidePanels(
     const chosen = event.target instanceof Element ? event.target.closest(".panel__scene") : null;
     if (chosen === null || view === undefined) return;
     const heading = sceneHeadings(view.state.doc)[[...sceneList.children].indexOf(chosen)];
-    if (heading !== undefined) jumpToHeading(view, heading.start);
+    if (heading !== undefined) jumpToHeading(view, heading.end);
   });
   const scenes = element("section", { className: "panel panel--scenes", ariaLabel: "Scenes" }, [
     element("h2", { className: "panel__heading", textContent: "Scenes" }),

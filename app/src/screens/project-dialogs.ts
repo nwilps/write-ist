@@ -1,17 +1,18 @@
 /**
- * Rename Project and Delete Project: the two dialogs the Open Project screen's
- * right-click menu opens, for the project that was right-clicked. Edit Project
- * Details is the open project's (File ▸ Edit Project Details… and the name
- * pill): its name, type, target page count and workspaces, with Rename's own
- * rules for the name. Exile Project is Settings ▸ Graveyard's, for a project
- * already deleted.
+ * Edit Project Details and Delete Project: the two dialogs the Open Project
+ * screen's right-click menu opens, for the project that was right-clicked.
+ * Edit Project Details is also the open project's (File ▸ Edit Project
+ * Details… and a click on the name pill): its name, type, target page count
+ * and workspaces, a new name following the rename's own rules
+ * (`src/project/rename.ts`). Exile Project is Settings ▸ Graveyard's, for a
+ * project already deleted.
  *
  * Both are the New Project dialog's look (ADR-0042) and its manners, from the
  * same shared button and keys: a modal `<dialog>`, so Escape cancels and the
  * screen behind hears nothing; Cancel [Esc] on the left and the action [Enter]
  * on the right; a failure said inside the dialog in the writer's words, with
  * the dialog left open; and nothing to press twice while the disk is answering. What is done on disk is the
- * project layer's (`src/project/rename.ts`, `src/project/delete.ts`).
+ * project layer's (`src/project/details.ts`, `src/project/delete.ts`).
  */
 import { createElement, TriangleAlert } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
@@ -25,7 +26,6 @@ import {
 } from "../../../src/project/details.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import { FORMATS, type ProjectFormat } from "../../../src/project/marker.ts";
-import { CannotRename, renameProject } from "../../../src/project/rename.ts";
 import { MOST_PAGES, wholeNumber } from "../../../src/settings/settings.ts";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys, enterSubmits, type DialogKeys } from "./dialog-keys.ts";
@@ -41,46 +41,7 @@ import { message, trouble as troublePanel } from "./trouble.ts";
  */
 type Attempt = () => Promise<string | undefined>;
 
-export interface RenameProjectDialog {
-  readonly project: Project;
-  readonly onRename: (name: string) => Promise<string | undefined>;
-  /** The dialog is gone, however it went. */
-  readonly onClose: () => void;
-}
-
-/** Ask for a project's new name, starting from the one it has. */
-export function showRenameProject(
-  into: HTMLElement,
-  { project, onRename, onClose }: RenameProjectDialog,
-): HTMLDialogElement {
-  const name = element("input", {
-    id: "rename-project-name",
-    className: "new-project-dialog__input",
-    type: "text",
-    value: project.marker.name,
-    autocomplete: "off",
-    spellcheck: false,
-  });
-  // Nothing to confirm until the name is one, and a different one.
-  const ready = () => name.value.trim() !== "" && name.value.trim() !== project.marker.name;
-  const shown = dialog(into, {
-    label: "Rename Project",
-    body: [field("Project name", name)],
-    stops: [name],
-    confirm: "Confirm",
-    ready,
-    attempt: () => onRename(name.value),
-    failed: "The project could not be renamed, so nothing was changed.",
-    resume: () => shown.keys.edit(name),
-    onClose,
-  });
-  name.addEventListener("input", shown.settle);
-  shown.keys.edit(name);
-  name.select();
-  return shown.modal;
-}
-
-/** What a rename needs of the application, wherever it was asked for. */
+/** What editing a project's details needs of the application, wherever it was asked for. */
 export interface RenamePorts {
   readonly filesystem: Filesystem;
   readonly projectsDirectory: () => Promise<string>;
@@ -88,7 +49,7 @@ export interface RenamePorts {
   readonly reread: () => Promise<void>;
 }
 
-/** What differs between renaming from Open Project and from the open project. */
+/** What differs between editing a project's details from Open Project and from the open project. */
 export interface RenameRoute {
   /** Where the dialog goes. */
   readonly into: HTMLElement;
@@ -100,40 +61,13 @@ export interface RenameRoute {
   readonly closed: () => void;
 }
 
-/**
- * The one way a project is renamed (`src/project/rename.ts`), in a dialog.
- * Refused or failed, the dialog stays up with the reason and the project keeps
- * its name. Nothing opens over another dialog.
- */
-export function askToRenameProject(ports: RenamePorts, project: Project, route: RenameRoute): void {
-  if (document.querySelector("dialog[open]") !== null) return;
-  showRenameProject(route.into, {
-    project,
-    onRename: async (name) => {
-      let wrong: string | undefined;
-      try {
-        const directory = await ports.projectsDirectory();
-        route.renamed(await route.carryOut(() => renameProject(ports.filesystem, directory, project, name)));
-      } catch (error) {
-        wrong =
-          error instanceof CannotRename
-            ? error.message
-            : `The project could not be renamed, so nothing was changed. ${message(error)}`;
-      }
-      await ports.reread();
-      return wrong;
-    },
-    onClose: route.closed,
-  });
-}
-
 // --- Edit Project Details ----------------------------------------------------------
 
 /** A workspace as Edit Project Details offers it: from the registry, by its manifest. */
 export interface WorkspaceChoice {
   readonly id: string;
   readonly name: string;
-  /** Shown in every project: drawn on, and not a switch (the Editor). */
+  /** Shown in every project, so not offered (the Editor). */
   readonly alwaysOn: boolean;
 }
 
@@ -159,8 +93,8 @@ export function targetPagesFrom(typed: string, fallback: number): number {
 
 /**
  * Edit Project Details: the project's name, its type within its surface, its
- * target page count and which workspaces it shows. New Project's look, Rename
- * Project's manners: Confirm [Enter] saves the lot, Cancel [Esc] changes
+ * target page count and which workspaces it shows. New Project's look and
+ * manners: Confirm [Enter] saves the lot, Cancel [Esc] changes
  * nothing, and a refusal is said inside it with the dialog left open.
  */
 export function showProjectDetails(
@@ -204,9 +138,12 @@ export function showProjectDetails(
   };
   pages.addEventListener("change", settlePages);
 
-  // A switch for each workspace; the Editor's is drawn on and cannot be pressed.
+  // A switch for each workspace a project may do without. The Editor is in
+  // every project, so it is not listed at all (Noah).
   let workspacesTouched = false;
-  const switches: [WorkspaceChoice, DialogToggle][] = workspaces.map((workspace) => {
+  const always = workspaces.filter((workspace) => workspace.alwaysOn).map((workspace) => workspace.id);
+  const optional = workspaces.filter((workspace) => !workspace.alwaysOn);
+  const switches: [WorkspaceChoice, DialogToggle][] = optional.map((workspace) => {
     const toggle = dialogToggle({
       id: `project-details-workspace-${workspace.id}`,
       onChange: () => {
@@ -214,8 +151,7 @@ export function showProjectDetails(
         shown.settle();
       },
     });
-    toggle.set(workspaceShown(details, workspace.id, workspace.alwaysOn));
-    toggle.control.disabled = workspace.alwaysOn;
+    toggle.set(workspaceShown(details, workspace.id, false));
     return [workspace, toggle];
   });
   const switchRow = ([workspace, toggle]: [WorkspaceChoice, DialogToggle]): HTMLElement =>
@@ -234,6 +170,8 @@ export function showProjectDetails(
         targetPages,
         workspaces: workspacesTouched
           ? [
+              // The ones always shown are written as shown, as they always were.
+              ...always,
               ...switches.filter(([, toggle]) => toggle.on()).map(([workspace]) => workspace.id),
               // One this version does not offer stays as the project had it.
               ...(details.workspaces ?? []).filter((id) => !offered.has(id)),
@@ -245,7 +183,7 @@ export function showProjectDetails(
   const changed = (): boolean => {
     const now = wanted();
     const sameWorkspaces = switches.every(
-      ([workspace, toggle]) => toggle.on() === workspaceShown(details, workspace.id, workspace.alwaysOn),
+      ([workspace, toggle]) => toggle.on() === workspaceShown(details, workspace.id, false),
     );
     return (
       now.name.trim() !== project.marker.name ||
@@ -264,12 +202,16 @@ export function showProjectDetails(
         element("label", { htmlFor: pages.id, className: "new-project-dialog__label", textContent: "Target page count" }),
         element("div", { className: "settings__line" }, [pages, element("span", { className: "settings__unit", textContent: "pages" })]),
       ]),
-      element("div", { className: "new-project-dialog__field" }, [
-        element("h3", { className: "new-project-dialog__label settings__subheading", textContent: "Workspaces" }),
-        ...switches.map(switchRow),
-      ]),
+      ...(switches.length === 0
+        ? []
+        : [
+            element("div", { className: "new-project-dialog__field" }, [
+              element("h3", { className: "new-project-dialog__label settings__subheading", textContent: "Workspaces" }),
+              ...switches.map(switchRow),
+            ]),
+          ]),
     ],
-    stops: [name, type.control, pages, ...switches.filter(([workspace]) => !workspace.alwaysOn).map(([, toggle]) => toggle.control)],
+    stops: [name, type.control, pages, ...switches.map(([, toggle]) => toggle.control)],
     confirm: "Confirm",
     ready: () => name.value.trim() !== "" && changed(),
     attempt: () => {
@@ -294,7 +236,7 @@ export function showProjectDetails(
   return shown.modal;
 }
 
-/** Edit Project Details for the open project: where the dialog goes, and what follows a save. */
+/** Edit Project Details, from Open Project or the open project: where the dialog goes, and what follows a save. */
 export interface ProjectDetailsRoute extends RenameRoute {
   /** Saved: these are the project's details now (the workspaces it shows among them). */
   readonly detailsChanged: (details: ProjectDetails) => void;
@@ -307,7 +249,7 @@ export interface ProjectDetailsPorts extends RenamePorts {
 
 /**
  * The one way a project's details are edited (`src/project/details.ts`), in a
- * dialog over the open project. Read from its folder first, so the dialog
+ * dialog over Open Project or the open project. Read from its folder first, so the dialog
  * starts from what is on disk; saved inside `carryOut`, so a rename's move
  * fits between the Editor's writes. Nothing opens over another dialog.
  */

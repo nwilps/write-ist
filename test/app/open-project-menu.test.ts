@@ -1,7 +1,9 @@
 /**
  * The Open Project screen's right-click menu, and the two dialogs it opens:
- * a menu only on a project row, for the project right-clicked, with Rename
- * Project and Delete Project — and Delete a move to the `Graveyard`.
+ * a menu only on a project row, for the project right-clicked, with Edit
+ * Project Details and Delete Project — and Delete a move to the `Graveyard`.
+ * Edit Project Details is the open project's own dialog; its keys and
+ * refusals are `project-details-from-editor.test.ts`'s.
  *
  * Every project here is made up, in a temporary folder.
  */
@@ -10,11 +12,10 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderOpenProject, type OpenProjectScreen } from "../../app/src/screens/open-project.ts";
-import { showDeleteProject, showRenameProject } from "../../app/src/screens/project-dialogs.ts";
+import { askToEditProjectDetails, showDeleteProject } from "../../app/src/screens/project-dialogs.ts";
 import { answerKey, type KeyPress } from "../../app/src/screens/shortcuts.ts";
 import { createProject } from "../../src/project/create.ts";
 import { deleteProject, graveyardIn } from "../../src/project/delete.ts";
-import { renameProject } from "../../src/project/rename.ts";
 import { listProjects, type ProjectsListing } from "../../src/project/projects.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
@@ -48,7 +49,7 @@ function draw(overrides: Partial<OpenProjectScreen> = {}) {
     onNewProject: vi.fn(),
     onSearch: vi.fn(),
     onImport: vi.fn(),
-    onRename: vi.fn(),
+    onEditDetails: vi.fn(),
     onDelete: vi.fn(),
   };
   const drawn = renderOpenProject(into, {
@@ -75,7 +76,7 @@ const items = () => [...(menu()?.querySelectorAll<HTMLButtonElement>('[role="men
 const choose = (label: string) => items().find((item) => item.textContent === label)!.click();
 
 describe("the right-click menu on Open Project", () => {
-  it("opens on a project row, with exactly Rename Project and Delete Project, in the menus' own look", () => {
+  it("opens on a project row, with exactly Edit Project Details and Delete Project, in the menus' own look", () => {
     const { rows } = draw();
     const event = rightClick(rows[1]!);
 
@@ -83,7 +84,7 @@ describe("the right-click menu on Open Project", () => {
     expect(menu()).not.toBeNull();
     expect(menu()!.classList.contains("drop-menu")).toBe(true);
     expect(menu()!.classList.contains("drop-menu--context")).toBe(true);
-    expect(items().map((item) => item.textContent)).toEqual(["Rename Project", "Delete Project"]);
+    expect(items().map((item) => item.textContent)).toEqual(["Edit Project Details", "Delete Project"]);
     expect(items().every((item) => item.querySelector("svg.drop-menu__icon") !== null)).toBe(true);
   });
 
@@ -108,8 +109,8 @@ describe("the right-click menu on Open Project", () => {
     expect(lit()).toEqual([1]);
 
     rightClick(rows[2]!);
-    choose("Rename Project");
-    expect(calls.onRename).toHaveBeenCalledExactlyOnceWith(project("Untitled Short"));
+    choose("Edit Project Details");
+    expect(calls.onEditDetails).toHaveBeenCalledExactlyOnceWith(project("Untitled Short"));
 
     rightClick(rows[0]!);
     choose("Delete Project");
@@ -177,7 +178,7 @@ describe("the right-click menu on Open Project", () => {
     rows[2]!.dispatchEvent(new KeyboardEvent("keydown", { key: "F10", shiftKey: true, bubbles: true, cancelable: true }));
     expect(menu()).not.toBeNull();
     (document.activeElement as HTMLButtonElement).click();
-    expect(calls.onRename).toHaveBeenCalledExactlyOnceWith(project("Untitled Short"));
+    expect(calls.onEditDetails).toHaveBeenCalledExactlyOnceWith(project("Untitled Short"));
   });
 
   it("is taken down when the screen is drawn again", () => {
@@ -185,113 +186,6 @@ describe("the right-click menu on Open Project", () => {
     rightClick(rows[0]!);
     draw();
     expect(menu()).toBeNull();
-  });
-});
-
-describe("the Rename Project dialog", () => {
-  const open = (onRename = vi.fn<(name: string) => Promise<string | undefined>>(async () => undefined)) => {
-    const onClose = vi.fn();
-    const modal = showRenameProject(document.body, { project: project("Paper Boats"), onRename, onClose });
-    const input = modal.querySelector<HTMLInputElement>("input")!;
-    const [cancel, confirm] = [...modal.querySelectorAll<HTMLButtonElement>(".new-project-dialog__action")];
-    const type = (value: string) => {
-      input.value = value;
-      input.dispatchEvent(new Event("input"));
-    };
-    const enter = () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-    return { modal, input, cancel: cancel!, confirm: confirm!, type, enter, onRename, onClose };
-  };
-
-  it("is the New Project dialog's look, named for a screen reader, starting from the name it has", () => {
-    const { modal, input, cancel, confirm } = open();
-    expect(modal.classList.contains("new-project-dialog")).toBe(true);
-    expect(modal.getAttribute("aria-label")).toBe("Rename Project");
-    expect(modal.querySelector("label")!.textContent).toBe("Project name");
-    expect(modal.querySelector("label")!.htmlFor).toBe(input.id);
-    expect(input.value).toBe("Paper Boats");
-    expect(document.activeElement).toBe(input);
-    expect(cancel.textContent).toBe(">Cancel[Esc]");
-    expect(confirm.textContent).toBe(">Confirm[Enter]");
-  });
-
-  it("keeps Confirm off for an empty name and for the same name", () => {
-    const { type, confirm, enter, onRename } = open();
-    expect(confirm.disabled).toBe(true);
-    type("   ");
-    expect(confirm.disabled).toBe(true);
-    enter();
-    expect(onRename).not.toHaveBeenCalled();
-    type("Paper Planes");
-    expect(confirm.disabled).toBe(false);
-  });
-
-  it("renames on Enter and closes", async () => {
-    const { type, enter, onRename, onClose, modal } = open();
-    type("Paper Planes");
-    enter();
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onRename).toHaveBeenCalledExactlyOnceWith("Paper Planes");
-    expect(modal.isConnected).toBe(false);
-  });
-
-  it("says a refusal inside the dialog and stays open, so the name can be changed", async () => {
-    const { type, enter, modal, onClose } = open(vi.fn(async () => "There is already something called “Quiet Road”."));
-    type("Quiet Road");
-    enter();
-    await vi.waitFor(() => expect(modal.querySelector('[role="alert"]')).not.toBeNull());
-    expect(modal.querySelector('[role="alert"]')!.textContent).toContain("Quiet Road");
-    expect(modal.hasAttribute("open")).toBe(true);
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it("uses the shared buttons and keys: the name is being edited, Tab wraps, Escape steps out", () => {
-    const { modal, input, cancel, confirm, type } = open();
-    const press = (key: string, init: KeyboardEventInit = {}) => {
-      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
-      document.activeElement!.dispatchEvent(event);
-      return event;
-    };
-    expect(cancel.classList.contains("dialog-action")).toBe(true);
-    expect(confirm.classList.contains("dialog-action")).toBe(true);
-    expect(modal.querySelector(".new-project-dialog__action--confirm")).toBeNull();
-    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
-    expect(press("ArrowLeft").defaultPrevented).toBe(false);
-
-    // Confirm is off for the same name, so Tab steps over it.
-    press("Tab");
-    expect(document.activeElement).toBe(cancel);
-    press("Tab");
-    expect(document.activeElement).toBe(input);
-    type("Paper Planes");
-    press("Tab", { shiftKey: true });
-    expect(document.activeElement).toBe(confirm);
-    press("ArrowLeft");
-    expect(document.activeElement).toBe(cancel);
-
-    input.focus();
-    press("Enter");
-    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
-    expect(press("Escape").defaultPrevented).toBe(true);
-    expect(input.classList.contains("dialog-keys__editing")).toBe(false);
-    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(false);
-    expect(press("Escape").defaultPrevented).toBe(false);
-    expect(modal.dispatchEvent(new Event("cancel", { cancelable: true }))).toBe(true);
-  });
-
-  it("goes back to editing the name after a refusal", async () => {
-    const { type, enter, modal, input } = open(vi.fn(async () => "Taken."));
-    type("Quiet Road");
-    enter();
-    await vi.waitFor(() => expect(modal.querySelector('[role="alert"]')).not.toBeNull());
-    expect(document.activeElement).toBe(input);
-    expect(input.classList.contains("dialog-keys__editing")).toBe(true);
-  });
-
-  it("cancels with Cancel, renaming nothing", () => {
-    const { cancel, onRename, onClose } = open();
-    cancel.click();
-    expect(onRename).not.toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalled();
   });
 });
 
@@ -395,17 +289,29 @@ describe("the menu, end to end, on real projects in a temporary folder", () => {
       expect(real.projects.map((p) => p.marker.name).sort()).toEqual(["Paper Boats", "Untitled Short"]);
       expect(readdirSync(graveyardIn(folder))).toEqual(["Quiet Road"]);
 
-      const onRename = (chosen: Project) =>
-        void showRenameProject(document.body, {
-          project: chosen,
-          onRename: async (name) => void (await renameProject(nodeFilesystem, folder, chosen, name)),
-          onClose: () => {},
-        });
-      drawn = draw({ listing: real, onRename });
+      // The same dialog the open project's name pill opens, for the row's project.
+      const onEditDetails = (chosen: Project) =>
+        askToEditProjectDetails(
+          {
+            filesystem: nodeFilesystem,
+            projectsDirectory: async () => folder,
+            reread: async () => {},
+            workspaces: [
+              { id: "editor", name: "Editor", alwaysOn: true },
+              { id: "notes", name: "Notes", alwaysOn: false },
+            ],
+          },
+          chosen,
+          { into: document.body, carryOut: (move) => move(), renamed: () => {}, detailsChanged: () => {}, closed: () => {} },
+        );
+      drawn = draw({ listing: real, onEditDetails });
       rightClick(rowNamed(drawn.rows, "Untitled Short"));
-      choose("Rename Project");
+      choose("Edit Project Details");
+      await vi.waitFor(() => expect(document.querySelector("dialog[open]")).not.toBeNull());
       const rename = document.querySelector<HTMLDialogElement>("dialog[open]")!;
-      const input = rename.querySelector("input")!;
+      expect(rename.getAttribute("aria-label")).toBe("Edit Project Details");
+      const input = rename.querySelector<HTMLInputElement>("#project-details-name")!;
+      expect(input.value).toBe("Untitled Short");
       input.value = "Short Story";
       input.dispatchEvent(new Event("input"));
       rename.querySelectorAll<HTMLButtonElement>(".dialog-action")[1]!.click();
