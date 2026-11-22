@@ -9,6 +9,14 @@
  * `var()`s, followed through `tokens.css`. Then again with the ink and the
  * paper swapped as a white paper would swap them, which must swap the
  * selection with them.
+ *
+ * **Resolving tokens is not enough on its own**, and this file once proved
+ * it: the rule said the ink and WebKit painted something else. WebKit gives a
+ * solid selection colour 60% opacity, so the ink came out #95845c over the
+ * dark paper (measured in Playwright's WebKit, 2026-11-21; Chromium painted
+ * #ebdbb2). It leaves a colour that is already see-through alone, so the
+ * highlight is the ink at `--opacity-selection`, a hair short of solid — and
+ * the checks below hold that hair to what still paints as the ink itself.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -68,11 +76,58 @@ function contrast(one: string, other: string): number {
 
 const SELECTION = ".manuscript::selection, .manuscript ::selection";
 
+/** A value as one line, however it was wrapped. */
+const flat = (value: string): string => value.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")");
+
+/** The highlight as written: the ink, mixed a hair short of solid. */
+const HIGHLIGHT = "color-mix(in srgb, var(--colour-text) calc(var(--opacity-selection) * 100%), transparent)";
+
+/** The plain colour a `HIGHLIGHT` resolves to, and how opaque it is. */
+function highlight(value: string, tokens: ReadonlyMap<string, string>): { colour: string; opacity: number } {
+  const resolved = flat(resolve(value, tokens));
+  const found = /^color-mix\(in srgb, (#[0-9a-f]{6}) calc\(([\d.]+) \* 100%\), transparent\)$/i.exec(resolved);
+  if (found === null) throw new Error(`not the ink mixed toward clear: ${resolved}`);
+  return { colour: found[1]!, opacity: Number(found[2]) };
+}
+
+/** One 8-bit channel of `over` painted at `opacity` on `under`, as a screen rounds it. */
+const painted = (over: number, under: number, opacity: number): number => Math.round(over * opacity + under * (1 - opacity));
+
 describe("a selection on the paper", () => {
   it("is the ink behind and the paper's colour in front, by token", () => {
     const selected = rule(SELECTION);
-    expect(selected["background"]).toBe("var(--colour-text)");
+    expect(flat(selected["background-color"]!)).toBe(HIGHLIGHT);
     expect(selected["color"]).toBe("var(--colour-page)");
+    // The longhand only: the shorthand would also reset what nothing here sets.
+    expect(selected["background"]).toBeUndefined();
+  });
+
+  it("is the colour the paper's body text is drawn in", () => {
+    // Action and dialogue set no colour of their own: they take the body's.
+    expect(/(?:^|\})\s*body\s*\{[^}]*\bcolor:\s*var\(--colour-text\)/m.test(sheet("app.css"))).toBe(true);
+    for (const type of ["action", "dialogue"])
+      expect(editor).not.toMatch(new RegExp(`\\[data-element="${type}"\\][^{]*\\{[^}]*\\bcolor:`));
+    expect(rule(".manuscript")["color"]).toBeUndefined();
+    expect(rule(".page")["color"]).toBeUndefined();
+    expect(rule(".page")["opacity"]).toBeUndefined();
+  });
+
+  it("is see-through by a hair, so WebKit does not dim it, and no more", () => {
+    // WebKit dims a solid selection colour and leaves a see-through one alone.
+    const opacity = highlight(rule(SELECTION)["background-color"]!, rootTokens()).opacity;
+    expect(opacity).toBeLessThan(1);
+    // At this opacity no ink on any paper is moved by a single step in any
+    // channel: the worst case is the furthest apart two channels can be.
+    expect(painted(255, 0, opacity)).toBe(255);
+    expect(painted(0, 255, opacity)).toBe(0);
+  });
+
+  it("is mixed, not written with its own alpha, which WebKit rounds back to solid", () => {
+    // WebKit keeps `rgb(… / 0.999)`'s opacity in 8 bits, where 0.999 rounds to
+    // solid, and dims it again (measured: #95845c). A `color-mix` keeps it exact.
+    const written = rule(SELECTION)["background-color"]!;
+    expect(written).toMatch(/^color-mix\(/);
+    expect(written).not.toMatch(/rgba?\(|hsla?\(|#[0-9a-f]{8}\b|\/\s*[\d.]/i);
   });
 
   it("resolves, on today's dark paper, to the paper inverted", () => {
@@ -80,7 +135,11 @@ describe("a selection on the paper", () => {
     const selected = rule(SELECTION);
     const ink = resolve("var(--colour-text)", tokens);
     const paper = resolve("var(--colour-page)", tokens);
-    expect(resolve(selected["background"]!, tokens)).toBe(ink);
+    const drawn = highlight(selected["background-color"]!, tokens);
+    expect(drawn.colour).toBe(ink);
+    // Painted over the paper, it is the ink to the last bit: what the text is drawn in.
+    const [inkRgb, paperRgb] = [hex(ink), hex(paper)];
+    expect(inkRgb.map((channel, at) => painted(channel, paperRgb[at]!, drawn.opacity))).toEqual(inkRgb);
     expect(resolve(selected["color"]!, tokens)).toBe(paper);
     expect(contrast(ink, paper)).toBeGreaterThanOrEqual(4.5);
   });
@@ -91,7 +150,7 @@ describe("a selection on the paper", () => {
     // A white paper remakes the paper as white and the ink as dark.
     const white = new Map(tokens).set("--colour-page", "#ffffff").set("--colour-text", darkInk);
     const selected = rule(SELECTION);
-    expect(resolve(selected["background"]!, white)).toBe(darkInk);
+    expect(highlight(selected["background-color"]!, white).colour).toBe(darkInk);
     expect(resolve(selected["color"]!, white)).toBe("#ffffff");
     expect(contrast(darkInk, "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });

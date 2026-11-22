@@ -433,10 +433,22 @@ button.pill:focus-visible {
  * inside it and none of them sinks into the highlight. A search result's jump
  * is this same native selection (`editor.ts`). The two tokens are read where
  * the text is, so a white paper that remakes them inverts this with them.
+ *
+ * **The highlight must paint as exactly the ink, and WebKit will not paint a
+ * solid one** (Noah, 2026-11-21: "it feels warmer and darker"). WebKit turns
+ * any solid selection colour into a 60%-opaque one, made for a white page;
+ * over this dark paper the ink came out #95845c. It leaves a colour that is
+ * already see-through alone, so the ink is mixed to `--opacity-selection`
+ * (99.9%), which paints as #ebdbb2 itself. It has to be a `color-mix`: written
+ * as `rgb(… / 0.999)` WebKit rounds it back to solid and dims it again.
  */
 .manuscript::selection,
 .manuscript ::selection {
-  background: var(--colour-text);
+  background-color: color-mix(
+    in srgb,
+    var(--colour-text) calc(var(--opacity-selection) * 100%),
+    transparent
+  );
   color: var(--colour-page);
 }
 

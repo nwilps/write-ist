@@ -299,6 +299,16 @@
   --paper-zoom: 1;
   --opacity-paper-fade: 1;
   /**
+   * The selection on the paper (`editor.css`), a hair short of solid. Not a
+   * look: it is what stops WebKit — the engine the app runs on — from making
+   * the highlight see-through. WebKit gives any *solid* selection colour 60%
+   * opacity, so a highlight in the paper's ink came out as a dark tan over the
+   * dark paper (#95845c, not #ebdbb2). It leaves a colour that is already
+   * see-through alone, and 99.9% of the ink still paints as the ink itself,
+   * pixel for pixel, in WebKit and Chromium alike (measured, 2026-11-21).
+   */
+  --opacity-selection: 0.999;
+  /**
    * What every shadow is made of: the desk's own colour taken most of the way
    * to black. Darker than the desk, or a shadow would vanish against it, and
    * still the desk's family rather than a grey of its own.
