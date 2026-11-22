@@ -630,13 +630,35 @@ button.pill:focus-visible {
 }
 
 /*
- * A forced page break is in the document and not on the paper either: it is a
- * hidden placeholder (`hiddenPageBreak`), and the paper shows the seam to a new
- * sheet instead. Where it opens the script, the line after it is the sheet's
- * first and takes no blank line above.
+ * A forced page break (`page-break-editing.ts`): the seam to a new sheet, and
+ * its `===` on the paper, faint, where the writer typed it — to be seen and
+ * taken out, never printed or exported (the layout gives it no row).
+ *
+ * **It takes no room**, or the paper's sheets would stop matching the PDF's
+ * pages: no height and no blank line above it, the attribute doubled so this
+ * outweighs every spacing rule in `geometry.css`. Its line is drawn where the
+ * blank line above it would have been and then a line down, in the rows the
+ * seam leaves empty at the sheet's foot (or its bottom margin, when the sheet
+ * is full), over the seam, and so still a place to click and put the caret.
+ * Opening the script, with no sheet above, it is drawn in the top margin.
  */
-.manuscript > [data-page-break-hidden]:first-child + *,
-.manuscript > [data-title-hidden] + [data-page-break-hidden] + * {
+.manuscript > [data-element][data-element="page-break"] {
+  position: relative;
+  z-index: var(--layer-page-break);
+  height: 0;
+  margin-top: 0;
+  top: var(--manuscript-blank);
+  color: var(--colour-faint);
+}
+
+.manuscript > [data-element][data-element="page-break"]:first-child,
+.manuscript > [data-title-hidden] + [data-element][data-element="page-break"] {
+  top: calc(-1 * var(--manuscript-blank));
+}
+
+/* Opening the script, the line after it is the sheet's first: no blank line above. */
+.manuscript > [data-element="page-break"]:first-child + *,
+.manuscript > [data-title-hidden] + [data-element="page-break"] + * {
   margin-top: 0;
 }
 

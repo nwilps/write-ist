@@ -309,6 +309,11 @@
    */
   --opacity-selection: 0.999;
   /**
+   * A page break's faint `===` is drawn over the seam that follows it, in the
+   * rows the seam leaves empty (`editor.css`): above it, below everything else.
+   */
+  --layer-page-break: 1;
+  /**
    * What every shadow is made of: the desk's own colour taken most of the way
    * to black. Darker than the desk, or a shadow would vanish against it, and
    * still the desk's family rather than a grey of its own.

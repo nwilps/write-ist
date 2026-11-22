@@ -51,7 +51,6 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import { printedPageCount } from "../../../../src/screenplay/pdf-pages.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
-import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { caretPlaceOf, selectionAtPlace, type CaretPlace } from "../../../../src/screenplay/caret-place.ts";
 import { commandForKey, keyTakenAway, runCommand, type CommandHost } from "./commands.ts";
@@ -60,6 +59,7 @@ import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
+import { placeOnBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretFromMargins } from "./margin-click.ts";
 import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
@@ -240,7 +240,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     event.preventDefault();
     if (view === undefined || session === undefined) return;
     const found = view.posAtCoords({ left: event.clientX, top: event.clientY });
-    const at = found?.pos ?? view.state.selection.head;
+    const at = found === null ? view.state.selection.head : placeOnBreak(view.state.doc, found);
     // As in any editor, a right-click outside the selection moves the caret
     // there first, so the menu acts on what was pointed at; inside it, the
     // selection stays for Cut and Copy.
@@ -521,7 +521,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         handleScrollToSelection: scrollCaretIntoView,
         // The title page and a forced page break's `===` are in the document
         // and not on the paper; the break is drawn as the seam to a new sheet.
-        nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
+        nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         // The webview's own spellcheck is off: spelling is Write-ist's, on

@@ -68,7 +68,8 @@ import {
   makeNormalDialogue,
   swapSpeakers,
 } from "../../../../src/screenplay/dual-dialogue.ts";
-import { NUMBERED_TYPES, setElementType } from "../../../../src/screenplay/element-keys.ts";
+import { NUMBERED_TYPES, removePageBreak, setElementType } from "../../../../src/screenplay/element-keys.ts";
+import { canRemovePageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
 import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
 import { ZOOM_LEVELS } from "./paper-zoom.ts";
@@ -352,6 +353,9 @@ export const COMMANDS: readonly Command[] = [
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),
   atPlace("make-normal-dialogue", "Make Normal Dialogue", { group: "dual-dialogue", contextual: true }, canMakeNormalDialogue, makeNormalDialogue),
   atPlace("swap-speakers", "Swap Speakers", { group: "dual-dialogue", contextual: true }, canSwapSpeakers, swapSpeakers),
+
+  // A forced page break, offered where the caret or the click is on its `===`.
+  atPlace("remove-page-break", "Remove Page Break", { group: "page-break", contextual: true }, canRemovePageBreak, removePageBreak),
 ];
 
 export function commandById(id: string): Command | undefined {

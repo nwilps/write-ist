@@ -10,9 +10,13 @@
  * missing from the PDF, and on the paper it shared page 1's sheet with a
  * visible line of `====`. What is asserted here is what each surface means:
  * which sheet the epigraph is on, which line opens the next, that no `===` is
- * drawn or printed, and that the file keeps both.
+ * printed, and that the file keeps both.
+ *
+ * Since Noah's 2026-11-21 tweak the `===` *is* on the paper, faint and taking
+ * no row, so it can be seen and taken out; and typing one makes a break at
+ * once, deleting from one removes it at once (`page-break-editing.ts`).
  */
-import { EditorState, TextSelection } from "prosemirror-state";
+import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -23,11 +27,13 @@ import { decodeFile } from "../../src/decode.ts";
 import { renderPdf } from "../../src/pdf/render.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
-import { joinBackwards, joinForwards, setElementType } from "../../src/screenplay/element-keys.ts";
+import { joinBackwards, joinForwards, removePageBreak, setElementType, splitElement } from "../../src/screenplay/element-keys.ts";
 import { fountainCopyOf } from "../../src/screenplay/fountain-copy.ts";
 import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.ts";
 import { layout, type Layout } from "../../src/screenplay/layout.ts";
-import { hiddenPageBreak } from "../../src/screenplay/page-break-editing.ts";
+import { canRemovePageBreak, placeOnBreak } from "../../src/screenplay/page-break-editing.ts";
+import { serialise } from "../../src/screenplay/serialise.ts";
+import { redo, undo } from "prosemirror-history";
 import { pdfPagesOf } from "../../src/screenplay/pdf-pages.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { paperDecorations, sheetBreaks } from "../../src/screenplay/sheets.ts";
@@ -91,7 +97,7 @@ describe("the paper", () => {
     const seams = () => paperDecorations(state.doc, layout(manuscriptOf(state.doc)), drawSheetBreak);
     const view = new EditorView(window.document.createElement("div"), {
       state,
-      nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
+      nodeViews: hiddenTitlePage,
       decorations: () => seams(),
       dispatchTransaction: (tr) => {
         state = state.apply(tr);
@@ -101,23 +107,23 @@ describe("the paper", () => {
     return { view, state: () => state };
   }
 
-  it("holds no `===`, and keeps the epigraph", () => {
+  it("shows each break's `===` as a line of its own, and keeps the epigraph", () => {
+    // The `===` is on the paper to be seen and taken out (Noah, 2026-11-21);
+    // it is never printed (above) and never takes a row (`editor.css`).
     const { view } = mounted(decodeFile(bigFishBytes()).text);
-    const visible = [...view.dom.querySelectorAll<HTMLElement>("[data-element]")].filter((node) => !node.hidden);
-    expect(visible.some((node) => BREAK_LINE.test(node.textContent ?? ""))).toBe(false);
-    expect(view.dom.textContent).not.toMatch(/===/);
-    expect(visible[0]!.textContent).toBe(EPIGRAPH);
+    const lines = [...view.dom.querySelectorAll<HTMLElement>("[data-element]")].filter((node) => !node.hidden);
+    expect(lines[0]!.textContent).toBe(EPIGRAPH);
+    expect(lines[1]!.dataset["element"]).toBe("page-break");
+    expect(lines[1]!.textContent).toMatch(BREAK_LINE);
   });
 
-  it("shows a seam to a new sheet where each break is, page 1's with no number", () => {
+  it("shows a seam to a new sheet straight after each break, page 1's with no number", () => {
     const { view } = mounted(SMALL);
     const breaks = [...view.dom.querySelectorAll<HTMLElement>('[data-element="page-break"]')];
-    expect(breaks).toHaveLength(2);
-    for (const hidden of breaks) {
-      expect(hidden.hidden).toBe(true);
-      expect(hidden.textContent).toBe("");
-      // Straight after the break: the seam, then the next sheet's first line.
-      const seam = hidden.nextElementSibling as HTMLElement;
+    expect(breaks.map((line) => line.textContent)).toEqual(["====", "==="]);
+    for (const line of breaks) {
+      expect(line.hidden).toBe(false);
+      const seam = line.nextElementSibling as HTMLElement;
       expect(seam.classList.contains("sheet-break")).toBe(true);
       expect((seam.nextElementSibling as HTMLElement).dataset["element"]).not.toBe("page-break");
     }
@@ -125,23 +131,196 @@ describe("the paper", () => {
     expect(heads).toEqual(["", "2."]);
   });
 
-  it("keeps the caret out of a break, and lets no typing into one", () => {
+  it("lets the caret into a break, as into any line", () => {
     const { view, state } = mounted(SMALL);
-    const at = (text: string) => {
-      let found = -1;
-      state().doc.forEach((node, offset) => {
-        if (node.textContent === text) found = offset;
-      });
-      return found;
-    };
-    // Arrowing down off the epigraph lands inside the break; it is carried on.
-    const into = at("====") + 1;
+    let into = -1;
+    state().doc.forEach((node, offset) => {
+      if (node.textContent === "===") into = offset + 4;
+    });
     view.dispatch(state().tr.setSelection(TextSelection.create(state().doc, into)));
-    expect(state().selection.$head.parent.textContent).toBe("INT. KITCHEN - DAY");
-    // Typing at a position inside a break is refused.
-    const before = state().doc;
-    view.dispatch(state().tr.insertText("x", into));
-    expect(state().doc.eq(before)).toBe(true);
+    expect(state().selection.$head.parent.textContent).toBe("===");
+  });
+});
+
+/** Where the line reading `text` starts and ends, in `state`. */
+function lineOf(state: EditorState, text: string): { start: number; end: number } {
+  let found: { start: number; end: number } | undefined;
+  state.doc.forEach((node, offset) => {
+    if (found === undefined && node.type.name === "element" && node.textContent === text)
+      found = { start: offset + 1, end: offset + 1 + node.content.size };
+  });
+  if (found === undefined) throw new Error(`no line reads ${text}`);
+  return found;
+}
+
+/** A writer at the keyboard: the state, typing, and the keys that delete. */
+function writer(source: string) {
+  let state = editorStateFor(parse(source));
+  const run = (command: (state: EditorState, dispatch: (tr: Transaction) => void) => boolean) =>
+    command(state, (tr) => {
+      state = state.apply(tr);
+    });
+  return {
+    state: () => state,
+    caret: (at: number) => (state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, at)))),
+    type: (text: string) => {
+      for (const character of text) state = state.apply(state.tr.insertText(character));
+    },
+    backspace: () => {
+      if (!run(joinBackwards)) {
+        const at = state.selection.head;
+        state = state.apply(state.tr.delete(at - 1, at));
+      }
+    },
+    undo: () => run(undo),
+    redo: () => run(redo),
+    run,
+  };
+}
+
+const types = (state: EditorState) => manuscriptOf(state.doc).elements.map((element) => element.type);
+const pages = (state: EditorState) => layout(manuscriptOf(state.doc)).pages.map((page) => page.lines.map((line) => line.text));
+
+const TWO_LINES = "INT. KITCHEN - DAY\n\nFirst line.\n\nSecond line.\n";
+
+describe("typing a break (Noah, 2026-11-21)", () => {
+  /** `===` typed on a new line between the two, as the writer types it. */
+  function typedBreak() {
+    const at = writer(TWO_LINES);
+    at.caret(lineOf(at.state(), "First line.").end);
+    at.run(splitElement);
+    at.type("===");
+    return at;
+  }
+
+  it("makes `===` on its own line a break the moment the third `=` is typed", () => {
+    const at = writer(TWO_LINES);
+    at.caret(lineOf(at.state(), "First line.").end);
+    at.run(splitElement);
+    at.type("==");
+    expect(types(at.state())).not.toContain("page-break");
+    at.type("=");
+    expect(types(at.state())).toEqual(["scene-heading", "action", "page-break", "action"]);
+  });
+
+  it("starts a new sheet straight away, on the paper and in the PDF alike", () => {
+    const at = typedBreak();
+    expect(pages(at.state())).toEqual([["INT. KITCHEN - DAY", "First line."], ["Second line."]]);
+    const seams = sheetBreaks(layout(manuscriptOf(at.state().doc)));
+    expect(seams.map((seam) => seam.page)).toEqual([2]);
+    // The paper's seam sits after the break, and the PDF prints no `===`.
+    const printed = pdfPagesOf(manuscriptOf(at.state().doc));
+    expect(printed.pages.map((page) => page.filter((run) => !/^\d+\.$/.test(run.text)).map((run) => run.text))).toEqual([
+      ["INT. KITCHEN - DAY", "First line."],
+      ["Second line."],
+    ]);
+  });
+
+  it("keeps more `=` a break, and the file keeps them as typed", () => {
+    const at = typedBreak();
+    at.type("==");
+    expect(types(at.state())).toContain("page-break");
+    const file = serialise(manuscriptOf(at.state().doc));
+    expect(file).toBe("INT. KITCHEN - DAY\n\nFirst line.\n\n=====\n\nSecond line.\n");
+    // Reopened, it is the same break: the census, not only the bytes.
+    expect(parse(file).elements.map((element) => element.type)).toEqual(types(at.state()));
+    expect(serialise(parse(file))).toBe(file);
+  });
+
+  it("is taken back by Undo, break and all, and put back by Redo", () => {
+    const at = typedBreak();
+    const broken = at.state().doc;
+    at.undo();
+    expect(types(at.state())).not.toContain("page-break");
+    expect(pages(at.state())).toHaveLength(1);
+    at.redo();
+    expect(at.state().doc.eq(broken)).toBe(true);
+  });
+
+  it("is not made of a line that only starts with `===`, or of a forced action", () => {
+    const at = typedBreak();
+    at.type(" x");
+    expect(types(at.state())).not.toContain("page-break");
+    // `!===` in the file says "action, not a break"; an edit elsewhere leaves it so.
+    const forced = writer("!===\n\nWords.\n");
+    forced.caret(lineOf(forced.state(), "Words.").end);
+    forced.type("!");
+    expect(types(forced.state())).toEqual(["action", "action"]);
+    expect(serialise(manuscriptOf(forced.state().doc))).toBe("!===\n\nWords.!\n");
+  });
+});
+
+describe("deleting a break's `===`", () => {
+  it("takes the break out at once, when a `=` goes", () => {
+    const at = writer(SMALL);
+    at.caret(lineOf(at.state(), "===").end);
+    const before = pages(at.state()).length;
+    at.backspace();
+    expect(types(at.state()).filter((type) => type === "page-break")).toHaveLength(1);
+    expect(manuscriptOf(at.state().doc).elements.find((element) => element.text === "==")?.type).toBe("action");
+    expect(pages(at.state())).toHaveLength(before - 1);
+    // And Undo puts the break back.
+    at.undo();
+    expect(lineOf(at.state(), "===")).toBeDefined();
+    expect(types(at.state()).filter((type) => type === "page-break")).toHaveLength(2);
+  });
+
+  it("takes it out whole with Backspace at its start or Delete at its end", () => {
+    for (const [where, key] of [["start", joinBackwards], ["end", joinForwards]] as const) {
+      const at = writer(SMALL);
+      const line = lineOf(at.state(), "===");
+      at.caret(where === "start" ? line.start : line.end);
+      at.run(key);
+      expect(types(at.state()).filter((type) => type === "page-break"), where).toHaveLength(1);
+      // The lines either side are as they were.
+      expect(lineOf(at.state(), "Before the second break.")).toBeDefined();
+      expect(lineOf(at.state(), "After the second break.")).toBeDefined();
+    }
+  });
+});
+
+describe("Remove Page Break", () => {
+  it("is offered only on a break line", () => {
+    const state = editorStateFor(parse(SMALL));
+    const line = lineOf(state, "===");
+    expect(canRemovePageBreak(state, line.start)).toBe(true);
+    expect(canRemovePageBreak(state, line.end)).toBe(true);
+    // Between elements, just before the break: still the break's line.
+    expect(canRemovePageBreak(state, line.start - 1)).toBe(true);
+    expect(canRemovePageBreak(state, lineOf(state, "After the second break.").start)).toBe(false);
+  });
+
+  it("takes the break out whole, as one undo step, and the sheet closes up", () => {
+    const at = writer(SMALL);
+    const before = at.state().doc;
+    expect(at.run(removePageBreak(lineOf(at.state(), "===").start + 1))).toBe(true);
+    expect(pages(at.state())).toEqual([["INT. KITCHEN - DAY", "Before the second break.", "After the second break."]]);
+    expect(at.state().selection.$head.parent.textContent).toBe("After the second break.");
+    expect(serialise(manuscriptOf(at.state().doc))).not.toMatch(/^===$/m);
+    at.undo();
+    expect(at.state().doc.eq(before)).toBe(true);
+  });
+
+  it("is reached by a right-click on the `===`, which WebKit answers with the place after it", () => {
+    // Measured in WebKit: a point on the drawn `===` gives the break as the node
+    // it is inside, and the position just past it — the next sheet's first line.
+    const state = editorStateFor(parse(SMALL));
+    const line = lineOf(state, "===");
+    const after = line.end + 1;
+    expect(canRemovePageBreak(state, after)).toBe(false);
+    const at = placeOnBreak(state.doc, { pos: after, inside: line.start - 1 });
+    expect(at).toBe(line.end);
+    expect(canRemovePageBreak(state, at)).toBe(true);
+    // Inside the `===` already, or not on a break at all, the place is left alone.
+    expect(placeOnBreak(state.doc, { pos: line.start + 1, inside: line.start - 1 })).toBe(line.start + 1);
+    const words = lineOf(state, "After the second break.");
+    expect(placeOnBreak(state.doc, { pos: words.start + 2, inside: words.start - 1 })).toBe(words.start + 2);
+    expect(placeOnBreak(state.doc, { pos: 5, inside: -1 })).toBe(5);
+  });
+
+  it("does nothing off a break", () => {
+    const at = writer(SMALL);
+    expect(at.run(removePageBreak(lineOf(at.state(), "After the second break.").start))).toBe(false);
   });
 });
 

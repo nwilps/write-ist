@@ -68,7 +68,7 @@ import type { Comment, CommentEnd } from "../comments.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
 import { keepTitlePageOut, startOfScript } from "./title-page-editing.ts";
-import { keepPageBreaksWhole, outsidePageBreak } from "./page-break-editing.ts";
+import { outsidePageBreak, pageBreaksFollowText } from "./page-break-editing.ts";
 import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { screenplaySchema } from "./schema.ts";
 
@@ -208,7 +208,7 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
     // structural change joins that change's undo step rather than following it.
     // `undoGrouping` before `undoStack`: it marks where a new step begins
     // before the history reads the transaction.
-    plugins: [undoGrouping, undoStack, undoKeys(options.undo), markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, keepPageBreaksWhole, ...spelling],
+    plugins: [undoGrouping, undoStack, undoKeys(options.undo), markKeys, clipboard, dualCaretKey, ...offers, elementKeys, keepHiddenSyntax, maintainElements, endsUndoStep, maintainComments, keepTitlePageOut, pageBreaksFollowText, ...spelling],
   });
 }
 

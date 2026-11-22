@@ -1,28 +1,35 @@
 /**
- * A forced page break inside the editor: a new sheet on the paper, never a
- * line of `===` (Fountain's forced page break, ADR-0021).
+ * A forced page break inside the editor (Fountain's `===`, ADR-0021): a new
+ * sheet on the paper the moment it is typed, and a line of `===` the writer can
+ * see and take out (Noah, 2026-11-21).
  *
- * The break stays an element of the editor's document, with its `===` as its
- * text, because that is what `manuscriptOf` reads back: the save, the autosave
- * and the Fountain copy all write it exactly as it was. What the paper shows
- * at the break is the seam to the next sheet (`sheets.ts`), which the layout
- * puts there; the `===` itself is not on the paper and not in the writer's
- * hands, as the title page is not (`title-page-editing.ts`):
+ * The break is an element of the editor's document with its `===` as its text,
+ * because that is what `manuscriptOf` reads back: the save, the autosave and
+ * the Fountain copy all write it exactly as it was. The layout gives it no row
+ * (`paginate.ts`), so it is never printed and never moves a page; the paper
+ * draws its `===` faintly in the room the break leaves, without taking a row
+ * either (`editor.css`), so the sheets still match the PDF line for line.
  *
- *   - `hiddenPageBreak` draws a break as an empty, hidden placeholder, so no
- *     `===` is in the page's DOM.
- *   - `keepPageBreaksWhole` keeps the caret out of a break and refuses an edit
- *     that would type into one or join a line onto it. A break goes whole —
- *     by a selection across it, or by Backspace or Delete beside it
- *     (`joinBackwards`, `joinForwards`) — or not at all. Undo and redo are
- *     always let through: they only put back what was there.
+ * **The break follows its text**, in both directions, as the writer types:
+ *
+ *   - a line typed to read `===` (three or more `=` and nothing else) becomes
+ *     a break, and the next line starts a new sheet at once;
+ *   - a break whose `===` is no longer that — a `=` deleted, a letter typed —
+ *     is an action line again, and the sheet closes up at once.
+ *
+ * Either change rides in the keystroke's own transaction, so Undo takes the
+ * keystroke and the break back together. Nothing is announced: the sheet
+ * changing is the answer. A line only ever changes because it was edited —
+ * an imported `!===`, a forced action line, is left as the file has it.
+ *
+ * Backspace or Delete *beside* a break takes it out whole (`joinBackwards`,
+ * `joinForwards`), and so does the paper's right-click Remove Page Break.
  */
-import { DOMSerializer, type Node as EditorNode } from "prosemirror-model";
-import { Plugin, TextSelection, type EditorState } from "prosemirror-state";
+import type { Node as EditorNode } from "prosemirror-model";
+import { Plugin, TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { isHistoryTransaction } from "prosemirror-history";
-import type { NodeViewConstructor } from "prosemirror-view";
 
-/** The text of a forced page break as the parser reads one. */
+/** The text of a forced page break as the parser reads one (`parse.ts`). */
 const BREAK = /^={3,}$/;
 
 /** Is this node of the editor's document a forced page break? */
@@ -31,75 +38,107 @@ export function isPageBreak(node: EditorNode): boolean {
 }
 
 /**
- * Every element drawn as the schema draws it, except a page break: that is an
- * empty, hidden placeholder, present in the document and absent from the paper.
+ * Whether an edited line should now be a break: it reads `===`, and is a
+ * line the writer can type a break into. Not a forced action (`!===` is the
+ * file's way of saying "not a break"), not cut material, and not a line that
+ * carries hidden syntax of its own (a dual cue's `^`, a heading's number),
+ * which retyping would lose.
  */
-export const hiddenPageBreak: Readonly<Record<string, NodeViewConstructor>> = {
-  element: (node) => {
-    if (!isPageBreak(node)) return DOMSerializer.renderSpec(document, node.type.spec.toDOM!(node));
-    const dom = document.createElement("div");
-    dom.hidden = true;
-    dom.setAttribute("data-element", "page-break");
-    dom.setAttribute("data-page-break-hidden", "");
-    dom.setAttribute("aria-hidden", "true");
-    return { dom, ignoreMutation: () => true, stopEvent: () => true };
-  },
-};
-
-/**
- * A position inside a page break, carried out of it: to the start of the next
- * line that is not a break when moving forward, else to the end of the one
- * before. `undefined` when it is not in a break, or there is nowhere to go.
- */
-function outOfBreak(doc: EditorNode, position: number, forward: boolean): number | undefined {
-  const $at = doc.resolve(position);
-  if (!isPageBreak($at.parent)) return undefined;
-  const index = $at.index(0);
-  const step = forward ? 1 : -1;
-  for (const direction of [step, -step]) {
-    let pos = direction === 1 ? $at.after(1) : $at.before(1);
-    for (let i = index + direction; i >= 0 && i < doc.childCount; i += direction) {
-      const child = doc.child(i);
-      if (direction === -1) pos -= child.nodeSize;
-      if (child.type.name === "element" && !isPageBreak(child)) {
-        return direction === 1 ? pos + 1 : pos + 1 + child.content.size;
-      }
-      if (direction === 1) pos += child.nodeSize;
-    }
-  }
-  return undefined;
+function becomesBreak(node: EditorNode): boolean {
+  return (
+    node.type.name === "element" &&
+    !isPageBreak(node) &&
+    BREAK.test(node.textContent) &&
+    node.attrs["forced"] !== true &&
+    node.attrs["omitted"] !== true &&
+    node.attrs["dual"] !== true &&
+    typeof node.attrs["sceneNumber"] !== "string"
+  );
 }
 
-/** A selection with neither end inside a page break, or undefined when it already is. */
-function clamped(state: EditorState, forward: boolean): TextSelection | undefined {
-  const selection = state.selection;
-  if (!(selection instanceof TextSelection)) return undefined;
-  const anchor = outOfBreak(state.doc, selection.anchor, forward);
-  const head = outOfBreak(state.doc, selection.head, forward);
-  if (anchor === undefined && head === undefined) return undefined;
-  return TextSelection.create(state.doc, anchor ?? selection.anchor, head ?? selection.head);
+/** Whether a break has been edited out of being one. */
+function stopsBeingBreak(node: EditorNode): boolean {
+  return isPageBreak(node) && !BREAK.test(node.textContent);
 }
 
 /** Where a caret starts in a document: its first line, unless that is a page break. */
 export function outsidePageBreak(doc: EditorNode, selection: TextSelection): TextSelection {
-  const head = outOfBreak(doc, selection.head, true);
-  return head === undefined ? selection : TextSelection.create(doc, head);
+  const $head = doc.resolve(selection.head);
+  if ($head.depth === 0 || !isPageBreak($head.parent)) return selection;
+  for (let i = $head.index(0) + 1, pos = $head.after(1); i < doc.childCount; pos += doc.child(i).nodeSize, i++) {
+    const child = doc.child(i);
+    if (child.type.name === "element" && !isPageBreak(child)) return TextSelection.create(doc, pos + 1);
+  }
+  return selection;
 }
 
-/** Every break in the document still reads as one: `===` and nothing else. */
-function breaksIntact(doc: EditorNode): boolean {
-  let intact = true;
-  doc.forEach((child) => {
-    if (isPageBreak(child) && !BREAK.test(child.textContent)) intact = false;
-  });
-  return intact;
+/** The top-level indexes an edit touched, in the document as it now is. */
+function touched(transactions: readonly Transaction[], doc: EditorNode): Set<number> {
+  const found = new Set<number>();
+  const size = doc.content.size;
+  for (const transaction of transactions) {
+    transaction.mapping.maps.forEach((map, at) => {
+      const rest = transaction.mapping.slice(at + 1);
+      map.forEach((_s, _e, from, to) => {
+        const start = Math.min(rest.map(from, -1), size);
+        const end = Math.min(Math.max(rest.map(to, 1), start), size);
+        const first = doc.resolve(start).index(0);
+        const last = doc.resolve(end).index(0);
+        for (let i = first; i <= last && i < doc.childCount; i++) found.add(i);
+      });
+    });
+  }
+  return found;
 }
 
-export const keepPageBreaksWhole = new Plugin({
-  filterTransaction: (transaction) =>
-    !transaction.docChanged || isHistoryTransaction(transaction) || breaksIntact(transaction.doc),
-  appendTransaction: (_transactions, old, state) => {
-    const selection = clamped(state, state.selection.head >= old.selection.head);
-    return selection === undefined ? null : state.tr.setSelection(selection);
+export const pageBreaksFollowText = new Plugin({
+  appendTransaction: (transactions, _old, state) => {
+    // Undo and redo put back a line and its type together.
+    if (!transactions.some((tr) => tr.docChanged && !isHistoryTransaction(tr))) return null;
+    const tr = state.tr;
+    let pos = 0;
+    const lines = touched(transactions, state.doc);
+    state.doc.forEach((node, offset, index) => {
+      pos = offset;
+      if (!lines.has(index)) return;
+      if (becomesBreak(node)) tr.setNodeMarkup(pos, undefined, { type: "page-break", omitted: node.attrs["omitted"] });
+      else if (stopsBeingBreak(node)) tr.setNodeMarkup(pos, undefined, { type: "action", omitted: node.attrs["omitted"] });
+    });
+    return tr.docChanged ? tr : null;
   },
 });
+
+/** The break the place `at` is on, with where it starts; `undefined` when it is not on one. */
+export function breakAt(state: EditorState, at: number): { node: EditorNode; pos: number } | undefined {
+  if (at < 0 || at > state.doc.content.size) return undefined;
+  const $at = state.doc.resolve(at);
+  if ($at.depth >= 1 && isPageBreak($at.parent)) return { node: $at.parent, pos: $at.before(1) };
+  // Between elements: the line that starts here.
+  const after = $at.depth === 0 ? $at.nodeAfter : null;
+  return after !== null && isPageBreak(after) ? { node: after, pos: at } : undefined;
+}
+
+/** Whether the place `at` — the caret, or where the paper was right-clicked — is on a break. */
+export function canRemovePageBreak(state: EditorState, at: number): boolean {
+  return breakAt(state, at) !== undefined;
+}
+
+/**
+ * Where a click on the paper landed, when it landed on a break's `===`.
+ *
+ * The break takes no height on the paper (`editor.css`), so its line is drawn
+ * outside its own box, and WebKit answers a point on it with the place *after*
+ * the break, though it says the break is the node the point is `inside`. That
+ * place is the next sheet's first line: the right-click menu would not offer
+ * Remove Page Break, and the caret would jump past the line clicked. So a
+ * point inside a break is taken to the end of its `===`. Anything else is
+ * answered as it was found.
+ */
+export function placeOnBreak(doc: EditorNode, found: { pos: number; inside: number }): number {
+  if (found.inside < 0) return found.pos;
+  const node = doc.nodeAt(found.inside);
+  if (node === null || !isPageBreak(node)) return found.pos;
+  const start = found.inside + 1;
+  const end = start + node.content.size;
+  return found.pos >= start && found.pos <= end ? found.pos : end;
+}

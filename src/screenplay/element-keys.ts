@@ -32,7 +32,7 @@ import type { Attrs, Node as EditorNode } from "prosemirror-model";
 import { screenplaySchema } from "./schema.ts";
 import type { ElementType } from "./document.ts";
 import { gapBetween } from "./geometry.ts";
-import { isPageBreak } from "./page-break-editing.ts";
+import { breakAt, isPageBreak } from "./page-break-editing.ts";
 
 /** What Enter at the end of an element starts, by the type it ends. */
 const AFTER_ENTER: Partial<Record<ElementType, ElementType>> = {
@@ -286,6 +286,11 @@ export const joinBackwards: Command = (state, dispatch) => {
   if (deleteSelected(state, dispatch)) return true;
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== 0) return false;
+  // At the start of the `===` itself: the break goes whole, not onto the line above.
+  if (isPageBreak(at.parent)) {
+    if (dispatch !== undefined) dispatch(structural(removeBreak(state, at.before(), at.parent)));
+    return true;
+  }
   const before = at.index(0) > 0 ? at.doc.child(at.index(0) - 1) : undefined;
   if (before !== undefined && isPageBreak(before)) {
     if (dispatch !== undefined) dispatch(structural(removeBreak(state, at.before() - before.nodeSize, before)));
@@ -307,12 +312,32 @@ export const joinBackwards: Command = (state, dispatch) => {
 };
 
 /**
- * Backspace or Delete beside a forced page break takes the break out whole,
- * as a word processor does, and leaves both lines as they were: joined, the
- * line would vanish into the hidden break (`page-break-editing.ts`).
+ * Backspace or Delete beside a forced page break, or at either end of its own
+ * `===`, takes the break out whole, as a word processor does, and leaves both
+ * lines as they were: joined, a line of text would become part of the `===`
+ * (`page-break-editing.ts`).
  */
 function removeBreak(state: EditorState, pos: number, node: EditorNode): Transaction {
   return state.tr.delete(pos, pos + node.nodeSize).scrollIntoView();
+}
+
+/**
+ * The paper's right-click Remove Page Break: take out the break at `at` — the
+ * caret, or where the paper was clicked — whole, `===` and all, as one undo
+ * step. The lines either side stay as they were, the sheet closes up, and the
+ * caret goes to the start of the line that followed the break.
+ */
+export function removePageBreak(at: number): Command {
+  return (state, dispatch) => {
+    const found = breakAt(state, at);
+    if (found === undefined) return false;
+    if (dispatch !== undefined) {
+      const tr = removeBreak(state, found.pos, found.node);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(found.pos + 1, tr.doc.content.size))));
+      dispatch(structural(tr));
+    }
+    return true;
+  };
 }
 
 /**
@@ -338,6 +363,11 @@ export const joinForwards: Command = (state, dispatch) => {
   if (deleteSelected(state, dispatch)) return true;
   const at = emptyCaret(state);
   if (at === undefined || at.parentOffset !== at.parent.content.size) return false;
+  // At the end of the `===` itself: the break goes whole, not the line below onto it.
+  if (isPageBreak(at.parent)) {
+    if (dispatch !== undefined) dispatch(structural(removeBreak(state, at.before(), at.parent)));
+    return true;
+  }
   const after = at.index(0) + 1 < at.doc.childCount ? at.doc.child(at.index(0) + 1) : undefined;
   if (after === undefined || after.type.name !== "element")
     return at.parent.type.name === "element";
