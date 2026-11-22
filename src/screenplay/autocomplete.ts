@@ -174,6 +174,22 @@ export interface AutocompleteOptions {
   readonly names: () => NameLists;
   /** Draws the offer (the DOM is the app's; this module has none). */
   readonly draw: (drawing: Drawing) => HTMLElement;
+  /**
+   * Lines the drawn offer up, once it is on the paper and after every redraw.
+   * `start` says where the list's left edge belongs, in the window's own
+   * coordinates, for the offer showing *when it is asked*: where a cue's name
+   * begins as it is drawn (Noah, 2026-11-21), indent and centring and all. For
+   * a heading's piece there is none, and the list hangs from the caret as it
+   * always did. Without `place`, it always does.
+   */
+  readonly place?: (drawn: HTMLElement, start: () => Coords | undefined) => void;
+}
+
+/** A place on the window, as `EditorView.coordsAtPos` gives it. */
+export interface Coords {
+  readonly left: number;
+  readonly top: number;
+  readonly bottom: number;
 }
 
 interface Held {
@@ -263,8 +279,21 @@ export function autocomplete(options: AutocompleteOptions): Plugin<Held> {
     return offer;
   };
 
+  // The offer as it was last drawn, to be lined up once the view has put it in.
+  let drawn: HTMLElement | undefined;
+
   return new Plugin<Held>({
     key,
+    view: () => ({
+      update: (view) => {
+        if (options.place === undefined || current(view.state) === undefined || drawn?.isConnected !== true) return;
+        // Read when asked, which may be after the caret has been scrolled to.
+        options.place(drawn, () => {
+          const offer = current(view.state);
+          return offer?.piece === "cue" ? view.coordsAtPos(offer.from, 1) : undefined;
+        });
+      },
+    }),
     state: {
       init: () => ({ selected: 0, closedIn: null }),
       apply: (tr, held, _old, state) => {
@@ -319,7 +348,7 @@ export function autocomplete(options: AutocompleteOptions): Plugin<Held> {
           selected: offer.selected,
         };
         return DecorationSet.create(state.doc, [
-          Decoration.widget(offer.to, () => options.draw(drawing), {
+          Decoration.widget(offer.to, () => (drawn = options.draw(drawing)), {
             side: 1,
             // Redrawn when what it shows changes, and only then.
             key: `autocomplete:${offer.selected}:${offer.typed}:${offer.choices.join("|")}`,

@@ -59,7 +59,7 @@ import { contextMenuItems } from "./context-menu-items.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
-import { drawOffer } from "./autocomplete-draw.ts";
+import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretFromMargins } from "./margin-click.ts";
 import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
@@ -469,6 +469,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           spellEngine: tauriSpellEngine,
           drawSeam: drawSheetBreak,
           drawOffer,
+          placeOffer,
           reloaded: (spellingWasOn) => {
             view?.updateState(writing.state);
             if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);

@@ -52,7 +52,7 @@ import { elementUnder } from "../screenplay/place.ts";
 import { paperDecorations, type SheetBreak } from "../screenplay/sheets.ts";
 import { Spellcheck, type SpellIssue } from "../screenplay/spellcheck.ts";
 import type { SpellEngine } from "../screenplay/spelling.ts";
-import type { Drawing } from "../screenplay/autocomplete.ts";
+import type { AutocompleteOptions, Drawing } from "../screenplay/autocomplete.ts";
 import { autosave, type Clock } from "./autosave.ts";
 import type { Project } from "./bundle.ts";
 import type { Filesystem } from "./filesystem.ts";
@@ -95,6 +95,8 @@ export interface SessionPorts {
   readonly drawSeam: (seam: SheetBreak) => HTMLElement;
   /** The DOM of an autocomplete offer. */
   readonly drawOffer: (drawing: Drawing) => HTMLElement;
+  /** Lines a drawn offer up on the paper (`AutocompleteOptions.place`); a test may leave it out. */
+  readonly placeOffer?: AutocompleteOptions["place"];
   /**
    * Another application changed the manuscript and nothing was typed here, so
    * `state` is a fresh one. The view must be given it; `spellingWasOn` says
@@ -240,7 +242,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     },
   });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
-  const autocomplete = { names: () => names, draw: ports.drawOffer };
+  const autocomplete = { names: () => names, draw: ports.drawOffer, place: ports.placeOffer };
   // Add to Dictionary's undo steps, which sit among the text's (`off-paper-undo.ts`).
   const offPaper = new OffPaperHistory();
   const undo = { undo: offPaper.undo, redo: offPaper.redo };

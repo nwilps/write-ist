@@ -25,10 +25,15 @@
  * floating corner and shadow, the label type, muted, padded and gapped as a
  * menu is) and `drop-menu__item` for each row. Only what differs is here:
  * where it sits, how wide it is, and the manuscript's type undone inside it.
+ *
+ * It hangs from the caret, and `placeOffer` (`autocomplete-draw.ts`) moves it
+ * by the measured `--offer-x` and `--offer-y` so its left edge is the name's
+ * and it stays on the window. Numbers in the paper's own pixels; the unit is
+ * here.
  */
 .drop-menu.autocomplete__list {
-  top: 100%;
-  left: 0;
+  top: calc(100% + var(--offer-y, 0) * var(--size-pixel));
+  left: calc(var(--offer-x, 0) * var(--size-pixel));
   width: max-content;
   min-width: max-content;
   font-family: var(--face-interface);
