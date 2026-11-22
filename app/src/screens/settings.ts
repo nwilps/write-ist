@@ -143,10 +143,10 @@ const subheading = (text: string): HTMLElement =>
   element("h3", { className: "new-project-dialog__label settings__subheading", textContent: text });
 
 /** A quiet line where a list has nothing in it. */
-const emptyLine = (text: string): HTMLElement => element("p", { className: "settings__empty", textContent: text });
+export const emptyLine = (text: string): HTMLElement => element("p", { className: "settings__empty", textContent: text });
 
 /** A row's small button, lit as every dialog button is, without the `>`. */
-const rowAction = (label: string): HTMLButtonElement => {
+export const rowAction = (label: string): HTMLButtonElement => {
   const button = dialogAction(label, undefined, "button", { cursor: false });
   button.classList.add("settings__row-action");
   return button;
@@ -157,7 +157,7 @@ const beingEdited = (node: EventTarget | null): boolean =>
   node instanceof HTMLElement && node.classList.contains("dialog-keys__editing");
 
 /** Enter in a field being typed in: done with it. */
-function onEnterWhileEditing(input: HTMLInputElement, act: () => void): void {
+export function onEnterWhileEditing(input: HTMLInputElement, act: () => void): void {
   input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || !beingEdited(input)) return;
     event.preventDefault();
@@ -176,7 +176,7 @@ function icon(node: IconNode, className: string): SVGElement {
 }
 
 /** One cell of a list: a pill the width of the section (`.settings__cell`). */
-const cell = (children: readonly Node[], className = ""): HTMLLIElement =>
+export const cell = (children: readonly Node[], className = ""): HTMLLIElement =>
   element("li", { className: `settings__cell ${className}`.trim() }, children);
 
 /** Whether two lists of keys are the same keys, in the same order. */

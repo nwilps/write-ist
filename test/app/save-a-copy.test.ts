@@ -16,7 +16,7 @@ describe("the Fountain copy, through Export As…", () => {
     const exportAs = vi.fn();
     const file = editorMenus({
       save: vi.fn(), exportAs, toProjects: vi.fn(), editProjectDetails: vi.fn(), openContextMenu: vi.fn(), openSettings: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
-      viewTitlePage: vi.fn(), editGoals: vi.fn(),
+      viewTitlePage: vi.fn(), editGoals: vi.fn(), editNameList: vi.fn(),
       toggleSpellcheck: vi.fn(), spellcheckOn: () => false, keyboardShortcuts: vi.fn(), search: vi.fn(), view: () => undefined,
       zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(), zoomLevel: () => 2,
       cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), undo: vi.fn(), redo: vi.fn(), misspellingAt: () => undefined,

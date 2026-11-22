@@ -62,6 +62,8 @@ import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
 import { placeOnBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { formattingOf, readDetails } from "../../../../src/project/details.ts";
 import { formattingAttributes } from "./paper-formatting.ts";
+import { openNameListDialog } from "./name-list-dialog.ts";
+import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { DEFAULT_FORMATTING, type Formatting } from "../../../../src/screenplay/formatting.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretFromMargins } from "./margin-click.ts";
@@ -322,6 +324,20 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     });
   };
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
+  // Edit ▸ Character List and Location List: the names autocomplete offers.
+  // Adding and removing say nothing; the list redrawn is the answer.
+  const editNameList = (kind: NameKind): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    const writing = session;
+    openNameListDialog(into, {
+      title: kind === "character" ? "Character List" : "Location List",
+      noun: kind,
+      names: () => writing.nameList(kind),
+      add: (name) => writing.addName(kind, name),
+      remove: (name) => writing.removeName(kind, name),
+      closed: () => view?.focus(),
+    });
+  };
   // View ▸ Hotkeys and Ctrl+K: the key that opens it closes it, and
   // it never opens over another dialog.
   let shortcuts: HTMLDialogElement | undefined;
@@ -392,6 +408,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editTitlePage: () => openTitlePage("edit"),
     viewTitlePage: () => openTitlePage("view"),
     editGoals,
+    editNameList,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     zoomIn: () => zoomTo(zoomedIn(paperZoomLevel())),

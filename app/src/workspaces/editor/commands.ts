@@ -47,6 +47,7 @@ import {
   FolderOpen,
   House,
   Keyboard,
+  MapPin,
   Pencil,
   Redo2,
   Save,
@@ -56,6 +57,7 @@ import {
   SpellCheck,
   Target,
   Undo2,
+  Users,
   ZoomIn,
   type IconNode,
 } from "lucide";
@@ -70,6 +72,7 @@ import {
 } from "../../../../src/screenplay/dual-dialogue.ts";
 import { NUMBERED_TYPES, removePageBreak, setElementType } from "../../../../src/screenplay/element-keys.ts";
 import { canRemovePageBreak } from "../../../../src/screenplay/page-break-editing.ts";
+import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
 import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
 import { ZOOM_LEVELS } from "./paper-zoom.ts";
@@ -93,6 +96,8 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
   readonly editGoals: () => void;
+  /** Edit ▸ Character List or Location List: the names autocomplete offers, to add to or remove from. */
+  readonly editNameList: (kind: NameKind) => void;
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
@@ -277,6 +282,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", fixed: true, menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
+  { id: "character-list", label: "Character List", icon: Users, menu: { name: "Edit", group: "names" }, run: (host) => host.editNameList("character") },
+  { id: "location-list", label: "Location List", icon: MapPin, menu: { name: "Edit", group: "names" }, run: (host) => host.editNameList("location") },
 
   // View
   { id: "view-title-page", label: "View Title Page", icon: Eye, menu: { name: "View", group: "title-page" }, run: (host) => host.viewTitlePage() },

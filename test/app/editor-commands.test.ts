@@ -214,7 +214,7 @@ describe("the Editor's menus", () => {
         "---",
         "Home[Esc]",
       ],
-      Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…"],
+      Edit: ["Undo[Ctrl + Z]", "Redo[Ctrl + Y]", "---", "Edit Title Page…", "---", "Edit Goals…", "---", "Character List", "Location List"],
       View: [
         "View Title Page",
         "---",

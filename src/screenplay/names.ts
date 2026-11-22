@@ -18,6 +18,20 @@
  * stays until the writer takes it away. Changing the threshold changes which
  * entries are confirmed and touches nothing in the manuscript.
  *
+ * ## Added and removed by hand (Edit ▸ Character List, Location List)
+ *
+ * The writer can **add** a name, which confirms it by hand (and so it is
+ * offered at once), and **remove** one, which **hides** it: no longer
+ * confirmed, so autocomplete stops offering it and the lists' dialogs stop
+ * showing it. The manuscript is not touched. A hidden name **quietly returns**
+ * once the paper uses it `RETURN_AFTER_USES` more times than when it was hidden
+ * — a name the writer keeps typing is a name after all — and its hiding is
+ * forgotten. Fewer uses since (cues deleted) lower the mark it counts from.
+ * Hidden names are stored with the confirmations, in the names file.
+ *
+ * A name is one record per kind, keyed by its capitals, so a later Replace
+ * (one name for another, through the manuscript) has a single place to act.
+ *
  * ## Who is speaking, and where
  *
  * The name of a cue is `characterName` (`continuations.ts`), called and not
@@ -51,7 +65,18 @@ export interface NameEntry {
   readonly confirmed: boolean;
   /** The writer confirmed it by hand (it stays confirmed whatever the count). */
   readonly explicit: boolean;
+  /** Present when the writer removed it from its list: not confirmed, however often it is used. */
+  readonly hidden?: true;
 }
+
+/** A name the writer removed, and how many uses it had then (the mark it returns from). */
+export interface HiddenName {
+  readonly name: string;
+  readonly since: number;
+}
+
+/** Uses beyond the mark at which a hidden name returns to its list. */
+export const RETURN_AFTER_USES = 3;
 
 /** A name as the lists key it: capitals, single-spaced. */
 export function normaliseName(raw: string): string {
@@ -172,6 +197,8 @@ export interface NameListOptions {
   readonly confirmAfterUses?: number;
   /** Names the writer confirmed by hand, from the names file. */
   readonly explicit?: Readonly<Record<NameKind, Iterable<string>>>;
+  /** Names the writer removed, from the names file. */
+  readonly hidden?: Readonly<Record<NameKind, Iterable<HiddenName>>>;
 }
 
 const KINDS: readonly NameKind[] = ["character", "location"];
@@ -185,8 +212,14 @@ export class NameLists {
     character: new Set(),
     location: new Set(),
   };
+  /** Removed by hand: name → uses when it was removed (lowered as uses fall). */
+  private readonly hiddenByHand: Record<NameKind, Map<string, number>> = {
+    character: new Map(),
+    location: new Map(),
+  };
   private threshold: number;
   private changes = 0;
+  private hiddenChanges = 0;
 
   private entryCache: { version: number; lists: Record<NameKind, readonly NameEntry[]> } | undefined;
   private wordCache: { version: number; words: ReadonlySet<string> } | undefined;
@@ -197,6 +230,10 @@ export class NameLists {
       for (const name of options.explicit?.[kind] ?? []) {
         const key = normaliseName(name);
         if (key !== "") this.confirmedByHand[kind].add(key);
+      }
+      for (const { name, since } of options.hidden?.[kind] ?? []) {
+        const key = normaliseName(name);
+        if (key !== "" && Number.isInteger(since) && since >= 0) this.hiddenByHand[kind].set(key, since);
       }
     }
   }
@@ -222,16 +259,36 @@ export class NameLists {
       if (left > 0) counts.set(found.name, left);
       else counts.delete(found.name);
       changed = true;
+      // Fewer uses than when it was hidden: the next three count from here.
+      const hidden = this.hiddenByHand[found.kind];
+      const since = hidden.get(found.name);
+      if (since !== undefined && Math.max(left, 0) < since) {
+        hidden.set(found.name, Math.max(left, 0));
+        this.hiddenChanges += 1;
+      }
     }
     for (const line of inserted) {
       const found = nameOf(line);
       if (found === undefined) continue;
       const counts = this.counts[found.kind];
-      counts.set(found.name, (counts.get(found.name) ?? 0) + 1);
+      const uses = (counts.get(found.name) ?? 0) + 1;
+      counts.set(found.name, uses);
       changed = true;
+      // Used enough since it was hidden: it is a name after all, and comes back.
+      const hidden = this.hiddenByHand[found.kind];
+      const since = hidden.get(found.name);
+      if (since !== undefined && uses >= since + RETURN_AFTER_USES) {
+        hidden.delete(found.name);
+        this.hiddenChanges += 1;
+      }
     }
     if (changed) this.changes += 1;
     return changed;
+  }
+
+  /** Bumps whenever a hidden name returns or its mark moves: what the names file holds changed. */
+  get hiddenVersion(): number {
+    return this.hiddenChanges;
   }
 
   /** Bumps whenever anything an answer depends on changes. */
@@ -274,7 +331,57 @@ export class NameLists {
 
   isConfirmed(kind: NameKind, name: string): boolean {
     const key = normaliseName(name);
+    if (this.hiddenByHand[kind].has(key)) return false;
     return this.confirmedByHand[kind].has(key) || (this.counts[kind].get(key) ?? 0) >= this.threshold;
+  }
+
+  isHidden(kind: NameKind, name: string): boolean {
+    return this.hiddenByHand[kind].has(normaliseName(name));
+  }
+
+  /**
+   * The writer adds a name to its list (Edit ▸ Character List, Location List):
+   * confirmed by hand, and no longer hidden if it was. Answers whether
+   * anything changed.
+   */
+  add(kind: NameKind, name: string): boolean {
+    const key = normaliseName(name);
+    if (key === "") return false;
+    const unhidden = this.hiddenByHand[kind].delete(key);
+    const confirmed = !this.confirmedByHand[kind].has(key);
+    this.confirmedByHand[kind].add(key);
+    if (!unhidden && !confirmed) return false;
+    if (unhidden) this.hiddenChanges += 1;
+    this.changes += 1;
+    return true;
+  }
+
+  /**
+   * The writer removes a name from its list: no longer confirmed by hand, and
+   * hidden while the paper still uses it, so that use alone does not offer it
+   * again. A name the paper does not use is simply gone. Answers whether
+   * anything changed.
+   */
+  remove(kind: NameKind, name: string): boolean {
+    const key = normaliseName(name);
+    if (key === "") return false;
+    const unconfirmed = this.confirmedByHand[kind].delete(key);
+    const uses = this.counts[kind].get(key) ?? 0;
+    const hides = uses > 0 && this.hiddenByHand[kind].get(key) !== uses;
+    if (hides) {
+      this.hiddenByHand[kind].set(key, uses);
+      this.hiddenChanges += 1;
+    }
+    if (!unconfirmed && !hides) return false;
+    this.changes += 1;
+    return true;
+  }
+
+  /** The names the writer removed and their marks, for the names file. */
+  hidden(kind: NameKind): readonly HiddenName[] {
+    return [...this.hiddenByHand[kind]]
+      .sort(([a], [b]) => compareNames(a, b))
+      .map(([name, since]) => ({ name, since }));
   }
 
   /** The writer says this name is right. */
@@ -335,7 +442,9 @@ export class NameLists {
       return [...names].sort(compareNames).map((name) => {
         const uses = this.counts[kind].get(name) ?? 0;
         const explicit = this.confirmedByHand[kind].has(name);
-        return { name, uses, explicit, confirmed: explicit || uses >= this.threshold };
+        const hidden = this.hiddenByHand[kind].has(name);
+        const confirmed = !hidden && (explicit || uses >= this.threshold);
+        return hidden ? { name, uses, explicit, confirmed, hidden: true as const } : { name, uses, explicit, confirmed };
       });
     };
     const lists = { character: build("character"), location: build("location") };

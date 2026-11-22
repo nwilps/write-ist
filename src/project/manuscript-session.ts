@@ -211,6 +211,23 @@ export interface ManuscriptSession {
    */
   readonly confirm: (kind: NameKind, at?: number) => boolean;
   /**
+   * The names a list offers now (Edit ▸ Character List, Location List): its
+   * confirmed names, by name, without any the writer removed.
+   */
+  readonly nameList: (kind: NameKind) => readonly string[];
+  /**
+   * The writer adds a name to a list: confirmed by hand, offered by
+   * autocomplete at once, and written to the names file. Answers whether it
+   * was added — never when the names file could not be read.
+   */
+  readonly addName: (kind: NameKind, name: string) => boolean;
+  /**
+   * The writer removes a name from a list: hidden, so autocomplete stops
+   * offering it, until the paper uses it `RETURN_AFTER_USES` more times. The
+   * manuscript is not touched, and nothing is said.
+   */
+  readonly removeName: (kind: NameKind, name: string) => boolean;
+  /**
    * Add to Dictionary on a flagged word: always the writer's dictionary, and
    * on a cue's name or a heading's location (`listOfWordAt`) that name joins
    * its list as well. Spellcheck is redrawn after, so the newly confirmed
@@ -234,6 +251,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   let laid: Layout;
   let seams: DecorationSet;
   let names: NameLists;
+  // What the names file last had of the hidden names, by the lists' count of changes to them.
+  let hiddenKept = 0;
 
   const spellcheck = new Spellcheck({
     engine: ports.spellEngine,
@@ -254,6 +273,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   const confirmationsOf = (lists: NameLists): Confirmations => ({
     character: lists.explicit("character"),
     location: lists.explicit("location"),
+    hidden: { character: lists.hidden("character"), location: lists.hidden("location") },
   });
 
   /**
@@ -266,10 +286,19 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   const settle = (basis: { readonly replaced: Confirmations } | { readonly editedFrom: EditorNode }): void => {
     const document = manuscriptOf(state.doc);
     if ("replaced" in basis) {
-      names = namesOf(state.doc, { explicit: basis.replaced });
+      names = namesOf(state.doc, {
+        explicit: basis.replaced,
+        ...(basis.replaced.hidden === undefined ? {} : { hidden: basis.replaced.hidden }),
+      });
+      hiddenKept = names.hiddenVersion;
       laid = layout(document, undefined, undefined, ports.formatting);
     } else {
       syncNames(names, basis.editedFrom, state.doc);
+      // A removed name used enough to come back, or its mark moved: kept, quietly.
+      if (names.hiddenVersion !== hiddenKept) {
+        hiddenKept = names.hiddenVersion;
+        if (read.confirmed !== undefined) writeNames();
+      }
       laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head), ports.formatting);
     }
     // Decorations, so they are never part of the document and never reach the file.
@@ -489,6 +518,18 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     if (read.confirmed === undefined || !names.unconfirm(kind, name)) return;
     writeNames();
   };
+  const addName = (kind: NameKind, name: string): boolean => {
+    if (read.confirmed === undefined || !names.add(kind, name)) return false;
+    hiddenKept = names.hiddenVersion;
+    writeNames();
+    return true;
+  };
+  const removeName = (kind: NameKind, name: string): boolean => {
+    if (read.confirmed === undefined || !names.remove(kind, name)) return false;
+    hiddenKept = names.hiddenVersion;
+    writeNames();
+    return true;
+  };
   const confirm = (kind: NameKind, at = state.selection.head): boolean => {
     const found = nameAt(at);
     if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
@@ -586,6 +627,9 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
     listOfWordAt,
     confirm,
+    nameList: (kind) => names.confirmed(kind),
+    addName,
+    removeName,
     addToDictionary: async (view, issue) => {
       // Typing before and after stays two undo steps, with this one between.
       const step = offPaper.begin(view.state);

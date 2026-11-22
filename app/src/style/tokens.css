@@ -621,6 +621,17 @@
   --opacity-unavailable: 0.4;
 }
 
+/* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */
+
+:root {
+  /** As wide as a Settings section, which it is set like. */
+  --measure-name-list: var(--measure-settings-pane);
+  /** The names, before they scroll: as tall as a Settings section. */
+  --size-name-list: var(--size-settings-pane);
+  /** A name's actions: Remove, and the room kept beside it for a Replace to come. */
+  --measure-name-list-actions: 168px;
+}
+
 /*
  * Settings ▸ General ▸ Appearance's corners, set on the root by `applyAppearance`.
  * Sharp interface corners square every rounded thing but the paper, which
