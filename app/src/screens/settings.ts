@@ -4,11 +4,11 @@
  *
  * A list of sections down the left and the one chosen on the right, so the
  * dialog keeps one size and fits the window: General (with Appearance inside
- * it), New Project Defaults, Keyboard Shortcuts, Dictionary and Graveyard
+ * it), New Project Defaults, Hotkeys, Dictionary and Graveyard
  * (Noah's notes, *INT. SETTINGS - DAY*). Nothing is "saved" with a button, as
  * in Goals: a choice changes the setting at once and **Done** only puts the
  * dialog away. A field is put right quietly when it is left, and never says it
- * was wrong. The one message a section says of its own is Keyboard Shortcuts'
+ * was wrong. The one message a section says of its own is Hotkeys'
  * "already used", for a key another command has.
  *
  * **Every list is one column of cells**, each a pill the width of the section
@@ -63,13 +63,13 @@ import { message, trouble as troublePanel } from "./trouble.ts";
 export const SETTINGS_SECTIONS = [
   "General",
   "New Project Defaults",
-  "Keyboard Shortcuts",
+  "Hotkeys",
   "Dictionary",
   "Graveyard",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
-/** A command Keyboard Shortcuts lists, as the application's command table gives it. */
+/** A command Hotkeys lists, as the application's command table gives it. */
 export interface ShortcutCommand {
   readonly id: string;
   readonly label: string;
@@ -79,7 +79,7 @@ export interface ShortcutCommand {
   readonly fixed: boolean;
 }
 
-/** What Keyboard Shortcuts edits: the commands, and the keys no command may take. */
+/** What Hotkeys edits: the commands, and the keys no command may take. */
 export interface SettingsShortcuts {
   readonly commands: readonly ShortcutCommand[];
   /** Keys that are taken without being a command's here: the menus' Alt+F, the surface's Ctrl+B. */
@@ -481,7 +481,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     rows: () => typeCells.flatMap((type) => type.rows()),
   };
 
-  // --- Keyboard Shortcuts: one list, each command's keys changed in place --------
+  // --- Hotkeys: one list, each command's keys changed in place --------
   const commands = options.shortcuts.commands;
   /** The keys a command answers now: the writer's, where they changed them. */
   const keysOf = (command: ShortcutCommand): readonly KeyBinding[] =>
@@ -642,7 +642,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     };
   }
   const keyboardShortcuts: Section = {
-    body: [element("ul", { className: "settings__list", ariaLabel: "Keyboard shortcuts" }, keyCells.map((key) => key.cell))],
+    body: [element("ul", { className: "settings__list", ariaLabel: "Commands and their keys" }, keyCells.map((key) => key.cell))],
     rows: () => keyCells.flatMap((key) => key.rows()),
   };
 
@@ -842,7 +842,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
   const sections: Readonly<Record<SettingsSection, Section>> = {
     General: general,
     "New Project Defaults": newProjectDefaults,
-    "Keyboard Shortcuts": keyboardShortcuts,
+    Hotkeys: keyboardShortcuts,
     Dictionary: dictionary,
     Graveyard: graveyard,
   };

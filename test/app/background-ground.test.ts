@@ -433,14 +433,14 @@ describe("moving on its own (Ambient)", () => {
 });
 
 describe("one look at a time", () => {
-  it("draws Drift unless told otherwise, loading only its code", async () => {
+  it("draws Field unless told otherwise, loading only its code", async () => {
     motionQuery(false);
     const { ground, engine } = mount();
     ground.set(true);
     await settle();
-    expect(engine.runs[0]!.look).toBe("drift");
-    expect(engine.loadLook.mock.calls).toEqual([["drift"]]);
-    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("drift");
+    expect(engine.runs[0]!.look).toBe("field");
+    expect(engine.loadLook.mock.calls).toEqual([["field"]]);
+    expect(document.querySelector<HTMLElement>(".background-ground")!.dataset["look"]).toBe("field");
   });
 
   it("starts in the look kept, loading only that one", async () => {
@@ -531,7 +531,7 @@ describe("one look at a time", () => {
     const { ground, engine } = mount();
     ground.set(true);
     await settle();
-    ground.look("drift");
+    ground.look("field");
     await settle();
     expect(engine.runs[0]!.show).not.toHaveBeenCalled();
     expect(engine.loadLook).toHaveBeenCalledTimes(1);
@@ -568,8 +568,8 @@ describe("one look at a time", () => {
     motionQuery(false);
     const engine = fakeEngine();
     const start = engine.start.getMockImplementation()!;
-    // Drift needs WebGL2, which this machine has not got; Dune draws on a 2D canvas.
-    engine.start.mockImplementation((host, look, reactive) => (idOf(look) === "drift" ? undefined : start(host, look, reactive)));
+    // The default look, Field, cannot draw on this machine; Dune can.
+    engine.start.mockImplementation((host, look, reactive) => (idOf(look) === "field" ? undefined : start(host, look, reactive)));
     const { ground } = mount(engine);
     ground.set(true);
     await settle();

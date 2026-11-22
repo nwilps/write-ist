@@ -58,7 +58,7 @@ Everything below is in the app now.
   word for suggestions or to add it to your dictionary. Adding a word in a character cue, or in a
   scene heading's location, also adds that name to the project's list. It runs entirely on your computer and phones nothing home.
 - **Search** through the script, and jump to any match.
-- **Keyboard Shortcuts** (View ▸ Keyboard Shortcuts, or Ctrl+K): one page listing the keys that
+- **Hotkeys** (View ▸ Hotkeys, or Ctrl+K): one page listing the keys that
   matter while writing. Press Ctrl+K again or Esc to put it away.
 - **Page and word counts** along the bottom of the window, kept up to date as you type.
 - **Writing goals.** A daily word goal with a streak, one-off sprints, and a thirty-day chart.

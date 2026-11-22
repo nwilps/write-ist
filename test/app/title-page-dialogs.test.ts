@@ -875,10 +875,10 @@ describe("the Edit and View menus", () => {
       "Undo", "Redo", "—", "Edit Title Page…", "—", "Edit Goals…",
     ]);
     expect(labels("View")).toEqual([
-      "View Title Page", "—", "Spellcheck", "—", "Zoom", "Reset Zoom", "—", "Keyboard Shortcuts",
+      "View Title Page", "—", "Spellcheck", "—", "Zoom", "Reset Zoom", "—", "Hotkeys",
     ]);
-    // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck, Reset Zoom and Keyboard Shortcuts
-    // have one here. The Zoom row is − and +, whose keys the Keyboard Shortcuts dialog lists.
+    // No shortcut is shown that does not exist: only Undo, Redo, Spellcheck, Reset Zoom and Hotkeys
+    // have one here. The Zoom row is − and +, whose keys the Hotkeys dialog lists.
     expect(menus["View"]!.flatMap((entry) => ("act" in entry && hintNow(entry) !== undefined ? [hintNow(entry)] : []))).toEqual([
       "[Ctrl + ;]", "[Ctrl + 0]", "[Ctrl + K]",
     ]);

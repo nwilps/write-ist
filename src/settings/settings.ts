@@ -45,9 +45,9 @@ export type Corners = "rounded" | "sharp";
 export type BackgroundMotion = "reactive" | "ambient";
 /**
  * Every look the background can take, by the engine's own id for it
- * (`asciify-engine`'s presets): Drift, the first and the default, then the
- * rest by name. Settings ▸ General ▸ Appearance ▸ Background lists them in
- * this order, as one list.
+ * (`asciify-engine`'s presets): Drift, the first, then the rest by name.
+ * Settings ▸ General ▸ Appearance ▸ Background lists them in this order, as
+ * one list. The default is Field (`DEFAULT_BACKGROUND_PRESET`).
  */
 export const BACKGROUND_PRESETS = [
   "drift",
@@ -65,6 +65,12 @@ export const BACKGROUND_PRESETS = [
   "weave",
 ] as const;
 export type BackgroundPreset = (typeof BACKGROUND_PRESETS)[number];
+/**
+ * The look for fresh settings, and for a file with no look or one this version
+ * does not draw (Noah, 2026-11-21: Field, which was Drift). A look the writer
+ * chose and the file kept, Drift included, is theirs and is never changed.
+ */
+export const DEFAULT_BACKGROUND_PRESET: BackgroundPreset = "field";
 /** The one theme there is. Light is drawn as coming. */
 export type Theme = "dark";
 
@@ -89,7 +95,7 @@ export interface Appearance {
   /**
    * Which look the background draws. Kept while the animation is off; a file
    * from before the setting existed, or naming a look this version does not
-   * have, reads as Drift.
+   * have, reads as Field (`DEFAULT_BACKGROUND_PRESET`).
    */
   readonly backgroundPreset: BackgroundPreset;
 }
@@ -173,7 +179,7 @@ export const DEFAULT_SETTINGS: Settings = {
     paperCorners: "rounded",
     backgroundAnimation: true,
     backgroundMotion: "reactive",
-    backgroundPreset: "drift",
+    backgroundPreset: DEFAULT_BACKGROUND_PRESET,
   },
   projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
   keyBindings: {},
@@ -192,8 +198,8 @@ const corners = (value: unknown): Corners => (value === "sharp" ? "sharp" : "rou
 const motion = (value: unknown): BackgroundMotion => (value === "ambient" ? "ambient" : "reactive");
 const isPreset = (value: unknown): value is BackgroundPreset =>
   (BACKGROUND_PRESETS as readonly unknown[]).includes(value);
-/** A kept look, or Drift for anything this version does not draw. */
-export const presetOf = (value: unknown): BackgroundPreset => (isPreset(value) ? value : "drift");
+/** A kept look, or the default for anything this version does not draw. */
+export const presetOf = (value: unknown): BackgroundPreset => (isPreset(value) ? value : DEFAULT_BACKGROUND_PRESET);
 
 /**
  * A whole number between `least` and `most`, from whatever was typed or kept.

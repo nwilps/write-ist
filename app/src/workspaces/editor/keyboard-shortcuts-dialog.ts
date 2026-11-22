@@ -1,7 +1,7 @@
 /**
- * Keyboard Shortcuts: a glance at the keys that matter while writing.
+ * Hotkeys: a glance at the keys that matter while writing.
  *
- * Read-only: keys are changed in Settings ▸ Keyboard Shortcuts. Every row is
+ * Read-only: keys are changed in Settings ▸ Hotkeys. Every row is
  * generated from the command table (`commands.ts`) when the dialog opens: a
  * command with a key is listed, under the group it belongs to, with every key
  * that asks for it now, the writer's own included (`hintsOf`), the first being
@@ -146,7 +146,7 @@ export function openKeyboardShortcutsDialog(into: HTMLElement, options: Keyboard
   const close = dialogAction("Close", "Esc", "button");
   // No heading, as New Project has none; the dialog is still named for a screen reader.
   // File, Edit and View down one side; Writing, with the Tab order, alone on the other.
-  const modal = element("dialog", { className: "new-project-dialog shortcuts", ariaLabel: "Keyboard Shortcuts" }, [
+  const modal = element("dialog", { className: "new-project-dialog shortcuts", ariaLabel: "Hotkeys" }, [
     element("div", { className: "new-project-dialog__form" }, [
       element("div", { className: "shortcuts__columns" }, [
         column((["File", "Edit", "View"] as const).map((name) => drawGroup(group(name)))),

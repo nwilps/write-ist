@@ -274,6 +274,18 @@ describe("centring the caret's line", () => {
     expect(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to).toLowerCase()).toBe("steel");
   });
 
+  it("leaves a search result selected on the paper as the window's own selection, which the paper's selection look paints", async () => {
+    const { into } = await editing();
+    key(window, { key: "Enter", altKey: true });
+    const query = into.querySelector<HTMLInputElement>(".search__query")!;
+    query.value = "steel";
+    query.dispatchEvent(new Event("input"));
+    into.querySelector(".search__result")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    const selected = window.getSelection()!;
+    expect(selected.toString().toLowerCase()).toBe("steel");
+    expect(selected.anchorNode!.parentElement!.closest(".manuscript")).not.toBeNull();
+  });
+
   it("is used, at once, when a project opens where the writer left it, and not when it opens at the top", async () => {
     const first = await editing();
     const place = caretPlaceOf(first.view.state.doc, headingStarts(first.view)[3]!)!;
@@ -355,7 +367,7 @@ describe("Ctrl+Alt+Enter", () => {
     expect(keyBindingOf({ key: "q", mod: true, alt: true })).toBeUndefined();
   });
 
-  it("is listed in Settings ▸ Keyboard Shortcuts as a key the writer can change, and in Ctrl+K under Writing", () => {
+  it("is listed in Settings ▸ Hotkeys as a key the writer can change, and in Ctrl+K under Writing", () => {
     expect(shortcutCommands().find((command) => command.id === "context-menu")).toEqual({
       id: "context-menu",
       label: "Right-Click Menu",

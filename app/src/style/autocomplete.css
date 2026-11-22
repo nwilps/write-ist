@@ -19,35 +19,32 @@
   color: var(--colour-faint);
 }
 
-.autocomplete__list {
-  position: absolute;
-  z-index: var(--layer-menu);
+/*
+ * The list wears the menus' own classes, as the dialog select's tray does:
+ * `drop-menu` for the surface (raised, the menu rule in the base colour, the
+ * floating corner and shadow, the label type, muted, padded and gapped as a
+ * menu is) and `drop-menu__item` for each row. Only what differs is here:
+ * where it sits, how wide it is, and the manuscript's type undone inside it.
+ */
+.drop-menu.autocomplete__list {
   top: 100%;
   left: 0;
-  display: flex;
-  flex-direction: column;
+  width: max-content;
   min-width: max-content;
-  padding: var(--space-row-gap);
-  background: var(--colour-raised);
-  border: var(--rule-menu) solid var(--colour-border-strong);
-  border-radius: var(--radius-float);
-  box-shadow: var(--shadow-float);
   font-family: var(--face-interface);
-  font-size: var(--size-label);
-  line-height: var(--leading-label);
+  font-weight: var(--weight-regular);
+  font-style: normal;
   letter-spacing: normal;
   text-indent: 0;
   text-align: left;
-  color: var(--colour-muted);
 }
 
 .autocomplete__choice {
   white-space: pre;
-  padding: 0 var(--space-row-label);
-  border-radius: var(--radius-slight);
 }
 
-.autocomplete__choice--selected {
+/* The one Tab or Enter would take is lit, as a menu's focused row is. */
+.autocomplete__list .autocomplete__choice--selected {
   background: var(--colour-overlay);
   color: var(--colour-accent);
 }

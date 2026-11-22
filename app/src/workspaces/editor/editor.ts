@@ -316,7 +316,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     });
   };
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
-  // View ▸ Keyboard Shortcuts and Ctrl+K: the key that opens it closes it, and
+  // View ▸ Hotkeys and Ctrl+K: the key that opens it closes it, and
   // it never opens over another dialog.
   let shortcuts: HTMLDialogElement | undefined;
   const keyboardShortcuts = (): void => {

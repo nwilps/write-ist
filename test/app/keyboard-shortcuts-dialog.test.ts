@@ -1,6 +1,6 @@
 /**
- * Keyboard Shortcuts: a read-only glance at the keys, opened and closed with
- * Ctrl+K in the Editor and from View ▸ Keyboard Shortcuts.
+ * Hotkeys: a read-only glance at the keys, opened and closed with
+ * Ctrl+K in the Editor and from View ▸ Hotkeys.
  *
  * The rows are checked against the command table, not against a second copy
  * of it: a row the table does not answer, or a hint the menus would not draw,
@@ -172,7 +172,7 @@ describe("the list, generated from the command table", () => {
       ["Zoom In", "[Ctrl + =]"],
       ["Zoom Out", "[Ctrl + -]"],
       ["Reset Zoom", "[Ctrl + 0]"],
-      ["Keyboard Shortcuts", "[Ctrl + K]"],
+      ["Hotkeys", "[Ctrl + K]"],
       ["Editor", "[Alt + 1]"],
       ["Notes", "[Alt + 2]"],
       ["Plan", "[Alt + 3]"],
@@ -539,7 +539,7 @@ describe("the keys, drawn as the menus' hints", () => {
 describe("the dialog", () => {
   it("is named for a screen reader, with no visible title", () => {
     const { modal } = opened();
-    expect(modal.getAttribute("aria-label")).toBe("Keyboard Shortcuts");
+    expect(modal.getAttribute("aria-label")).toBe("Hotkeys");
     expect(modal.classList.contains("new-project-dialog")).toBe(true);
     expect(modal.firstElementChild!.classList.contains("new-project-dialog__form")).toBe(true);
     expect([...modal.firstElementChild!.children].map((child) => child.className)).toEqual([
@@ -591,12 +591,12 @@ describe("the dialog", () => {
   });
 });
 
-describe("View ▸ Keyboard Shortcuts", () => {
+describe("View ▸ Hotkeys", () => {
   it("is in the View menu with its key, in its own group, and runs the toggle", () => {
     const keyboardShortcuts = vi.fn();
     const host = { keyboardShortcuts, spellcheckOn: () => false, view: () => undefined } as unknown as CommandHost;
     const view = editorMenus(host)["View"]!;
-    const item = view.find((entry) => "label" in entry && entry.label === "Keyboard Shortcuts");
+    const item = view.find((entry) => "label" in entry && entry.label === "Hotkeys");
     expect(hintNow(item as MenuItem)).toBe("[Ctrl + K]");
     expect(view[view.indexOf(item!) - 1]).toEqual({ divider: true });
     expect(commandById("keyboard-shortcuts")).toMatchObject({ keys: "window", menu: { name: "View", group: "shortcuts" } });

@@ -7,7 +7,7 @@
  * `.background-ground`). The screens are drawn and redrawn over it without
  * knowing it is there.
  *
- * **One look at a time** (Background, the row below). Drift unless the writer
+ * **One look at a time** (Background, the row below). Field unless the writer
  * chose another. Changing it while the background draws hands the engine the
  * new look, and the engine cross-fades from one to the other on the same
  * layer: no blank desk between, no flash. Each look's code is loaded only when
@@ -39,7 +39,7 @@
  * Kept out of the shell (ADR-0005): the shell hosts workspaces and knows
  * nothing of what is drawn behind it.
  */
-import type { BackgroundPreset } from "../../../src/settings/settings.ts";
+import { DEFAULT_BACKGROUND_PRESET, type BackgroundPreset } from "../../../src/settings/settings.ts";
 import type { Look, RunningBackground } from "./engine.ts";
 import { loadLook as loadLookCode } from "./presets.ts";
 
@@ -93,7 +93,7 @@ export function mountGround({ body, root, load = loadEngine, loadLook = loadLook
 
   let wanted = false;
   let reactive = true;
-  let chosen: BackgroundPreset = "drift";
+  let chosen: BackgroundPreset = DEFAULT_BACKGROUND_PRESET;
   /** Whether this file is listening for the pointer now. */
   let hearing = false;
   let engine: Promise<StartBackground | undefined> | undefined;

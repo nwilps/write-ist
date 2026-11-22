@@ -63,7 +63,7 @@ describe("the command a key press asks for", () => {
     }
   });
 
-  it("is Keyboard Shortcuts for Ctrl+K or Cmd+K, from anywhere in the window, and nothing else", () => {
+  it("is Hotkeys for Ctrl+K or Cmd+K, from anywhere in the window, and nothing else", () => {
     for (const held of [{ ctrl: true }, { meta: true }] as const) {
       expect(commandForKey(press("k", held), "window")?.id).toBe("keyboard-shortcuts");
       expect(commandForKey(press("K", held), "window")?.id).toBe("keyboard-shortcuts");
@@ -223,7 +223,7 @@ describe("the Editor's menus", () => {
         "Zoom − ○○●○○ +",
         "Reset Zoom[Ctrl + 0]",
         "---",
-        "Keyboard Shortcuts[Ctrl + K]",
+        "Hotkeys[Ctrl + K]",
       ],
     });
   });

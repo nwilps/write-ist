@@ -426,6 +426,21 @@ button.pill:focus-visible {
 }
 
 /*
+ * **A selection on the paper is the paper inverted** (Noah, 2026-11-21): the
+ * ink is the highlight and the selected text takes the paper's colour, only
+ * while it is selected. It is one rule for every element, so faint text, a
+ * cue's blue, a heading's gold and cut material all turn the paper's colour
+ * inside it and none of them sinks into the highlight. A search result's jump
+ * is this same native selection (`editor.ts`). The two tokens are read where
+ * the text is, so a white paper that remakes them inverts this with them.
+ */
+.manuscript::selection,
+.manuscript ::selection {
+  background: var(--colour-text);
+  color: var(--colour-page);
+}
+
+/*
  * **The industry layout** (#40): each element at its indent and its measure.
  *
  * Written out one type at a time, from `app/src/style/geometry.css`, rather
@@ -686,7 +701,8 @@ button.pill:focus-visible {
  * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`calc(5 * var(--ch))`)
  * (`dual-columns.ts`), and the rule is placed from them — it begins where the
  * left name ends (half the column plus half the name) and runs to where the
- * right one begins, less the spacing token at each end. It is on the desk
+ * right one begins, less the spacing token at each end. Its colour is the faint
+ * ink a little toward the paper (`--colour-dual-link`). It is on the desk
  * only: it takes no room, and the PDF draws from the layout, not from this.
  */
 .manuscript > .dual-first {
@@ -702,7 +718,7 @@ button.pill:focus-visible {
       var(--space-tight) * 2
   );
   height: calc(var(--manuscript-blank) / 2);
-  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  border-bottom: var(--rule-thin) solid var(--colour-dual-link);
   pointer-events: none;
 }
 

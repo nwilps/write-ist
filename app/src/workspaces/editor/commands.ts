@@ -15,10 +15,10 @@
  * commands claiming one key in one place is a test failure, not a precedence
  * rule.
  *
- * **The writer's own keys** (Settings ▸ Keyboard Shortcuts). The table holds
+ * **The writer's own keys** (Settings ▸ Hotkeys). The table holds
  * each command's own keys; the writer may change the keys of any command that
  * is not `fixed`, and those changes (`useKeyBindings`) are what the key
- * handlers, the menus' hints and the Keyboard Shortcuts dialog read, live,
+ * handlers, the menus' hints and the Hotkeys dialog read, live,
  * through `chordsOf`. The standard keys — the clipboard, Undo, Redo, Save and
  * Escape — are fixed, and so are the keys other code answers (the workspace
  * tabs are the shell's). A key one command has is never given to another, nor
@@ -101,7 +101,7 @@ export interface EditorActions {
   readonly resetZoom: () => void;
   /** Which of the zoom levels the paper is drawn at, smallest first, for View ▸ Zoom's dots. */
   readonly zoomLevel: () => number;
-  /** Open the Keyboard Shortcuts dialog, or close it if it is open. */
+  /** Open the Hotkeys dialog, or close it if it is open. */
   readonly keyboardShortcuts: () => void;
   readonly search: () => void;
   /** Cut, copy, paste and select-all: the same code the keys reach. Where, if anywhere, is the writer's selection. */
@@ -166,7 +166,7 @@ export interface Command {
    * Undo, Redo, Save, Escape). Listed in Settings, locked.
    */
   readonly fixed?: true;
-  /** Never given a key, and not listed in Settings ▸ Keyboard Shortcuts (Settings itself). */
+  /** Never given a key, and not listed in Settings ▸ Hotkeys (Settings itself). */
   readonly keyless?: true;
   /** The key is another command's: shown beside this one, and answered by that one. */
   readonly sameKeyAs?: string;
@@ -179,7 +179,7 @@ export interface Command {
   readonly repeats?: true;
   /** The application menu that offers it; a rule is drawn where `group` changes. */
   readonly menu?: { readonly name: MenuName; readonly group: string };
-  /** Where the Keyboard Shortcuts dialog lists a command no menu offers. Default Writing. */
+  /** Where the Hotkeys dialog lists a command no menu offers. Default Writing. */
   readonly listedUnder?: MenuName;
   /**
    * Drawn in its menu as a row of steps rather than an item (View ▸ Zoom): −
@@ -296,7 +296,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "zoom", label: "Zoom", icon: ZoomIn, steps: { less: "zoom-out", more: "zoom-in", count: ZOOM_LEVELS, at: (host) => host.zoomLevel() }, menu: { name: "View", group: "zoom" }, run: () => {} },
   { id: "reset-zoom", label: "Reset Zoom", icon: Search, chord: { key: "0", mod: true }, keys: "window", menu: { name: "View", group: "zoom" }, run: (host) => host.resetZoom() },
   // Heard wherever focus is, so it closes the dialog it opened as well.
-  { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
+  { id: "keyboard-shortcuts", label: "Hotkeys", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 
   // The workspace bar's tabs. The shell answers these keys, from the manifests
   // (`workspace-keys.ts`), and selects the tab as a click does; the table knows
@@ -385,7 +385,7 @@ export function defaultChords(command: Command): readonly Chord[] {
   return command.chord === undefined ? [] : [command.chord, ...(command.alsoChords ?? [])];
 }
 
-/** Listed in Settings ▸ Keyboard Shortcuts: in a menu or with a key, and never Settings itself. */
+/** Listed in Settings ▸ Hotkeys: in a menu or with a key, and never Settings itself. */
 export function isListed(command: Command): boolean {
   return command.keyless !== true && command.steps === undefined && (command.menu !== undefined || command.chord !== undefined);
 }
@@ -445,7 +445,7 @@ export const RESERVED_KEYS: readonly { readonly label: string; readonly chord: C
 ];
 
 /**
- * The commands Settings ▸ Keyboard Shortcuts lists, in table order: each with
+ * The commands Settings ▸ Hotkeys lists, in table order: each with
  * its own keys, and whether they are locked.
  */
 export function shortcutCommands(): readonly {

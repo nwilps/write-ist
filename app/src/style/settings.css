@@ -277,7 +277,7 @@
   display: none;
 }
 
-/* --- Keyboard Shortcuts: a command, and its keys at the far right ---------------- */
+/* --- Hotkeys: a command, and its keys at the far right -------------------- */
 
 .settings__cell:has(.settings__cell-line) {
   display: grid;

@@ -19,13 +19,13 @@ export function drawOffer(drawing: Drawing): HTMLElement {
       ? [
           element(
             "span",
-            { className: "autocomplete__list" },
+            { className: "drop-menu autocomplete__list" },
             drawing.choices.map((choice, at) =>
               element("span", {
                 className:
                   at === drawing.selected
-                    ? "autocomplete__choice autocomplete__choice--selected"
-                    : "autocomplete__choice",
+                    ? "drop-menu__item autocomplete__choice autocomplete__choice--selected"
+                    : "drop-menu__item autocomplete__choice",
                 textContent: choice.trimEnd(),
               }),
             ),
