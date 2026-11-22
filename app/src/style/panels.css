@@ -62,6 +62,9 @@
   padding: var(--space-panel-y) var(--space-panel-x);
   background: var(--colour-raised);
   border-radius: var(--radius-float);
+  /* Floats like the pills. The column clips nothing, so the shadow is whole;
+     the scenes panel's own `overflow` clips what is in it, not its shadow. */
+  box-shadow: var(--shadow-float);
   font-size: var(--size-label);
   line-height: var(--leading-label);
   color: var(--colour-muted);
