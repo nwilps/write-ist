@@ -10,6 +10,7 @@
 import type { CourierPrimeFaces } from "../pdf/render.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import type { PageRange } from "../screenplay/pdf-pages.ts";
+import type { Formatting } from "../screenplay/formatting.ts";
 import type { Project } from "./bundle.ts";
 import { saveFountainCopy, suggestedCopyName } from "./copy.ts";
 import { exportPdf, suggestedPdfName } from "./export-pdf.ts";
@@ -29,6 +30,8 @@ export interface ExportWrite {
   readonly destination: string;
   /** Absent for the whole script, and always absent for a format without pages. */
   readonly range: PageRange | undefined;
+  /** The project's own formatting, for a format that sets the script on pages. */
+  readonly formatting?: Formatting;
 }
 
 export interface ExportFormat {
@@ -55,8 +58,8 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     failure: "Write-ist could not export the PDF.",
     suggestedName: suggestedPdfName,
     chooseLocation: (places, name) => places.choosePdfLocation(name),
-    write: async ({ filesystem, project, document, faces, destination, range }) =>
-      exportPdf(filesystem, project, document, await faces(), destination, range),
+    write: async ({ filesystem, project, document, faces, destination, range, formatting }) =>
+      exportPdf(filesystem, project, document, await faces(), destination, range, formatting),
   },
   {
     // One continuous text file of the whole script: it has no pages to choose.
@@ -92,6 +95,8 @@ export interface ExportJob {
   readonly document: () => ScreenplayDocument;
   readonly faces: () => Promise<CourierPrimeFaces>;
   readonly range?: PageRange | undefined;
+  /** The project's own formatting (`details.md`). Default: as until now. */
+  readonly formatting?: Formatting;
 }
 
 /** Ask where, then write. `false`: the writer cancelled the save dialog and nothing was written. */
@@ -106,6 +111,7 @@ export async function exportScript(format: ExportFormat, job: ExportJob): Promis
     faces: job.faces,
     destination,
     range: format.pageRange ? job.range : undefined,
+    ...(job.formatting === undefined ? {} : { formatting: job.formatting }),
   });
   return true;
 }

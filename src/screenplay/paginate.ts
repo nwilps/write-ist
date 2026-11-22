@@ -18,6 +18,7 @@
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { dualPairs, nearDualDialogue, type DualPair } from "./pairing.ts";
 import { DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE, gapLines } from "./geometry.ts";
+import { DEFAULT_FORMATTING, headingGap, type Formatting } from "./formatting.ts";
 
 /** Fountain marginalia: they do not print, so they take no manuscript space. */
 const MARGINALIA: ReadonlySet<Element["type"]> = new Set([
@@ -137,8 +138,11 @@ type Item = {
  * `CONT'D` line where a speech crosses a page. Text starts at row 0 of every
  * page (ADR-0033).
  */
-export function paginate(document: ScreenplayDocument): PaginationDetail {
-  return { ...pack(printableItems(document), document.elements.length, 1, [], [], []), front: frontMatter(document) };
+export function paginate(document: ScreenplayDocument, formatting: Formatting = DEFAULT_FORMATTING): PaginationDetail {
+  return {
+    ...pack(printableItems(document, formatting), document.elements.length, 1, [], [], []),
+    front: frontMatter(document, formatting),
+  };
 }
 
 /**
@@ -155,30 +159,31 @@ export function repaginate(
   document: ScreenplayDocument,
   previous: PaginationDetail | undefined,
   dirtyElementIndex: number | undefined,
+  formatting: Formatting = DEFAULT_FORMATTING,
 ): PaginationDetail {
   if (previous === undefined || previous.totalPages === 0 || dirtyElementIndex === undefined) {
-    return paginate(document);
+    return paginate(document, formatting);
   }
 
   // A pair is packed as one band from its first cue, which can lie on an
   // earlier page than the edit that made it one: pack it from the top.
   if (nearDualDialogue(document.elements, dirtyElementIndex)) {
-    return paginate(document);
+    return paginate(document, formatting);
   }
 
   const startPage = cleanPageStart(previous, affectedPage(previous, dirtyElementIndex));
   if (startPage <= 1) {
-    return paginate(document);
+    return paginate(document, formatting);
   }
 
   // An edit below the leading break leaves everything above it as it was.
-  const front = dirtyElementIndex > leadingBreak(document.elements) ? previous.front : frontMatter(document);
+  const front = dirtyElementIndex > leadingBreak(document.elements) ? previous.front : frontMatter(document, formatting);
 
   // Only the items from the resume point on are wrapped: the pages before it
   // are kept, so wrapping them again would make every keystroke cost the
   // length of the manuscript rather than the length of what follows the edit.
   const boundary = resumeBoundary(previous, startPage, dirtyElementIndex);
-  const items = printableItems(document, boundary);
+  const items = printableItems(document, formatting, boundary);
 
   const pageOfElement: (number | undefined)[] = Array.from(
     { length: document.elements.length },
@@ -209,6 +214,12 @@ function cleanPageStart(previous: PaginationDetail, page: number): number {
     start -= 1;
   }
   return start;
+}
+
+/** Blank lines above `el`, by the spacing table and the project's own formatting. */
+function gap(above: Element["type"], el: Element, formatting: Formatting): number {
+  const table = gapLines(above, el.type, el.squished === true);
+  return el.type === "scene-heading" ? headingGap(table, formatting) : table;
 }
 
 /** Total numbered pages. */
@@ -591,10 +602,10 @@ function leadingBreak(elements: readonly Element[]): number {
  * packed by the same rules as the body but numbered apart from it, so it is
  * printed and drawn and never counted. Small, so it is packed whole each time.
  */
-function frontMatter(document: ScreenplayDocument): FrontMatter {
+function frontMatter(document: ScreenplayDocument, formatting: Formatting): FrontMatter {
   const end = leadingBreak(document.elements);
   if (end <= 0) return NO_FRONT_MATTER;
-  const packed = pack(printableItems(document, 0, 0, end), document.elements.length, 1, [], [], []);
+  const packed = pack(printableItems(document, formatting, 0, 0, end), document.elements.length, 1, [], [], []);
   return { sheets: packed.totalPages, chunks: packed.chunks };
 }
 
@@ -609,6 +620,7 @@ const NO_FRONT_MATTER: FrontMatter = { sheets: 0, chunks: [] };
  */
 function printableItems(
   document: ScreenplayDocument,
+  formatting: Formatting,
   from = 0,
   begin = leadingBreak(document.elements) + 1,
   end = document.elements.length,
@@ -652,7 +664,7 @@ function printableItems(
       elementIndex: i,
       el,
       lines,
-      blank: previous === undefined ? 0 : gapLines(previous.type, el.type, el.squished === true),
+      blank: previous === undefined ? 0 : gap(previous.type, el, formatting),
     });
     previous = el;
   }

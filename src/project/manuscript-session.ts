@@ -53,6 +53,7 @@ import { paperDecorations, type SheetBreak } from "../screenplay/sheets.ts";
 import { Spellcheck, type SpellIssue } from "../screenplay/spellcheck.ts";
 import type { SpellEngine } from "../screenplay/spelling.ts";
 import type { AutocompleteOptions, Drawing } from "../screenplay/autocomplete.ts";
+import type { Formatting } from "../screenplay/formatting.ts";
 import { autosave, type Clock } from "./autosave.ts";
 import type { Project } from "./bundle.ts";
 import type { Filesystem } from "./filesystem.ts";
@@ -97,6 +98,8 @@ export interface SessionPorts {
   readonly drawOffer: (drawing: Drawing) => HTMLElement;
   /** Lines a drawn offer up on the paper (`AutocompleteOptions.place`); a test may leave it out. */
   readonly placeOffer?: AutocompleteOptions["place"];
+  /** The project's own formatting (`details.md`), which the sheets are laid out with. Default: as until now. */
+  readonly formatting?: Formatting;
   /**
    * Another application changed the manuscript and nothing was typed here, so
    * `state` is a fresh one. The view must be given it; `spellingWasOn` says
@@ -264,10 +267,10 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     const document = manuscriptOf(state.doc);
     if ("replaced" in basis) {
       names = namesOf(state.doc, { explicit: basis.replaced });
-      laid = layout(document);
+      laid = layout(document, undefined, undefined, ports.formatting);
     } else {
       syncNames(names, basis.editedFrom, state.doc);
-      laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head));
+      laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head), ports.formatting);
     }
     // Decorations, so they are never part of the document and never reach the file.
     seams = paperDecorations(state.doc, laid, ports.drawSeam);

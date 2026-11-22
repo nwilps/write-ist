@@ -593,6 +593,28 @@ button.pill:focus-visible {
   color: var(--colour-alarm);
 }
 
+/*
+ * A project's own formatting (`paper-formatting.ts`, `formatting.ts`), which
+ * the PDF is set with too.
+ *
+ * Bold transitions. Courier Prime's bold is metrically its regular, so no
+ * line moves.
+ */
+.manuscript[data-bold-transitions] > [data-element="transition"] {
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * One blank line before a scene heading where the spacing table leaves two.
+ * Not where it leaves none (after a boneyard's opening), and not at the head
+ * of a sheet or of the script, which take none whatever the project chose.
+ */
+.manuscript[data-scene-heading-gap="1"]
+  > :not(.sheet-break):not([data-element="boneyard-start"]):not([data-element="page-break"]):not([data-title-hidden])
+  + [data-element="scene-heading"] {
+  margin-top: var(--manuscript-blank);
+}
+
 .manuscript > [data-element="parenthetical"] {
   color: var(--colour-text);
 }

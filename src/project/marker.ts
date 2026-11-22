@@ -31,6 +31,12 @@ export const FORMAT_VERSION = "1";
  * Import offer each of them.
  */
 export const FORMATS = ["Feature", "Episode", "Short Film"] as const;
+
+/**
+ * What New Project shows but cannot make: these have no surface to run on yet,
+ * so they are not `FORMATS` and never reach a `project.md`.
+ */
+export const COMING_FORMATS = ["Novel", "Short Story", "Novella", "Flash Fiction", "Poem"] as const;
 export type ProjectFormat = (typeof FORMATS)[number];
 
 export interface ProjectMarker {

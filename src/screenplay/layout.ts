@@ -19,6 +19,7 @@ import type { MarkRange } from "../marks.ts";
 import { appendContinuation, hasContinuation } from "./continuations.ts";
 import type { Element, ScreenplayDocument } from "./document.ts";
 import { ELEMENT_GEOMETRY } from "./geometry.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "./formatting.ts";
 import { dualWidth, paginate, repaginate, wrapStarts, type Chunk, type PaginationDetail } from "./paginate.ts";
 
 /** The text of the line that closes a speech at a break. */
@@ -92,11 +93,12 @@ export function layout(
   document: ScreenplayDocument,
   previous?: Layout,
   dirtyElementIndex?: number,
+  formatting: Formatting = DEFAULT_FORMATTING,
 ): Layout {
   const pagination =
     previous === undefined
-      ? paginate(document)
-      : repaginate(document, previous.pagination, dirtyElementIndex);
+      ? paginate(document, formatting)
+      : repaginate(document, previous.pagination, dirtyElementIndex, formatting);
 
   const keep =
     previous === undefined ? 0 : Math.min(pagination.resumedFromPage - 1, previous.pages.length);

@@ -60,6 +60,9 @@ import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
 import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
 import { placeOnBreak } from "../../../../src/screenplay/page-break-editing.ts";
+import { formattingOf, readDetails } from "../../../../src/project/details.ts";
+import { formattingAttributes } from "./paper-formatting.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "../../../../src/screenplay/formatting.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretFromMargins } from "./margin-click.ts";
 import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
@@ -122,6 +125,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // before the manuscript is read, so they reach it through the session.
   let session: ManuscriptSession | undefined;
   let view: EditorView | undefined;
+  // The project's own formatting, read with the manuscript; as until now until then.
+  let formatting: Formatting = DEFAULT_FORMATTING;
   let gone = false;
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
@@ -274,7 +279,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     const writing = session;
     openExportDialog(into, {
       formats: EXPORT_FORMATS,
-      pageCount: () => printedPageCount(writing.manuscript()),
+      pageCount: () => printedPageCount(writing.manuscript(), formatting),
       write: (format, range) =>
         exportScript(format, {
           filesystem: context.filesystem,
@@ -283,6 +288,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           document: writing.manuscript,
           faces: courierPrimeFaces,
           range,
+          formatting,
         }),
       report: context.report,
       closed: () => view?.focus(),
@@ -447,13 +453,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   void (async () => {
     try {
-      const [read, place] = await Promise.all([
+      const [read, place, details] = await Promise.all([
         readManuscript(context.filesystem, context.project, context.report),
         recallPlace(context),
+        // The project's own formatting (`details.md`); never throws.
+        readDetails(context.filesystem, context.project.path),
       ]);
       // Closed while the file was being read. A view mounted now would be a
       // view nobody takes down.
       if (gone) return;
+      formatting = formattingOf(details.details);
 
       const writing = manuscriptSession(
         {
@@ -470,6 +479,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           drawSeam: drawSheetBreak,
           drawOffer,
           placeOffer,
+          formatting,
           reloaded: (spellingWasOn) => {
             view?.updateState(writing.state);
             if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
@@ -519,14 +529,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         },
         decorations: () => writing.seams,
         handleScrollToSelection: scrollCaretIntoView,
-        // The title page and a forced page break's `===` are in the document
-        // and not on the paper; the break is drawn as the seam to a new sheet.
+        // The title page is in the document and not on the paper. A forced
+        // page break's `===` is, faintly, and the seam to a new sheet after it.
         nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         // The webview's own spellcheck is off: spelling is Write-ist's, on
         // demand, from the dictionaries inside the application (ADR-0032).
-        attributes: { class: "manuscript", spellcheck: "false" },
+        // The project's own formatting is the stylesheet's to draw, by these.
+        attributes: { class: "manuscript", spellcheck: "false", ...formattingAttributes(formatting) },
       });
       // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
       const editing = view;

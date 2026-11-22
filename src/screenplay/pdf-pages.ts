@@ -19,6 +19,7 @@ import type { MarkRange } from "../marks.ts";
 import type { ElementType, ScreenplayDocument } from "./document.ts";
 import { withoutCommentsAndBoneyard } from "./fountain-copy.ts";
 import { CHARACTER_INCHES, DUAL_GEOMETRY, ELEMENT_GEOMETRY, PAGE } from "./geometry.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "./formatting.ts";
 import { layout, type LayoutLine } from "./layout.ts";
 import { titlePageRuns, type TitlePageRun } from "./title-page-layout.ts";
 
@@ -47,9 +48,14 @@ export interface PageRange {
 
 const round = (points: number): number => Math.round(points * 100) / 100;
 
-export function pdfPagesOf(document: ScreenplayDocument): PdfPages {
+/**
+ * The PDF's pages, set with the project's own formatting (`formatting.ts`):
+ * its spacing above scene headings, and which types print bold.
+ */
+export function pdfPagesOf(document: ScreenplayDocument, formatting: Formatting = DEFAULT_FORMATTING): PdfPages {
   const reduced = withoutCommentsAndBoneyard(document);
-  const laid = layout(reduced);
+  const laid = layout(reduced, undefined, undefined, formatting);
+  const lineRuns = (document: ScreenplayDocument, line: LayoutLine) => setLine(document, line, formatting);
   const pages = laid.pages.map((page) => {
     const runs: TitlePageRun[] = [];
     if (page.number > 1) {
@@ -68,8 +74,8 @@ export function pdfPagesOf(document: ScreenplayDocument): PdfPages {
  * out, as the PDF is: a cue whose whole speech was cut prints nothing, so this
  * can be fewer than the paper's count.
  */
-export function printedPageCount(document: ScreenplayDocument): number {
-  return layout(withoutCommentsAndBoneyard(document)).totalPages;
+export function printedPageCount(document: ScreenplayDocument, formatting: Formatting = DEFAULT_FORMATTING): number {
+  return layout(withoutCommentsAndBoneyard(document), undefined, undefined, formatting).totalPages;
 }
 
 /** What is wrong with a range for a script of `total` numbered pages, in the writer's words. */
@@ -106,14 +112,17 @@ function run(
   return { text, x: round(x), y: round(y), bold, italic, underline };
 }
 
-function lineRuns(document: ScreenplayDocument, line: LayoutLine): TitlePageRun[] {
+function setLine(document: ScreenplayDocument, line: LayoutLine, formatting: Formatting): TitlePageRun[] {
   if (line.text === "") return [];
   // (MORE) and CHARACTER (CONT'D) sit at the cue's indent, like the paper's.
   const type = line.kind === "text" ? document.elements[line.elementIndex]!.type : "character";
   const left = LEFT + startCharacters(type, line) * ADVANCE;
   const baseline = TOP_BASELINE + line.row * PAGE.leadingPoints;
+  // The project's bold headings or transitions: the whole line, whatever its marks say.
+  const bold =
+    (type === "scene-heading" && formatting.boldSceneHeadings) || (type === "transition" && formatting.boldTransitions);
   return split(line.text, line.marks ?? []).map((part) =>
-    run(part.text, left + part.offset * ADVANCE, baseline, part.bold, part.italic, part.underline),
+    run(part.text, left + part.offset * ADVANCE, baseline, bold || part.bold, part.italic, part.underline),
   );
 }
 

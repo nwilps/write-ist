@@ -13,6 +13,7 @@ import {
   type PageRange,
 } from "../screenplay/pdf-pages.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "../screenplay/formatting.ts";
 import { renderPdf, type CourierPrimeFaces } from "../pdf/render.ts";
 import { MANUSCRIPT_FILE, type Project } from "./bundle.ts";
 import { join, type Filesystem } from "./filesystem.ts";
@@ -35,11 +36,12 @@ export async function exportPdf(
   faces: CourierPrimeFaces,
   destination: string,
   range?: PageRange,
+  formatting: Formatting = DEFAULT_FORMATTING,
 ): Promise<void> {
   if (destination === join(project.path, MANUSCRIPT_FILE)) {
     throw new Error("That is the project's own manuscript. Choose another place for the PDF.");
   }
-  const all = pdfPagesOf(document);
+  const all = pdfPagesOf(document, formatting);
   const problem = range === undefined ? undefined : pageRangeProblem(range, all.pages.length);
   if (problem !== undefined) throw new Error(problem);
   const pages = range === undefined ? all : pdfPagesInRange(all, range);

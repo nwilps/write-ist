@@ -435,10 +435,12 @@ function askForNewProject(): void {
   showNewProject(document.body, {
     onCreate: async (request) => {
       try {
+        // The type's New Project Defaults, read now: this project starts with them and keeps them.
         const project = await createProject(
           { filesystem: tauriFilesystem, newProjectId },
           await defaultProjectsDirectory(),
           request,
+          settings.projectDefaults[request.type],
         );
         // The dialog closes as this resolves; the project opens behind it.
         goToProject(project);
@@ -450,6 +452,9 @@ function askForNewProject(): void {
       }
     },
     onClose: () => {},
+    hiddenTypes: Object.entries(settings.projectDefaults)
+      .filter(([, defaults]) => !defaults.shown)
+      .map(([type]) => type),
   });
 }
 

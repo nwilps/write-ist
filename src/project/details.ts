@@ -17,12 +17,20 @@
  *
  * Target pages: 110
  * Workspaces: editor, notes, plan
+ * Bold scene headings: yes
+ * Bold transitions: no
+ * Blank lines before scene headings: 2
  * ```
+ *
+ * The last three are a screenplay's own formatting (`formatting.ts`), given by
+ * New Project from Settings ▸ New Project Defaults and kept by the project
+ * from then on: Settings changing later never reaches a project already made.
  *
  * ## Reading it
  *
- * - **Absent** (every project made before it): no target, and every workspace
- *   the application offers is shown.
+ * - **Absent** (every project made before it): no target, every workspace
+ *   the application offers is shown, and the formatting the paper and the PDF
+ *   always had. A file with none of the formatting lines reads the same way.
  * - **There and readable**: each value put right quietly, as Settings' are — a
  *   target that is not a number is no target; a workspace id that is not one is
  *   left out. A workspace this version does not offer is **kept** in the list,
@@ -32,7 +40,8 @@
  *   then refuses, in words, and changes nothing.
  *
  * Changing the type changes **only** the format in `project.md`: never the
- * target, never the workspaces. And New Project Defaults (Settings) are for new
+ * target, never the workspaces, never the formatting — which Edit Project
+ * Details does not offer, and its save keeps as the file has it. And New Project Defaults (Settings) are for new
  * projects only; nothing here reads them.
  */
 import { basename, join, type Filesystem } from "./filesystem.ts";
@@ -41,6 +50,7 @@ import { FORMATS, serialiseMarker, type ProjectFormat } from "./marker.ts";
 import { confirmProject } from "./projects.ts";
 import { checkRename, CannotRename, renameProject } from "./rename.ts";
 import { MOST_PAGES, wholeNumber } from "../settings/settings.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "../screenplay/formatting.ts";
 
 export interface ProjectDetails {
   /** Pages the writer is aiming at; 0 for none. */
@@ -51,11 +61,29 @@ export interface ProjectDetails {
    * A workspace that is always on (the Editor) is shown whether it is here or not.
    */
   readonly workspaces: readonly string[] | undefined;
+  /**
+   * A screenplay's own formatting, or `undefined` for a project that never
+   * chose: it is set as the paper and the PDF always were (`formattingOf`).
+   */
+  readonly formatting?: Formatting | undefined;
 }
 
 export const DEFAULT_DETAILS: ProjectDetails = { targetPages: 0, workspaces: undefined };
 
-const LABELS = { targetPages: "Target pages", workspaces: "Workspaces" } as const;
+const LABELS = {
+  targetPages: "Target pages",
+  workspaces: "Workspaces",
+  boldSceneHeadings: "Bold scene headings",
+  boldTransitions: "Bold transitions",
+  blankLinesBeforeSceneHeadings: "Blank lines before scene headings",
+} as const;
+
+/** The formatting a project is set with: its own, or the paper's and the PDF's as they always were. */
+export function formattingOf(details: ProjectDetails): Formatting {
+  return details.formatting ?? DEFAULT_FORMATTING;
+}
+
+const yesNo = (on: boolean): string => (on ? "yes" : "no");
 const HEADING = "Project details";
 
 /** The text of a `details.md`. */
@@ -65,6 +93,13 @@ export function serialiseDetails(details: ProjectDetails): string {
     "",
     `${LABELS.targetPages}: ${details.targetPages === 0 ? "none" : details.targetPages}`,
     ...(details.workspaces === undefined ? [] : [`${LABELS.workspaces}: ${details.workspaces.join(", ")}`]),
+    ...(details.formatting === undefined
+      ? []
+      : [
+          `${LABELS.boldSceneHeadings}: ${yesNo(details.formatting.boldSceneHeadings)}`,
+          `${LABELS.boldTransitions}: ${yesNo(details.formatting.boldTransitions)}`,
+          `${LABELS.blankLinesBeforeSceneHeadings}: ${details.formatting.blankLinesBeforeSceneHeadings}`,
+        ]),
     "",
   ].join("\n");
 }
@@ -83,12 +118,33 @@ export function parseDetails(text: string): ProjectDetails | null {
   }
   const pages = labelled.get(LABELS.targetPages) ?? "";
   const listed = labelled.get(LABELS.workspaces);
+  const formatting = formattingFrom(labelled);
   return {
+    ...(formatting === undefined ? {} : { formatting }),
     targetPages: /^none$/i.test(pages) ? 0 : wholeNumber(pages, 0, MOST_PAGES, 0),
     workspaces:
       listed === undefined
         ? undefined
         : [...new Set(listed.split(",").map((id) => id.trim().toLowerCase()).filter((id) => ID.test(id)))],
+  };
+}
+
+/**
+ * The formatting lines, put right quietly: a yes/no that is neither, or a
+ * count that is not 1 or 2, is the value the project had before it chose.
+ * `undefined` when there are none.
+ */
+function formattingFrom(labelled: ReadonlyMap<string, string>): Formatting | undefined {
+  const headings = labelled.get(LABELS.boldSceneHeadings);
+  const transitions = labelled.get(LABELS.boldTransitions);
+  const blank = labelled.get(LABELS.blankLinesBeforeSceneHeadings);
+  if (headings === undefined && transitions === undefined && blank === undefined) return undefined;
+  const flag = (value: string | undefined, fallback: boolean): boolean =>
+    value !== undefined && /^yes$/i.test(value) ? true : value !== undefined && /^no$/i.test(value) ? false : fallback;
+  return {
+    boldSceneHeadings: flag(headings, DEFAULT_FORMATTING.boldSceneHeadings),
+    boldTransitions: flag(transitions, DEFAULT_FORMATTING.boldTransitions),
+    blankLinesBeforeSceneHeadings: blank === "1" ? 1 : blank === "2" ? 2 : DEFAULT_FORMATTING.blankLinesBeforeSceneHeadings,
   };
 }
 
@@ -162,6 +218,8 @@ export async function saveProjectDetails(
     const details: ProjectDetails = {
       targetPages: wholeNumber(wanted.details.targetPages, 0, MOST_PAGES, 0),
       workspaces: wanted.details.workspaces,
+      // Not Edit Project Details' to change: kept as the project has it.
+      ...(held.details.formatting === undefined ? {} : { formatting: held.details.formatting }),
     };
     const detailsChange = !sameDetails(details, held.details);
     if (detailsChange && !held.readable) {

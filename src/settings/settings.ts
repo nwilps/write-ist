@@ -19,13 +19,13 @@
  * First pass (Settings, Noah's notes): most of these are kept and shown, and
  * not yet read by anything else. What each one drives today is in the pull
  * request that added them; `dayEndsAt`, the two corner styles, the
- * background animation with its motion and its look, and the writer's own keys
- * (`keyBindings`) are live.
+ * background animation with its motion and its look, the writer's own keys
+ * (`keyBindings`) and the New Project Defaults (`projectDefaults`, read by New
+ * Project alone, `src/project/create.ts`) are live.
  */
 import { join, type Filesystem } from "../project/filesystem.ts";
 import { DEFAULT_DAY_ENDS_AT, type TimeOfDay } from "../goals/day.ts";
-import { COMING_FORMATS } from "../project/create.ts";
-import { FORMATS } from "../project/marker.ts";
+import { COMING_FORMATS, FORMATS } from "../project/marker.ts";
 
 /** The file's name, in app data. */
 export const SETTINGS_FILE = "settings.json";
@@ -100,7 +100,10 @@ export interface Appearance {
   readonly backgroundPreset: BackgroundPreset;
 }
 
-/** What a new project of one type starts with. Kept; not yet read by New Project. */
+/**
+ * What a new project of one type starts with: New Project gives them to the
+ * project it makes, which keeps them as its own (`src/project/create.ts`).
+ */
 export interface ProjectDefaults {
   /** Offered in New Project's list of types. */
   readonly shown: boolean;
@@ -166,7 +169,8 @@ export const DEFAULT_PROJECT_DEFAULTS: ProjectDefaults = {
   targetPages: 0,
   boldSceneHeadings: false,
   boldTransitions: false,
-  blankLinesBeforeSceneHeadings: 1,
+  // Final Draft's template, as the spacing table has it (ADR-0038).
+  blankLinesBeforeSceneHeadings: 2,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -278,7 +282,8 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
     targetPages: wholeNumber(kept["targetPages"], 0, MOST_PAGES, base.targetPages),
     boldSceneHeadings: flag(kept["boldSceneHeadings"], base.boldSceneHeadings),
     boldTransitions: flag(kept["boldTransitions"], base.boldTransitions),
-    blankLinesBeforeSceneHeadings: kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : 1,
+    blankLinesBeforeSceneHeadings:
+      kept["blankLinesBeforeSceneHeadings"] === 1 ? 1 : kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : base.blankLinesBeforeSceneHeadings,
   };
 }
 

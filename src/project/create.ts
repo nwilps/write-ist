@@ -10,6 +10,13 @@
  * would have made: `manuscript.fountain` (`Title: …`, no elements yet) and
  * `project.md`. The manuscript is built by the model's own serialiser, so it
  * is a file Write-ist would have written itself.
+ *
+ * **New Project Defaults** (Settings) are read here and nowhere else: given
+ * the defaults for the type being made, the project starts with them —
+ * `details.md` holding its target pages and a screenplay's formatting, and
+ * `goals.md` its daily goal when that is on. They are the project's own from
+ * then on: a later change in Settings never reaches a project already made,
+ * and an existing project is never touched by them.
  */
 import {
   exportScreenplay,
@@ -17,12 +24,17 @@ import {
 } from "../screenplay/import.ts";
 import { join } from "./filesystem.ts";
 import {
+  DETAILS_FILE,
   folderNameFor,
   MANUSCRIPT_FILE,
   MARKER_FILE,
   type Project,
 } from "./bundle.ts";
 import type { ImportDependencies } from "./import.ts";
+import { serialiseDetails } from "./details.ts";
+import { writeGoals } from "../goals/file.ts";
+import { NO_GOALS } from "../goals/history.ts";
+import type { ProjectDefaults } from "../settings/settings.ts";
 import {
   FORMAT_VERSION,
   FORMATS,
@@ -31,11 +43,8 @@ import {
   type ProjectMarker,
 } from "./marker.ts";
 
-/**
- * What New Project shows but cannot make: these have no surface to run on yet,
- * so they are not `FORMATS` and never reach a `project.md`.
- */
-export const COMING_FORMATS = ["Novel", "Short Story", "Novella", "Flash Fiction", "Poem"] as const;
+// Kept beside `FORMATS` (`marker.ts`), so Settings can read it without reaching this file.
+export { COMING_FORMATS } from "./marker.ts";
 
 export interface NewProject {
   readonly title: string;
@@ -57,6 +66,7 @@ export async function createProject(
   { filesystem, newProjectId }: ImportDependencies,
   projectsDirectory: string,
   { title, type }: NewProject,
+  defaults?: ProjectDefaults,
 ): Promise<Project> {
   const typed = title.replace(/\s+/g, " ").trim();
   if (typed === "") throw new CannotCreate("A project needs a title.");
@@ -91,6 +101,26 @@ export async function createProject(
     join(path, MANUSCRIPT_FILE),
     exportScreenplay(document),
   );
+  // Before the marker, which is written last: until it is, this is not a project.
+  if (defaults !== undefined) {
+    await filesystem.writeFile(
+      join(path, DETAILS_FILE),
+      new TextEncoder().encode(
+        serialiseDetails({
+          targetPages: defaults.targetPages,
+          workspaces: undefined,
+          formatting: {
+            boldSceneHeadings: defaults.boldSceneHeadings,
+            boldTransitions: defaults.boldTransitions,
+            blankLinesBeforeSceneHeadings: defaults.blankLinesBeforeSceneHeadings,
+          },
+        }),
+      ),
+    );
+    if (defaults.dailyGoalOn) {
+      await writeGoals(filesystem, { path, marker }, { ...NO_GOALS, goal: defaults.dailyGoal });
+    }
+  }
   await filesystem.writeFile(
     join(path, MARKER_FILE),
     new TextEncoder().encode(serialiseMarker(marker)),
