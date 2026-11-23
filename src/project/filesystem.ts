@@ -105,6 +105,25 @@ export interface Filesystem {
   removeEmptyFolder(path: string): Promise<void>;
 
   /**
+   * Move a file to a path where nothing is: renaming a note, or bringing an
+   * old `notes.md` into the `notes` folder. **Never replaces anything**: rejects,
+   * leaving both paths as they were, when anything at all is at `to`, and when
+   * `from` is not a file. In the application the file is linked under its new
+   * name before the old name goes, so the words are never under no name, and
+   * nothing outside `~/Documents/write-ist/` is moved (`move_file_within`,
+   * `src-tauri/src/folders.rs`).
+   */
+  moveFile(from: string, to: string): Promise<void>;
+
+  /**
+   * Delete one note, for good — the writer chose Delete on it and confirmed.
+   * Only a real `.md` file directly inside a project's `notes` folder; rejects,
+   * touching nothing, for anything else (`remove_note_within`,
+   * `src-tauri/src/folders.rs`).
+   */
+  removeNote(path: string): Promise<void>;
+
+  /**
    * Erase one project in the Graveyard, for good: **Exile**, the one erase
    * anywhere in Write-ist (ADR-0044, `exile.ts`).
    *

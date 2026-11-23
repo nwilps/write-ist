@@ -333,7 +333,7 @@ export function editingSession(
  * compares them, and for the same reason.
  *
  * The manuscript's by default; a workspace's own file (`workspace-file.ts`)
- * names itself, so `notes.md` is kept as `notes changed elsewhere ….md`.
+ * names itself, so `notes/Ideas.md` is kept beside it as `Ideas changed elsewhere ….md`.
  */
 export function copyNameFor(moment: Date, taken: ReadonlySet<string>, file: string = MANUSCRIPT_FILE): string {
   const two = (value: number): string => String(value).padStart(2, "0");

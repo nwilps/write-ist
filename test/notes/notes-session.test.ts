@@ -1,6 +1,6 @@
 /**
- * Notes open for writing, with no window (`src/notes/notes-session.ts`):
- * typing saves `notes.md` after the pause, undo and redo walk the writer's
+ * One note open for writing, with no window (`src/notes/notes-session.ts`):
+ * typing saves its file in the notes folder after the pause, undo and redo walk the writer's
  * edits, the caret is kept as an offset in the text, and spellcheck is the
  * plain-text pass over the same dictionary — off until asked. Real files in a
  * temporary folder; an invented project.
@@ -11,7 +11,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PAUSE, type Clock } from "../../src/project/autosave.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { readWorkspaceFile, type FileSaveState } from "../../src/project/workspace-file.ts";
-import { NOTES_FILE, notesSession } from "../../src/notes/notes-session.ts";
+import { notePath } from "../../src/notes/notes-folder.ts";
+import { notesSession } from "../../src/notes/notes-session.ts";
+
+/** The note these tests write, in the project's notes folder. */
+const NOTE = notePath("Ideas");
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 import { fakeEngine } from "../support/spell-engine.ts";
 
@@ -44,12 +48,13 @@ let project: Project;
 beforeEach(() => {
   temporary = temporaryDirectory();
   const path = join(temporary.path, "Paper Boats");
-  mkdirSync(path, { recursive: true });
+  // The notes folder is there; a note in it is written by the tests that need one.
+  mkdirSync(join(path, "notes"), { recursive: true });
   project = { path, marker: { name: "Paper Boats", projectId: "id-paper-boats" } } as Project;
 });
 afterEach(() => temporary.remove());
 
-const notesPath = () => join(project.path, NOTES_FILE);
+const notesPath = () => join(project.path, NOTE);
 
 async function open(engine = fakeEngine()) {
   const clock = handClock();
@@ -57,11 +62,12 @@ async function open(engine = fakeEngine()) {
   const states: FileSaveState[] = [];
   const spellcheck: boolean[] = [];
   const reports: string[] = [];
-  const read = await readWorkspaceFile(nodeFilesystem, project, NOTES_FILE);
+  const read = await readWorkspaceFile(nodeFilesystem, project, NOTE);
   const session = notesSession(
     {
       filesystem: nodeFilesystem,
       project,
+      file: NOTE,
       report: (trouble) => void reports.push(trouble),
       setSaved: (state) => void states.push(state),
       setStatus: (text) => void status.push(text),
@@ -88,7 +94,7 @@ async function open(engine = fakeEngine()) {
 }
 
 describe("typing in Notes", () => {
-  it("saves notes.md a couple of seconds after the writer stops, as plain text", async () => {
+  it("saves the note a couple of seconds after the writer stops, as plain text", async () => {
     const { session, clock, type, enter, states, status } = await open();
     type("# Ideas");
     enter();
@@ -185,11 +191,12 @@ describe("spellcheck in Notes", () => {
   });
 
   it("is not offered without a dictionary", async () => {
-    const read = await readWorkspaceFile(nodeFilesystem, project, NOTES_FILE);
+    const read = await readWorkspaceFile(nodeFilesystem, project, NOTE);
     const session = notesSession(
       {
         filesystem: nodeFilesystem,
         project,
+        file: NOTE,
         report: () => {},
         setSaved: () => {},
         setStatus: () => {},

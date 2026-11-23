@@ -26,6 +26,7 @@ import { readDetails } from "../../../../src/project/details.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
 import { STRUCTURE_SHEETS, layoutBeats } from "../../../../src/plan/structure.ts";
+import type { WorkspacePlace } from "../../../../src/project/workspace-places.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import type { MenuEntry } from "../../menus/drop-menu.ts";
 import { element } from "../../screens/element.ts";
@@ -595,7 +596,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       desk.replaceChildren(board, controls, inspector.element);
       draw();
       const at = place?.["across"];
-      if (at !== undefined) {
+      if (typeof at === "number") {
         placeKept = at;
         across = at;
         if (hidden) pendingAcross = at;
@@ -776,7 +777,7 @@ function tokenPixels(name: string, fallback: number): number {
 }
 
 /** Where Plan was left in this project, or `undefined`. */
-async function recallPlace(context: WorkspaceContext): Promise<Readonly<Record<string, number>> | undefined> {
+async function recallPlace(context: WorkspaceContext): Promise<WorkspacePlace | undefined> {
   try {
     return await context.workspacePlaces()?.recall(context.project.marker.projectId, "plan");
   } catch {

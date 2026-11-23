@@ -627,9 +627,10 @@
   --size-notes: var(--size-body);
   /**
    * The notepad is a window floating on the desk, shaped like a laptop's
-   * screen (Noah, 2026-11-23): three quarters of the workspace's width, 16:9.
+   * screen (Noah, 2026-11-23): seven tenths of the workspace's width — a
+   * twentieth smaller than the three quarters it was first — and 16:9.
    */
-  --fraction-notes-width: 0.75;
+  --fraction-notes-width: 0.7;
   --ratio-notes: 16 / 9;
   /**
    * The room the notepad is measured against: the Notes desk's own width and
@@ -648,6 +649,22 @@
   --space-notes-x: var(--space-vast);
   /** How many spaces wide a tab is drawn. */
   --count-notes-tab: 4;
+  /**
+   * The bar of pills above the window — the folder, the tabs, + — and the
+   * gap between it and the window. A pill is the bottom pills' height.
+   */
+  --size-notes-bar: var(--size-pill);
+  --space-notes-bar-gap: var(--space-snug);
+  --space-notes-tab-gap: var(--space-tight);
+  /** The widest a tab is before its name is cut short with an ellipsis. */
+  --measure-notes-tab: 24ch;
+  /** A tab's ×. */
+  --size-notes-tab-close: 20px;
+  /**
+   * Room round the scrolling row of tabs for the pills' shadows, which reach
+   * this far below a pill (`--shadow-float`), so the row does not cut them off.
+   */
+  --space-notes-tab-shadow: 20px;
 }
 
 /* --- Plan (`app/src/workspaces/plan/`) -------------------------------------- */

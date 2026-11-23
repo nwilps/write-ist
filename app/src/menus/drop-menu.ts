@@ -18,6 +18,10 @@
  * The roles are `menu`, `menuitem` and `separator`, so a screen reader hears a
  * menu.
  *
+ * **An item may carry a second action at its end** (`aside`: Delete beside a
+ * note's name in Notes' folder menu) — a small icon of its own, chosen by the
+ * pointer, or by Delete or Backspace while its item has focus.
+ *
  * **A row of steps** (View ▸ Zoom) is an item with − and + at its end and a dot
  * for each step between them. Choosing − or + steps and leaves the menu open,
  * so the writer sees each step land; with the row focused, Left and Right press
@@ -46,6 +50,21 @@ export interface MenuItem {
    * the mark is true when the writer looks.
    */
   readonly checked?: () => boolean;
+  /**
+   * A second action, drawn as a small icon at the item's end: chosen by the
+   * pointer on the icon, or by Delete or Backspace on the item. `alarm` draws
+   * it in the alarm colour under the pointer, for an action that destroys.
+   */
+  readonly aside?: MenuAside;
+}
+
+/** An item's second action (`MenuItem.aside`). */
+export interface MenuAside {
+  /** What a screen reader calls it: "Delete Ideas". */
+  readonly label: string;
+  readonly icon: IconNode;
+  readonly act: () => void;
+  readonly alarm?: boolean;
 }
 
 /** A rule between two groups of items. */
@@ -182,6 +201,31 @@ export function menuList(
         shown.textContent = hint() ?? "";
         shown.hidden = shown.textContent === "";
       });
+    }
+    const { aside } = entry;
+    if (aside !== undefined) {
+      // A span, not a button: a button cannot be inside another.
+      const end = element("span", {
+        className: aside.alarm === true ? "drop-menu__aside drop-menu__aside--alarm" : "drop-menu__aside",
+        role: "button",
+        ariaLabel: aside.label,
+      });
+      end.append(createElement(aside.icon, { class: "drop-menu__icon", "aria-hidden": "true" }));
+      end.addEventListener("mousedown", (event) => event.preventDefault());
+      end.addEventListener("click", (event) => {
+        // The icon's own, not the item's.
+        event.stopPropagation();
+        close(true);
+        aside.act();
+      });
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "Delete" && event.key !== "Backspace") return;
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+        aside.act();
+      });
+      button.append(end);
     }
     button.addEventListener("click", () => {
       // Focus goes back first so that an action which moves it elsewhere wins.

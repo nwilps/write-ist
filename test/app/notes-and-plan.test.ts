@@ -1,13 +1,14 @@
 /**
  * Notes and Plan in the real shell, wired as `main.ts` wires them, over an
- * invented project in a temporary folder: Notes saves what is typed to
- * `notes.md` and opens again where the writer left it; Plan draws `plan.md`'s
+ * invented project in a temporary folder: Notes keeps each note as a `.md`
+ * file in `notes/`, in tabs — new, opened, closed, renamed and deleted from its
+ * bar — brings an old `notes.md` in, and opens again where the writer left it; Plan draws `plan.md`'s
  * cards on a grid as long as the project's target page count, and follows it
  * when Edit Project Details changes it; and turning either workspace off hides
  * its tab and leaves its file exactly as it was.
  */
 // @vitest-environment jsdom
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { TextSelection } from "prosemirror-state";
@@ -115,17 +116,38 @@ async function closeProject(): Promise<void> {
   document.body.replaceChildren();
 }
 
-const tabNames = (into: HTMLElement) => [...into.querySelectorAll<HTMLButtonElement>('[role="tab"]')].map((tab) => tab.textContent);
+const tabNames = (into: HTMLElement) => [...into.querySelectorAll<HTMLButtonElement>(".workspace-bar__tab")].map((tab) => tab.textContent);
 const selected = (into: HTMLElement) =>
-  [...into.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
+  [...into.querySelectorAll<HTMLButtonElement>(".workspace-bar__tab")].find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
 const alt = (key: string) =>
   window.dispatchEvent(new KeyboardEvent("keydown", { key, altKey: true, bubbles: true, cancelable: true }));
 
 async function notesView(into: HTMLElement): Promise<EditorView> {
-  await vi.waitFor(() => expect(into.querySelector(".notes__text")).not.toBeNull());
+  await vi.waitFor(() => expect(into.querySelector(".notes__text:not([hidden])")).not.toBeNull());
   const dom = into.querySelector(".notes__text");
   return (views.all as EditorView[]).find((view) => view.dom === dom)!;
 }
+
+/** The note tabs, by name, left to right, and the one in front. */
+const noteTabs = (into: HTMLElement) => [...into.querySelectorAll(".notes-tab .notes-tab__name")].map((name) => name.textContent);
+const frontNote = (into: HTMLElement) => into.querySelector('.notes-tab[aria-selected="true"] .notes-tab__name')?.textContent;
+const noteTab = (into: HTMLElement, name: string) =>
+  [...into.querySelectorAll<HTMLElement>(".notes-tab")].find((tab) => tab.querySelector(".notes-tab__name")?.textContent === name)!;
+const notesFolder = () => join(opened.path, "notes");
+const noteFile = (name: string) => join(notesFolder(), `${name}.md`);
+const folderFiles = () => (existsSync(notesFolder()) ? readdirSync(notesFolder()).sort() : []);
+const emptyShown = (into: HTMLElement) => into.querySelector<HTMLElement>(".notes__empty")?.hidden === false;
+function writeNotes(notes: Record<string, string>): void {
+  mkdirSync(notesFolder(), { recursive: true });
+  for (const [name, text] of Object.entries(notes)) writeFileSync(noteFile(name), text);
+}
+/** Open the folder menu and answer its rows, by name. */
+async function folderMenu(into: HTMLElement): Promise<HTMLElement[]> {
+  into.querySelector<HTMLButtonElement>(".notes-bar__folder")!.click();
+  await vi.waitFor(() => expect(document.querySelector(".drop-menu--context")).not.toBeNull());
+  return [...document.querySelectorAll<HTMLElement>('.drop-menu--context [role="menuitem"]')];
+}
+const typeAtEnd = (view: EditorView, text: string) => view.dispatch(view.state.tr.insertText(text, view.state.doc.content.size - 1));
 
 const dialog = () => document.querySelector<HTMLDialogElement>("dialog[open]");
 async function editDetails(into: HTMLElement, change: () => void): Promise<void> {
@@ -143,27 +165,49 @@ function typePages(pages: string): void {
 }
 
 describe("Notes", () => {
-  it("is Alt+2's tab, a plain notepad: typing saves notes.md, exactly as typed", async () => {
+  it("is Alt+2's tab; with no notes it waits quietly, and + makes Untitled, saved exactly as typed", async () => {
     const into = await openProject();
     alt("2");
     expect(selected(into)).toBe("Notes");
+    await vi.waitFor(() => expect(emptyShown(into)).toBe(true));
+    expect(into.querySelector(".notes__empty")!.textContent).toBe("No note open.Choose one from the folder, or start a new one with +.");
+    expect(noteTabs(into)).toEqual([]);
+    // Nothing is made until the writer asks.
+    expect(existsSync(notesFolder())).toBe(false);
+
+    into.querySelector<HTMLButtonElement>(".notes-bar__new")!.click();
     const view = await notesView(into);
+    expect(noteTabs(into)).toEqual(["Untitled"]);
+    expect(frontNote(into)).toBe("Untitled");
+    expect(emptyShown(into)).toBe(false);
+    expect(folderFiles()).toEqual(["Untitled.md"]);
     view.dispatch(view.state.tr.insertText("# Ideas"));
     view.dispatch(view.state.tr.split(view.state.doc.content.size - 1));
-    view.dispatch(view.state.tr.insertText("**The ferry** crosses at night.", view.state.doc.content.size - 1));
+    typeAtEnd(view, "**The ferry** crosses at night.");
     expect(into.querySelector(".pill--save")!.getAttribute("data-state")).toBe("unsaved");
     expect(into.querySelector(".pill--counts")!.textContent).toBe("w. 7");
     // A couple of seconds after the writer stops (ADR-0028).
-    await vi.waitFor(() => expect(existsSync(join(opened.path, "notes.md"))).toBe(true), { timeout: 4_000 });
-    expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("# Ideas\n**The ferry** crosses at night.");
+    await vi.waitFor(() => expect(readFileSync(noteFile("Untitled"), "utf8")).toBe("# Ideas\n**The ferry** crosses at night."), {
+      timeout: 4_000,
+    });
     // Plain text: no element, heading or bold is drawn for what was typed.
     expect(into.querySelector(".notes__text h1, .notes__text strong")).toBeNull();
+
+    // + again: the next free name, in a tab of its own, in front.
+    into.querySelector<HTMLButtonElement>(".notes-bar__new")!.click();
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Untitled", "Untitled 2"]));
+    expect(frontNote(into)).toBe("Untitled 2");
+    expect(folderFiles()).toEqual(["Untitled 2.md", "Untitled.md"]);
   });
 
-  it("saves on switching to another workspace, and undo and redo walk the edits", async () => {
+  it("saves the note it leaves on switching tabs and workspaces, and keeps each note's own undo", async () => {
+    writeNotes({ Ideas: "", Ferry: "" });
     const into = await openProject();
     alt("2");
     const view = await notesView(into);
+    // jsdom lays nothing out, so an undo cannot be scrolled to.
+    vi.spyOn(view, "coordsAtPos").mockReturnValue({ left: 0, right: 0, top: 0, bottom: 0 });
+    expect(noteTabs(into)).toEqual(["Ferry"]);
     view.dispatch(view.state.tr.insertText("one"));
     view.dispatch(view.state.tr.setTime(Date.now() + 10_000).insertText(" two", 4));
     const press = (key: string, shiftKey = false) =>
@@ -172,49 +216,252 @@ describe("Notes", () => {
     expect(view.state.doc.textContent).toBe("one");
     press("y");
     expect(view.state.doc.textContent).toBe("one two");
+
+    // Open Ideas from the folder: Ferry is saved on the way, long before the pause.
+    const rows = await folderMenu(into);
+    expect(rows.map((row) => row.textContent)).toEqual(["Ferry", "Ideas"]);
+    rows[1]!.click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Ideas"));
+    await vi.waitFor(() => expect(readFileSync(noteFile("Ferry"), "utf8")).toBe("one two"));
+    expect(view.state.doc.textContent).toBe("");
+    view.dispatch(view.state.tr.insertText("ideas"));
+    // Undo here is Ideas' own; Ferry's history is untouched.
     press("z");
+    expect(view.state.doc.textContent).toBe("");
+    press("y");
+
+    // Back to Ferry by its tab: its words, and its undo, are its own.
+    noteTab(into, "Ferry").click();
+    expect(frontNote(into)).toBe("Ferry");
+    expect(view.state.doc.textContent).toBe("one two");
+    press("z");
+    expect(view.state.doc.textContent).toBe("one");
     alt("1");
-    await vi.waitFor(() => expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("one"));
+    await vi.waitFor(() => expect(readFileSync(noteFile("Ferry"), "utf8")).toBe("one"));
+    expect(readFileSync(noteFile("Ideas"), "utf8")).toBe("ideas");
     expect(selected(into)).toBe("Editor");
   });
 
-  it("opens again with the text, the caret and the scroll where the writer left them", async () => {
+  it("brings an old notes.md into the folder as Notes, once, with its caret and scroll", async () => {
     writeFileSync(join(opened.path, "notes.md"), "first line\nsecond line\nthird line");
+    // Where the one notepad was left, before there were tabs.
+    mkdirSync(join(temporary.path, "app-data"), { recursive: true });
+    writeFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "id-paper-boats\tnotes\tanchor=14\thead=14\tscroll=340\n");
+    const into = await openProject();
+    alt("2");
+    const view = await notesView(into);
+    expect(noteTabs(into)).toEqual(["Notes"]);
+    expect(existsSync(join(opened.path, "notes.md"))).toBe(false);
+    expect(folderFiles()).toEqual(["Notes.md"]);
+    expect(readFileSync(noteFile("Notes"), "utf8")).toBe("first line\nsecond line\nthird line");
+    expect(view.state.doc.textContent).toBe("first linesecond linethird line");
+    expect(view.state.selection.head).toBe(16);
+    await vi.waitFor(() => expect(into.querySelector<HTMLElement>(".notes")!.scrollTop).toBe(340));
+  });
+
+  it("never overwrites a note already called Notes: the old notes.md comes in beside it", async () => {
+    writeNotes({ Notes: "Already in the folder." });
+    writeFileSync(join(opened.path, "notes.md"), "From before the folder.");
+    const into = await openProject();
+    alt("2");
+    await notesView(into);
+    expect(noteTabs(into)).toEqual(["Notes 2"]);
+    expect(folderFiles()).toEqual(["Notes 2.md", "Notes.md"]);
+    expect(readFileSync(noteFile("Notes"), "utf8")).toBe("Already in the folder.");
+    expect(readFileSync(noteFile("Notes 2"), "utf8")).toBe("From before the folder.");
+    expect(existsSync(join(opened.path, "notes.md"))).toBe(false);
+  });
+
+  it("opens again with the same tabs, the same one in front, and each note's caret and scroll", async () => {
+    writeNotes({ Alpha: "alpha", Beta: "first line\nsecond line\nthird line", Gamma: "gamma" });
     let into = await openProject();
     alt("2");
     let view = await notesView(into);
+    for (const name of ["Gamma", "Beta"]) {
+      const rows = await folderMenu(into);
+      rows.find((row) => row.textContent === name)!.click();
+      await vi.waitFor(() => expect(frontNote(into)).toBe(name));
+    }
+    expect(noteTabs(into)).toEqual(["Alpha", "Gamma", "Beta"]);
+    view = await notesView(into);
     // "sec|ond": offset 14 in the text is position 16 in the document.
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 16)));
-    // The notepad scrolls inside itself; the window's column does not move.
     const pad = into.querySelector<HTMLElement>(".notes")!;
     pad.scrollTop = 340;
     pad.dispatchEvent(new Event("scroll"));
-    // A scroll anywhere else is not the notepad's.
+    // A scroll anywhere else is not the note's.
     const column = into.querySelector<HTMLElement>(".shell__view")!;
     column.scrollTop = 25;
     column.dispatchEvent(new Event("scroll"));
     await closeProject();
-    expect(readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8")).toBe(
-      "id-paper-boats\tnotes\tanchor=14\thead=14\tscroll=340\n",
-    );
+    const kept = readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8");
+    expect(kept).toContain('id-paper-boats\tnotes\topen=3\ttab-1="Alpha"\ttab-2="Gamma"\ttab-3="Beta"\tactive="Beta"\n');
+    expect(kept).toContain('id-paper-boats\tnotes\t"Beta"\tanchor=14\thead=14\tscroll=340\n');
+    // Session memory is the application's, never the project's.
+    expect(readdirSync(opened.path)).not.toContain("workspace-places.txt");
 
     views.all.length = 0;
     into = await openProject();
     alt("2");
     view = await notesView(into);
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Alpha", "Gamma", "Beta"]));
+    expect(frontNote(into)).toBe("Beta");
     expect(view.state.doc.textContent).toBe("first linesecond linethird line");
     expect(view.state.selection.head).toBe(16);
     await vi.waitFor(() => expect(into.querySelector<HTMLElement>(".notes")!.scrollTop).toBe(340));
 
-    // Away to the Editor and back: the notepad is where it was, even if it
-    // lost its scroll while it was out of sight.
+    // Away to the Editor and back: the note is where it was.
     alt("1");
     into.querySelector<HTMLElement>(".notes")!.scrollTop = 0;
     alt("2");
     expect(into.querySelector<HTMLElement>(".notes")!.scrollTop).toBe(340);
   });
 
+  it("closes a tab with ×, saving it and keeping its file; with the last closed, waits quietly", async () => {
+    writeNotes({ Ideas: "" });
+    const into = await openProject();
+    alt("2");
+    const view = await notesView(into);
+    view.dispatch(view.state.tr.insertText("Kept on closing."));
+    noteTab(into, "Ideas").querySelector<HTMLButtonElement>(".notes-tab__close")!.click();
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual([]));
+    expect(readFileSync(noteFile("Ideas"), "utf8")).toBe("Kept on closing.");
+    expect(folderFiles()).toEqual(["Ideas.md"]);
+    expect(emptyShown(into)).toBe(true);
+    expect(into.querySelector<HTMLElement>(".notes__text")!.hidden).toBe(true);
+    expect(into.querySelector(".pill--counts")!.hasAttribute("hidden")).toBe(true);
+    // No alarm and nothing to dismiss: no dialog, no trouble said.
+    expect(dialog()).toBeNull();
+    expect(into.querySelector(".trouble, [role='alert']")).toBeNull();
+
+    // Still in the folder, and opened again from it.
+    const rows = await folderMenu(into);
+    expect(rows.map((row) => row.textContent)).toEqual(["Ideas"]);
+    rows[0]!.click();
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Ideas"]));
+    expect((await notesView(into)).state.doc.textContent).toBe("Kept on closing.");
+
+    // And the empty state is remembered: closed, it opens closed.
+    noteTab(into, "Ideas").querySelector<HTMLButtonElement>(".notes-tab__close")!.click();
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual([]));
+    await closeProject();
+    const again = await openProject();
+    alt("2");
+    await vi.waitFor(() => expect(emptyShown(again)).toBe(true));
+    expect(noteTabs(again)).toEqual([]);
+  });
+
+  it("has no limit on tabs: each note opened is one more, in the order opened", async () => {
+    const names = Array.from({ length: 14 }, (_, index) => `Note ${index + 1}`);
+    writeNotes(Object.fromEntries(names.map((name) => [name, name])));
+    const into = await openProject();
+    alt("2");
+    await notesView(into);
+    for (const name of names.slice(1)) {
+      const rows = await folderMenu(into);
+      rows.find((row) => row.textContent === name)!.click();
+      await vi.waitFor(() => expect(frontNote(into)).toBe(name));
+    }
+    expect(noteTabs(into)).toEqual(names);
+    // A note already open is brought to the front, not opened twice.
+    (await folderMenu(into)).find((row) => row.textContent === "Note 3")!.click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 3"));
+    expect(noteTabs(into)).toHaveLength(14);
+  });
+
+  it("renames the note in front by double-clicking its tab: the file follows, made safe and numbered quietly", async () => {
+    writeNotes({ Untitled: "The ferry.", Ferry: "Another note." });
+    const into = await openProject();
+    alt("2");
+    let view = await notesView(into);
+    (await folderMenu(into)).find((row) => row.textContent === "Untitled")!.click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Untitled"));
+    const rename = async (from: string, typed: string, key = "Enter") => {
+      noteTab(into, from).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const input = into.querySelector<HTMLInputElement>(".notes-tab__rename")!;
+      expect(input.value).toBe(from);
+      input.value = typed;
+      input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    };
+
+    // A double-click on a tab behind another only brings it forward; it renames nothing.
+    noteTab(into, "Ferry").dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    expect(into.querySelector(".notes-tab__rename")).toBeNull();
+
+    await rename("Untitled", 'The "ferry": at night?');
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Ferry", "The ferry at night"]));
+    expect(folderFiles()).toEqual(["Ferry.md", "The ferry at night.md"]);
+    expect(readFileSync(noteFile("The ferry at night"), "utf8")).toBe("The ferry.");
+
+    // A name another note has: numbered, and the other note untouched.
+    await rename("The ferry at night", "ferry.md");
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Ferry", "ferry 2"]));
+    expect(folderFiles()).toEqual(["Ferry.md", "ferry 2.md"]);
+    expect(readFileSync(noteFile("Ferry"), "utf8")).toBe("Another note.");
+
+    // Escape leaves it as it was.
+    await rename("ferry 2", "Something else", "Escape");
+    expect(noteTabs(into)).toEqual(["Ferry", "ferry 2"]);
+    expect(folderFiles()).toEqual(["Ferry.md", "ferry 2.md"]);
+
+    // Typing goes on into the renamed file, and its place goes with it.
+    view = await notesView(into);
+    typeAtEnd(view, " More.");
+    await closeProject();
+    expect(readFileSync(noteFile("ferry 2"), "utf8")).toBe("The ferry. More.");
+    expect(folderFiles()).toEqual(["Ferry.md", "ferry 2.md"]);
+    const kept = readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8");
+    expect(kept).toContain('tab-2="ferry 2"\tactive="ferry 2"');
+    expect(kept).not.toContain('"Untitled"');
+  });
+
+  it("deletes a note from the folder menu only after the alarm-coloured confirmation, closing its tab", async () => {
+    writeNotes({ Ideas: "To be deleted.", Keep: "Stays." });
+    const into = await openProject();
+    alt("2");
+    await notesView(into);
+    (await folderMenu(into)).find((row) => row.textContent === "Keep")!.click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Keep"));
+    (await folderMenu(into)).find((row) => row.textContent === "Ideas")!.click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Ideas"));
+    expect(noteTabs(into)).toEqual(["Ideas", "Keep"]);
+
+    const deleteFromMenu = async () => {
+      const row = (await folderMenu(into)).find((each) => each.textContent === "Ideas")!;
+      const aside = row.querySelector<HTMLElement>(".drop-menu__aside")!;
+      expect(aside.getAttribute("aria-label")).toBe("Delete Ideas");
+      expect(aside.classList.contains("drop-menu__aside--alarm")).toBe(true);
+      aside.click();
+      await vi.waitFor(() => expect(dialog()).not.toBeNull());
+    };
+
+    // Cancel: nothing happens.
+    await deleteFromMenu();
+    expect(dialog()!.getAttribute("aria-label")).toBe("Delete Note");
+    expect(dialog()!.classList.contains("project-dialog--alarm")).toBe(true);
+    expect(dialog()!.textContent).toContain('Delete "Ideas"?');
+    expect(document.activeElement?.textContent).toContain("Cancel");
+    dialog()!.close();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
+    expect(folderFiles()).toEqual(["Ideas.md", "Keep.md"]);
+    expect(noteTabs(into)).toEqual(["Ideas", "Keep"]);
+
+    // Confirmed: the file goes, its tab closes, the next tab comes forward.
+    await deleteFromMenu();
+    dialog()!.querySelector<HTMLFormElement>("form")!.requestSubmit();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
+    expect(folderFiles()).toEqual(["Keep.md"]);
+    expect(noteTabs(into)).toEqual(["Keep"]);
+    expect(frontNote(into)).toBe("Keep");
+    expect((await folderMenu(into)).map((row) => row.textContent)).toEqual(["Keep"]);
+    // Nothing waiting brings it back.
+    await closeProject();
+    expect(folderFiles()).toEqual(["Keep.md"]);
+    expect(readFileSync(noteFile("Keep"), "utf8")).toBe("Stays.");
+  });
+
   it("answers a right-click with Write-ist's own menu, never the webview's", async () => {
+    writeNotes({ Ideas: "" });
     const into = await openProject();
     alt("2");
     const view = await notesView(into);
@@ -228,9 +475,14 @@ describe("Notes", () => {
       (item) => item.textContent,
     );
     expect(labels.join(" ")).toMatch(/Cut.*Copy.*Paste.*Select All.*Undo.*Redo.*Spellcheck/);
+    // The bar's own right-click is suppressed too.
+    const onBar = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    into.querySelector(".notes-bar")!.dispatchEvent(onBar);
+    expect(onBar.defaultPrevented).toBe(true);
   });
 
-  it("turned off, hides its tab, drops the writer into the Editor, and keeps notes.md; turned on, finds it as it was", async () => {
+  it("turned off, hides its tab, drops the writer into the Editor, and keeps the notes folder; turned on, finds it as it was", async () => {
+    writeNotes({ Ideas: "" });
     const into = await openProject();
     alt("2");
     const view = await notesView(into);
@@ -241,7 +493,8 @@ describe("Notes", () => {
     expect(selected(into)).toBe("Editor");
     // Taken down, which saved it, as closing does.
     await vi.waitFor(() => expect(into.querySelector(".notes")).toBeNull());
-    expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("Kept through the switch.");
+    expect(readFileSync(noteFile("Ideas"), "utf8")).toBe("Kept through the switch.");
+    expect(folderFiles()).toEqual(["Ideas.md"]);
     // Alt+2 is Notes' own key, and there is no Notes tab now.
     alt("2");
     expect(selected(into)).toBe("Editor");
@@ -251,7 +504,7 @@ describe("Notes", () => {
     alt("2");
     const again = await notesView(into);
     expect(again.state.doc.textContent).toBe("Kept through the switch.");
-    expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("Kept through the switch.");
+    expect(readFileSync(noteFile("Ideas"), "utf8")).toBe("Kept through the switch.");
   });
 });
 

@@ -12,6 +12,13 @@ command that never replaces anything.
 Graveyard recovers a project, and **Exile** — the permanent delete of one project already in the
 Graveyard — is built. See *Exile* below.**
 
+**Note, 2026-11-23 (PR #164, Noah): a second erase, of one note.** Notes' folder menu deletes a note
+for good — Noah asked for exactly that — after a confirmation in the alarm colour, Exile's dialog.
+It is as narrow as Exile: one real `.md` file, not a link, directly in a real `notes/` folder of a
+real project inside the projects folder (`remove_note_within`, `src-tauri/src/folders.rs`). It never
+touches a project, the Graveyard, or anything else. If notes should one day go somewhere
+recoverable instead, this is the one place to change.
+
 **Update, 2026-11-21 (PR #162, Noah): the row menu's first item is Edit Project Details**, the same
 dialog File ▸ Edit Project Details… opens in the Editor, for the row's project. A rename is its name
 field, through the same `renameProject`; the rename-only dialog is gone.

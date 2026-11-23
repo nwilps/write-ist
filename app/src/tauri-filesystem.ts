@@ -90,6 +90,18 @@ export const tauriFilesystem: Filesystem = {
     await invoke("remove_empty_folder", { path });
   },
 
+  async moveFile(from: string, to: string): Promise<void> {
+    // A command, which links the new name before dropping the old, and never
+    // replaces anything (`move_file`, `src-tauri/src/lib.rs`).
+    await invoke("move_file", { from, to });
+  },
+
+  async removeNote(path: string): Promise<void> {
+    // A command, which deletes a note in a project's notes folder and refuses
+    // anything else (`remove_note`, `src-tauri/src/lib.rs`).
+    await invoke("remove_note", { path });
+  },
+
   async exileFromGraveyard(path: string, projectId: string): Promise<void> {
     // A command, which checks the folder and its project id itself, on disk,
     // just before the one erase (`exile_project`, `src-tauri/src/lib.rs`).

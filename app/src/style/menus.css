@@ -107,6 +107,31 @@
 }
 
 /*
+ * An item's second action, at its end (Delete beside a note's name): faint
+ * until the pointer is on it, then lit, and in the alarm colour when it destroys.
+ */
+.drop-menu__aside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-row);
+  height: var(--size-row);
+  margin-left: auto;
+  margin-right: calc(var(--space-row-label) / -2);
+  border-radius: var(--radius-slight);
+  color: var(--colour-faint);
+}
+
+.drop-menu__aside:hover {
+  background: var(--colour-raised);
+  color: var(--colour-text);
+}
+
+.drop-menu__aside--alarm:hover {
+  color: var(--colour-alarm);
+}
+
+/*
  * A row of steps (View ▸ Zoom): −, a dot for each step and +, at the row's end
  * where a hint would be. The row is an item like any other, lit when it has
  * focus; − and + light again under the pointer, and dim at either end.

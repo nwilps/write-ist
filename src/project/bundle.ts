@@ -2,7 +2,7 @@
  * A bundle: the folder a project lives in (ADR-0025).
  *
  * Slice 1 writes two of its files. The rest — `drafts/`, `drafts.md`,
- * `plan.md`, `log.md`, `notes.md` — arrive with the workspaces that own them,
+ * `plan.md`, `log.md`, the `notes/` folder — arrive with the workspaces that own them,
  * so they are named in ADR-0025 and not here.
  */
 import type { ProjectMarker } from "./marker.ts";

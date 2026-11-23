@@ -9,7 +9,7 @@
  * and one invented project in a temporary folder.
  */
 // @vitest-environment jsdom
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditorView } from "prosemirror-view";
@@ -385,7 +385,8 @@ describe("Edit Project Details: the workspaces", () => {
 
   it("turned off, hides the tab; turned on again, brings it back; the workspace's files are left untouched", async () => {
     const { into } = await editing();
-    writeFileSync(join(opened.path, "notes.md"), "# Notes\n\nThe boat is paper.\n");
+    mkdirSync(join(opened.path, "notes"));
+    writeFileSync(join(opened.path, "notes", "Ideas.md"), "# Notes\n\nThe boat is paper.\n");
     expect(tabs(into)).toEqual(["Editor", "Notes", "Plan"]);
 
     await openDetails(into);
@@ -394,7 +395,7 @@ describe("Edit Project Details: the workspaces", () => {
     await vi.waitFor(() => expect(dialog()).toBeNull());
     expect(tabs(into)).toEqual(["Editor", "Plan"]);
     expect((await readDetails(nodeFilesystem, opened.path)).details.workspaces).toEqual(["editor", "plan"]);
-    expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("# Notes\n\nThe boat is paper.\n");
+    expect(readFileSync(join(opened.path, "notes", "Ideas.md"), "utf8")).toBe("# Notes\n\nThe boat is paper.\n");
 
     await openDetails(into);
     expect(workspaceSwitch("notes").getAttribute("aria-checked")).toBe("false");
@@ -402,7 +403,7 @@ describe("Edit Project Details: the workspaces", () => {
     confirm();
     await vi.waitFor(() => expect(dialog()).toBeNull());
     expect(tabs(into)).toEqual(["Editor", "Notes", "Plan"]);
-    expect(readFileSync(join(opened.path, "notes.md"), "utf8")).toBe("# Notes\n\nThe boat is paper.\n");
+    expect(readFileSync(join(opened.path, "notes", "Ideas.md"), "utf8")).toBe("# Notes\n\nThe boat is paper.\n");
   });
 
   it("turning off the workspace the writer is in returns them to the Editor, whose paper stays up", async () => {

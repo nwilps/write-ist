@@ -1,6 +1,6 @@
 /**
- * A workspace's own file, open for writing: `notes.md` for Notes, `plan.md`
- * for Plan (ADR-0025, one file per workspace).
+ * A workspace's own file, open for writing: a note in `notes/` for Notes,
+ * `plan.md` for Plan (ADR-0025).
  *
  * The manuscript has its save routine (`save.ts`) and its session
  * (`manuscript-session.ts`); this is the same set of promises for a file that
@@ -22,9 +22,16 @@
  * - **A last save that fails keeps the workspace up** (`leave` answers false),
  *   so the words on screen are never taken down with nowhere else to be.
  *
+ * ## In a folder of its own
+ *
+ * A file may be in a folder inside the project's (`notes/Ideas.md`). The folder
+ * is made if it is not there when the file is first written, the dated copy of
+ * an outside change is kept beside the file in that folder, and `rename` moves
+ * the file to a new name between saves, as `relocate` moves the project.
+ *
  * ## Absent is not unreadable
  *
- * A project that has never had notes has no `notes.md`, and that is a blank
+ * A project that has never had a plan has no `plan.md`, and that is a blank
  * page rather than an error (ADR-0016's *absent and unparseable are
  * different*). Nothing is written until the writer writes something, so
  * opening Notes and leaving never creates an empty file.
@@ -33,7 +40,7 @@
  *
  * A byte-order mark and Windows line endings are the file's, not the writer's
  * text, so they are taken off for editing and put back on every write: a
- * `notes.md` written on Windows stays a Windows file.
+ * note written on Windows stays a Windows file.
  */
 import { autosave, windowClock, type Clock } from "./autosave.ts";
 import type { Project } from "./bundle.ts";
@@ -109,7 +116,7 @@ export interface WorkspaceFilePorts {
   readonly filesystem: Filesystem;
   /** The project as it was opened; `relocate` is how it changes after that. */
   readonly project: Project;
-  /** The file's name in the project's folder (`notes.md`). */
+  /** The file's path in the project's folder (`plan.md`, `notes/Ideas.md`). */
   readonly file: string;
   /** What the file holds, in the writer's words for failures: "your notes". */
   readonly noun: string;
@@ -146,6 +153,20 @@ export interface WorkspaceFileSession {
   readonly leave: () => Promise<boolean>;
   /** Move the project's folder between saves, and go on saving where it went (`save.ts`'s `relocate`). */
   readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
+  /** The file's path in the project's folder, as it is now: `rename` changes it. */
+  readonly file: () => string;
+  /**
+   * Move the file to another path between saves — never during one — and go on
+   * saving there. `move` does the move and answers the new path; if it fails,
+   * the file and the session are as they were.
+   */
+  readonly rename: (move: (from: string) => Promise<string>) => Promise<string>;
+  /**
+   * Stop saving, for good: the file is about to be deleted. Nothing waiting is
+   * written, and nothing is written after. Only for a file whose work is on
+   * disk (`unsaved()` false) or is being thrown away on the writer's word.
+   */
+  readonly discard: () => void;
 }
 
 /** Open a session over a file that has been read. */
@@ -153,6 +174,7 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
   const clock = ports.clock ?? windowClock;
   const now = ports.now ?? (() => new Date());
   let project = ports.project;
+  let file = ports.file;
   let habits = read.habits;
   /**
    * Every version the file may hold because of Write-ist — what it last read,
@@ -168,8 +190,11 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
     one === undefined || other === undefined ? one === other : identical(one, other);
 
   const write = async (): Promise<void> => {
-    // Asked here rather than once: a rename moves the folder between saves.
-    const path = join(project.path, ports.file);
+    // Asked here rather than once: a rename moves the folder, or the file, between saves.
+    const path = join(project.path, file);
+    const slash = file.lastIndexOf("/");
+    const folder = join(project.path, file.slice(0, Math.max(0, slash)));
+    const name = file.slice(slash + 1);
     const there = await withinLimit(ports.filesystem.exists(path), clock);
     const found = there ? await withinLimit(ports.filesystem.readFile(path), clock) : undefined;
 
@@ -189,9 +214,9 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
       // Typed as well: the other version is kept beside it first, exactly as
       // found. A file deleted elsewhere has nothing to keep.
       if (found !== undefined) {
-        const entries = await withinLimit(ports.filesystem.readDirectory(project.path), clock);
-        const copy = copyNameFor(now(), new Set(entries.map((entry) => entry.name)), ports.file);
-        await withinLimit(ports.filesystem.writeFile(join(project.path, copy), found), clock);
+        const entries = await withinLimit(ports.filesystem.readDirectory(folder), clock);
+        const copy = copyNameFor(now(), new Set(entries.map((entry) => entry.name)), name);
+        await withinLimit(ports.filesystem.writeFile(join(folder, copy), found), clock);
       }
       ours.push(found);
     }
@@ -205,6 +230,7 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
     const bytes = encodeWorkspaceFile(text, habits);
     if (!unsettled && found !== undefined && identical(bytes, found)) return;
     try {
+      if (!there && slash >= 0) await withinLimit(ports.filesystem.createDirectory(folder), clock);
       await withinLimit(ports.filesystem.writeFile(path, bytes), clock);
     } catch (error) {
       dirty = true;
@@ -221,7 +247,7 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
     if (found === undefined) return ports.reload("") !== false;
     let decoded: { text: string; habits: FileHabits };
     try {
-      decoded = decodeWorkspaceFile(found, ports.file);
+      decoded = decodeWorkspaceFile(found, file);
     } catch {
       return false;
     }
@@ -230,7 +256,9 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
     return true;
   };
 
+  let discarded = false;
   const saveOnce = async (): Promise<void> => {
+    if (discarded) return;
     ports.setSaved("saving");
     const done = running.then(write, write);
     running = done.catch(() => {});
@@ -291,6 +319,22 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
     },
     relocate: (move) => {
       const moving = (): Promise<Project> => withinLimit(move().then((moved) => (project = moved)), clock);
+      const moved = running.then(moving, moving);
+      running = moved.then(
+        () => {},
+        () => {},
+      );
+      return moved;
+    },
+    file: () => file,
+    discard: () => {
+      discarded = true;
+      dirty = false;
+      stopAway();
+      stopBack();
+    },
+    rename: (move) => {
+      const moving = (): Promise<string> => withinLimit(move(file).then((moved) => (file = moved)), clock);
       const moved = running.then(moving, moving);
       running = moved.then(
         () => {},

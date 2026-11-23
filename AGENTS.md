@@ -13,8 +13,8 @@ GitHub Issues, never a doc.
   and Open Project (rename, recoverable delete), the **Editor** on the paper in industry format,
   drawn as **separate sheets**; the title page off the paper, with Edit Title Page and View Title
   Page; File ▸ Export As (PDF, all pages or a range, and a clean Fountain copy); scenes (ranges), name and location lists,
-  autocomplete; on-demand spellcheck; search; the bottom pills; writing goals. **Notes** (a
-  plain-text notepad, `notes.md`) and **Plan** (cards on a grid as long as the target page count,
+  autocomplete; on-demand spellcheck; search; the bottom pills; writing goals. **Notes** (plain-text
+  notes in tabs, one `.md` file each in `notes/`) and **Plan** (cards on a grid as long as the target page count,
   `plan.md`) as workspaces of their own, through the registry.
 - **Left in Slice 2:** #92 (the caret at sheet seams, checked on Linux/WebKitGTK) and #103 (a full
   start-to-finish pass, and the numbers the spec names).

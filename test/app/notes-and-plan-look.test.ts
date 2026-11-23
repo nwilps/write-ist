@@ -1,10 +1,11 @@
 /**
  * How Notes and Plan are drawn, read from their stylesheets.
  *
- * Notes is a window floating on the desk, shaped like a laptop's screen: three
- * quarters of the workspace's width, 16:9, centred, scrolling inside itself,
- * and on a short window shrunk, still 16:9, to stay clear of the bar and the
- * pills. It is not the Editor's paper.
+ * Notes is a window floating on the desk, shaped like a laptop's screen: seven
+ * tenths of the workspace's width, 16:9, centred, scrolling inside itself with
+ * no scrollbar, and on a short window shrunk, still 16:9, to stay clear of the
+ * bar and the pills. Its bar of pills is exactly the window's width, its tabs
+ * scrolling sideways between the folder and +. It is not the Editor's paper.
  *
  * Plan's grid is a dot at each corner of its squares, opaque and quiet, a
  * column of them on every edge, under the lines and under every card. A beat
@@ -52,50 +53,56 @@ const PLAN = "workspaces/plan/plan.css";
 
 describe("Notes, a floating window", () => {
   const notes = rule(NOTES, ".notes");
+  const window = rule(NOTES, ".notes-window");
 
-  it("is three quarters of the workspace's width and 16:9, measured against the Notes desk", () => {
-    expect(token("--fraction-notes-width")).toBe("0.75");
+  it("is seven tenths of the workspace's width and 16:9, measured against the Notes desk, the bar above it counted", () => {
+    expect(token("--fraction-notes-width")).toBe("0.7");
     expect(token("--ratio-notes")).toBe("16 / 9");
     expect(token("--size-notes-room-width")).toBe("100cqw");
     expect(token("--size-notes-room-height")).toBe("100cqh");
     expect(rule(NOTES, ".notes-desk")).toContain("container-type: size");
     expect(rule(NOTES, ".notes-desk")).toMatch(/align-items: center;.*justify-content: center/);
-    expect(notes).toContain("aspect-ratio: var(--ratio-notes)");
-    expect(notes).toContain(
+    expect(window).toContain(
       "width: min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
-        "calc((var(--size-notes-room-height) - var(--space-notes-inset) * 2) * var(--ratio-notes)) )",
+        "calc( (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-notes-bar-gap)) * var(--ratio-notes) ) )",
     );
+    expect(notes).toContain("width: 100%");
+    expect(notes).toContain("aspect-ratio: var(--ratio-notes)");
   });
 
   // The width rule above, worked through for a wide workspace and a short one.
   const drawn = (roomWidth: number, roomHeight: number) => {
     const inset = pixels("--space-notes-inset");
-    const width = Math.min(roomWidth * 0.75, (roomHeight - inset * 2) * (16 / 9));
-    return { width, height: width / (16 / 9), above: (roomHeight - width / (16 / 9)) / 2 };
+    const bar = pixels("--size-notes-bar") + pixels("--space-notes-bar-gap");
+    const width = Math.min(roomWidth * 0.7, (roomHeight - inset * 2 - bar) * (16 / 9));
+    const height = width / (16 / 9);
+    return { width, height, above: (roomHeight - height - bar) / 2 };
   };
 
-  it("with room, is 75% wide and 16:9", () => {
+  it("with room, is 70% wide and 16:9", () => {
     const { width, height } = drawn(1200, 900);
-    expect(width).toBe(900);
-    expect(height).toBeCloseTo(506.25);
+    expect(width).toBe(840);
+    expect(height).toBeCloseTo(472.5);
   });
 
-  it("on a short window, keeps 16:9 by narrowing, and stays clear of the bar and the pills", () => {
+  it("on a short window, keeps 16:9 by narrowing, and with its bar stays clear of the workspace bar and the pills", () => {
     // The smallest window Write-ist opens (560 × 420), less the workspace's sides.
     for (const [roomWidth, roomHeight] of [[1200, 400], [528, 420]] as const) {
       const { width, height, above } = drawn(roomWidth, roomHeight);
-      expect(width).toBeLessThanOrEqual(roomWidth * 0.75);
+      expect(width).toBeLessThanOrEqual(roomWidth * 0.7);
       expect(width / height).toBeCloseTo(16 / 9);
-      expect(above).toBeGreaterThanOrEqual(pixels("--space-notes-inset"));
+      expect(above).toBeGreaterThanOrEqual(pixels("--space-notes-inset") - 0.001);
     }
-    expect(drawn(1200, 400).width).toBeLessThan(900);
+    expect(drawn(1200, 400).width).toBeLessThan(840);
     expect(pixels("--space-notes-inset")).toBeGreaterThanOrEqual(pixels("--space-desk-foot"));
   });
 
-  it("scrolls inside itself, never growing with the notes", () => {
+  it("scrolls inside itself, never growing with the note, and draws no scrollbar", () => {
     expect(notes).toContain("overflow-y: auto");
     expect(notes).toContain("overflow-x: hidden");
-    expect(notes).toContain("flex: none");
+    expect(notes).toContain("scrollbar-width: none");
+    expect(rule(NOTES, ".notes::-webkit-scrollbar")).toContain("display: none");
+    expect(window).toContain("flex: none");
     expect(notes).not.toMatch(/(?:^|[\s;])height:|min-height|flex: 1/);
     expect(rule(NOTES, ".notes-desk")).not.toContain("overflow");
   });
@@ -106,6 +113,57 @@ describe("Notes, a floating window", () => {
     expect(notes).toContain("border-radius: var(--radius-float)");
     expect(notes).toContain("box-shadow: var(--shadow-float)");
     expect(sheet(NOTES)).not.toMatch(/--page-width|--paper-zoom|--radius-paper|--shadow-paper|--colour-page/);
+  });
+
+  it("says, quietly, when no note is open", () => {
+    const empty = rule(NOTES, ".notes__empty");
+    expect(empty).toContain("color: var(--colour-faint)");
+    expect(empty).not.toMatch(/alarm|accent/);
+    expect(rule(NOTES, ".notes__empty[hidden]")).toContain("display: none");
+  });
+});
+
+describe("Notes' bar of pills", () => {
+  const bar = rule(NOTES, ".notes-bar");
+  const strip = rule(NOTES, ".notes-tabs");
+  const tab = rule(NOTES, ".notes-tab");
+  const pill = rule(NOTES, ".notes-bar__pill");
+
+  it("is exactly as wide as the window, and can never be pushed wider by its tabs", () => {
+    expect(bar).toContain("width: 100%");
+    expect(bar).toContain("min-width: 0");
+    expect(bar).toContain("box-sizing: border-box");
+    expect(rule(NOTES, ".notes-window")).toContain("min-width: 0");
+    // The folder and + keep their size; the tabs between them give way, and scroll.
+    expect(pill).toContain("flex: none");
+    expect(strip).toContain("flex: 1 1 auto");
+    expect(strip).toContain("min-width: 0");
+  });
+
+  it("scrolls its tabs sideways with no scrollbar, and never wraps them", () => {
+    expect(strip).toContain("overflow-x: auto");
+    expect(strip).toContain("overflow-y: hidden");
+    expect(strip).toContain("scrollbar-width: none");
+    expect(rule(NOTES, ".notes-tabs::-webkit-scrollbar")).toContain("display: none");
+    expect(strip).not.toContain("flex-wrap");
+    expect(tab).toContain("flex: none");
+    expect(tab).toContain("max-width: var(--measure-notes-tab)");
+    expect(rule(NOTES, ".notes-tab__name")).toContain("text-overflow: ellipsis");
+    // Room for the pills' shadows, taken back so the bar keeps its height.
+    expect(strip).toContain("padding: var(--space-notes-tab-shadow) 0");
+    expect(strip).toContain("margin: calc(var(--space-notes-tab-shadow) * -1) 0");
+  });
+
+  it("draws the folder, the tabs and + as the app's pills, the note in front in the accent", () => {
+    for (const each of [pill, tab]) {
+      expect(each).toContain("background: var(--colour-raised)");
+      expect(each).toContain("border: var(--rule-thin) solid var(--colour-border-strong)");
+      expect(each).toContain("border-radius: var(--radius-float)");
+      expect(each).toContain("box-shadow: var(--shadow-float)");
+      expect(each).toContain("height: var(--size-notes-bar)");
+    }
+    expect(token("--size-notes-bar")).toBe("var(--size-pill)");
+    expect(rule(NOTES, '.notes-tab[aria-selected="true"]')).toContain("color: var(--colour-accent)");
   });
 });
 

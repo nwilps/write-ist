@@ -1,6 +1,8 @@
 /**
- * Notes open for writing, with no window: the editing state, its undo
- * history, the word count, the spelling pass, and the file (`notes.md`).
+ * One note open for writing, with no window: the editing state, its undo
+ * history, the word count, the spelling pass, and its file (`notes/Ideas.md`;
+ * the folder is `notes-folder.ts`'s). Each open tab in Notes is one of these,
+ * so each note keeps its own undo history and saves on its own.
  *
  * The Notes workspace (`app/src/workspaces/notes/`) mounts a view over this and
  * hands it each transaction, the way the Editor does over its manuscript
@@ -27,12 +29,11 @@ import { message } from "../message.ts";
 import { plainSpelling, type PlainSpellEngine } from "./spelling.ts";
 import { docOf, offsetOf, positionOf, textOf, wordsOf } from "./text.ts";
 
-/** Notes' file in the project's folder (ADR-0025). Plain text, exactly as typed. */
-export const NOTES_FILE = "notes.md";
-
 export interface NotesSessionPorts {
   readonly filesystem: Filesystem;
   readonly project: Project;
+  /** The note's path in the project's folder (`notePath`). Plain text, exactly as typed. */
+  readonly file: string;
   readonly report: (trouble: string) => void;
   readonly setSaved: (state: FileSaveState) => void;
   /** The counts pill: Notes' words. */
@@ -87,6 +88,11 @@ export interface NotesSession {
   readonly save: () => Promise<void>;
   readonly leave: () => Promise<boolean>;
   readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
+  /** Move the note's file between saves, and go on saving there (`WorkspaceFileSession.rename`). */
+  readonly rename: (move: (from: string) => Promise<string>) => Promise<string>;
+  readonly file: () => string;
+  /** Stop saving this note, for good: it is being deleted (`WorkspaceFileSession.discard`). */
+  readonly discard: () => void;
   readonly project: () => Project;
 }
 
@@ -127,7 +133,7 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
     {
       filesystem: ports.filesystem,
       project: ports.project,
-      file: NOTES_FILE,
+      file: ports.file,
       noun: "your notes",
       text: () => text,
       reload: (found) => {
@@ -217,6 +223,9 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
     save: file.save,
     leave: file.leave,
     relocate: file.relocate,
+    rename: file.rename,
+    file: file.file,
+    discard: file.discard,
     project: () => file.project,
   };
 }

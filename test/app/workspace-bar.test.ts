@@ -390,7 +390,8 @@ describe("the tabs a project shows", () => {
   it("declare the files their work is kept in, so turning one off is known to leave them be", () => {
     expect(Object.fromEntries(WORKSPACES.map((workspace) => [workspace.id, workspace.files]))).toEqual({
       editor: ["manuscript.fountain"],
-      notes: ["notes.md"],
+      // A folder, named with its slash: every note in it is Notes' (ADR-0025, 2026-11-23).
+      notes: ["notes/"],
       plan: ["plan.md"],
     });
     expect(WORKSPACES.filter((workspace) => workspace.alwaysOn === true).map((workspace) => workspace.id)).toEqual(["editor"]);

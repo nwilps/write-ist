@@ -383,6 +383,52 @@ export function showExileProject(
   return shown.modal;
 }
 
+export interface DeleteNoteDialog {
+  /** The note's name, as its tab shows it. */
+  readonly name: string;
+  /** Delete it (`deleteNote`, `src/notes/notes-folder.ts`). Words for the writer if it was refused. */
+  readonly onDelete: () => Promise<string | undefined>;
+  readonly onClose: () => void;
+}
+
+/**
+ * Ask before a note is deleted from the project's notes folder (Notes' folder
+ * menu). Exile's dialog, in the alarm colour, because this one is for good:
+ * Cancel [Esc] is where focus starts, and Delete [Enter] is the way through.
+ */
+export function showDeleteNote(into: HTMLElement, { name, onDelete, onClose }: DeleteNoteDialog): HTMLDialogElement {
+  const warning = createElement(TriangleAlert, { class: "project-dialog__alarm-icon" });
+  warning.setAttribute("aria-hidden", "true");
+  const shown = dialog(into, {
+    label: "Delete Note",
+    body: [
+      element("div", { className: "project-dialog__message project-dialog__message--alarm" }, [
+        warning,
+        element("p", {
+          className: "project-dialog__line project-dialog__line--lead",
+          textContent: `Delete "${name}"?`,
+        }),
+        element("p", {
+          className: "project-dialog__line",
+          textContent: "This permanently deletes the note from your project's notes folder. It cannot be recovered.",
+        }),
+      ]),
+    ],
+    stops: [],
+    confirm: "Delete",
+    ready: () => true,
+    attempt: onDelete,
+    failed: `“${name}” could not be deleted, so it is still in your notes.`,
+    resume: () => shown.cancel.focus(),
+    onClose,
+  });
+  shown.modal.classList.add("project-dialog--alarm");
+  shown.confirm.classList.add("project-dialog__alarm-action");
+  // Cancel first: the safe answer is the one under the writer's hand.
+  shown.cancel.focus();
+  return shown.modal;
+}
+
 interface DialogSpec {
   readonly label: string;
   readonly body: readonly HTMLElement[];

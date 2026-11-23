@@ -253,8 +253,9 @@ export interface WorkspaceManifest {
    */
   readonly alwaysOn?: true;
   /**
-   * The files in a project's folder that hold this workspace's work, by name
-   * (ADR-0025: `plan.md` is Plan's, `notes.md` Notes'). Declared so what
+   * The files in a project's folder that hold this workspace's work, by name;
+   * a name ending in `/` is a folder, and everything in it (ADR-0025:
+   * `plan.md` is Plan's, the `notes/` folder Notes'). Declared so what
    * belongs to a workspace is said where the workspace is. Turning a
    * workspace off for a project hides its tab, takes it down (saving it, as
    * closing does) and **never touches these**: turning it on again finds them
