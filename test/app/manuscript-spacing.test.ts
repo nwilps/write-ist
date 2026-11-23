@@ -64,10 +64,13 @@ function drawn(type: ElementType, squished = false): HTMLElement {
 function blankOnScreen(previous: ElementType, next: ElementType, squished = false): number {
   const page = document.createElement("div");
   page.className = "manuscript";
-  page.append(drawn(previous), drawn(next, squished));
+  // Mid-script, with a line above the pair: what the paper does where a line
+  // opens the script (`:first-child`, as after a page break there) is not the
+  // table's gap between two lines.
+  page.append(drawn("action"), drawn(previous), drawn(next, squished));
   document.body.append(page);
 
-  const second = page.children[1]!;
+  const second = page.children[2]!;
   const matching = rules
     .filter(
       (rule) =>

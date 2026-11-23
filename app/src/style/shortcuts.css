@@ -1,5 +1,5 @@
 /*
- * The Keyboard Shortcuts dialog. `.new-project-dialog` and its parts dress it,
+ * The Hotkeys dialog. `.new-project-dialog` and its parts dress it,
  * with a wider margin than the other dialogs, since it is read rather than
  * filled in. This is what New Project has no need of: two columns of rows, each
  * a name and its key, split by the right-click menu's divider stood on end, and

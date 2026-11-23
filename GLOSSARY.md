@@ -200,20 +200,15 @@ that writer has adopted — storyline, POV, status. Deliberately not a schema: w
 one axis wholesale, and different writers adopt different ones.
 _Avoid_: field, property, attribute, label, category
 
-**Confirmed name**:
-A character or a scene location the script has settled on: used **three or more times**
-(a preference, `confirmAfterUses`), or confirmed by the writer choosing **Add to Dictionary** on a
-flagged word in a character cue or in a scene heading's location (not its INT./EXT. or time of
-day), which adds the word to the dictionary and the name to its list. Names used once or twice are in the derived list but unconfirmed —
-autocomplete does not offer them and spellcheck does not trust them, so one typo cannot seed
-more typos. Use-based confirmation is live; the writer's own confirmation stays, and is the one
-piece of the lists that is stored (`names.txt` in the bundle).
-_Avoid_: approved, accepted, known name
-
-**Known word**:
-A word inside a confirmed name or location (`BENNETT'S` in `BENNETT'S HOSPITAL ROOM`) that
-spellcheck does not underline. Ordinary words inside the same name are still checked.
-_Avoid_: whitelisted word, dictionary word
+**Name list**:
+The **character list** or the **location list** of a project (Edit ▸ Character List, Location
+List): every character a cue names and every place a scene heading names, **from its first
+use**, plus any the writer added by hand, minus any they removed. Autocomplete offers what is on
+it. **Remove** deletes a name from its list; the uses already in the script never put it back,
+but typing it as a new cue or heading does, as soon as the caret leaves the line (no counting). What was added and removed by hand is the one piece
+of the lists that is stored (`names.txt` in the bundle). The lists have nothing to do with
+spellcheck or the dictionary.
+_Avoid_: confirmed name, approved name, known name, hidden name
 
 **Boneyard**:
 Text the writer has taken out of the screenplay without deleting it, wrapped in Fountain's
@@ -338,7 +333,7 @@ _Avoid_: Draft, draft view, writing mode
 **Manuscript session**:
 A project's manuscript open for writing, with no window: it holds the editing state and works out
 everything drawn from it (layout, seams between sheets, name lists, counts), and it decides
-saving, leaving and confirming a name. The Editor draws what it says. Not the *editing session*
+saving, leaving and changes to the name lists. The Editor draws what it says. Not the *editing session*
 in `src/project/save.ts`, which is only the save routine's memory of the disk and sits inside it.
 _Avoid_: controller, store
 

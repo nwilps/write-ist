@@ -19,13 +19,13 @@
  * First pass (Settings, Noah's notes): most of these are kept and shown, and
  * not yet read by anything else. What each one drives today is in the pull
  * request that added them; `dayEndsAt`, the two corner styles, the
- * background animation with its motion and its look, and the writer's own keys
- * (`keyBindings`) are live.
+ * background animation with its motion and its look, the writer's own keys
+ * (`keyBindings`) and the New Project Defaults (`projectDefaults`, read by New
+ * Project alone, `src/project/create.ts`) are live.
  */
 import { join, type Filesystem } from "../project/filesystem.ts";
 import { DEFAULT_DAY_ENDS_AT, type TimeOfDay } from "../goals/day.ts";
-import { COMING_FORMATS } from "../project/create.ts";
-import { FORMATS } from "../project/marker.ts";
+import { COMING_FORMATS, FORMATS } from "../project/marker.ts";
 
 /** The file's name, in app data. */
 export const SETTINGS_FILE = "settings.json";
@@ -45,9 +45,9 @@ export type Corners = "rounded" | "sharp";
 export type BackgroundMotion = "reactive" | "ambient";
 /**
  * Every look the background can take, by the engine's own id for it
- * (`asciify-engine`'s presets): Drift, the first and the default, then the
- * rest by name. Settings ▸ General ▸ Appearance ▸ Background lists them in
- * this order, as one list.
+ * (`asciify-engine`'s presets): Drift, the first, then the rest by name.
+ * Settings ▸ General ▸ Appearance ▸ Background lists them in this order, as
+ * one list. The default is Field (`DEFAULT_BACKGROUND_PRESET`).
  */
 export const BACKGROUND_PRESETS = [
   "drift",
@@ -65,6 +65,12 @@ export const BACKGROUND_PRESETS = [
   "weave",
 ] as const;
 export type BackgroundPreset = (typeof BACKGROUND_PRESETS)[number];
+/**
+ * The look for fresh settings, and for a file with no look or one this version
+ * does not draw (Noah, 2026-11-21: Field, which was Drift). A look the writer
+ * chose and the file kept, Drift included, is theirs and is never changed.
+ */
+export const DEFAULT_BACKGROUND_PRESET: BackgroundPreset = "field";
 /** The one theme there is. Light is drawn as coming. */
 export type Theme = "dark";
 
@@ -89,12 +95,15 @@ export interface Appearance {
   /**
    * Which look the background draws. Kept while the animation is off; a file
    * from before the setting existed, or naming a look this version does not
-   * have, reads as Drift.
+   * have, reads as Field (`DEFAULT_BACKGROUND_PRESET`).
    */
   readonly backgroundPreset: BackgroundPreset;
 }
 
-/** What a new project of one type starts with. Kept; not yet read by New Project. */
+/**
+ * What a new project of one type starts with: New Project gives them to the
+ * project it makes, which keeps them as its own (`src/project/create.ts`).
+ */
 export interface ProjectDefaults {
   /** Offered in New Project's list of types. */
   readonly shown: boolean;
@@ -105,6 +114,12 @@ export interface ProjectDefaults {
   readonly boldSceneHeadings: boolean;
   readonly boldTransitions: boolean;
   readonly blankLinesBeforeSceneHeadings: 1 | 2;
+  /**
+   * The workspaces a new project of this type shows, as `details.md` keeps
+   * them (`ProjectDetails.workspaces`): their ids, or `undefined` for "every
+   * one offered" — what a type the writer never chose for starts with.
+   */
+  readonly workspaces?: readonly string[] | undefined;
 }
 
 /**
@@ -149,6 +164,21 @@ export const DEFAULTS_ALL: readonly string[] = [...DEFAULTS_FOR, ...DEFAULTS_COM
 export const MOST_BINDINGS = 8;
 const MOST_COMMANDS = 200;
 
+/** A workspace id as kept, here and in `details.md`: lower case, letters, digits and dashes. */
+export const WORKSPACE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/** Workspace ids put right: each one kept once, in lower case, anything that is not one left out. */
+export function workspaceIdsOf(ids: readonly unknown[]): string[] {
+  return [
+    ...new Set(
+      ids
+        .filter((id): id is string => typeof id === "string")
+        .map((id) => id.trim().toLowerCase())
+        .filter((id) => WORKSPACE_ID.test(id)),
+    ),
+  ];
+}
+
 /** The largest daily goal or target page count kept. */
 export const MOST_WORDS = 100_000;
 export const MOST_PAGES = 1_000;
@@ -158,9 +188,11 @@ export const DEFAULT_PROJECT_DEFAULTS: ProjectDefaults = {
   dailyGoalOn: false,
   dailyGoal: 500,
   targetPages: 0,
-  boldSceneHeadings: false,
-  boldTransitions: false,
-  blankLinesBeforeSceneHeadings: 1,
+  // The paper's: a new project's headings and transitions are drawn bold (the PDF's are its own, in Export As).
+  boldSceneHeadings: true,
+  boldTransitions: true,
+  // Final Draft's template, as the spacing table has it (ADR-0038).
+  blankLinesBeforeSceneHeadings: 2,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -173,7 +205,7 @@ export const DEFAULT_SETTINGS: Settings = {
     paperCorners: "rounded",
     backgroundAnimation: true,
     backgroundMotion: "reactive",
-    backgroundPreset: "drift",
+    backgroundPreset: DEFAULT_BACKGROUND_PRESET,
   },
   projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, DEFAULT_PROJECT_DEFAULTS])),
   keyBindings: {},
@@ -192,8 +224,8 @@ const corners = (value: unknown): Corners => (value === "sharp" ? "sharp" : "rou
 const motion = (value: unknown): BackgroundMotion => (value === "ambient" ? "ambient" : "reactive");
 const isPreset = (value: unknown): value is BackgroundPreset =>
   (BACKGROUND_PRESETS as readonly unknown[]).includes(value);
-/** A kept look, or Drift for anything this version does not draw. */
-export const presetOf = (value: unknown): BackgroundPreset => (isPreset(value) ? value : "drift");
+/** A kept look, or the default for anything this version does not draw. */
+export const presetOf = (value: unknown): BackgroundPreset => (isPreset(value) ? value : DEFAULT_BACKGROUND_PRESET);
 
 /**
  * A whole number between `least` and `most`, from whatever was typed or kept.
@@ -272,7 +304,10 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
     targetPages: wholeNumber(kept["targetPages"], 0, MOST_PAGES, base.targetPages),
     boldSceneHeadings: flag(kept["boldSceneHeadings"], base.boldSceneHeadings),
     boldTransitions: flag(kept["boldTransitions"], base.boldTransitions),
-    blankLinesBeforeSceneHeadings: kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : 1,
+    blankLinesBeforeSceneHeadings:
+      kept["blankLinesBeforeSceneHeadings"] === 1 ? 1 : kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : base.blankLinesBeforeSceneHeadings,
+    // Not a list: never chosen, so every workspace offered.
+    ...(Array.isArray(kept["workspaces"]) ? { workspaces: workspaceIdsOf(kept["workspaces"]) } : {}),
   };
 }
 

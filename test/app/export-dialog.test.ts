@@ -39,13 +39,18 @@ const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve
 
 function opened(write: (id: string, range: unknown) => Promise<boolean> = async () => true) {
   const written = vi.fn(write);
+  /** The bold each export asked for, in order: absent for a format not set in type. */
+  const emphases: unknown[] = [];
   const closed = vi.fn();
   const report = vi.fn();
   const into = document.body.appendChild(document.createElement("div"));
   const modal = openExportDialog(into, {
     formats: EXPORT_FORMATS,
     pageCount: () => 12,
-    write: (format, range) => written(format.id, range),
+    write: (format, range, emphasis) => {
+      emphases.push(emphasis);
+      return written(format.id, range);
+    },
     report,
     closed,
   });
@@ -84,7 +89,7 @@ function opened(write: (id: string, range: unknown) => Promise<boolean> = async 
     [...modal.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
   const problem = (): string => q(".new-project__problem").textContent ?? "";
   const walk = (count: number) => Array.from({ length: count }, () => (press("Tab"), document.activeElement));
-  return { modal, written, closed, report, q, box, choose, press, pagesOn, rangeOn, enterIn, exportNow, range, button, problem, walk };
+  return { modal, written, emphases, closed, report, q, box, choose, press, pagesOn, rangeOn, enterIn, exportNow, range, button, problem, walk };
 }
 
 describe("the Export As dialog", () => {
@@ -142,13 +147,19 @@ describe("the Export As dialog", () => {
     expect(divider.className).toBe("drop-menu__divider");
     expect(divider.getAttribute("role")).toBe("separator");
     expect(divider.nextElementSibling).toBe(q("#export-pages").closest(".new-project-dialog__field"));
-    // The same separator again, below From → To and straight above Cancel and Export.
+    // The same separator below From → To, then the two bold switches, then the
+    // same separator again straight above Cancel and Export.
     const actions = q(".new-project-dialog__actions");
     const closing = actions.previousElementSibling!;
     expect(closing.outerHTML).toBe(divider.outerHTML);
     expect(closing.previousElementSibling!.className).toBe("new-project__problem");
-    expect(closing.previousElementSibling!.previousElementSibling).toBe(q(".export-as__range"));
-    expect(q(".new-project-dialog__form").querySelectorAll(".drop-menu__divider")).toHaveLength(2);
+    const transitions = closing.previousElementSibling!.previousElementSibling!;
+    const headings = transitions.previousElementSibling!;
+    expect([headings, transitions].map((row) => row.className)).toEqual(["settings__switch", "settings__switch"]);
+    expect([headings, transitions].map((row) => row.textContent)).toEqual(["Bold scene headings", "Bold transitions"]);
+    expect(headings.previousElementSibling!.outerHTML).toBe(divider.outerHTML);
+    expect(headings.previousElementSibling!.previousElementSibling).toBe(q(".export-as__range"));
+    expect(q(".new-project-dialog__form").querySelectorAll(".drop-menu__divider")).toHaveLength(3);
     const row = q(".export-as__range");
     expect([...row.children].map((child) => child.textContent)).toEqual(["From", "", "→", "To", ""]);
     expect(row.children[1]!.contains(q("#export-from"))).toBe(true);
@@ -159,11 +170,12 @@ describe("the Export As dialog", () => {
 
   it("walks every control the writer can use, wrapping, and skips what is dimmed", () => {
     const { q, choose, button, walk } = opened();
+    const bold = [q("#export-bold-headings"), q("#export-bold-transitions")];
     // PDF, All Pages: From and To are dimmed.
-    expect(walk(4)).toEqual([q("#export-pages"), button("Cancel"), button("Export"), q("#export-format")]);
+    expect(walk(6)).toEqual([q("#export-pages"), ...bold, button("Cancel"), button("Export"), q("#export-format")]);
     choose("export-pages", "Page Range");
     q("#export-format").focus();
-    expect(walk(6)).toEqual([q("#export-pages"), q("#export-from"), q("#export-to"), button("Cancel"), button("Export"), q("#export-format")]);
+    expect(walk(8)).toEqual([q("#export-pages"), q("#export-from"), q("#export-to"), ...bold, button("Cancel"), button("Export"), q("#export-format")]);
     choose("export-format", "Fountain");
     expect(walk(3)).toEqual([button("Cancel"), button("Export"), q("#export-format")]);
     choose("export-format", "Final Draft (.fdx)");
@@ -442,6 +454,52 @@ describe("the Export As dialog", () => {
   });
 });
 
+describe("bold, for one export", () => {
+  it("starts with both switches off, and an untouched export prints headings and transitions regular", async () => {
+    const { q, emphases, exportNow } = opened();
+    expect([q("#export-bold-headings"), q("#export-bold-transitions")].map((toggle) => toggle.getAttribute("aria-checked"))).toEqual(["false", "false"]);
+    exportNow();
+    await settled();
+    expect(emphases).toEqual([{ boldSceneHeadings: false, boldTransitions: false }]);
+  });
+
+  it("prints what the writer switched on, in this export", async () => {
+    const { q, emphases, exportNow } = opened(async () => false);
+    q("#export-bold-headings").click();
+    exportNow();
+    await settled();
+    q("#export-bold-transitions").click();
+    q("#export-bold-headings").click();
+    exportNow();
+    await settled();
+    expect(emphases).toEqual([
+      { boldSceneHeadings: true, boldTransitions: false },
+      { boldSceneHeadings: false, boldTransitions: true },
+    ]);
+  });
+
+  it("is dimmed, and asks for nothing, for a format not set in type", async () => {
+    const { q, choose, emphases, exportNow } = opened();
+    q("#export-bold-headings").click();
+    choose("export-format", "Fountain");
+    expect(q<HTMLButtonElement>("#export-bold-headings").disabled).toBe(true);
+    expect(q<HTMLButtonElement>("#export-bold-transitions").disabled).toBe(true);
+    exportNow();
+    await settled();
+    expect(emphases).toEqual([undefined]);
+    choose("export-format", "PDF");
+    expect(q<HTMLButtonElement>("#export-bold-headings").disabled).toBe(false);
+  });
+
+  it("opens off again next time: the choice is never kept", async () => {
+    const first = opened(async () => false);
+    first.q("#export-bold-headings").click();
+    first.modal.close();
+    const { q } = opened();
+    expect(q("#export-bold-headings").getAttribute("aria-checked")).toBe("false");
+  });
+});
+
 describe("exportScript", () => {
   const places = (destination: string | undefined) => ({
     chooseCopyLocation: vi.fn(async (_name: string) => destination),
@@ -451,6 +509,24 @@ describe("exportScript", () => {
   const fountain = EXPORT_FORMATS.find((format) => format.id === "fountain")!;
   const writable = EXPORT_FORMATS.filter((format) => format.writable);
   const source = "INT. A - DAY\n\nHi [[c:a1 private]]there[[/c:a1]].\n\n/*\n\nCut.\n\n*/\n\nBye.\n";
+
+  it("hands this export's bold to a format set in type, and to no other", async () => {
+    const pdf = EXPORT_FORMATS.find((format) => format.id === "pdf")!;
+    const seen: unknown[] = [];
+    const watching = (format: (typeof EXPORT_FORMATS)[number]) => ({ ...format, write: async (job: { emphasis?: unknown }) => void seen.push(job.emphasis) });
+    const job = {
+      filesystem: {} as never,
+      project,
+      places: places("/out/a"),
+      document: () => parse(source),
+      faces: () => Promise.reject(new Error("unused")),
+      emphasis: { boldSceneHeadings: true, boldTransitions: false },
+    };
+    await exportScript(watching(pdf), job);
+    await exportScript(watching(fountain), job);
+    await exportScript(watching(pdf), { ...job, emphasis: undefined });
+    expect(seen).toEqual([{ boldSceneHeadings: true, boldTransitions: false }, undefined, undefined]);
+  });
 
   it("writes the same clean whole-script copy, with or without a leftover range", async () => {
     const writes: Uint8Array[] = [];

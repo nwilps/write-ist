@@ -10,9 +10,12 @@ import {
   pageRangeProblem,
   pdfPagesInRange,
   pdfPagesOf,
+  PLAIN_EMPHASIS,
   type PageRange,
+  type PdfEmphasis,
 } from "../screenplay/pdf-pages.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "../screenplay/formatting.ts";
 import { renderPdf, type CourierPrimeFaces } from "../pdf/render.ts";
 import { MANUSCRIPT_FILE, type Project } from "./bundle.ts";
 import { join, type Filesystem } from "./filesystem.ts";
@@ -26,7 +29,9 @@ export function suggestedPdfName(project: Project): string {
 /**
  * Write the PDF to `destination`: the whole script, or only `range`. The range
  * is checked against the pages being printed now, since the script can change
- * while the writer is choosing where the file goes.
+ * while the writer is choosing where the file goes. Headings and transitions
+ * print regular unless `emphasis` asks for bold — this export's choice, never
+ * the project's (`formatting.ts`).
  */
 export async function exportPdf(
   filesystem: Filesystem,
@@ -35,11 +40,13 @@ export async function exportPdf(
   faces: CourierPrimeFaces,
   destination: string,
   range?: PageRange,
+  formatting: Formatting = DEFAULT_FORMATTING,
+  emphasis: PdfEmphasis = PLAIN_EMPHASIS,
 ): Promise<void> {
   if (destination === join(project.path, MANUSCRIPT_FILE)) {
     throw new Error("That is the project's own manuscript. Choose another place for the PDF.");
   }
-  const all = pdfPagesOf(document);
+  const all = pdfPagesOf(document, formatting, emphasis);
   const problem = range === undefined ? undefined : pageRangeProblem(range, all.pages.length);
   if (problem !== undefined) throw new Error(problem);
   const pages = range === undefined ? all : pdfPagesInRange(all, range);

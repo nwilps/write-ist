@@ -24,6 +24,7 @@ import type { ElementType } from "../../../../src/screenplay/document.ts";
 import { screenplaySchema } from "../../../../src/screenplay/schema.ts";
 import { dropMenu, type DropMenu, type MenuEntry } from "../../menus/drop-menu.ts";
 import { element } from "../../screens/element.ts";
+import { scrollWindow } from "../../screens/scroll-window.ts";
 import { chordHint } from "../../screens/shortcuts.ts";
 import { commandById, hintOf, whenKeyBindingsChange, type Command } from "./commands.ts";
 import { jumpToHeading, sceneHeadings } from "./scene-jump.ts";
@@ -158,9 +159,12 @@ export function sidePanels(
     const heading = sceneHeadings(view.state.doc)[[...sceneList.children].indexOf(chosen)];
     if (heading !== undefined) jumpToHeading(view, heading.end);
   });
+  // No scrollbar: Open Project's chevrons say there is more above or below
+  // (`scrollWindow`), kept right by the list's own scrolling, however it moved.
+  const sceneWindow = scrollWindow(sceneList, "panel__scenes-window");
   const scenes = element("section", { className: "panel panel--scenes", ariaLabel: "Scenes" }, [
     element("h2", { className: "panel__heading", textContent: "Scenes" }),
-    sceneList,
+    sceneWindow.window,
   ]);
   scenes.addEventListener("wheel", (event) => keepWheelIn(sceneList, event), { passive: false });
 
@@ -208,6 +212,7 @@ export function sidePanels(
       sceneList.replaceChildren(
         ...headings.map((text) => element("li", { className: "panel__scene", textContent: text })),
       );
+      sceneWindow.hint();
     }
 
     const parent = state.selection.$head.parent;

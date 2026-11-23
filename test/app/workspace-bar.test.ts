@@ -212,7 +212,7 @@ describe("choosing a tab", () => {
   });
 });
 
-describe("the tab keys in the command table and the Keyboard Shortcuts list", () => {
+describe("the tab keys in the command table and the Hotkeys list", () => {
   it("name each workspace in the registry, with its manifest key, as [Alt + 1] and so on", () => {
     for (const workspace of WORKSPACES) {
       const command = commandById(`workspace-${workspace.id}`)!;

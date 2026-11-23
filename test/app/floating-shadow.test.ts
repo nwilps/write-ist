@@ -27,12 +27,16 @@ describe("the shadow on floating surfaces", () => {
     ["menus.css", ".drop-menu"],
     ["home.css", ".new-project-dialog"],
     ["search.css", ".search__panel"],
-    ["autocomplete.css", ".autocomplete__list"],
     ["editor.css", ".workspace-bar__pill"],
     ["editor.css", ".pills > .pill"],
     ["panels.css", ".panel"],
   ])("%s gives %s the shared shadow", (file, selector) => {
     expect(rule(file, selector)).toContain("box-shadow: var(--shadow-float)");
+  });
+
+  it("gives the autocomplete list the menus' own, by wearing their class", () => {
+    expect(rule("autocomplete.css", ".drop-menu.autocomplete__list")).not.toContain("box-shadow");
+    expect(readFileSync(join(style, "..", "workspaces", "editor", "autocomplete-draw.ts"), "utf8")).toContain('"drop-menu autocomplete__list"');
   });
 
   it("leaves it off the search veil, and the right-click menu inherits it", () => {

@@ -84,7 +84,7 @@ describe("settings from anything at all", () => {
       paperCorners: "rounded",
       backgroundAnimation: true,
       backgroundMotion: "reactive",
-      backgroundPreset: "drift",
+      backgroundPreset: "field",
     });
     // Every type New Project lists, the coming ones too (Noah: "Show all types right now").
     expect(Object.keys(DEFAULT_SETTINGS.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
@@ -112,14 +112,15 @@ describe("settings from anything at all", () => {
       paperCorners: "rounded",
       backgroundAnimation: true,
       backgroundMotion: "reactive",
-      backgroundPreset: "drift",
+      backgroundPreset: "field",
     });
     expect(kept.projectDefaults["Feature"]).toEqual({
       shown: false,
       dailyGoalOn: false,
       dailyGoal: MOST_WORDS,
       targetPages: 110,
-      boldSceneHeadings: false,
+      // Not said, so the default: a new project's paper draws headings bold.
+      boldSceneHeadings: true,
       boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });
@@ -127,6 +128,23 @@ describe("settings from anything at all", () => {
     expect(Object.keys(kept.projectDefaults)).toEqual(["Feature", "Episode", "Short Film", "Novel", "Short Story", "Novella", "Flash Fiction", "Poem"]);
     expect(kept.projectDefaults["Novel"]!.shown).toBe(false);
     expect(kept.projectDefaults["Episode"]!.shown).toBe(true);
+  });
+
+  it("keep a type's workspaces as details.md keeps them, and none chosen as every one offered", () => {
+    const kept = settingsFrom({
+      projectDefaults: {
+        Feature: { workspaces: ["Editor", " notes ", "notes", "not an id!", 7, "outline"] },
+        Episode: { workspaces: "notes" },
+        Novel: { workspaces: [] },
+      },
+    });
+    expect(kept.projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "outline"]);
+    // Not a list: never chosen.
+    expect(kept.projectDefaults["Episode"]!.workspaces).toBeUndefined();
+    expect(kept.projectDefaults["Short Film"]!.workspaces).toBeUndefined();
+    // Chosen, and none of the optional ones: kept as chosen, not as "every one".
+    expect(kept.projectDefaults["Novel"]!.workspaces).toEqual([]);
+    expect(settingsFrom(JSON.parse(settingsText(kept))).projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "outline"]);
   });
 
   it.each([
@@ -227,13 +245,13 @@ describe("the settings file", () => {
     expect(older.appearance.backgroundAnimation).toBe(false);
   });
 
-  it("keeps the background's look by the engine's id, and reads a file from before the setting as Drift", async () => {
+  it("keeps the background's look by the engine's id, and reads a file from before the setting as Field", async () => {
     const store = openSettingsStore(nodeFilesystem, folder);
     await store.load();
-    expect(await store.save(settingsFrom({ appearance: { backgroundPreset: "field" } }))).toBe(true);
+    expect(await store.save(settingsFrom({ appearance: { backgroundPreset: "mesh" } }))).toBe(true);
     const written = JSON.parse(readFileSync(join(folder, SETTINGS_FILE), "utf8")) as { appearance: Record<string, unknown> };
-    expect(written.appearance["backgroundPreset"]).toBe("field");
-    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundPreset).toBe("field");
+    expect(written.appearance["backgroundPreset"]).toBe("mesh");
+    expect((await openSettingsStore(nodeFilesystem, folder).load()).appearance.backgroundPreset).toBe("mesh");
 
     // The file as the last version wrote it: the animation and its motion, but no key for the look.
     writeFileSync(
@@ -241,14 +259,24 @@ describe("the settings file", () => {
       JSON.stringify({ appearance: { theme: "dark", backgroundAnimation: false, backgroundMotion: "ambient" } }),
     );
     const older = await openSettingsStore(nodeFilesystem, folder).load();
-    expect(older.appearance).toMatchObject({ backgroundPreset: "drift", backgroundAnimation: false, backgroundMotion: "ambient" });
+    expect(older.appearance).toMatchObject({ backgroundPreset: "field", backgroundAnimation: false, backgroundMotion: "ambient" });
+  });
+
+  it("leaves a writer who chose Drift, when it was the default, on Drift: the file is read, not rewritten", async () => {
+    const text = JSON.stringify({ appearance: { theme: "dark", backgroundPreset: "drift" } });
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, SETTINGS_FILE), text);
+    const kept = await openSettingsStore(nodeFilesystem, folder).load();
+    expect(kept.appearance.backgroundPreset).toBe("drift");
+    expect(readFileSync(join(folder, SETTINGS_FILE), "utf8")).toBe(text);
+    expect(DEFAULT_SETTINGS.appearance.backgroundPreset).toBe("field");
   });
 
   it.each([["aurora"], ["wordField"], ["Drift"], [""], [7], [null], [["mesh"]]])(
-    "reads a look this version does not have (%j) as Drift, and leaves the rest alone",
+    "reads a look this version does not have (%j) as Field, and leaves the rest alone",
     (preset) => {
       const kept = settingsFrom({ appearance: { backgroundPreset: preset, backgroundMotion: "ambient" } });
-      expect(kept.appearance.backgroundPreset).toBe("drift");
+      expect(kept.appearance.backgroundPreset).toBe("field");
       expect(kept.appearance.backgroundMotion).toBe("ambient");
     },
   );

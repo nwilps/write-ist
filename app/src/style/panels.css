@@ -145,6 +145,9 @@
 .panel--scenes {
   gap: 0;
   overflow: hidden;
+  /* Room under the list for its down chevron, bounce included: clear of the
+     last row and of the panel's edge (`.panel__scenes-window`). */
+  padding-bottom: calc(var(--size-icon) + var(--distance-hint-bounce) + var(--space-hint-clear) * 2);
   /* The design's 272px, and shorter only when the window is. The list inside
      scrolls; the panel never grows over the one above it. */
   flex: 0 1 auto;
@@ -159,6 +162,28 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-label);
   color: var(--colour-muted);
+}
+
+/*
+ * The list's window, and Open Project's chevrons in it (`scrollWindow`): up
+ * while scenes are scrolled off the top, down while scenes wait below, each
+ * bouncing as there and neither when every scene shows. They never sit over a
+ * scene. The up one is in the heading's line, clear of the word, which keeps
+ * to the left; the down one in the room the panel leaves under the list.
+ */
+.panel__scenes-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel__scenes-window .projects-hint--above {
+  bottom: calc(100% + var(--space-row-label));
+}
+
+.panel__scenes-window .projects-hint--below {
+  top: calc(100% + var(--space-hint-clear));
 }
 
 /*

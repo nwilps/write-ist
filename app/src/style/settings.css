@@ -277,7 +277,7 @@
   display: none;
 }
 
-/* --- Keyboard Shortcuts: a command, and its keys at the far right ---------------- */
+/* --- Hotkeys: a command, and its keys at the far right -------------------- */
 
 .settings__cell:has(.settings__cell-line) {
   display: grid;
@@ -410,4 +410,33 @@
 
 .settings__cell-note[hidden] {
   display: none;
+}
+
+/* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */
+
+/*
+ * Set like Settings ▸ Dictionary — the field that finds and adds, a cell for
+ * each name — in a dialog of its own, as wide as a Settings section. The names
+ * scroll inside it with no scrollbar; the field and Done stay put.
+ */
+.new-project-dialog.name-list {
+  width: calc(var(--measure-name-list) + var(--space-loose) * 2);
+  max-width: 100%;
+  max-height: 100%;
+  padding: var(--space-loose);
+}
+
+.name-list__scroll {
+  max-height: var(--size-name-list);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Remove at the right, and room before it for Replace, so a name never runs under where it will be. */
+.name-list__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-tight);
+  flex: none;
+  min-width: var(--measure-name-list-actions);
 }

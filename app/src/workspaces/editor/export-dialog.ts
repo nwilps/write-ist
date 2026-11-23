@@ -2,9 +2,13 @@
  * Export As: every format in one dialog, and a page range where the format has
  * pages.
  *
- * File Type, then Pages and the From → To row under it. Everything is always
- * shown: what does not apply to the chosen file type is dimmed and the keys
- * step over it, and Export is dimmed for a file type nothing writes yet.
+ * File Type, then Pages and the From → To row under it, then two switches —
+ * Bold scene headings, Bold transitions — that print those bold in **this
+ * export only**. They start off, so an export left alone prints headings and
+ * transitions regular; the project's own bold choices are the paper's and do
+ * not reach the PDF (Noah, 2026-11-22). Everything is always shown: what does
+ * not apply to the chosen file type is dimmed and the keys step over it, and
+ * Export is dimmed for a file type nothing writes yet.
  *
  * New Project's dialog, built from its pieces, its shared button, drop-down and
  * keys among them: a modal `<dialog>`, Escape cancels it natively, Enter on
@@ -14,10 +18,11 @@
  * `src/project/export-formats.ts`'s; this draws them and listens.
  */
 import type { ExportFormat } from "../../../../src/project/export-formats.ts";
-import { pageRangeProblem, type PageRange } from "../../../../src/screenplay/pdf-pages.ts";
+import { pageRangeProblem, type PageRange, type PdfEmphasis } from "../../../../src/screenplay/pdf-pages.ts";
 import { dialogAction } from "../../screens/dialog-action.ts";
 import { dialogKeys, enterSubmits } from "../../screens/dialog-keys.ts";
 import { dialogSelect } from "../../screens/dialog-select.ts";
+import { dialogToggle, type DialogToggle } from "../../screens/dialog-toggle.ts";
 import { element } from "../../screens/element.ts";
 import { chevron, field } from "../../screens/new-project.ts";
 import { message, trouble } from "../../screens/trouble.ts";
@@ -28,8 +33,11 @@ export interface ExportDialogOptions {
   readonly formats: readonly ExportFormat[];
   /** The numbered pages the script prints as it stands now. */
   readonly pageCount: () => number;
-  /** Ask where and write. `false`: the writer cancelled the save dialog. */
-  readonly write: (format: ExportFormat, range: PageRange | undefined) => Promise<boolean>;
+  /**
+   * Ask where and write. `false`: the writer cancelled the save dialog.
+   * `emphasis` is this export's bold, for a format set in type; absent otherwise.
+   */
+  readonly write: (format: ExportFormat, range: PageRange | undefined, emphasis: PdfEmphasis | undefined) => Promise<boolean>;
   /** For a failure that arrives once the dialog has gone. */
   readonly report: (words: string) => void;
   readonly closed: () => void;
@@ -66,6 +74,14 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
   });
   const from = pageBox("export-from");
   const to = pageBox("export-to");
+  // Off whenever the dialog opens: bold is asked for one export at a time.
+  const boldHeadings = dialogToggle({ id: "export-bold-headings", onChange: () => {} });
+  const boldTransitions = dialogToggle({ id: "export-bold-transitions", onChange: () => {} });
+  const switchRow = (words: string, toggle: DialogToggle): HTMLElement =>
+    element("div", { className: "settings__switch" }, [
+      element("label", { htmlFor: toggle.control.id, className: "new-project-dialog__label", textContent: words }),
+      toggle.control,
+    ]);
 
   const label = (words: string, box: HTMLInputElement): HTMLLabelElement =>
     element("label", { htmlFor: box.id, className: "new-project-dialog__label", textContent: words });
@@ -89,6 +105,9 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
     element("div", { className: "drop-menu__divider", role: "separator" }),
     field("Pages", pageChoice.control, [chevron(), pageChoice.tray]),
     range,
+    element("div", { className: "drop-menu__divider", role: "separator" }),
+    switchRow("Bold scene headings", boldHeadings),
+    switchRow("Bold transitions", boldTransitions),
     // Empty, it is not drawn, so nothing opens up under the range.
     problem,
     // The same separator again, closing the range off from the buttons.
@@ -97,7 +116,14 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
   ]);
   // No heading, as New Project has none; the dialog is still named for a screen reader.
   const modal = element("dialog", { className: "new-project-dialog export-as", ariaLabel: "Export As" }, [form]);
-  dialogKeys(modal, [[format.control], [pageChoice.control], [from, to], [cancel, confirm]]);
+  dialogKeys(modal, [
+    [format.control],
+    [pageChoice.control],
+    [from, to],
+    [boldHeadings.control],
+    [boldTransitions.control],
+    [cancel, confirm],
+  ]);
 
   const chosen = (): ExportFormat => options.formats.find(({ id }) => id === format.value())!;
   const wantsRange = (): boolean => chosen().pageRange && pageChoice.value() === "range";
@@ -112,6 +138,7 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
     // A format without pages leaves Pages on All Pages, dimmed.
     if (!exported.pageRange) pageChoice.set("all");
     pageChoice.control.disabled = !exported.pageRange;
+    boldHeadings.control.disabled = boldTransitions.control.disabled = !exported.emphasis;
     confirm.disabled = !exported.writable;
     const ranged = wantsRange();
     if (ranged && from.disabled) {
@@ -147,7 +174,10 @@ export function openExportDialog(into: HTMLElement, options: ExportDialogOptions
     exporting = true;
     try {
       // Cancelling the save dialog comes back here, with the choices as they were.
-      if ((await options.write(exported, pageRange)) && modal.open) modal.close();
+      const emphasis: PdfEmphasis | undefined = exported.emphasis
+        ? { boldSceneHeadings: boldHeadings.on(), boldTransitions: boldTransitions.on() }
+        : undefined;
+      if ((await options.write(exported, pageRange, emphasis)) && modal.open) modal.close();
     } catch (error) {
       const words = `${exported.failure} Your screenplay is unchanged. ${message(error)}`;
       if (modal.open) problem.replaceChildren(trouble(words));

@@ -3,9 +3,9 @@
  *
  * Two defects in Slice 1 passed the byte gate while being wrong — a cue read as
  * action, marks stopping at the wrong place — so this asserts the lists'
- * *meaning*: how many distinct names, how many are confirmed at N = 3, how
- * many wait, and that each count agrees with an independent reading of the
- * script. The acceptance corpus's census is measured the same way when it is
+ * *meaning*: how many distinct names, how many are on the lists (every one
+ * used — a name joins its list after one use), and that each count agrees
+ * with an independent reading of the script. The acceptance corpus's census is measured the same way when it is
  * present, and printed.
  */
 import { readFileSync } from "node:fs";
@@ -23,8 +23,7 @@ const load = (fixture: string): ScreenplayDocument => importScreenplay(readFixtu
 
 interface Census {
   readonly distinct: number;
-  readonly confirmed: number;
-  readonly waiting: number;
+  readonly listed: number;
   readonly uses: number;
 }
 
@@ -32,8 +31,7 @@ function census(lists: NameLists, kind: NameKind): Census {
   const entries = lists.entries(kind);
   return {
     distinct: entries.length,
-    confirmed: entries.filter((entry) => entry.confirmed).length,
-    waiting: entries.filter((entry) => !entry.confirmed).length,
+    listed: lists.list(kind).length,
     uses: entries.reduce((sum, entry) => sum + entry.uses, 0),
   };
 }
@@ -59,9 +57,9 @@ function report(label: string, document: ScreenplayDocument): { characters: Cens
   const result = { characters: census(lists, "character"), locations: census(lists, "location") };
   console.log(
     `${label}: ${document.elements.length} elements — characters ${result.characters.distinct} ` +
-      `(${result.characters.confirmed} confirmed at N=3, ${result.characters.waiting} used once or twice), ` +
+      `(${result.characters.listed} on the list, ${result.characters.uses} cues), ` +
       `locations ${result.locations.distinct} ` +
-      `(${result.locations.confirmed} confirmed, ${result.locations.waiting} used once or twice)`,
+      `(${result.locations.listed} on the list, ${result.locations.uses} headings)`,
   );
   return result;
 }
@@ -70,24 +68,24 @@ describe("the census, on the committed manuscripts", () => {
   it("Big Fish", () => {
     const document = load("Big-Fish.fountain");
     expect(report("Big Fish", document)).toEqual({
-      characters: { distinct: 48, confirmed: 20, waiting: 28, uses: 768 },
-      locations: { distinct: 142, confirmed: 11, waiting: 131, uses: 192 },
+      characters: { distinct: 48, listed: 48, uses: 768 },
+      locations: { distinct: 142, listed: 142, uses: 192 },
     });
   });
 
   it("Big Fish, augmented", () => {
     const document = load("Big-Fish-augmented.fountain");
     expect(report("Big Fish augmented", document)).toEqual({
-      characters: { distinct: 50, confirmed: 20, waiting: 30, uses: 771 },
-      locations: { distinct: 144, confirmed: 11, waiting: 133, uses: 194 },
+      characters: { distinct: 50, listed: 50, uses: 771 },
+      locations: { distinct: 144, listed: 144, uses: 194 },
     });
   });
 
   it("Brick & Steel", () => {
     const document = load("Brick-&-Steel.fountain");
     expect(report("Brick & Steel", document)).toEqual({
-      characters: { distinct: 7, confirmed: 3, waiting: 4, uses: 20 },
-      locations: { distinct: 8, confirmed: 0, waiting: 8, uses: 8 },
+      characters: { distinct: 7, listed: 7, uses: 20 },
+      locations: { distinct: 8, listed: 8, uses: 8 },
     });
   });
 });
@@ -118,27 +116,14 @@ describe.each(["Big-Fish.fountain", "Big-Fish-augmented.fountain", "Brick-&-Stee
       }
     });
 
-    it("marks a name confirmed exactly when it is used three or more times", () => {
+    it("puts every name used on its list, from its first use", () => {
       for (const kind of ["character", "location"] as const) {
         for (const entry of lists.entries(kind)) {
-          expect(entry.confirmed).toBe(entry.uses >= 3);
-          expect(entry.explicit).toBe(false);
+          expect(entry.uses).toBeGreaterThanOrEqual(1);
+          expect(entry.listed).toBe(true);
         }
+        expect(lists.list(kind)).toEqual(lists.entries(kind).map((entry) => entry.name));
       }
-    });
-
-    it("is changed by the threshold and not by the manuscript", () => {
-      const copy = NameLists.of(document.elements);
-      const at3 = copy.confirmed("character").length;
-      copy.setConfirmAfterUses(2);
-      const at2 = copy.confirmed("character").length;
-      copy.setConfirmAfterUses(5);
-      const at5 = copy.confirmed("character").length;
-      expect(at2).toBeGreaterThanOrEqual(at3);
-      expect(at5).toBeLessThanOrEqual(at3);
-      expect(copy.entries("character").map((e) => e.uses)).toEqual(
-        lists.entries("character").map((e) => e.uses),
-      );
     });
 
     it("gives the same lists after (CONT'D) is added, which it is not a new speaker", () => {
@@ -184,7 +169,7 @@ describeCorpus("the census, on the acceptance corpus", () => {
     const headings = live(document.elements).filter((e) => e.type === "scene-heading");
     expect(locations.uses).toBe(headings.filter((h) => locationName(h.text) !== undefined).length);
     expect(characters.distinct).toBeGreaterThan(0);
-    expect(characters.confirmed + characters.waiting).toBe(characters.distinct);
-    expect(locations.confirmed + locations.waiting).toBe(locations.distinct);
+    expect(characters.listed).toBe(characters.distinct);
+    expect(locations.listed).toBe(locations.distinct);
   });
 });

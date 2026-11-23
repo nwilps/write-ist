@@ -3,7 +3,8 @@
  * right-click menu's `.drop-menu__divider` sits under File Type and again over
  * the buttons, and Goals'
  * dim arrow joins From and To. This is what New Project has no need of: the
- * From → To row, and the controls dimmed when they do not apply.
+ * From → To row, the two bold switches (Settings' switch rows), and the
+ * controls dimmed when they do not apply.
  */
 
 /* One row, spaced as a Goals row is, so the arrow sits the same either side. */
@@ -37,6 +38,18 @@
 
 /* A label goes quiet with what it names. */
 .export-as .new-project-dialog__field:has(:disabled) .new-project-dialog__label,
-.export-as__range:has(:disabled) .new-project-dialog__label {
+.export-as__range:has(:disabled) .new-project-dialog__label,
+.export-as .settings__switch:has(:disabled) .new-project-dialog__label {
   color: var(--colour-faint);
+}
+
+/* A bold switch for a file type not set in type (Fountain): there, quiet, and not to be pressed. */
+.export-as .dialog-toggle:disabled,
+.export-as .dialog-toggle:disabled[aria-checked="true"] {
+  background: var(--colour-toggle-off);
+  cursor: default;
+}
+
+.export-as .dialog-toggle:disabled::after {
+  background: var(--colour-toggle-knob-off);
 }

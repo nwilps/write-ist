@@ -426,6 +426,33 @@ button.pill:focus-visible {
 }
 
 /*
+ * **A selection on the paper is the paper inverted** (Noah, 2026-11-21): the
+ * ink is the highlight and the selected text takes the paper's colour, only
+ * while it is selected. It is one rule for every element, so faint text, a
+ * cue's blue, a heading's gold and cut material all turn the paper's colour
+ * inside it and none of them sinks into the highlight. A search result's jump
+ * is this same native selection (`editor.ts`). The two tokens are read where
+ * the text is, so a white paper that remakes them inverts this with them.
+ *
+ * **The highlight must paint as exactly the ink, and WebKit will not paint a
+ * solid one** (Noah, 2026-11-21: "it feels warmer and darker"). WebKit turns
+ * any solid selection colour into a 60%-opaque one, made for a white page;
+ * over this dark paper the ink came out #95845c. It leaves a colour that is
+ * already see-through alone, so the ink is mixed to `--opacity-selection`
+ * (99.9%), which paints as #ebdbb2 itself. It has to be a `color-mix`: written
+ * as `rgb(… / 0.999)` WebKit rounds it back to solid and dims it again.
+ */
+.manuscript::selection,
+.manuscript ::selection {
+  background-color: color-mix(
+    in srgb,
+    var(--colour-text) calc(var(--opacity-selection) * 100%),
+    transparent
+  );
+  color: var(--colour-page);
+}
+
+/*
  * **The industry layout** (#40): each element at its indent and its measure.
  *
  * Written out one type at a time, from `app/src/style/geometry.css`, rather
@@ -547,6 +574,7 @@ button.pill:focus-visible {
  * Prime's bold cut is metrically identical to its regular — the same 1228/2048
  * em advance, asserted in `test/app/manuscript-geometry.test.ts` — so it cannot
  * move a page break, which is the only thing the PDF is the authority on.
+ * A project can set them regular (`data-regular-scene-headings`, below).
  */
 .manuscript > [data-element="scene-heading"] {
   font-weight: var(--weight-bold);
@@ -564,6 +592,33 @@ button.pill:focus-visible {
 
 .manuscript > [data-element="transition"] {
   color: var(--colour-alarm);
+}
+
+/*
+ * A project's own formatting (`paper-formatting.ts`, `formatting.ts`).
+ *
+ * Bold scene headings and bold transitions are the paper's only: the PDF's are
+ * chosen in Export As. Courier Prime's bold is metrically its regular, so no
+ * line moves either way. A heading set regular keeps its accent colour, and
+ * a bold mark inside it (`<strong>`) stays bold.
+ */
+.manuscript[data-regular-scene-headings] > [data-element="scene-heading"] {
+  font-weight: var(--weight-regular);
+}
+
+.manuscript[data-bold-transitions] > [data-element="transition"] {
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * One blank line before a scene heading where the spacing table leaves two.
+ * Not where it leaves none (after a boneyard's opening), and not at the head
+ * of a sheet or of the script, which take none whatever the project chose.
+ */
+.manuscript[data-scene-heading-gap="1"]
+  > :not(.sheet-break):not([data-element="boneyard-start"]):not([data-element="page-break"]):not([data-title-hidden])
+  + [data-element="scene-heading"] {
+  margin-top: var(--manuscript-blank);
 }
 
 .manuscript > [data-element="parenthetical"] {
@@ -603,13 +658,35 @@ button.pill:focus-visible {
 }
 
 /*
- * A forced page break is in the document and not on the paper either: it is a
- * hidden placeholder (`hiddenPageBreak`), and the paper shows the seam to a new
- * sheet instead. Where it opens the script, the line after it is the sheet's
- * first and takes no blank line above.
+ * A forced page break (`page-break-editing.ts`): the seam to a new sheet, and
+ * its `===` on the paper, faint, where the writer typed it — to be seen and
+ * taken out, never printed or exported (the layout gives it no row).
+ *
+ * **It takes no room**, or the paper's sheets would stop matching the PDF's
+ * pages: no height and no blank line above it, the attribute doubled so this
+ * outweighs every spacing rule in `geometry.css`. Its line is drawn where the
+ * blank line above it would have been and then a line down, in the rows the
+ * seam leaves empty at the sheet's foot (or its bottom margin, when the sheet
+ * is full), over the seam, and so still a place to click and put the caret.
+ * Opening the script, with no sheet above, it is drawn in the top margin.
  */
-.manuscript > [data-page-break-hidden]:first-child + *,
-.manuscript > [data-title-hidden] + [data-page-break-hidden] + * {
+.manuscript > [data-element][data-element="page-break"] {
+  position: relative;
+  z-index: var(--layer-page-break);
+  height: 0;
+  margin-top: 0;
+  top: var(--manuscript-blank);
+  color: var(--colour-faint);
+}
+
+.manuscript > [data-element][data-element="page-break"]:first-child,
+.manuscript > [data-title-hidden] + [data-element][data-element="page-break"] {
+  top: calc(-1 * var(--manuscript-blank));
+}
+
+/* Opening the script, the line after it is the sheet's first: no blank line above. */
+.manuscript > [data-element="page-break"]:first-child + *,
+.manuscript > [data-title-hidden] + [data-element="page-break"] + * {
   margin-top: 0;
 }
 
@@ -686,7 +763,8 @@ button.pill:focus-visible {
  * cue `--dual-name-left` and `--dual-name-right`, the lengths in characters (`calc(5 * var(--ch))`)
  * (`dual-columns.ts`), and the rule is placed from them — it begins where the
  * left name ends (half the column plus half the name) and runs to where the
- * right one begins, less the spacing token at each end. It is on the desk
+ * right one begins, less the spacing token at each end. Its colour is the faint
+ * ink a little toward the paper (`--colour-dual-link`). It is on the desk
  * only: it takes no room, and the PDF draws from the layout, not from this.
  */
 .manuscript > .dual-first {
@@ -702,7 +780,7 @@ button.pill:focus-visible {
       var(--space-tight) * 2
   );
   height: calc(var(--manuscript-blank) / 2);
-  border-bottom: var(--rule-thin) solid var(--colour-faint);
+  border-bottom: var(--rule-thin) solid var(--colour-dual-link);
   pointer-events: none;
 }
 

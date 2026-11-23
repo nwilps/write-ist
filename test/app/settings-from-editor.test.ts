@@ -66,6 +66,7 @@ const openSettings = vi.fn(({ into, closed }: SettingsRequest) => {
     shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: { words: async () => [], add: async () => true, remove: async () => true },
     graveyard: { list: async () => [], recover: async () => undefined, exile: async () => undefined },
+    workspaces: [],
     closed,
   });
 });
@@ -163,7 +164,7 @@ describe("Search's two keys, and keys changed in Settings, on the paper", () => 
     const { into, sheet } = await editing();
     fileItem(into, "Settings…").click();
     const modal = document.querySelector<HTMLDialogElement>('dialog[aria-label="Settings"]')!;
-    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Keyboard Shortcuts"))!.click();
+    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Hotkeys"))!.click();
     modal.querySelector<HTMLButtonElement>('[aria-label="Remove Ctrl + F from Search"]')!.click();
     modal.querySelector<HTMLButtonElement>('[aria-label="Add a key for Search"]')!.click();
     // Recorded, not run: Alt+G is the writer's new key, and nothing opens while it is pressed.
@@ -184,7 +185,7 @@ describe("Search's two keys, and keys changed in Settings, on the paper", () => 
     const { into, sheet } = await editing();
     fileItem(into, "Settings…").click();
     const modal = document.querySelector<HTMLDialogElement>('dialog[aria-label="Settings"]')!;
-    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Keyboard Shortcuts"))!.click();
+    [...modal.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent!.endsWith("Hotkeys"))!.click();
     modal.querySelector<HTMLButtonElement>('[aria-label="Change Transition: Ctrl + 6"]')!.click();
     key("t", { altKey: true });
     modal.querySelector<HTMLButtonElement>(".new-project-dialog__actions .dialog-action")!.click();

@@ -18,7 +18,7 @@ export const MARKER_FILE = "project.md";
 export const MANUSCRIPT_FILE = "manuscript.fountain";
 
 /**
- * The names the writer confirmed by hand (slice 2, step 8; ADR-0025). Plain
+ * What the writer added to or removed from the name lists by hand (slice 2, step 8; ADR-0025). Plain
  * text, project-level, never frozen at lock.
  */
 export const NAMES_FILE = "names.txt";

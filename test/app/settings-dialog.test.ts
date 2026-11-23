@@ -90,6 +90,13 @@ function fakeGraveyard(start: readonly Project[] = []) {
   return graveyard;
 }
 
+/** The workspaces as the registry offers them: the Editor always, Notes and Plan by choice. */
+const WORKSPACES = [
+  { id: "editor", name: "Editor", alwaysOn: true },
+  { id: "notes", name: "Notes", alwaysOn: false },
+  { id: "plan", name: "Plan", alwaysOn: false },
+];
+
 function open(overrides: Partial<SettingsDialogOptions> = {}, start: Settings = DEFAULT_SETTINGS) {
   let settings: Settings = start;
   const kept: Settings[] = [];
@@ -111,6 +118,7 @@ function open(overrides: Partial<SettingsDialogOptions> = {}, start: Settings = 
     dictionary,
     graveyard,
     closed,
+    workspaces: WORKSPACES,
     ...overrides,
   });
   return { into, modal, kept, current: () => settings, dictionary, graveyard, closed };
@@ -150,7 +158,7 @@ describe("the Settings dialog", () => {
   it("lists Noah's five sections, in his order, with no Appearance tab, and shows exactly one: General first", () => {
     const { modal } = open();
     expect(modal.getAttribute("aria-label")).toBe("Settings");
-    expect(SETTINGS_SECTIONS).toEqual(["General", "New Project Defaults", "Keyboard Shortcuts", "Dictionary", "Graveyard"]);
+    expect(SETTINGS_SECTIONS).toEqual(["General", "New Project Defaults", "Hotkeys", "Dictionary", "Graveyard"]);
     expect(tabs(modal).map((tab) => tab.textContent)).toEqual(SETTINGS_SECTIONS.map((name) => `>${name}`));
     expect(tabs(modal).some((tab) => tab.textContent!.includes("Appearance"))).toBe(false);
     expect(visiblePanels(modal)).toHaveLength(1);
@@ -499,7 +507,7 @@ describe("Appearance, inside General", () => {
     expect(document.activeElement).toBe(animation);
   });
 
-  it("has Background, which look, directly under the animation's switch: Drift first and chosen, then the rest by name in one plain list", () => {
+  it("has Background, which look, directly under the animation's switch: Field chosen, in one plain list of Drift first and then the rest by name", () => {
     const { modal } = open();
     const panel = visiblePanels(modal)[0]!;
     const look = byId<HTMLButtonElement>("settings-background-preset");
@@ -511,7 +519,7 @@ describe("Appearance, inside General", () => {
     // The same control as the corners and the motion, chevron and all.
     expect(look.className).toBe(byId("settings-paper-corners").className);
     expect(look.parentElement!.querySelector(".new-project-dialog__chevron")).not.toBeNull();
-    expect(look.textContent).toBe("Drift");
+    expect(look.textContent).toBe("Field");
     expect(look.disabled).toBe(false);
     const choices = [...document.querySelectorAll("#settings-background-preset-list [role=option]")];
     expect(choices.map((option) => option.firstElementChild!.textContent)).toEqual([
@@ -539,11 +547,11 @@ describe("Appearance, inside General", () => {
     const { current, kept } = open();
     const look = byId<HTMLButtonElement>("settings-background-preset");
     look.click();
-    // Field is the seventh: the engine's `wordField`, whose id is `field`.
-    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(7)")!.click();
-    expect(look.textContent).toBe("Field");
-    expect(current().appearance.backgroundPreset).toBe("field");
-    expect(kept.at(-1)?.appearance.backgroundPreset).toBe("field");
+    // Drift is the first, and a writer may still choose it over the default.
+    document.querySelector<HTMLElement>("#settings-background-preset-list [role=option]:nth-child(1)")!.click();
+    expect(look.textContent).toBe("Drift");
+    expect(current().appearance.backgroundPreset).toBe("drift");
+    expect(kept.at(-1)?.appearance.backgroundPreset).toBe("drift");
     expect(current().appearance).toMatchObject({ backgroundAnimation: true, backgroundMotion: "reactive" });
 
     look.click();
@@ -553,12 +561,12 @@ describe("Appearance, inside General", () => {
     expect(kept.at(-1)?.appearance).toEqual(settingsFrom(JSON.parse(settingsText(kept.at(-1)!))).appearance);
   });
 
-  it("starts from the look kept, and from Drift for one this version does not have", () => {
+  it("starts from the look kept, and from Field for one this version does not have", () => {
     open({ settings: () => settingsFrom({ appearance: { backgroundPreset: "weave" } }) });
     expect(byId("settings-background-preset").textContent).toBe("Weave");
     document.body.replaceChildren();
     open({ settings: () => settingsFrom({ appearance: { backgroundPreset: "aurora" } }) });
-    expect(byId("settings-background-preset").textContent).toBe("Drift");
+    expect(byId("settings-background-preset").textContent).toBe("Field");
   });
 
   it("dims Background while the animation is off, keeping the look, and wakes it when the animation is back", () => {
@@ -642,10 +650,10 @@ describe("Appearance, inside General", () => {
 });
 
 describe("every list, as one column of pill cells", () => {
-  it("draws Keyboard Shortcuts, New Project Defaults, Dictionary and Graveyard as cells in one list each", async () => {
+  it("draws Hotkeys, New Project Defaults, Dictionary and Graveyard as cells in one list each", async () => {
     const { modal } = open();
     for (const [section, list] of [
-      ["Keyboard Shortcuts", "Keyboard shortcuts"],
+      ["Hotkeys", "Commands and their keys"],
       ["New Project Defaults", "Project types"],
       ["Dictionary", "Your words"],
       ["Graveyard", "The Graveyard"],
@@ -741,8 +749,51 @@ describe("New Project Defaults", () => {
       "Bold scene headings",
       "Bold transitions",
       "Blank lines before scene headings",
+      "Workspaces",
+      "Notes",
+      "Plan",
     ]);
-    expect(labels("poem")).toEqual(["Show in New Project", "Daily word goal", "Target page count"]);
+    // A coming type has the workspaces too; the Editor is in every project, so never listed.
+    expect(labels("poem")).toEqual(["Show in New Project", "Daily word goal", "Target page count", "Workspaces", "Notes", "Plan"]);
+  });
+
+  it("offers each workspace a project may do without, on until the writer changes one", () => {
+    const { modal, current } = open();
+    choose(modal, "New Project Defaults");
+    head("Feature").click();
+    const notes = byId<HTMLButtonElement>("settings-defaults-feature-workspace-notes");
+    const plan = byId<HTMLButtonElement>("settings-defaults-feature-workspace-plan");
+    expect(document.querySelector("#settings-defaults-feature-workspace-editor")).toBeNull();
+    expect([notes, plan].map((toggle) => toggle.getAttribute("aria-checked"))).toEqual(["true", "true"]);
+    // Never chosen: every one offered, as a project that never chose (`details.md`).
+    expect(current().projectDefaults["Feature"]!.workspaces).toBeUndefined();
+
+    notes.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "plan"]);
+    plan.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor"]);
+    notes.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes"]);
+    // Each type's own.
+    expect(current().projectDefaults["Episode"]!.workspaces).toBeUndefined();
+
+    // A coming type keeps its choice too.
+    head("Novel").click();
+    byId<HTMLButtonElement>("settings-defaults-novel-workspace-plan").click();
+    expect(current().projectDefaults["Novel"]!.workspaces).toEqual(["editor", "notes"]);
+  });
+
+  it("draws a type's kept workspaces, and keeps one this version does not offer", () => {
+    const start = settingsFrom({
+      projectDefaults: { Feature: { workspaces: ["editor", "plan", "outline"] } },
+    });
+    const { modal, current } = open({}, start);
+    choose(modal, "New Project Defaults");
+    head("Feature").click();
+    expect(byId("settings-defaults-feature-workspace-notes").getAttribute("aria-checked")).toBe("false");
+    expect(byId("settings-defaults-feature-workspace-plan").getAttribute("aria-checked")).toBe("true");
+    byId<HTMLButtonElement>("settings-defaults-feature-workspace-notes").click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "plan", "outline"]);
   });
 
   it("keeps each type's defaults on their own, and puts numbers right quietly", () => {
@@ -763,13 +814,14 @@ describe("New Project Defaults", () => {
     byId<HTMLButtonElement>("settings-defaults-feature-blank-lines").click();
     document.querySelector<HTMLElement>("#settings-defaults-feature-blank-lines-list [role=option]:nth-child(2)")!.click();
 
+    // Both bold start on (the paper's, for a new project); the click turned headings off.
     expect(current().projectDefaults["Feature"]).toEqual({
       shown: false,
       dailyGoalOn: true,
       dailyGoal: 750,
       targetPages: 110,
-      boldSceneHeadings: true,
-      boldTransitions: false,
+      boldSceneHeadings: false,
+      boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });
     expect(current().projectDefaults["Episode"]).toEqual(DEFAULT_SETTINGS.projectDefaults["Episode"]);
@@ -782,8 +834,8 @@ describe("New Project Defaults", () => {
   });
 });
 
-describe("Keyboard Shortcuts", () => {
-  const keyList = (modal: HTMLElement) => modal.querySelector<HTMLElement>('[aria-label="Keyboard shortcuts"]')!;
+describe("Hotkeys", () => {
+  const keyList = (modal: HTMLElement) => modal.querySelector<HTMLElement>('[aria-label="Commands and their keys"]')!;
   const cellOf = (modal: HTMLElement, label: string): HTMLElement =>
     [...keyList(modal).children].find((cell) => cell.querySelector(".settings__row-name")!.textContent === label) as HTMLElement;
   const chipsOf = (modal: HTMLElement, label: string): string[] =>
@@ -792,7 +844,7 @@ describe("Keyboard Shortcuts", () => {
   const noteOf = (modal: HTMLElement, label: string): HTMLElement => cellOf(modal, label).querySelector(".settings__cell-note")!;
   const openKeys = () => {
     const opened = open();
-    choose(opened.modal, "Keyboard Shortcuts");
+    choose(opened.modal, "Hotkeys");
     return opened;
   };
 
@@ -802,7 +854,7 @@ describe("Keyboard Shortcuts", () => {
     expect(names).toEqual(shortcutCommands().map((command) => command.label));
     expect(names).toEqual(expect.arrayContaining(["Save Project", "Export As…", "Search", "Spellcheck", "Scene Heading", "Copy"]));
     expect(names).not.toContain("Settings…");
-    expect(modal.querySelectorAll('[aria-label="Keyboard shortcuts"]')).toHaveLength(1);
+    expect(modal.querySelectorAll('[aria-label="Commands and their keys"]')).toHaveLength(1);
     // No filter: Noah's call.
     expect(visiblePanels(modal)[0]!.querySelector("input")).toBeNull();
     expect(visiblePanels(modal)[0]!.textContent).not.toMatch(/Unassigned|Assigned/);
@@ -974,7 +1026,7 @@ describe("Keyboard Shortcuts", () => {
   it("starts from the writer's kept keys, and keeps them in the file's text", () => {
     const start = settingsFrom({ keyBindings: { search: [{ key: "f", mod: true }], "reset-zoom": [] } });
     const { modal, current } = open({}, start);
-    choose(modal, "Keyboard Shortcuts");
+    choose(modal, "Hotkeys");
     expect(chipsOf(modal, "Search")).toEqual(["Ctrl + F"]);
     expect(chipsOf(modal, "Reset Zoom")).toEqual(["Blank"]);
     button(modal, "Add a key for Next Scene").click();

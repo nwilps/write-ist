@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ChevronDown, ChevronUp, createElement } from "lucide";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { describe, expect, it } from "vitest";
@@ -183,3 +184,84 @@ describe("the Scene list's scrolling", () => {
   });
 });
 
+
+/**
+ * The Scene list has no scrollbar; Open Project's own chevrons say there is
+ * more (Noah, 2026-11-21) — the same component, so the same Lucide icons, the
+ * same bounce, the same rule for when each shows.
+ */
+describe("the Scene list's chevrons", () => {
+  /** Lays the list out as a window would: rows of 28 in a list `shown` tall, scrolled `top`. */
+  function laidOut(list: HTMLElement, shown: number, top: number): void {
+    const rows = [...list.children];
+    const box = (y: number, height: number) => ({ top: y, bottom: y + height, left: 0, right: 0, width: 0, height }) as DOMRect;
+    Object.defineProperty(list, "clientHeight", { value: shown, configurable: true });
+    Object.defineProperty(list, "scrollHeight", { value: rows.length * 28, configurable: true });
+    list.scrollTop = top;
+    list.getBoundingClientRect = () => box(100, shown);
+    rows.forEach((row, at) => (row.getBoundingClientRect = () => box(100 + at * 28 - list.scrollTop, 28)));
+  }
+  const hints = (panels: ReturnType<typeof sidePanels>) => {
+    const window = panels.left.querySelector(".panel__scenes-window")!;
+    return {
+      list: window.querySelector<HTMLElement>(".panel__scenes")!,
+      up: window.querySelector<HTMLElement>(".projects-hint--above")!,
+      down: window.querySelector<HTMLElement>(".projects-hint--below")!,
+    };
+  };
+
+  it("are Open Project's: Lucide's up and down, for the eye only, around the list", () => {
+    const { up, down, list } = hints(mounted().panels);
+    const drawing = (icon: typeof ChevronUp) => createElement(icon).innerHTML;
+    expect(up.querySelector("svg")?.innerHTML).toBe(drawing(ChevronUp));
+    expect(down.querySelector("svg")?.innerHTML).toBe(drawing(ChevronDown));
+    expect([up.getAttribute("aria-hidden"), down.getAttribute("aria-hidden")]).toEqual(["true", "true"]);
+    expect(up.nextElementSibling).toBe(list);
+    expect(list.nextElementSibling).toBe(down);
+  });
+
+  it("show neither while every scene fits", () => {
+    const { list, up, down } = hints(mounted().panels);
+    laidOut(list, 200, 0);
+    list.dispatchEvent(new Event("scroll"));
+    expect([up.hidden, down.hidden]).toEqual([true, true]);
+  });
+
+  it("show only the way there is more, as the list is scrolled — by wheel, trackpad or keys", () => {
+    const { list, up, down } = hints(mounted().panels);
+    // Two scenes, a window one scene tall.
+    laidOut(list, 28, 0);
+    list.dispatchEvent(new Event("scroll"));
+    expect([up.hidden, down.hidden]).toEqual([true, false]);
+    // However it moved, the list's own scroll event says so.
+    laidOut(list, 28, 28);
+    list.dispatchEvent(new Event("scroll"));
+    expect([up.hidden, down.hidden]).toEqual([false, true]);
+  });
+
+  it("are asked again when the scenes change", () => {
+    const { panels, view } = mounted();
+    const { list, up, down } = hints(panels);
+    laidOut(list, 200, 0);
+    list.dispatchEvent(new Event("scroll"));
+    expect(down.hidden).toBe(true);
+    // A third scene, in a window two scenes tall.
+    const end = view.state.doc.content.size;
+    view.dispatch(view.state.tr.insert(end, view.state.schema.nodes["element"]!.create({ type: "scene-heading" }, view.state.schema.text("INT. HALL - DAY"))));
+    laidOut(list, 56, 0);
+    panels.update(view.state);
+    // The redraw replaced the rows; the window is asked whether they still fit.
+    laidOut(list, 56, 0);
+    list.dispatchEvent(new Event("scroll"));
+    expect(list.children.length).toBe(3);
+    expect([up.hidden, down.hidden]).toEqual([true, false]);
+  });
+
+  it("bounce as Open Project's do, and sit in the panel's room, never over a scene", () => {
+    expect(css).toMatch(/\.panel__scenes-window \.projects-hint--above\s*\{[^}]*bottom: calc\(100% \+ var\(--space-row-label\)\)/);
+    expect(css).toMatch(/\.panel__scenes-window \.projects-hint--below\s*\{[^}]*top: calc\(100% \+ var\(--space-hint-clear\)\)/);
+    expect(css).toMatch(/\.panel--scenes \{[^}]*padding-bottom: calc\(var\(--size-icon\) \+ var\(--distance-hint-bounce\) \+ var\(--space-hint-clear\) \* 2\)/);
+    // The bounce itself is Open Project's rule, not a copy of it.
+    expect(css).not.toMatch(/@keyframes/);
+  });
+});

@@ -24,15 +24,15 @@
  *   re-read. The scene the caret is in is checked first on the first pass, then
  *   the others in turn, each batch drawn in one transaction.
  *
- * The issues are kept against the context they were judged in — the script's
- * confirmed names — and a new context (a name confirmed, a cue used a third
- * time) makes every kept answer stale, which costs one pass of lookups in the
- * verdict cache and no lookups in the engine.
+ * The issues are kept against the dictionary they were judged by
+ * (`Spelling.epoch`): a word added or taken out makes every kept answer stale,
+ * which costs one pass of lookups in the verdict cache and no lookups in the
+ * engine. The character and location lists are not consulted (`spelling.ts`).
  *
  * ## What the writer can do about an underline
  *
  * The paper's right-click menu (ADR-0039) offers them: `suggestionsAt` (the
- * "Did you mean" fix first, then the dictionary's), `replaceWord` (one undo
+ * dictionary's), `replaceWord` (one undo
  * step) and `addToDictionary` (one undo step too: `removeFromDictionary`
  * takes it back).
  */
@@ -41,29 +41,14 @@ import type { Node as EditorNode } from "prosemirror-model";
 import { Plugin, PluginKey, type EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import type { ElementType } from "./document.ts";
-import type { NameLists } from "./names.ts";
 import { manuscriptElements } from "./numbering.ts";
 import { beginsScene } from "./ranges.ts";
-import {
-  contextOf,
-  isChecked,
-  NO_CONTEXT,
-  sameContext,
-  Spelling,
-  tokensOf,
-  type SpellContext,
-  type SpellEngine,
-  type SpellingOptions,
-  type Verdict,
-} from "./spelling.ts";
+import { isChecked, Spelling, tokensOf, type SpellEngine, type Verdict } from "./spelling.ts";
 
 export interface SpellcheckOptions {
   readonly engine: SpellEngine;
-  /** The lists whose confirmed names are known words. A getter: they are replaced on reload. */
-  readonly names: () => NameLists | undefined;
   /** Pause after typing before a recheck, in milliseconds. */
   readonly pause: number;
-  readonly spelling: SpellingOptions;
 }
 
 /** One underlined word. */
@@ -75,11 +60,9 @@ export interface SpellIssue {
   readonly verdict: Verdict;
 }
 
-/** One thing a menu would offer for a word. */
+/** One thing a menu would offer for a word: the dictionary's. */
 export interface Suggestion {
   readonly text: string;
-  /** `near` is *Did you mean MICHAEL?*, the one-click fix to a confirmed name. */
-  readonly kind: "near" | "dictionary";
 }
 
 /** An issue inside its element: offsets into the element's text. */
@@ -91,7 +74,6 @@ interface ElementIssue {
 }
 
 interface Kept {
-  readonly context: SpellContext;
   /** `Spelling.epoch` when judged: a word added since makes the answer stale. */
   readonly epoch: number;
   readonly issues: readonly ElementIssue[];
@@ -111,25 +93,21 @@ const key = new PluginKey<SpellState>("write-ist:spellcheck");
 
 const OFF: SpellState = { on: false, decorations: DecorationSet.empty };
 
-/** The class a misspelt word is drawn with; `spell-error--near` is the "Did you mean" kind. */
+/** The class a misspelt word is drawn with. */
 export const SPELL_CLASS = "spell-error";
-export const SPELL_NEAR_CLASS = "spell-error--near";
 
 export class Spellcheck {
   readonly spelling: Spelling;
   readonly plugin: Plugin<SpellState>;
 
   private readonly kept = new WeakMap<EditorNode, Kept>();
-  private context: SpellContext = NO_CONTEXT;
-  private contextVersion = -1;
-  private contextNames: NameLists | undefined;
   private generation = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running: Promise<void> = Promise.resolve();
   private view: EditorView | undefined;
 
   constructor(private readonly options: SpellcheckOptions) {
-    this.spelling = new Spelling(options.engine, options.spelling);
+    this.spelling = new Spelling(options.engine);
     this.plugin = new Plugin<SpellState>({
       key,
       state: {
@@ -185,7 +163,7 @@ export class Spellcheck {
     if (on) this.schedule(view, 0);
   }
 
-  /** Check again soon: the lists changed (a name was confirmed), not the document. */
+  /** Check again soon: the dictionary changed, not the document. */
   refresh(view: EditorView): void {
     if (this.isOn(view.state)) this.schedule(view, 0);
   }
@@ -221,16 +199,11 @@ export class Spellcheck {
       .map((decoration) => ({ ...(decoration.spec["issue"] as SpellIssue), from: decoration.from, to: decoration.to }));
   }
 
-  /** What to offer for an underline: the fix to a confirmed name first, then the dictionary's. */
+  /** What to offer for an underline: the dictionary's suggestions, best first. */
   async suggestionsAt(state: EditorState, position: number): Promise<Suggestion[]> {
     const issue = this.issueAt(state, position);
     if (issue === undefined) return [];
-    const offered: Suggestion[] = [];
-    if (issue.verdict.kind === "near") offered.push({ text: issue.verdict.suggestion, kind: "near" });
-    for (const text of await this.spelling.suggestions(issue.word)) {
-      if (!offered.some((held) => held.text === text)) offered.push({ text, kind: "dictionary" });
-    }
-    return offered;
+    return (await this.spelling.suggestions(issue.word)).map((text) => ({ text }));
   }
 
   /** Replace the word under an underline, in one undo step. */
@@ -257,13 +230,10 @@ export class Spellcheck {
 
   /**
    * The pass's numbers over a whole document: words checked, distinct words,
-   * flagged, by element type, and how many flagged are near-matches. Reads the
-   * same verdicts the underlines do, so a defect that flags every name shows
-   * here as well as on the paper.
+   * and flagged, by element type. Reads the same verdicts the underlines do,
+   * so a defect that flags every word shows here as well as on the paper.
    */
   async census(doc: EditorNode): Promise<SpellCensus> {
-    const names = this.options.names();
-    const context = names === undefined ? NO_CONTEXT : contextOf(names);
     const all: { word: string; type: ElementType }[] = [];
     doc.forEach((node) => {
       if (node.type.name !== "element") return;
@@ -277,17 +247,14 @@ export class Spellcheck {
     const distinct = new Set<string>();
     const flaggedWords = new Set<string>();
     let flagged = 0;
-    let near = 0;
     for (const { word, type } of all) {
       distinct.add(word);
-      const verdict = this.spelling.judge(word, context);
-      if (verdict === undefined) continue;
+      if (this.spelling.judge(word) === undefined) continue;
       flagged += 1;
       flaggedWords.add(word);
-      if (verdict.kind === "near") near += 1;
       flaggedByType[type] = (flaggedByType[type] ?? 0) + 1;
     }
-    return { checked: all.length, distinct: distinct.size, flagged, flaggedDistinct: flaggedWords.size, near, flaggedByType };
+    return { checked: all.length, distinct: distinct.size, flagged, flaggedDistinct: flaggedWords.size, flaggedByType };
   }
 
   /* ------------------------------------------------------------- the pass */
@@ -315,23 +282,10 @@ export class Spellcheck {
     });
   }
 
-  /** The lists' context, which stays the same object while it means the same. */
-  private currentContext(): SpellContext {
-    const names = this.options.names();
-    if (names === undefined) return NO_CONTEXT;
-    if (names === this.contextNames && names.version === this.contextVersion) return this.context;
-    const next = contextOf(names);
-    this.contextNames = names;
-    this.contextVersion = names.version;
-    if (!sameContext(next, this.context)) this.context = next;
-    return this.context;
-  }
-
   private async pass(view: EditorView, generation: number): Promise<void> {
     if (!this.isOn(view.state)) return;
     const doc = view.state.doc;
-    const context = this.currentContext();
-    const batches = batchesOf(scenesOf(doc, view.state.selection.head), (node) => this.needs(node, context), BATCH_WORDS);
+    const batches = batchesOf(scenesOf(doc, view.state.selection.head), (node) => this.needs(node), BATCH_WORDS);
 
     for (const [index, batch] of batches.entries()) {
       if (batch.words.length === 0) continue;
@@ -341,45 +295,45 @@ export class Spellcheck {
       if (generation !== this.generation || view.state.doc !== doc) return;
       // Draw what is judged so far, so the caret's scene shows before the rest
       // of the script has been asked about. The last batch is drawn below.
-      if (index < batches.length - 1) this.publish(view, doc, context);
+      if (index < batches.length - 1) this.publish(view, doc);
     }
-    this.publish(view, doc, context);
+    this.publish(view, doc);
   }
 
-  /** The words of an element not yet judged under `context`, or none when it is. */
-  private needs(node: EditorNode, context: SpellContext): string[] {
+  /** The words of an element not yet judged by this dictionary, or none when it is. */
+  private needs(node: EditorNode): string[] {
     const held = this.kept.get(node);
-    if (held?.context === context && held.epoch === this.spelling.epoch) return [];
+    if (held?.epoch === this.spelling.epoch) return [];
     if (!isChecked(node.attrs["type"] as ElementType, node.attrs["omitted"] === true)) return [];
     return tokensOf(node.textContent).map((token) => token.word).filter((word) => !this.spelling.has(word));
   }
 
   /** The element's issues, judged now if they are not kept. Undefined while a word has no verdict. */
-  private issuesOf(node: EditorNode, context: SpellContext): readonly ElementIssue[] | undefined {
+  private issuesOf(node: EditorNode): readonly ElementIssue[] | undefined {
     const held = this.kept.get(node);
-    if (held?.context === context && held.epoch === this.spelling.epoch) return held.issues;
+    if (held?.epoch === this.spelling.epoch) return held.issues;
     const type = node.attrs["type"] as ElementType;
     let issues: ElementIssue[] = [];
     if (isChecked(type, node.attrs["omitted"] === true)) {
       const tokens = tokensOf(node.textContent);
       if (tokens.some((token) => !this.spelling.has(token.word))) return undefined;
       for (const token of tokens) {
-        const verdict = this.spelling.judge(token.word, context);
+        const verdict = this.spelling.judge(token.word);
         if (verdict !== undefined) issues.push({ word: token.word, start: token.start, end: token.end, verdict });
       }
     } else {
       issues = [];
     }
-    this.kept.set(node, { context, epoch: this.spelling.epoch, issues });
+    this.kept.set(node, { epoch: this.spelling.epoch, issues });
     return issues;
   }
 
   /** Draw everything judged so far, in one transaction. */
-  private publish(view: EditorView, doc: EditorNode, context: SpellContext): void {
+  private publish(view: EditorView, doc: EditorNode): void {
     if (view.state.doc !== doc || !this.isOn(view.state)) return;
     const drawn: Decoration[] = [];
     for (const { node, pos: offset } of manuscriptElements(doc)) {
-      const issues = this.issuesOf(node, context);
+      const issues = this.issuesOf(node);
       if (issues === undefined) continue;
       for (const issue of issues) {
         const from = offset + 1 + issue.start;
@@ -388,7 +342,7 @@ export class Spellcheck {
           Decoration.inline(
             placed.from,
             placed.to,
-            { class: issue.verdict.kind === "near" ? `${SPELL_CLASS} ${SPELL_NEAR_CLASS}` : SPELL_CLASS },
+            { class: SPELL_CLASS },
             { issue: placed },
           ),
         );
@@ -410,8 +364,6 @@ export interface SpellCensus {
   /** Words flagged, with repeats. */
   readonly flagged: number;
   readonly flaggedDistinct: number;
-  /** Of those flagged, how many are *Did you mean* near-matches. */
-  readonly near: number;
   readonly flaggedByType: Readonly<Partial<Record<ElementType, number>>>;
 }
 

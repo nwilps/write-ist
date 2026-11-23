@@ -51,7 +51,7 @@ import { exportScreenplay, importScreenplay } from "../../src/screenplay/import.
 import type { Filesystem } from "../../src/project/filesystem.ts";
 import { manuscriptSession } from "../../src/project/manuscript-session.ts";
 import { FORMAT_VERSION } from "../../src/project/marker.ts";
-import { NO_CONFIRMATIONS } from "../../src/project/names-file.ts";
+import { NOTHING_BY_HAND } from "../../src/project/names-file.ts";
 import type { ScreenplayDocument } from "../../src/screenplay/document.ts";
 import { paginate, repaginate } from "../../src/screenplay/paginate.ts";
 import { describeCorpus, readCorpusBytes } from "../support/corpus.ts";
@@ -124,7 +124,7 @@ function budget(document: ScreenplayDocument, bytes: number): number {
       // `setTimeout`, and what is being measured is Write-ist's own work.
       autosaveClock: { wait: () => 0, cancel: () => {} },
     },
-    { opened: { project: project, document, manuscript: new Uint8Array() }, confirmed: NO_CONFIRMATIONS, goals: undefined },
+    { opened: { project: project, document, manuscript: new Uint8Array() }, namesByHand: NOTHING_BY_HAND, goals: undefined },
   );
 
   // Where the caret is: the middle of the manuscript, so the mapping has the

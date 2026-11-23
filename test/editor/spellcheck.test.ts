@@ -11,19 +11,17 @@ import { describe, expect, it } from "vitest";
 import { undo } from "prosemirror-history";
 import { TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { DEFAULT_PREFERENCES } from "../../src/preferences.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { exportScreenplay } from "../../src/screenplay/import.ts";
-import { namesOf, syncNames } from "../../src/screenplay/names-sync.ts";
-import type { NameLists } from "../../src/screenplay/names.ts";
 import { parse } from "../../src/screenplay/parse.ts";
 import { Spellcheck } from "../../src/screenplay/spellcheck.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { ENGLISH, fakeEngine, type FakeEngine } from "../support/spell-engine.ts";
 
 /**
- * MICHAEL five times, a misspelling of him once, MARY twice (so unconfirmed),
- * ZORBLAX twice; KITCHEN three times (confirmed), HOSPITAL ROOM three times.
+ * MICHAEL five times, a misspelling of him once, MARY twice, ZORBLAX twice;
+ * KITCHEN three times, HOSPITAL ROOM three times. The fake dictionary knows
+ * `kitchen`, `hospital` and `room`, and none of the names.
  */
 const SCRIPT = [
   "INT. KITCHEN - DAY",
@@ -75,30 +73,16 @@ const SCRIPT = [
   "The dog barks loudly.",
 ].join("\n");
 
-/** An editor with a real view, the lists, and a spellcheck pass on a fake dictionary. */
+/** An editor with a real view and a spellcheck pass on a fake dictionary. No name lists: spellcheck has none. */
 function open(fountain = SCRIPT, engine: FakeEngine = fakeEngine()) {
   const document = parse(fountain);
-  const holder: { names?: NameLists } = {};
-  const spell = new Spellcheck({
-    engine,
-    names: () => holder.names,
-    pause: 0,
-    spelling: {
-      nearDistance: DEFAULT_PREFERENCES.spellcheckNearDistance,
-      nearMinLength: DEFAULT_PREFERENCES.spellcheckNearMinLength,
-    },
-  });
+  const spell = new Spellcheck({ engine, pause: 0 });
   const state = editorStateFor(document, { spellcheck: spell });
-  holder.names = namesOf(state.doc);
   const view: EditorView = new EditorView(window.document.createElement("div"), {
     state,
-    dispatchTransaction: (transaction) => {
-      const before = view.state.doc;
-      view.updateState(view.state.apply(transaction));
-      if (transaction.docChanged) syncNames(holder.names!, before, view.state.doc);
-    },
+    dispatchTransaction: (transaction) => view.updateState(view.state.apply(transaction)),
   });
-  return { view, spell, engine, names: holder.names, document };
+  return { view, spell, engine, document };
 }
 
 type Opened = ReturnType<typeof open>;
@@ -185,25 +169,26 @@ describe("nothing is ever changed in the text", () => {
 });
 
 describe("what is underlined", () => {
-  it("does not underline a confirmed name, and does underline the same name used once", async () => {
+  it("underlines a name the dictionary does not know, however often the script uses it", async () => {
     const editor = open();
     editor.spell.toggle(editor.view);
     await editor.spell.flush(editor.view);
     const words = underlined(editor);
 
-    // MICHAEL (five uses) and KITCHEN (three) are confirmed: known words.
-    expect(words).not.toContain("MICHAEL");
+    // The character and location lists play no part (Noah, 2026-11-22): five
+    // MICHAEL cues do not make MICHAEL a word, and a typo of him is one too.
+    expect(words.filter((word) => word === "MICHAEL")).toHaveLength(5);
+    expect(words).toContain("MICHEAL");
+    expect(words.filter((word) => word === "ZORBLAX")).toHaveLength(2);
+    expect(words.filter((word) => word === "MARY")).toHaveLength(2);
+    // A place's words the dictionary knows are left alone; a misspelt one is not.
     expect(words).not.toContain("KITCHEN");
-    // The words inside a confirmed location are known as well.
     expect(words).not.toContain("HOSPITAL");
     expect(words).not.toContain("ROOM");
-    // ZORBLAX is used twice: unconfirmed, so the dictionary decides (Q-V).
-    expect(words.filter((word) => word === "ZORBLAX")).toHaveLength(2);
-    // MARY is used twice and is not in the fake dictionary either.
-    expect(words).toContain("MARY");
+    expect(words).toContain("KITCHNE");
   });
 
-  it("underlines an ordinary word inside a heading, and offers the confirmed location", async () => {
+  it("underlines a misspelt word inside a heading, and offers the dictionary's fix", async () => {
     const editor = open();
     editor.spell.toggle(editor.view);
     await editor.spell.flush(editor.view);
@@ -211,20 +196,20 @@ describe("what is underlined", () => {
     const at = find(editor.view, "KITCHNE");
     const issue = editor.spell.issueAt(editor.view.state, at + 2)!;
     expect(issue.word).toBe("KITCHNE");
-    expect(issue.verdict).toEqual({ kind: "near", suggestion: "KITCHEN" });
+    expect(issue.verdict).toEqual({ kind: "misspelled" });
 
     const offered = await editor.spell.suggestionsAt(editor.view.state, at + 2);
-    expect(offered[0]).toEqual({ text: "KITCHEN", kind: "near" });
+    expect(offered).toContainEqual({ text: "KITCHEN" });
   });
 
-  it("answers Did you mean MICHAEL for a typo of a confirmed name, and fixes it in one undo step", async () => {
+  it("fixes a misspelt cue in one undo step", async () => {
     const editor = open();
     editor.spell.toggle(editor.view);
     await editor.spell.flush(editor.view);
 
     const at = find(editor.view, "MICHEAL");
     const issue = editor.spell.issueAt(editor.view.state, at)!;
-    expect(issue.verdict).toEqual({ kind: "near", suggestion: "MICHAEL" });
+    expect(issue.verdict).toEqual({ kind: "misspelled" });
 
     const before = editor.view.state.doc;
     editor.spell.replaceWord(editor.view, issue, "MICHAEL");
@@ -259,7 +244,7 @@ describe("what is underlined", () => {
     expect(editor.engine.asked.flat()).not.toContain("Zzyzx");
   });
 
-  it("knows the screenplay's own terms and a confirmed name's possessive", async () => {
+  it("knows the screenplay's own terms, and a name only as the dictionary knows it", async () => {
     const editor = open(
       [
         "INT./EXT. HALL - DAY",
@@ -278,7 +263,9 @@ describe("what is underlined", () => {
     );
     editor.spell.toggle(editor.view);
     await editor.spell.flush(editor.view);
-    expect(underlined(editor)).toEqual([]);
+    // V.O., O.S., CONT'D and INT./EXT. are never flagged. MICHAEL is not a
+    // dictionary word, so each cue and the possessive are, list or no list.
+    expect(underlined(editor)).toEqual(["MICHAEL", "MICHAEL", "MICHAEL", "Michael's"]);
   });
 });
 
@@ -345,18 +332,19 @@ describe("rechecking", () => {
     expect(editor.engine.asked[0]).toContain("kitchne");
   });
 
-  it("starts a pass again when a name is confirmed, without the engine", async () => {
+  it("makes a name right only through the dictionary, and redraws without asking about other words", async () => {
     const editor = open();
     editor.spell.toggle(editor.view);
     await editor.spell.flush(editor.view);
     expect(underlined(editor)).toContain("MARY");
     const sent = editor.engine.sent();
 
-    editor.names.confirm("character", "MARY");
-    editor.spell.refresh(editor.view);
+    await editor.spell.addToDictionary(editor.view, "MARY");
     await editor.spell.flush(editor.view);
     expect(underlined(editor)).not.toContain("MARY");
-    expect(editor.engine.sent()).toBe(sent);
+    expect(underlined(editor)).toContain("MICHAEL");
+    // Only MARY, in the case it was seen in, is asked about again.
+    expect(editor.engine.sent() - sent).toBeLessThanOrEqual(1);
   });
 
   it("stops drawing when switched off mid-pass, and a later pass starts clean", async () => {
@@ -379,10 +367,10 @@ describe("the census of a pass", () => {
     expect(census.flagged).toBeGreaterThan(0);
     // A defect that flags every name would show here as flagged ≈ checked.
     expect(census.flagged).toBeLessThan(census.checked / 2);
-    // KITCHNE in the heading, `kitchne` in the action, and MICHEAL in the cue.
-    expect(census.near).toBe(3);
+    // KITCHNE in the heading, `kitchne` in the action, and every cue: none of
+    // the names is a dictionary word (MICHAEL ×5, MICHEAL, MARY ×2, ZORBLAX ×2).
     expect(census.flaggedByType["scene-heading"]).toBe(1);
-    expect(census.flaggedByType["character"]).toBeGreaterThanOrEqual(3);
+    expect(census.flaggedByType["character"]).toBe(10);
     expect(census.flaggedByType["action"]).toBe(1);
   });
 });
@@ -432,12 +420,7 @@ describe("the keystroke budget, with a pass running", () => {
     );
     // A pause long enough that no pass starts inside the loop; the keystroke
     // is what is measured, and the pass is off its path.
-    const slow = new Spellcheck({
-      engine: editor.engine,
-      names: () => editor.names,
-      pause: 60_000,
-      spelling: { nearDistance: 1, nearMinLength: 4 },
-    });
+    const slow = new Spellcheck({ engine: editor.engine, pause: 60_000 });
     const state = editorStateFor(editor.document, { spellcheck: slow });
     const view = new EditorView(window.document.createElement("div"), {
       state,

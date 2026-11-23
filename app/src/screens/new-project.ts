@@ -31,13 +31,15 @@ export interface NewProjectScreen {
   }) => Promise<string | undefined>;
   /** The dialog is gone, however it went. */
   readonly onClose: () => void;
+  /** The types Settings ▸ New Project Defaults says not to show (`ProjectDefaults.shown`). */
+  readonly hiddenTypes?: readonly string[];
 }
 
 export function showNewProject(
   into: HTMLElement,
-  { onCreate, onClose }: NewProjectScreen,
+  { onCreate, onClose, hiddenTypes = [] }: NewProjectScreen,
 ): HTMLDialogElement {
-  const type = projectTypeSelect("new-project-type");
+  const type = projectTypeSelect("new-project-type", hiddenTypes);
   const title = element("input", {
     id: "new-project-title",
     className: "new-project-dialog__input",
@@ -118,14 +120,20 @@ export function showNewProject(
   return modal;
 }
 
-/** The project types, the same wherever a project is begun: New Project and Import. */
-export function projectTypeSelect(id: string): DialogSelect {
+/**
+ * The project types, the same wherever a project is begun: New Project and
+ * Import. New Project leaves out the ones the writer hid in Settings — but
+ * never every type it can make, which would leave a dialog that makes nothing:
+ * those stay, whatever Settings says.
+ */
+export function projectTypeSelect(id: string, hidden: readonly string[] = []): DialogSelect {
+  const makeable = FORMATS.filter((name) => !hidden.includes(name));
   return dialogSelect({
     id,
     label: "Project type",
     choices: [
-      ...FORMATS.map((name) => ({ value: name, label: name })),
-      ...COMING_FORMATS.map((name) => ({ value: name, label: name, unavailable: "soon" })),
+      ...(makeable.length === 0 ? FORMATS : makeable).map((name) => ({ value: name, label: name })),
+      ...COMING_FORMATS.filter((name) => !hidden.includes(name)).map((name) => ({ value: name, label: name, unavailable: "soon" })),
     ],
   });
 }

@@ -17,7 +17,7 @@
  * It is the window's adapter over a **manuscript session**
  * (`src/project/manuscript-session.ts`). The session holds the model and
  * decides everything — the layout and seams, the name lists, saving, leaving,
- * the ledger, confirming a name — and is reached by tests with no window at
+ * the ledger — and is reached by tests with no window at
  * all. This file mounts the ProseMirror view, hands each transaction to the
  * session, draws what the session says to draw, and owns the dialogs and the
  * keys. What is left is the window, which is seam 4, checked by the writer
@@ -51,7 +51,6 @@ import {
 } from "../../../../src/project/manuscript-session.ts";
 import { printedPageCount } from "../../../../src/screenplay/pdf-pages.ts";
 import { hiddenTitlePage, setTitlePage, titlePageOf } from "../../../../src/screenplay/title-page-editing.ts";
-import { hiddenPageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { pasteInto } from "../../../../src/screenplay/clipboard.ts";
 import { caretPlaceOf, selectionAtPlace, type CaretPlace } from "../../../../src/screenplay/caret-place.ts";
 import { commandForKey, keyTakenAway, runCommand, type CommandHost } from "./commands.ts";
@@ -59,7 +58,13 @@ import { contextMenuItems } from "./context-menu-items.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
-import { drawOffer } from "./autocomplete-draw.ts";
+import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
+import { placeOnBreak } from "../../../../src/screenplay/page-break-editing.ts";
+import { formattingOf, readDetails } from "../../../../src/project/details.ts";
+import { formattingAttributes } from "./paper-formatting.ts";
+import { openNameListDialog } from "./name-list-dialog.ts";
+import type { NameKind } from "../../../../src/screenplay/names.ts";
+import { DEFAULT_FORMATTING, type Formatting } from "../../../../src/screenplay/formatting.ts";
 import { drawSheetBreak } from "./sheet-break.ts";
 import { caretFromMargins } from "./margin-click.ts";
 import { caretScrolling, centrePaper, holdCaretWhile, measureCaretRoom, scrollCaretIntoView, scrollerOf } from "./caret-margin.ts";
@@ -122,6 +127,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // before the manuscript is read, so they reach it through the session.
   let session: ManuscriptSession | undefined;
   let view: EditorView | undefined;
+  // The project's own formatting, read with the manuscript; as until now until then.
+  let formatting: Formatting = DEFAULT_FORMATTING;
   let gone = false;
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
@@ -240,7 +247,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     event.preventDefault();
     if (view === undefined || session === undefined) return;
     const found = view.posAtCoords({ left: event.clientX, top: event.clientY });
-    const at = found?.pos ?? view.state.selection.head;
+    const at = found === null ? view.state.selection.head : placeOnBreak(view.state.doc, found);
     // As in any editor, a right-click outside the selection moves the caret
     // there first, so the menu acts on what was pointed at; inside it, the
     // selection stays for Cut and Copy.
@@ -274,8 +281,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     const writing = session;
     openExportDialog(into, {
       formats: EXPORT_FORMATS,
-      pageCount: () => printedPageCount(writing.manuscript()),
-      write: (format, range) =>
+      pageCount: () => printedPageCount(writing.manuscript(), formatting),
+      write: (format, range, emphasis) =>
         exportScript(format, {
           filesystem: context.filesystem,
           project: context.project,
@@ -283,6 +290,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           document: writing.manuscript,
           faces: courierPrimeFaces,
           range,
+          formatting,
+          ...(emphasis === undefined ? {} : { emphasis }),
         }),
       report: context.report,
       closed: () => view?.focus(),
@@ -316,7 +325,21 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     });
   };
   const stopListeningForGoals = context.whenGoalsAsked(editGoals);
-  // View ▸ Keyboard Shortcuts and Ctrl+K: the key that opens it closes it, and
+  // Edit ▸ Character List and Location List: the names autocomplete offers.
+  // Adding and removing say nothing; the list redrawn is the answer.
+  const editNameList = (kind: NameKind): void => {
+    if (session === undefined || view === undefined || into.querySelector("dialog[open]") !== null) return;
+    const writing = session;
+    openNameListDialog(into, {
+      title: kind === "character" ? "Character List" : "Location List",
+      noun: kind,
+      names: () => writing.nameList(kind),
+      add: (name) => writing.addName(kind, name),
+      remove: (name) => writing.removeName(kind, name),
+      closed: () => view?.focus(),
+    });
+  };
+  // View ▸ Hotkeys and Ctrl+K: the key that opens it closes it, and
   // it never opens over another dialog.
   let shortcuts: HTMLDialogElement | undefined;
   const keyboardShortcuts = (): void => {
@@ -386,6 +409,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     editTitlePage: () => openTitlePage("edit"),
     viewTitlePage: () => openTitlePage("view"),
     editGoals,
+    editNameList,
     toggleSpellcheck: toggleSpelling,
     spellcheckOn: () => view !== undefined && session?.spellcheck.isOn(view.state) === true,
     zoomIn: () => zoomTo(zoomedIn(paperZoomLevel())),
@@ -447,13 +471,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   void (async () => {
     try {
-      const [read, place] = await Promise.all([
+      const [read, place, details] = await Promise.all([
         readManuscript(context.filesystem, context.project, context.report),
         recallPlace(context),
+        // The project's own formatting (`details.md`); never throws.
+        readDetails(context.filesystem, context.project.path),
       ]);
       // Closed while the file was being read. A view mounted now would be a
       // view nobody takes down.
       if (gone) return;
+      formatting = formattingOf(details.details);
 
       const writing = manuscriptSession(
         {
@@ -469,6 +496,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           spellEngine: tauriSpellEngine,
           drawSeam: drawSheetBreak,
           drawOffer,
+          placeOffer,
+          formatting,
           reloaded: (spellingWasOn) => {
             view?.updateState(writing.state);
             if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
@@ -518,14 +547,15 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         },
         decorations: () => writing.seams,
         handleScrollToSelection: scrollCaretIntoView,
-        // The title page and a forced page break's `===` are in the document
-        // and not on the paper; the break is drawn as the seam to a new sheet.
-        nodeViews: { ...hiddenTitlePage, ...hiddenPageBreak },
+        // The title page is in the document and not on the paper. A forced
+        // page break's `===` is, faintly, and the seam to a new sheet after it.
+        nodeViews: hiddenTitlePage,
         // Courier Prime and the page's geometry come from the stylesheet
         // (ADR-0030); this is only the hook it selects on.
         // The webview's own spellcheck is off: spelling is Write-ist's, on
         // demand, from the dictionaries inside the application (ADR-0032).
-        attributes: { class: "manuscript", spellcheck: "false" },
+        // The project's own formatting is the stylesheet's to draw, by these.
+        attributes: { class: "manuscript", spellcheck: "false", ...formattingAttributes(formatting) },
       });
       // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
       const editing = view;

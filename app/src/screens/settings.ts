@@ -4,11 +4,11 @@
  *
  * A list of sections down the left and the one chosen on the right, so the
  * dialog keeps one size and fits the window: General (with Appearance inside
- * it), New Project Defaults, Keyboard Shortcuts, Dictionary and Graveyard
+ * it), New Project Defaults, Hotkeys, Dictionary and Graveyard
  * (Noah's notes, *INT. SETTINGS - DAY*). Nothing is "saved" with a button, as
  * in Goals: a choice changes the setting at once and **Done** only puts the
  * dialog away. A field is put right quietly when it is left, and never says it
- * was wrong. The one message a section says of its own is Keyboard Shortcuts'
+ * was wrong. The one message a section says of its own is Hotkeys'
  * "already used", for a key another command has.
  *
  * **Every list is one column of cells**, each a pill the width of the section
@@ -55,7 +55,7 @@ import { dialogToggle, type DialogToggle } from "./dialog-toggle.ts";
 import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
 import { chevron, field } from "./new-project.ts";
-import { showExileProject } from "./project-dialogs.ts";
+import { showExileProject, type WorkspaceChoice } from "./project-dialogs.ts";
 import { CAPTURES_KEYS, chordName, chordOf, chordsOverlap, type Chord } from "./shortcuts.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
@@ -63,13 +63,13 @@ import { message, trouble as troublePanel } from "./trouble.ts";
 export const SETTINGS_SECTIONS = [
   "General",
   "New Project Defaults",
-  "Keyboard Shortcuts",
+  "Hotkeys",
   "Dictionary",
   "Graveyard",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
-/** A command Keyboard Shortcuts lists, as the application's command table gives it. */
+/** A command Hotkeys lists, as the application's command table gives it. */
 export interface ShortcutCommand {
   readonly id: string;
   readonly label: string;
@@ -79,7 +79,7 @@ export interface ShortcutCommand {
   readonly fixed: boolean;
 }
 
-/** What Keyboard Shortcuts edits: the commands, and the keys no command may take. */
+/** What Hotkeys edits: the commands, and the keys no command may take. */
 export interface SettingsShortcuts {
   readonly commands: readonly ShortcutCommand[];
   /** Keys that are taken without being a command's here: the menus' Alt+F, the surface's Ctrl+B. */
@@ -112,6 +112,12 @@ export interface SettingsDialogOptions {
   readonly shortcuts: SettingsShortcuts;
   readonly dictionary: SettingsDictionary;
   readonly graveyard: SettingsGraveyard;
+  /**
+   * Every workspace the application offers, as Edit Project Details is given
+   * them: New Project Defaults offers a switch for each one a project may do
+   * without.
+   */
+  readonly workspaces: readonly WorkspaceChoice[];
   /** The section shown first. Default General. */
   readonly section?: SettingsSection;
   readonly closed: () => void;
@@ -143,10 +149,10 @@ const subheading = (text: string): HTMLElement =>
   element("h3", { className: "new-project-dialog__label settings__subheading", textContent: text });
 
 /** A quiet line where a list has nothing in it. */
-const emptyLine = (text: string): HTMLElement => element("p", { className: "settings__empty", textContent: text });
+export const emptyLine = (text: string): HTMLElement => element("p", { className: "settings__empty", textContent: text });
 
 /** A row's small button, lit as every dialog button is, without the `>`. */
-const rowAction = (label: string): HTMLButtonElement => {
+export const rowAction = (label: string): HTMLButtonElement => {
   const button = dialogAction(label, undefined, "button", { cursor: false });
   button.classList.add("settings__row-action");
   return button;
@@ -157,7 +163,7 @@ const beingEdited = (node: EventTarget | null): boolean =>
   node instanceof HTMLElement && node.classList.contains("dialog-keys__editing");
 
 /** Enter in a field being typed in: done with it. */
-function onEnterWhileEditing(input: HTMLInputElement, act: () => void): void {
+export function onEnterWhileEditing(input: HTMLInputElement, act: () => void): void {
   input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey || !beingEdited(input)) return;
     event.preventDefault();
@@ -176,7 +182,7 @@ function icon(node: IconNode, className: string): SVGElement {
 }
 
 /** One cell of a list: a pill the width of the section (`.settings__cell`). */
-const cell = (children: readonly Node[], className = ""): HTMLLIElement =>
+export const cell = (children: readonly Node[], className = ""): HTMLLIElement =>
   element("li", { className: `settings__cell ${className}`.trim() }, children);
 
 /** Whether two lists of keys are the same keys, in the same order. */
@@ -364,6 +370,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     });
     return box;
   };
+  const workspaces = options.workspaces;
   /** Which types are open. Each stays as the writer left it until the dialog closes. */
   const expanded = new Set<string>();
   const typeCells = DEFAULTS_ALL.map((type) => defaultsCell(type));
@@ -416,7 +423,34 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       ],
       onChange: (value) => change({ blankLinesBeforeSceneHeadings: value === "2" ? 2 : 1 }),
     });
+    // A switch for each workspace a project may do without, as in Edit Project
+    // Details. The Editor is in every project, so it is not listed.
+    const optional = workspaces.filter((workspace) => !workspace.alwaysOn);
+    const always = workspaces.filter((workspace) => workspace.alwaysOn).map((workspace) => workspace.id);
+    const offered = new Set(workspaces.map((workspace) => workspace.id));
+    const workspaceSwitches: [WorkspaceChoice, DialogToggle][] = optional.map((workspace) => [
+      workspace,
+      dialogToggle({
+        id: `${key}-workspace-${workspace.id}`,
+        onChange: () => {
+          // Written as Edit Project Details writes them: the ones always shown,
+          // the ones switched on, and any this version does not offer, kept.
+          const kept = defaultsOf().workspaces;
+          change({
+            workspaces: [
+              ...always,
+              ...workspaceSwitches.filter(([, toggle]) => toggle.on()).map(([chosen]) => chosen.id),
+              ...(kept ?? []).filter((id) => !offered.has(id)),
+            ],
+          });
+        },
+      }),
+    ]);
+
     const defaults = defaultsOf();
+    for (const [workspace, toggle] of workspaceSwitches) {
+      toggle.set(defaults.workspaces === undefined || defaults.workspaces.includes(workspace.id));
+    }
     shown.set(defaults.shown);
     goalOn.set(defaults.dailyGoalOn);
     goal.value = String(defaults.dailyGoal);
@@ -444,6 +478,9 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
             selectField("Blank lines before scene headings", blankLines),
           ]
         : []),
+      ...(workspaceSwitches.length === 0
+        ? []
+        : [subheading("Workspaces"), ...workspaceSwitches.map(([workspace, toggle]) => switchRow(workspace.name, toggle))]),
     ]);
     const head = element("button", { id: `${key}-head`, type: "button", className: "settings__cell-head" }, [
       icon(ChevronRight, "settings__cell-chevron"),
@@ -471,6 +508,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
               [goal],
               [pages],
               ...(screenplay ? [[boldHeadings.control], [boldTransitions.control], [blankLines.control]] : []),
+              ...workspaceSwitches.map(([, toggle]) => [toggle.control]),
             ]
           : []),
       ],
@@ -481,7 +519,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     rows: () => typeCells.flatMap((type) => type.rows()),
   };
 
-  // --- Keyboard Shortcuts: one list, each command's keys changed in place --------
+  // --- Hotkeys: one list, each command's keys changed in place --------
   const commands = options.shortcuts.commands;
   /** The keys a command answers now: the writer's, where they changed them. */
   const keysOf = (command: ShortcutCommand): readonly KeyBinding[] =>
@@ -642,7 +680,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     };
   }
   const keyboardShortcuts: Section = {
-    body: [element("ul", { className: "settings__list", ariaLabel: "Keyboard shortcuts" }, keyCells.map((key) => key.cell))],
+    body: [element("ul", { className: "settings__list", ariaLabel: "Commands and their keys" }, keyCells.map((key) => key.cell))],
     rows: () => keyCells.flatMap((key) => key.rows()),
   };
 
@@ -842,7 +880,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
   const sections: Readonly<Record<SettingsSection, Section>> = {
     General: general,
     "New Project Defaults": newProjectDefaults,
-    "Keyboard Shortcuts": keyboardShortcuts,
+    Hotkeys: keyboardShortcuts,
     Dictionary: dictionary,
     Graveyard: graveyard,
   };

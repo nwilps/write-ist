@@ -137,12 +137,15 @@ stopped at the element boundary (#26).
 - [x] **Ranges** — scenes computed from the flat sequence (ADR-0019): `src/screenplay/ranges.ts`,
       with `sceneAt` / `elementUnder` beside `elementAt` in `place.ts`, the one "where is this"
       module (slice 2, step 8). Chapters belong to the prose surface and are not built.
-- [x] **Name lists** — characters and locations derived from the cues and headings, confirmed after
-      three uses or by the writer, kept up to date from the elements each edit changed
-      (`names.ts`, `names-sync.ts`); the writer's confirmations in `names.txt`. Spellcheck
-      (step 10) reads them.
-- [x] **Autocomplete** — a confirmed character finishes a cue; a heading is finished in pieces
-      (`INT.`/`EXT.`, a confirmed location, a time of day). Ghost text and a short list drawn as a
+- [x] **Name lists** — characters and locations derived from the cues and headings, on the list
+      from their first use, kept up to date from the elements each edit changed (`names.ts`,
+      `names-sync.ts`). Edit ▸ Character List / Location List add and remove by hand; Remove
+      deletes a name, and typing it as a new cue or heading brings it straight back once the
+      caret leaves the line (Noah, 2026-11-22: no three-use count, no hiding, no counting of
+      uses at removal). What was added and removed is in `names.txt`. Spellcheck does
+      not read them.
+- [x] **Autocomplete** — a character on the list finishes a cue; a heading is finished in pieces
+      (`INT.`/`EXT.`, a location on the list, a time of day). Ghost text and a short list drawn as a
       widget decoration, never in the document; Tab/Enter accept as one undo step, Esc closes
       (`src/screenplay/autocomplete.ts`, `app/src/workspaces/editor/autocomplete-draw.ts`; slice 2,
       step 9). Times of day are the built-in vocabulary only; the script's own are not yet derived.
@@ -151,11 +154,12 @@ stopped at the element boundary (#26).
       the PDF). The engine is `spellbook` (MPL-2.0) in Rust behind a small `SpellEngine` trait,
       with SCOWL `en_US` compiled in beside its licence, off the UI thread, offline
       (`src-tauri/src/spelling.rs`, `src/screenplay/spelling.ts`, `src/screenplay/spellcheck.ts`;
-      slice 2, step 10, ADR-0032). Confirmed names and locations are known words; a typo of one
-      is "Did you mean MICHAEL?". The custom dictionary is `custom-words.txt` in the app's local
+      slice 2, step 10, ADR-0032). It checks everything, cues and headings included: the character
+      and location lists play no part, and a name is right only once it is in the dictionary (Noah,
+      2026-11-22; the "Did you mean MICHAEL?" near-match is gone with that link). The custom dictionary is `custom-words.txt` in the app's local
       data folder. The right-click menu on the paper is built (ADR-0039,
-      #105): up to five suggestions, then Add to Dictionary, via `suggestionsAt`, `replaceWord` and
-      `addToDictionary`. **Not built:** the same menu on text fields and the desk's panels; `en_GB`. A keyboard way to suggestions is the Menu key / Shift+F10.
+      #105): up to five suggestions, then Add to Dictionary (the dictionary only, never a list), via
+      `suggestionsAt`, `replaceWord` and `addToDictionary`. **Not built:** the same menu on text fields and the desk's panels; `en_GB`. A keyboard way to suggestions is the Menu key / Shift+F10.
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
       written to a file (#39). Comment ends were still element *indices*, which nothing moved
@@ -457,6 +461,13 @@ from page 2; the title page as page 1 when it has anything on it. Courier Prime 
 subset; nothing is fetched. `pdf-lib` and `@pdf-lib/fontkit` (MIT) in `src/pdf/render.ts`, the
 only code that touches them. It never writes `manuscript.fountain`. Measured on *Big Fish* at the
 time: 120 layout pages, 121 PDF pages.
+
+Headings and transitions print **regular** unless the writer switches on *Bold scene headings* or
+*Bold transitions* in Export As, for that export only (Noah, 2026-11-22). The project's own bold
+settings (`details.md`, New Project Defaults) are the paper's and never reach the PDF; the paper
+draws headings bold and transitions regular for a project that never chose, and a new project
+starts with both bold. Courier Prime's bold is metrically its regular, so bold moves no line or page
+on either.
 
 ### Done: writing goals, the Goal pill and the Goals dialog (ADR-0040)
 

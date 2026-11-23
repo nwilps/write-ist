@@ -10,11 +10,11 @@
  *
  * ## What is offered
  *
- * - **A cue:** the confirmed characters the typed letters begin. An entry used
- *   once or twice is in the list but unconfirmed and is never offered, so one
- *   typo cannot seed more typos (`names.ts`, glossary *Confirmed name*).
+ * - **A cue:** the characters on the list that the typed letters begin. A name
+ *   is on the list once it is used, or added by hand, and off it once the
+ *   writer removes it (`names.ts`). The line being typed never offers itself.
  * - **A heading, a piece at a time** (ADR-0021's prefixes): `INT.`/`EXT.` at the
- *   start; a confirmed location after the prefix; a time of day after ` - `.
+ *   start; a location on the list after the prefix; a time of day after ` - `.
  *   Accepting a piece inserts it and the separator that follows, so the caret
  *   lands where the next piece begins and the three accepted pieces spell
  *   `INT. KITCHEN - DAY`.
@@ -44,7 +44,7 @@
  * ## Cost
  *
  * The offer reads one element's text and the already-derived lists
- * (`NameLists.confirmedStartingWith`, built from a cache the edit already
+ * (`NameLists.startingWith`, built from a cache the edit already
  * kept up to date). It is worked out at most once per state and list version.
  */
 import { Plugin, PluginKey, TextSelection, EditorState } from "prosemirror-state";
@@ -97,7 +97,7 @@ export function completions(
   if (type === "character") {
     const typed = text.toUpperCase();
     const choices = names
-      .confirmedStartingWith("character", text)
+      .startingWith("character", text)
       .filter((name) => name.startsWith(typed) && name !== typed);
     return choices.length === 0 ? undefined : { piece: "cue", start: 0, choices: cap(choices) };
   }
@@ -116,7 +116,7 @@ export function completions(
   const wanted = rest.toUpperCase();
 
   const places = names
-    .confirmedStartingWith("location", rest)
+    .startingWith("location", rest)
     .filter((name) => name.startsWith(wanted) && name !== wanted);
   if (places.length > 0) {
     return {
@@ -174,6 +174,22 @@ export interface AutocompleteOptions {
   readonly names: () => NameLists;
   /** Draws the offer (the DOM is the app's; this module has none). */
   readonly draw: (drawing: Drawing) => HTMLElement;
+  /**
+   * Lines the drawn offer up, once it is on the paper and after every redraw.
+   * `start` says where the list's left edge belongs, in the window's own
+   * coordinates, for the offer showing *when it is asked*: where a cue's name
+   * begins as it is drawn (Noah, 2026-11-21), indent and centring and all. For
+   * a heading's piece there is none, and the list hangs from the caret as it
+   * always did. Without `place`, it always does.
+   */
+  readonly place?: (drawn: HTMLElement, start: () => Coords | undefined) => void;
+}
+
+/** A place on the window, as `EditorView.coordsAtPos` gives it. */
+export interface Coords {
+  readonly left: number;
+  readonly top: number;
+  readonly bottom: number;
 }
 
 interface Held {
@@ -263,8 +279,21 @@ export function autocomplete(options: AutocompleteOptions): Plugin<Held> {
     return offer;
   };
 
+  // The offer as it was last drawn, to be lined up once the view has put it in.
+  let drawn: HTMLElement | undefined;
+
   return new Plugin<Held>({
     key,
+    view: () => ({
+      update: (view) => {
+        if (options.place === undefined || current(view.state) === undefined || drawn?.isConnected !== true) return;
+        // Read when asked, which may be after the caret has been scrolled to.
+        options.place(drawn, () => {
+          const offer = current(view.state);
+          return offer?.piece === "cue" ? view.coordsAtPos(offer.from, 1) : undefined;
+        });
+      },
+    }),
     state: {
       init: () => ({ selected: 0, closedIn: null }),
       apply: (tr, held, _old, state) => {
@@ -319,7 +348,7 @@ export function autocomplete(options: AutocompleteOptions): Plugin<Held> {
           selected: offer.selected,
         };
         return DecorationSet.create(state.doc, [
-          Decoration.widget(offer.to, () => options.draw(drawing), {
+          Decoration.widget(offer.to, () => (drawn = options.draw(drawing)), {
             side: 1,
             // Redrawn when what it shows changes, and only then.
             key: `autocomplete:${offer.selected}:${offer.typed}:${offer.choices.join("|")}`,

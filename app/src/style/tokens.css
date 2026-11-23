@@ -117,13 +117,19 @@
   /**
    * The line under a word spellcheck does not know (slice 2, step 10). The
    * alarm colour, but only ever drawn as a thin wavy underline — it marks, and
-   * does not shout. A *Did you mean* near-match is drawn in the accent.
+   * does not shout.
    */
   --colour-misspelling: var(--colour-alarm);
-  --colour-misspelling-near: var(--colour-accent);
 
   /** A character's name on the paper. */
   --colour-info: #83a598;
+
+  /**
+   * The rule that ties a dual-dialogue pair together (`editor.css`): the faint
+   * ink taken a little way toward the paper, so it shows the two speeches are
+   * one exchange without drawing the eye from them (Noah, 2026-11-21).
+   */
+  --colour-dual-link: color-mix(in srgb, var(--colour-faint) 70%, var(--colour-page));
 
   /** Text drawn on top of the accent. */
   --colour-on-accent: #1d2021;
@@ -292,6 +298,21 @@
   --paper-zoom: 1;
   --opacity-paper-fade: 1;
   /**
+   * The selection on the paper (`editor.css`), a hair short of solid. Not a
+   * look: it is what stops WebKit — the engine the app runs on — from making
+   * the highlight see-through. WebKit gives any *solid* selection colour 60%
+   * opacity, so a highlight in the paper's ink came out as a dark tan over the
+   * dark paper (#95845c, not #ebdbb2). It leaves a colour that is already
+   * see-through alone, and 99.9% of the ink still paints as the ink itself,
+   * pixel for pixel, in WebKit and Chromium alike (measured, 2026-11-21).
+   */
+  --opacity-selection: 0.999;
+  /**
+   * A page break's faint `===` is drawn over the seam that follows it, in the
+   * rows the seam leaves empty (`editor.css`): above it, below everything else.
+   */
+  --layer-page-break: 1;
+  /**
    * What every shadow is made of: the desk's own colour taken most of the way
    * to black. Darker than the desk, or a shadow would vanish against it, and
    * still the desk's family rather than a grey of its own.
@@ -456,7 +477,7 @@
   --space-goals-arrow: var(--space-loose);
 }
 
-/* --- The Keyboard Shortcuts dialog ------------------------------------------ */
+/* --- The Hotkeys dialog --------------------------------------------------- */
 
 :root {
   /** One column of shortcuts: the longest name and the widest key, with room between. */
@@ -597,6 +618,17 @@
   --size-chip-icon: 12px;
   /** A button that cannot be pressed now: + when a command has all the keys it may. */
   --opacity-unavailable: 0.4;
+}
+
+/* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */
+
+:root {
+  /** As wide as a Settings section, which it is set like. */
+  --measure-name-list: var(--measure-settings-pane);
+  /** The names, before they scroll: as tall as a Settings section. */
+  --size-name-list: var(--size-settings-pane);
+  /** A name's actions: Remove, and the room kept beside it for a Replace to come. */
+  --measure-name-list-actions: 168px;
 }
 
 /*

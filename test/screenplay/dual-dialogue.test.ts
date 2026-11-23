@@ -617,11 +617,20 @@ describe("the link between the pair is a rule along the cue row", () => {
   const rule = css.slice(css.indexOf(".manuscript > .dual-first::after"));
 
   it("is horizontal, kept off both names by a spacing token, and in tokens' colour", () => {
-    expect(rule).toContain("border-bottom: var(--rule-thin) solid var(--colour-faint)");
+    expect(rule).toContain("border-bottom: var(--rule-thin) solid var(--colour-dual-link)");
     expect(rule).not.toContain("border-left");
     expect(rule).toContain("var(--space-tight)");
     expect(rule).toContain("var(--dual-name-left)");
     expect(rule).toContain("var(--dual-name-right)");
+  });
+
+  it("is the faint ink a little dimmed toward the paper: quieter than faint text, but not gone", () => {
+    const tokens = readFileSync("app/src/style/tokens.css", "utf8");
+    const mix = /--colour-dual-link: color-mix\(in srgb, var\(--colour-faint\) (\d+)%, var\(--colour-page\)\);/.exec(tokens);
+    expect(mix).not.toBeNull();
+    const share = Number(mix![1]);
+    expect(share).toBeGreaterThanOrEqual(60);
+    expect(share).toBeLessThan(100);
   });
 
   it("is not printed", () => {

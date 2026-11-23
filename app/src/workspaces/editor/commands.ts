@@ -15,10 +15,10 @@
  * commands claiming one key in one place is a test failure, not a precedence
  * rule.
  *
- * **The writer's own keys** (Settings ▸ Keyboard Shortcuts). The table holds
+ * **The writer's own keys** (Settings ▸ Hotkeys). The table holds
  * each command's own keys; the writer may change the keys of any command that
  * is not `fixed`, and those changes (`useKeyBindings`) are what the key
- * handlers, the menus' hints and the Keyboard Shortcuts dialog read, live,
+ * handlers, the menus' hints and the Hotkeys dialog read, live,
  * through `chordsOf`. The standard keys — the clipboard, Undo, Redo, Save and
  * Escape — are fixed, and so are the keys other code answers (the workspace
  * tabs are the shell's). A key one command has is never given to another, nor
@@ -47,6 +47,7 @@ import {
   FolderOpen,
   House,
   Keyboard,
+  MapPin,
   Pencil,
   Redo2,
   Save,
@@ -56,6 +57,7 @@ import {
   SpellCheck,
   Target,
   Undo2,
+  Users,
   ZoomIn,
   type IconNode,
 } from "lucide";
@@ -68,7 +70,9 @@ import {
   makeNormalDialogue,
   swapSpeakers,
 } from "../../../../src/screenplay/dual-dialogue.ts";
-import { NUMBERED_TYPES, setElementType } from "../../../../src/screenplay/element-keys.ts";
+import { NUMBERED_TYPES, removePageBreak, setElementType } from "../../../../src/screenplay/element-keys.ts";
+import { canRemovePageBreak } from "../../../../src/screenplay/page-break-editing.ts";
+import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
 import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
 import { ZOOM_LEVELS } from "./paper-zoom.ts";
@@ -92,6 +96,8 @@ export interface EditorActions {
   readonly viewTitlePage: () => void;
   /** Open the Goals dialog (ADR-0040): the same one the word count and the Goal pill open. */
   readonly editGoals: () => void;
+  /** Edit ▸ Character List or Location List: the names autocomplete offers, to add to or remove from. */
+  readonly editNameList: (kind: NameKind) => void;
   readonly toggleSpellcheck: () => void;
   /** Whether the spelling pass is on, for the tick beside the item. */
   readonly spellcheckOn: () => boolean;
@@ -101,7 +107,7 @@ export interface EditorActions {
   readonly resetZoom: () => void;
   /** Which of the zoom levels the paper is drawn at, smallest first, for View ▸ Zoom's dots. */
   readonly zoomLevel: () => number;
-  /** Open the Keyboard Shortcuts dialog, or close it if it is open. */
+  /** Open the Hotkeys dialog, or close it if it is open. */
   readonly keyboardShortcuts: () => void;
   readonly search: () => void;
   /** Cut, copy, paste and select-all: the same code the keys reach. Where, if anywhere, is the writer's selection. */
@@ -121,7 +127,7 @@ export interface EditorActions {
 
 /** A word the spelling pass has underlined, and what can be done about it. */
 export interface Misspelling {
-  /** Best first; the "Did you mean" fix for a confirmed name leads. */
+  /** The dictionary's, best first. */
   readonly suggestions: () => Promise<readonly string[]>;
   /** Replace the word: one undo step. */
   readonly replace: (text: string) => void;
@@ -166,7 +172,7 @@ export interface Command {
    * Undo, Redo, Save, Escape). Listed in Settings, locked.
    */
   readonly fixed?: true;
-  /** Never given a key, and not listed in Settings ▸ Keyboard Shortcuts (Settings itself). */
+  /** Never given a key, and not listed in Settings ▸ Hotkeys (Settings itself). */
   readonly keyless?: true;
   /** The key is another command's: shown beside this one, and answered by that one. */
   readonly sameKeyAs?: string;
@@ -179,7 +185,7 @@ export interface Command {
   readonly repeats?: true;
   /** The application menu that offers it; a rule is drawn where `group` changes. */
   readonly menu?: { readonly name: MenuName; readonly group: string };
-  /** Where the Keyboard Shortcuts dialog lists a command no menu offers. Default Writing. */
+  /** Where the Hotkeys dialog lists a command no menu offers. Default Writing. */
   readonly listedUnder?: MenuName;
   /**
    * Drawn in its menu as a row of steps rather than an item (View ▸ Zoom): −
@@ -276,6 +282,8 @@ export const COMMANDS: readonly Command[] = [
   { id: "redo", label: "Redo", icon: Redo2, chord: { key: "y", mod: true }, keys: "elsewhere", fixed: true, menu: { name: "Edit", group: "undo" }, run: (host) => host.redo() },
   { id: "edit-title-page", label: "Edit Title Page…", icon: FileText, menu: { name: "Edit", group: "title-page" }, run: (host) => host.editTitlePage() },
   { id: "edit-goals", label: "Edit Goals…", icon: Target, menu: { name: "Edit", group: "goals" }, run: (host) => host.editGoals() },
+  { id: "character-list", label: "Character List", icon: Users, menu: { name: "Edit", group: "names" }, run: (host) => host.editNameList("character") },
+  { id: "location-list", label: "Location List", icon: MapPin, menu: { name: "Edit", group: "names" }, run: (host) => host.editNameList("location") },
 
   // View
   { id: "view-title-page", label: "View Title Page", icon: Eye, menu: { name: "View", group: "title-page" }, run: (host) => host.viewTitlePage() },
@@ -296,7 +304,7 @@ export const COMMANDS: readonly Command[] = [
   { id: "zoom", label: "Zoom", icon: ZoomIn, steps: { less: "zoom-out", more: "zoom-in", count: ZOOM_LEVELS, at: (host) => host.zoomLevel() }, menu: { name: "View", group: "zoom" }, run: () => {} },
   { id: "reset-zoom", label: "Reset Zoom", icon: Search, chord: { key: "0", mod: true }, keys: "window", menu: { name: "View", group: "zoom" }, run: (host) => host.resetZoom() },
   // Heard wherever focus is, so it closes the dialog it opened as well.
-  { id: "keyboard-shortcuts", label: "Keyboard Shortcuts", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
+  { id: "keyboard-shortcuts", label: "Hotkeys", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 
   // The workspace bar's tabs. The shell answers these keys, from the manifests
   // (`workspace-keys.ts`), and selects the tab as a click does; the table knows
@@ -352,6 +360,9 @@ export const COMMANDS: readonly Command[] = [
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),
   atPlace("make-normal-dialogue", "Make Normal Dialogue", { group: "dual-dialogue", contextual: true }, canMakeNormalDialogue, makeNormalDialogue),
   atPlace("swap-speakers", "Swap Speakers", { group: "dual-dialogue", contextual: true }, canSwapSpeakers, swapSpeakers),
+
+  // A forced page break, offered where the caret or the click is on its `===`.
+  atPlace("remove-page-break", "Remove Page Break", { group: "page-break", contextual: true }, canRemovePageBreak, removePageBreak),
 ];
 
 export function commandById(id: string): Command | undefined {
@@ -385,7 +396,7 @@ export function defaultChords(command: Command): readonly Chord[] {
   return command.chord === undefined ? [] : [command.chord, ...(command.alsoChords ?? [])];
 }
 
-/** Listed in Settings ▸ Keyboard Shortcuts: in a menu or with a key, and never Settings itself. */
+/** Listed in Settings ▸ Hotkeys: in a menu or with a key, and never Settings itself. */
 export function isListed(command: Command): boolean {
   return command.keyless !== true && command.steps === undefined && (command.menu !== undefined || command.chord !== undefined);
 }
@@ -445,7 +456,7 @@ export const RESERVED_KEYS: readonly { readonly label: string; readonly chord: C
 ];
 
 /**
- * The commands Settings ▸ Keyboard Shortcuts lists, in table order: each with
+ * The commands Settings ▸ Hotkeys lists, in table order: each with
  * its own keys, and whether they are locked.
  */
 export function shortcutCommands(): readonly {

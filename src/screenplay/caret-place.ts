@@ -9,7 +9,7 @@
  * fortieth line, eleven characters in. The number of elements is kept beside
  * them as a record of the script as it was. If that element is still there,
  * the caret goes back to it (an offset past the end is clamped). If the
- * element is gone, or it is a hidden page break, the place is not used, and
+ * element is gone, or it is a page break, the place is not used, and
  * the top of the script is the honest answer then.
  */
 import { TextSelection } from "prosemirror-state";
@@ -46,7 +46,7 @@ export function caretPlaceOf(doc: EditorNode, head: number): CaretPlace | undefi
 /**
  * A caret at a remembered place, or `undefined` when the place no longer makes
  * sense in this document — the element is gone, the offset is not a position,
- * or a hidden page break, which is never on the paper. An offset past the end
+ * or a page break, which a caret is never put back into. An offset past the end
  * of a line that is still there is clamped, so a shorter line does not throw
  * the writer to the top of the script.
  */

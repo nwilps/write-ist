@@ -295,6 +295,20 @@ describe("what the menu holds", () => {
     expect(writing.saved()).toBe(PAIR);
   });
 
+  it("offers Remove Page Break on a break's `===`, and only there", async () => {
+    const BROKEN = "INT. A - DAY\n\nThey wait.\n\n===\n\nThey go.\n";
+    const writing = editing(BROKEN);
+    const onBreak = startOfElement(writing.state(), 2) + 2;
+    expect(drawn(await contextMenuItems(writing.host, onBreak)).slice(4)).toEqual(["---", "Remove Page Break"]);
+    for (const element of [0, 1, 3]) {
+      const labels = drawn(await contextMenuItems(writing.host, startOfElement(writing.state(), element) + 1)).join();
+      expect(labels, `element ${element}`).not.toContain("Page Break");
+    }
+    // It takes the break out where the writer pointed: the file loses its `===`.
+    itemNamed(await contextMenuItems(writing.host, onBreak), "Remove Page Break").act();
+    expect(writing.saved()).toBe("INT. A - DAY\n\nThey wait.\n\nThey go.\n");
+  });
+
   it("has no divider at an edge or twice running", async () => {
     for (const text of [ACTION, TWO, PAIR]) {
       const writing = editing(text);
@@ -397,7 +411,7 @@ describe("adding an item", () => {
 
   it("is for commands only: everything on the menu has a label and a command of its own", () => {
     const ids = COMMANDS.filter((command) => command.context !== undefined).map((command) => command.id);
-    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers"]);
+    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers", "remove-page-break"]);
   });
 });
 

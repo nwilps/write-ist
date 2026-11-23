@@ -135,10 +135,17 @@ class Writer {
 }
 
 describe("what is offered for a cue", () => {
-  it("is only a confirmed name: the one used 5 times, not the one used twice", () => {
+  it("is every name on the list the letters begin, however few its uses", () => {
     const names = new Writer().names;
     expect(names.uses("character", "EDWARD")).toBe(5);
     expect(names.uses("character", "EDNA")).toBe(2);
+    expect(completions("character", "ED", names)?.choices).toEqual(["EDNA", "EDWARD"]);
+    expect(completions("character", "EDN", names)?.choices).toEqual(["EDNA"]);
+  });
+
+  it("is never a name the writer removed from the list, though the script still uses it", () => {
+    const names = new Writer().names;
+    names.remove("character", "EDNA");
     expect(completions("character", "ED", names)?.choices).toEqual(["EDWARD"]);
     expect(completions("character", "EDN", names)).toBeUndefined();
   });
@@ -146,7 +153,7 @@ describe("what is offered for a cue", () => {
   it("answers typing in either case, and offers capitals", () => {
     const names = new Writer().names;
     expect(completions("character", "edw", names)?.choices).toEqual(["EDWARD"]);
-    expect(completions("character", "Ed", names)?.choices).toEqual(["EDWARD"]);
+    expect(completions("character", "Edw", names)?.choices).toEqual(["EDWARD"]);
   });
 
   it("has nothing to say once the name is complete, or empty, or not begun", () => {
@@ -176,10 +183,12 @@ describe("what is offered for a heading", () => {
     });
   });
 
-  it("never offers a location used fewer times than it takes", () => {
+  it("offers a location from its first use", () => {
     const names = new Writer().names;
     expect(names.uses("location", "HALL")).toBe(2);
-    expect(completions("scene-heading", "INT. H", names)).toBeUndefined();
+    expect(completions("scene-heading", "INT. H", names)?.choices).toEqual(["HALL - "]);
+    const once = new Writer(["INT. CELLAR - DAY", "", "A pause."].join("\n")).names;
+    expect(completions("scene-heading", "INT. C", once)?.choices).toEqual(["CELLAR - "]);
   });
 
   it("offers the whole vocabulary of times for one letter, and nothing for a full one", () => {
@@ -206,16 +215,16 @@ describe("what is offered for a heading", () => {
 
 describe("a cue, in the editor", () => {
   it("shows the offer without writing it", () => {
-    const writer = new Writer().newLine("character").type("ed");
+    const writer = new Writer().newLine("character").type("edw");
     expect(writer.offer?.choices).toEqual(["EDWARD"]);
     expect(writer.drawn).toBe(1);
     // Nothing but the typed letters is in the document.
-    expect(writer.last).toEqual({ type: "character", text: "ED" });
+    expect(writer.last).toEqual({ type: "character", text: "EDW" });
     expect(writer.names.uses("character", "EDWARD")).toBe(5);
   });
 
   it("is accepted by Enter, which goes on to the dialogue, as one undo step", () => {
-    const writer = new Writer().newLine("character").type("ed");
+    const writer = new Writer().newLine("character").type("edw");
     const before = writer.elements.length;
     expect(writer.press("Enter")).toBe(true);
     // The new line is empty, so it is spacing and not in the file; the caret stands on it.
@@ -226,7 +235,7 @@ describe("a cue, in the editor", () => {
 
     // One step takes back the name and the new line together.
     undo(writer.state, writer.dispatch);
-    expect(writer.last).toEqual({ type: "character", text: "ED" });
+    expect(writer.last).toEqual({ type: "character", text: "EDW" });
     expect(writer.state.selection.$head.parent.attrs["type"]).toBe("character");
   });
 
@@ -322,7 +331,7 @@ describe("never in the way", () => {
   it("offers again on another line", () => {
     const writer = new Writer().newLine("character").type("ed");
     writer.press("Escape");
-    writer.newLine("character").type("ed");
+    writer.newLine("character").type("edw");
     expect(writer.offer?.choices).toEqual(["EDWARD"]);
   });
 
@@ -338,7 +347,7 @@ describe("never in the way", () => {
   });
 
   it("does not take the arrow keys for a single choice", () => {
-    const writer = new Writer().newLine("character").type("ed");
+    const writer = new Writer().newLine("character").type("edw");
     expect(writer.press("ArrowDown")).toBe(false);
     expect(writer.press("ArrowUp")).toBe(false);
   });

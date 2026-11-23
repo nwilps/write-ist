@@ -13,9 +13,9 @@
  *   (`editingSession`), and the three moments ADR-0028 names reach it from here.
  * - **Leaving.** The project closes only once the last words are on disk, and
  *   the writer's day goes in the ledger on the way out (ADR-0017, ADR-0028).
- * - **Confirmed names.** The writer's own confirmations are held in the name
- *   lists and nowhere else, and written to the names file whole or not at all
- *   (ADR-0022, ADR-0029).
+ * - **The name lists by hand.** What the writer added to and removed from the
+ *   lists is held in the lists and nowhere else, and written to the names file
+ *   whole or not at all (ADR-0022, ADR-0025).
  *
  * What is *not* here is the window. The Editor workspace gives this the ports
  * it needs — somewhere to say things, how to draw a seam, the spelling engine —
@@ -43,7 +43,7 @@ import { countsText, wordsIn } from "../screenplay/counts.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { editorStateFor, manuscriptOf } from "../screenplay/editing.ts";
 import { layout, type Layout } from "../screenplay/layout.ts";
-import { locationRange, nameOf, normaliseName, wordsOf, type NameKind, type NameLists } from "../screenplay/names.ts";
+import { nameOf, type NameKind, type NameLists } from "../screenplay/names.ts";
 import { namesOf, syncNames } from "../screenplay/names-sync.ts";
 import { OffPaperHistory } from "../screenplay/off-paper-undo.ts";
 import { pageAtElement } from "../screenplay/paginate.ts";
@@ -52,16 +52,17 @@ import { elementUnder } from "../screenplay/place.ts";
 import { paperDecorations, type SheetBreak } from "../screenplay/sheets.ts";
 import { Spellcheck, type SpellIssue } from "../screenplay/spellcheck.ts";
 import type { SpellEngine } from "../screenplay/spelling.ts";
-import type { Drawing } from "../screenplay/autocomplete.ts";
+import type { AutocompleteOptions, Drawing } from "../screenplay/autocomplete.ts";
+import type { Formatting } from "../screenplay/formatting.ts";
 import { autosave, type Clock } from "./autosave.ts";
 import type { Project } from "./bundle.ts";
 import type { Filesystem } from "./filesystem.ts";
 import type { Ledger } from "./ledger.ts";
 import {
-  NO_CONFIRMATIONS,
-  readConfirmations,
-  writeConfirmations,
-  type Confirmations,
+  NOTHING_BY_HAND,
+  readNamesFile,
+  writeNamesFile,
+  type ListsByHand,
 } from "./names-file.ts";
 import { openProject, type OpenedProject } from "./open.ts";
 import { editingSession } from "./save.ts";
@@ -95,6 +96,10 @@ export interface SessionPorts {
   readonly drawSeam: (seam: SheetBreak) => HTMLElement;
   /** The DOM of an autocomplete offer. */
   readonly drawOffer: (drawing: Drawing) => HTMLElement;
+  /** Lines a drawn offer up on the paper (`AutocompleteOptions.place`); a test may leave it out. */
+  readonly placeOffer?: AutocompleteOptions["place"];
+  /** The project's own formatting (`details.md`), which the sheets are laid out with. Default: as until now. */
+  readonly formatting?: Formatting;
   /**
    * Another application changed the manuscript and nothing was typed here, so
    * `state` is a fresh one. The view must be given it; `spellingWasOn` says
@@ -105,19 +110,30 @@ export interface SessionPorts {
   readonly autosaveClock?: Clock;
 }
 
+/** A line the caret is in: where it begins, and the name it gave when the caret arrived. */
+interface Visit {
+  readonly at: number;
+  readonly was: ReturnType<typeof nameOf>;
+}
+
 /** What opening a project's manuscript found. */
 export interface ManuscriptRead {
   readonly opened: OpenedProject;
-  /** The writer's confirmed names, or `undefined` when the file could not be read — then confirming is refused. */
-  readonly confirmed: Confirmations | undefined;
+  /**
+   * What the writer added to and removed from the name lists by hand, or
+   * `undefined` when the names file could not be read — then the lists are
+   * not changed by hand this session, and the file is not written.
+   */
+  readonly namesByHand: ListsByHand | undefined;
   /** The project's goals, or `undefined` when the file could not be read — then it is not written. */
   readonly goals: Goals | undefined;
 }
 
 /**
- * Read the manuscript and the confirmed names. A manuscript that cannot be read
+ * Read the manuscript and the names file. A manuscript that cannot be read
  * rejects, and nothing has been written. A names file that cannot be read is
- * said and **not overwritten**: confirming is refused for this session.
+ * said and **not overwritten**: adding and removing names is refused for this
+ * session.
  */
 export async function readManuscript(
   filesystem: Filesystem,
@@ -125,12 +141,12 @@ export async function readManuscript(
   report: (trouble: string) => void,
 ): Promise<ManuscriptRead> {
   const opened = await openProject(filesystem, project);
-  let confirmed: Confirmations | undefined;
+  let namesByHand: ListsByHand | undefined;
   try {
-    confirmed = await readConfirmations(filesystem, project);
+    namesByHand = await readNamesFile(filesystem, project);
   } catch (error) {
     report(
-      `Write-ist could not read this project's confirmed names, so it will not change them. ` +
+      `Write-ist could not read this project's character and location lists, so it will not change them. ` +
         `Your screenplay is not affected. ${message(error)}`,
     );
   }
@@ -144,7 +160,7 @@ export async function readManuscript(
         `Your screenplay is not affected. ${message(error)}`,
     );
   }
-  return { opened, confirmed, goals };
+  return { opened, namesByHand, goals };
 }
 
 export interface ManuscriptSession {
@@ -153,7 +169,7 @@ export interface ManuscriptSession {
   /** Where each sheet ends, and the pairs of dual dialogue (never in the document). */
   readonly seams: DecorationSet;
   readonly layout: Layout;
-  /** The character and location lists, with the writer's confirmations. */
+  /** The character and location lists, with what the writer added and removed by hand. */
   readonly names: NameLists;
   /** Underlining misspelt words. The session builds it; the view is turned on by the Editor. */
   readonly spellcheck: Spellcheck;
@@ -189,31 +205,38 @@ export interface ManuscriptSession {
    */
   readonly moveProject: (move: () => Promise<Project>) => Promise<Project>;
   /**
-   * Resolves when every confirmation so far has been written, and every
+   * Resolves when every change to the name lists so far has been written, and every
    * change to the dictionary made (or has failed, and been said).
    */
   readonly settled: () => Promise<void>;
   /**
-   * The list a word between two positions belongs to, for Add to Dictionary:
-   * a word of a cue's character name, or a word inside a scene heading's
-   * location (not the INT./EXT., a scene number, an aside or the time of
-   * day). Nothing anywhere else — action, dialogue, a name merely mentioned.
+   * The names on a list now (Edit ▸ Character List, Location List), by name:
+   * every one the script uses or the writer added, without any they removed.
+   * What autocomplete offers.
    */
-  readonly listOfWordAt: (from: number, to: number) => NameKind | undefined;
+  readonly nameList: (kind: NameKind) => readonly string[];
   /**
-   * The writer says the name or location at a position (default: the caret)
-   * is right. Answers whether there was one to say it of.
+   * The writer adds a name to a list: on it, and offered by autocomplete, at
+   * once, and written to the names file. Answers whether it was added — never
+   * when the names file could not be read.
    */
-  readonly confirm: (kind: NameKind, at?: number) => boolean;
+  readonly addName: (kind: NameKind, name: string) => boolean;
   /**
-   * Add to Dictionary on a flagged word: always the writer's dictionary, and
-   * on a cue's name or a heading's location (`listOfWordAt`) that name joins
-   * its list as well. Spellcheck is redrawn after, so the newly confirmed
-   * name is trusted too.
+   * The writer removes a name from a list: deleted from it, so autocomplete
+   * stops offering it, and written to the names file. It comes back as soon as
+   * it is typed as a new cue or heading and the caret leaves the line
+   * (`NameLists.typed`) — never from the uses already in the script. The
+   * manuscript is not touched, and nothing is said.
+   */
+  readonly removeName: (kind: NameKind, name: string) => boolean;
+  /**
+   * Add to Dictionary on a flagged word: the writer's dictionary and nothing
+   * else. The character and location lists are not touched — a cue's name
+   * added here is a dictionary word, not a name on a list (Noah, 2026-11-22).
+   * Spellcheck is redrawn after.
    *
    * One undo step, in order with the typing around it, that changes no text:
-   * Undo takes back what this call added (the word, if it was new to the
-   * dictionary; the name, if it was not already confirmed by hand) and Redo
+   * Undo takes the word back out if it was new to the dictionary, and Redo
    * puts it back. Resolves once the dictionary has answered.
    */
   readonly addToDictionary: (view: EditorView, issue: SpellIssue) => Promise<void>;
@@ -230,26 +253,64 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   let seams: DecorationSet;
   let names: NameLists;
 
-  const spellcheck = new Spellcheck({
-    engine: ports.spellEngine,
-    names: () => names,
-    pause: DEFAULT_PREFERENCES.spellcheckPauseMs,
-    spelling: {
-      nearDistance: DEFAULT_PREFERENCES.spellcheckNearDistance,
-      nearMinLength: DEFAULT_PREFERENCES.spellcheckNearMinLength,
-    },
-  });
+  const spellcheck = new Spellcheck({ engine: ports.spellEngine, pause: DEFAULT_PREFERENCES.spellcheckPauseMs });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
-  const autocomplete = { names: () => names, draw: ports.drawOffer };
+  const autocomplete = { names: () => names, draw: ports.drawOffer, place: ports.placeOffer };
   // Add to Dictionary's undo steps, which sit among the text's (`off-paper-undo.ts`).
   const offPaper = new OffPaperHistory();
   const undo = { undo: offPaper.undo, redo: offPaper.redo };
 
-  /** The writer's confirmations, as the lists hold them: the only copy there is. */
-  const confirmationsOf = (lists: NameLists): Confirmations => ({
-    character: lists.explicit("character"),
-    location: lists.explicit("location"),
+  /** What the writer did by hand, as the lists hold it: the only copy there is. */
+  const byHandOf = (lists: NameLists): ListsByHand => ({
+    character: lists.added("character"),
+    location: lists.added("location"),
+    removed: { character: lists.removed("character"), location: lists.removed("location") },
   });
+
+  /** Where the line holding `position` begins, and the name it gives now, if any. */
+  const lineAt = (position: number): Visit | undefined => {
+    const under = elementUnder(state.doc, position);
+    return under === undefined ? undefined : { at: position - under.offset - 1, was: nameOf(under) };
+  };
+
+  // The line the caret is in, and the name it gave when the caret arrived.
+  let visit: Visit | undefined;
+
+  /**
+   * The caret is leaving the line it was in, which now begins at `at`. If the
+   * writer typed it to give a removed name — a new cue or heading, or one
+   * changed to that name — the name is back on its list, and the names file
+   * says so, quietly. A line that gave the same name when the caret arrived
+   * was already in the script, so editing it brings nothing back; nor does
+   * `ED` on the way to `EDWARD`, because only the line as it is left counts.
+   */
+  const leftLine = (from: Visit, at: number): void => {
+    if (at + 1 > state.doc.content.size) return;
+    const now = lineAt(at + 1)?.was;
+    if (now === undefined || (from.was?.kind === now.kind && from.was.name === now.name)) return;
+    if (names.typed(now.kind, now.name) && read.namesByHand !== undefined) writeNames();
+  };
+
+  /** The caret may have moved to another line: leave the one it was in, and arrive. */
+  const caretMoved = (mapping: Transaction["mapping"] | undefined): void => {
+    const here = lineAt(state.selection.head);
+    if (visit !== undefined) {
+      const mapped = mapping === undefined ? { pos: visit.at, deleted: false } : mapping.mapResult(visit.at, 1);
+      if (!mapped.deleted && mapped.pos === here?.at) {
+        visit = { at: here.at, was: visit.was };
+        return;
+      }
+      if (!mapped.deleted) leftLine(visit, mapped.pos);
+    }
+    visit = here;
+  };
+
+  /** Leave the line the caret is in without moving it (a reload, or closing), so what was typed there counts. */
+  const leaveInPlace = (): void => {
+    if (visit === undefined) return;
+    leftLine(visit, visit.at);
+    visit = lineAt(state.selection.head);
+  };
 
   /**
    * **The one pipeline from the model to the paper.** Whatever changed the
@@ -258,14 +319,17 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
    * the document it replaced, by the elements it changed — the same answer, at
    * the cost of the edit (#49, step 8).
    */
-  const settle = (basis: { readonly replaced: Confirmations } | { readonly editedFrom: EditorNode }): void => {
+  const settle = (basis: { readonly replaced: ListsByHand } | { readonly editedFrom: EditorNode }): void => {
     const document = manuscriptOf(state.doc);
     if ("replaced" in basis) {
-      names = namesOf(state.doc, { explicit: basis.replaced });
-      laid = layout(document);
+      names = namesOf(state.doc, {
+        added: basis.replaced,
+        ...(basis.replaced.removed === undefined ? {} : { removed: basis.replaced.removed }),
+      });
+      laid = layout(document, undefined, undefined, ports.formatting);
     } else {
       syncNames(names, basis.editedFrom, state.doc);
-      laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head));
+      laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head), ports.formatting);
     }
     // Decorations, so they are never part of the document and never reach the file.
     seams = paperDecorations(state.doc, laid, ports.drawSeam);
@@ -283,7 +347,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
 
   state = editorStateFor(opened.document, { autocomplete, spellcheck, undo });
   words = wordsIn(state.doc);
-  settle({ replaced: read.confirmed ?? NO_CONFIRMATIONS });
+  settle({ replaced: read.namesByHand ?? NOTHING_BY_HAND });
+  visit = lineAt(state.selection.head);
 
   const tracker = new GoalsTracker(read.goals ?? NO_GOALS, ports.instant === undefined ? {} : { instant: ports.instant });
   const showGoal = (): void => ports.setGoal(tracker.view(words).pill);
@@ -294,11 +359,15 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // version that was replaced.
     reload: (imported) => {
       const spellingWasOn = spellcheck.isOn(state);
+      // A removed name typed in the line the caret is in is back first; the
+      // rest stay removed, whatever the other version uses.
+      leaveInPlace();
       state = editorStateFor(imported.document, { autocomplete, spellcheck, undo });
       offPaper.clear();
       // Someone else's words are not the writer's: counting starts from them.
       words = wordsIn(state.doc);
-      settle({ replaced: confirmationsOf(names) });
+      settle({ replaced: byHandOf(names) });
+      visit = lineAt(state.selection.head);
       showCounts();
       showGoal();
       ports.reloaded(spellingWasOn);
@@ -444,50 +513,42 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // The day's words, with the goal beside them. A failure is said and the
     // project still leaves, as with the ledger.
     await savingGoals.now();
+    // A removed name typed with the caret still in its line is back too.
+    leaveInPlace();
+    await writingNames;
     stopSwitchingAway();
     stopSwitchingBack();
     return true;
   };
 
-  // The writer says the name or location the caret is in is right, without
-  // waiting for it to be used enough times. Written to the names file, whole
-  // or not at all; the manuscript is not touched. A failed write is said, and
-  // the confirmation holds until the project closes.
+  // Adding and removing names by hand, written to the names file, whole or not
+  // at all; the manuscript is not touched. A failed write is said, and the
+  // change holds until the project closes.
   let writingNames: Promise<void> = Promise.resolve();
-  const nameAt = (at: number): ReturnType<typeof nameOf> => {
-    const under = elementUnder(state.doc, at);
-    return under === undefined ? undefined : nameOf(under);
-  };
-  /** The lists' confirmations, to the names file: whole, after any write before it. */
+  /** The lists as they are, to the names file: whole, after any write before it. */
   const writeNames = (): void => {
-    const toWrite = confirmationsOf(names);
+    const toWrite = byHandOf(names);
     writingNames = writingNames.then(() =>
       inFolderTurn(async () => {
         try {
-          await writeConfirmations(ports.filesystem, session.project, toWrite);
+          await writeNamesFile(ports.filesystem, session.project, toWrite);
         } catch (error) {
           ports.report(
-            `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+            `Write-ist could not save the change to the list. It holds while this project is open. ` +
               `Your screenplay is unchanged. ${message(error)}`,
           );
         }
       }),
     );
   };
-  /** Confirm by hand, or take that back. Never when the names file could not be read. */
-  const confirmName = (kind: NameKind, name: string): boolean => {
-    if (read.confirmed === undefined || !names.confirm(kind, name)) return false;
+  const addName = (kind: NameKind, name: string): boolean => {
+    if (read.namesByHand === undefined || !names.add(kind, name)) return false;
     writeNames();
     return true;
   };
-  const unconfirmName = (kind: NameKind, name: string): void => {
-    if (read.confirmed === undefined || !names.unconfirm(kind, name)) return;
+  const removeName = (kind: NameKind, name: string): boolean => {
+    if (read.namesByHand === undefined || !names.remove(kind, name)) return false;
     writeNames();
-  };
-  const confirm = (kind: NameKind, at = state.selection.head): boolean => {
-    const found = nameAt(at);
-    if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
-    confirmName(kind, found.name);
     return true;
   };
 
@@ -501,21 +562,6 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   };
   const dictionaryTrouble = (error: unknown): void =>
     ports.report(`Write-ist could not change your dictionary. Your screenplay is unchanged. ${message(error)}`);
-
-  const listOfWordAt = (from: number, to: number): NameKind | undefined => {
-    const under = elementUnder(state.doc, from);
-    const found = under === undefined ? undefined : nameOf(under);
-    if (under === undefined || found === undefined) return undefined;
-    // A cue: one of the words of the speaker's name, not an extension.
-    if (found.kind === "character") {
-      const word = normaliseName(state.doc.textBetween(from, to));
-      return wordsOf(found.name).includes(word) ? "character" : undefined;
-    }
-    // A heading: inside the place, by the same parse that names it.
-    const place = locationRange(under.text);
-    const end = under.offset + (to - from);
-    return place !== undefined && under.offset >= place.from && end <= place.to ? "location" : undefined;
-  };
 
   return {
     get state() {
@@ -551,8 +597,12 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
         }
       }
       // Selection moves still refresh the current page; the total only
-      // moves when the manuscript does.
-      if (transaction.docChanged || transaction.selectionSet) showCounts();
+      // moves when the manuscript does. Either may take the caret out of a
+      // line typed to give a removed name.
+      if (transaction.docChanged || transaction.selectionSet) {
+        showCounts();
+        caretMoved(transaction.docChanged ? transaction.mapping : undefined);
+      }
     },
     unsaved: session.unsaved,
     save: () => saving.now(),
@@ -579,35 +629,22 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     leave,
     moveProject: (move) => inFolderTurn(() => session.relocate(move)),
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
-    listOfWordAt,
-    confirm,
+    nameList: (kind) => names.list(kind),
+    addName,
+    removeName,
     addToDictionary: async (view, issue) => {
       // Typing before and after stays two undo steps, with this one between.
       const step = offPaper.begin(view.state);
       view.dispatch(step.close);
-      const list = listOfWordAt(issue.from, issue.to);
-      const found = list === undefined ? undefined : nameAt(issue.from);
-      // A names file that could not be read is not changed; the word still
-      // goes in the dictionary. A name already confirmed by hand is not this
-      // step's to take back.
-      const listed = found !== undefined && confirmName(found.kind, found.name) ? found : undefined;
       let added = false;
       try {
         added = await inTurn(() => spellcheck.addToDictionary(view, issue.word));
       } finally {
         // A word already in the dictionary is not this step's to take out.
-        if (added || listed !== undefined) {
+        if (added) {
           step.record({
-            undo: () => {
-              if (listed !== undefined) unconfirmName(listed.kind, listed.name);
-              if (added) void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble);
-              else spellcheck.refresh(view);
-            },
-            redo: () => {
-              if (listed !== undefined) confirmName(listed.kind, listed.name);
-              if (added) void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble);
-              else spellcheck.refresh(view);
-            },
+            undo: () => void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble),
+            redo: () => void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble),
           });
         }
       }

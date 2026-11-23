@@ -435,10 +435,12 @@ function askForNewProject(): void {
   showNewProject(document.body, {
     onCreate: async (request) => {
       try {
+        // The type's New Project Defaults, read now: this project starts with them and keeps them.
         const project = await createProject(
           { filesystem: tauriFilesystem, newProjectId },
           await defaultProjectsDirectory(),
           request,
+          settings.projectDefaults[request.type],
         );
         // The dialog closes as this resolves; the project opens behind it.
         goToProject(project);
@@ -450,6 +452,9 @@ function askForNewProject(): void {
       }
     },
     onClose: () => {},
+    hiddenTypes: Object.entries(settings.projectDefaults)
+      .filter(([, defaults]) => !defaults.shown)
+      .map(([type]) => type),
   });
 }
 
@@ -465,6 +470,9 @@ async function rereadProjects(): Promise<void> {
   draw();
 }
 
+/** The workspaces as Edit Project Details and New Project Defaults offer them: from the registry. */
+const WORKSPACE_CHOICES = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
+
 /**
  * Edit Project Details: for the open project (File ▸ Edit Project Details… and
  * the name pill), or for the one right-clicked on Open Project. The list is
@@ -476,7 +484,7 @@ function askToEditDetails(project: Project, route: ProjectDetailsRoute): void {
       filesystem: tauriFilesystem,
       projectsDirectory: defaultProjectsDirectory,
       reread: rereadProjects,
-      workspaces: WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true })),
+      workspaces: WORKSPACE_CHOICES,
     },
     project,
     route,
@@ -546,6 +554,7 @@ function openSettings(over: HTMLElement = document.body, closed: () => void = ()
     },
     shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: tauriDictionary,
+    workspaces: WORKSPACE_CHOICES,
     graveyard: {
       list: async () => listGraveyard(tauriFilesystem, await defaultProjectsDirectory()),
       recover: async (project) => {
