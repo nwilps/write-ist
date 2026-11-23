@@ -137,12 +137,14 @@ stopped at the element boundary (#26).
 - [x] **Ranges** — scenes computed from the flat sequence (ADR-0019): `src/screenplay/ranges.ts`,
       with `sceneAt` / `elementUnder` beside `elementAt` in `place.ts`, the one "where is this"
       module (slice 2, step 8). Chapters belong to the prose surface and are not built.
-- [x] **Name lists** — characters and locations derived from the cues and headings, confirmed after
-      three uses or by the writer, kept up to date from the elements each edit changed
-      (`names.ts`, `names-sync.ts`); the writer's confirmations in `names.txt`. Spellcheck
-      (step 10) reads them.
-- [x] **Autocomplete** — a confirmed character finishes a cue; a heading is finished in pieces
-      (`INT.`/`EXT.`, a confirmed location, a time of day). Ghost text and a short list drawn as a
+- [x] **Name lists** — characters and locations derived from the cues and headings, on the list
+      from their first use, kept up to date from the elements each edit changed (`names.ts`,
+      `names-sync.ts`). Edit ▸ Character List / Location List add and remove by hand; Remove
+      deletes a name, and only a new use typed afterwards brings it back (Noah, 2026-11-22: no
+      three-use count, no hiding). What was added and removed is in `names.txt`. Spellcheck does
+      not read them.
+- [x] **Autocomplete** — a character on the list finishes a cue; a heading is finished in pieces
+      (`INT.`/`EXT.`, a location on the list, a time of day). Ghost text and a short list drawn as a
       widget decoration, never in the document; Tab/Enter accept as one undo step, Esc closes
       (`src/screenplay/autocomplete.ts`, `app/src/workspaces/editor/autocomplete-draw.ts`; slice 2,
       step 9). Times of day are the built-in vocabulary only; the script's own are not yet derived.

@@ -17,7 +17,7 @@
  * It is the window's adapter over a **manuscript session**
  * (`src/project/manuscript-session.ts`). The session holds the model and
  * decides everything — the layout and seams, the name lists, saving, leaving,
- * the ledger, confirming a name — and is reached by tests with no window at
+ * the ledger — and is reached by tests with no window at
  * all. This file mounts the ProseMirror view, hands each transaction to the
  * session, draws what the session says to draw, and owns the dialogs and the
  * keys. What is left is the window, which is seam 4, checked by the writer

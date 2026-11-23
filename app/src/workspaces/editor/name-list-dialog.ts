@@ -4,11 +4,10 @@
  * that finds as it is typed in and adds what it holds, then a cell for each
  * name with its Remove (Noah, 2026-11-21).
  *
- * - **Add** puts the name in the list, confirmed by hand: autocomplete offers
- *   it at once.
- * - **Remove** hides the name: autocomplete stops offering it, and it leaves
- *   this list. It comes back by itself once the paper uses it three more times
- *   (`NameLists.remove`).
+ * - **Add** puts the name on the list: autocomplete offers it at once.
+ * - **Remove** deletes the name from the list: autocomplete stops offering it.
+ *   The cues or headings already in the script do not put it back; only a new
+ *   one typed later does (`NameLists.remove`).
  *
  * Neither says anything: the list redrawn is the answer. The manuscript is
  * never touched. Each row keeps room beside Remove for a Replace that is not
@@ -31,7 +30,7 @@ export interface NameListDialogOptions {
   readonly names: () => readonly string[];
   /** Add one; answers whether it was added. */
   readonly add: (name: string) => boolean;
-  /** Remove (hide) one; answers whether it was removed. */
+  /** Remove one; answers whether it was removed. */
   readonly remove: (name: string) => boolean;
   /** The dialog is gone, however it went. */
   readonly closed: () => void;

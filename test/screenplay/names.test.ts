@@ -1,7 +1,7 @@
 /**
  * The character and location lists (slice 2, step 8): what a cue and a
- * heading are reduced to, when an entry is confirmed, and what moves when the
- * manuscript changes.
+ * heading are reduced to, what is on a list, what Add and Remove do, and what
+ * moves when the manuscript changes.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -10,7 +10,6 @@ import {
   NameLists,
   nameOf,
   normaliseName,
-  wordsOf,
   type NameLine,
 } from "../../src/screenplay/names.ts";
 
@@ -42,9 +41,8 @@ describe("who is speaking", () => {
 
   it("counts EDWARD, EDWARD (V.O.) (CONT'D) and a dual-dialogue EDWARD ^ as three uses of one name", () => {
     const lists = NameLists.of(cues("EDWARD", "EDWARD (V.O.) (CONT'D)", "EDWARD ^"));
-    expect(lists.entries("character")).toEqual([
-      { name: "EDWARD", uses: 3, confirmed: true, explicit: false },
-    ]);
+    expect(lists.list("character")).toEqual(["EDWARD"]);
+    expect(lists.uses("character", "EDWARD")).toBe(3);
   });
 
   it("finds nothing in a cue with no name left", () => {
@@ -149,63 +147,25 @@ describe("where in a heading the place sits", () => {
   });
 });
 
-describe("confirmed", () => {
-  it("confirms a name used three times and leaves a rarer one waiting", () => {
+describe("on the list", () => {
+  it("puts a name on its list after one use: there is no count to reach", () => {
     const lists = NameLists.of(cues("EDWARD", "EDWARD", "EDWARD", "EDWRAD"));
-    expect(lists.entries("character")).toEqual([
-      { name: "EDWARD", uses: 3, confirmed: true, explicit: false },
-      { name: "EDWRAD", uses: 1, confirmed: false, explicit: false },
-    ]);
-    expect(lists.confirmed("character")).toEqual(["EDWARD"]);
-    expect(lists.unconfirmed("character").map((entry) => entry.name)).toEqual(["EDWRAD"]);
-  });
-
-  it("offers a misspelling used once to nobody", () => {
-    const lists = NameLists.of(cues("EDWARD", "EDWARD", "EDWARD", "EDWRAD"));
-    expect(lists.confirmedStartingWith("character", "EDW")).toEqual(["EDWARD"]);
-    expect(lists.knownWords().has("EDWRAD")).toBe(false);
-    expect(lists.knownWords().has("EDWARD")).toBe(true);
+    expect(lists.list("character")).toEqual(["EDWARD", "EDWRAD"]);
+    expect(lists.uses("character", "EDWARD")).toBe(3);
+    expect(lists.uses("character", "EDWRAD")).toBe(1);
+    expect(lists.isListed("character", "EDWRAD")).toBe(true);
   });
 
   it("offers by prefix in any case, in capitals", () => {
-    const lists = NameLists.of(cues("EDWARD", "EDWARD", "EDWARD", "EDITH", "EDITH", "EDITH", "ED"));
-    expect(lists.confirmedStartingWith("character", "ed")).toEqual(["EDITH", "EDWARD"]);
-    expect(lists.confirmedStartingWith("character", "EDW")).toEqual(["EDWARD"]);
-    expect(lists.confirmedStartingWith("character", "x")).toEqual([]);
+    const lists = NameLists.of(cues("EDWARD", "EDITH", "ED"));
+    expect(lists.startingWith("character", "ed")).toEqual(["ED", "EDITH", "EDWARD"]);
+    expect(lists.startingWith("character", "EDW")).toEqual(["EDWARD"]);
+    expect(lists.startingWith("character", "x")).toEqual([]);
   });
 
-  it("moves the confirmed set when the threshold moves, touching nothing else", () => {
-    const lines = [...cues("ANN", "ANN", "ANN", "ANNE", "ANNE", "BO")];
-    const lists = NameLists.of(lines);
-    expect(lists.confirmAfterUses).toBe(3);
-    expect(lists.confirmed("character")).toEqual(["ANN"]);
-    const version = lists.version;
-
-    lists.setConfirmAfterUses(2);
-    expect(lists.confirmed("character")).toEqual(["ANN", "ANNE"]);
-    expect(lists.version).toBeGreaterThan(version);
-
-    lists.setConfirmAfterUses(5);
-    expect(lists.confirmed("character")).toEqual([]);
-    expect(lists.entries("character").map((entry) => entry.uses)).toEqual([3, 2, 1]);
-
-    lists.setConfirmAfterUses(1);
-    expect(lists.confirmed("character")).toEqual(["ANN", "ANNE", "BO"]);
-  });
-
-  it("takes the threshold from the options", () => {
-    expect(NameLists.of(cues("A", "A"), { confirmAfterUses: 2 }).confirmed("character")).toEqual(["A"]);
-  });
-
-  it("confirms a location the same way, by heading", () => {
-    const lists = NameLists.of([
-      heading("INT. KITCHEN - DAY"),
-      heading("EXT. KITCHEN - NIGHT"),
-      heading("INT. KITCHEN - CONTINUOUS"),
-      heading("INT. CELLAR - DAY"),
-    ]);
-    expect(lists.confirmed("location")).toEqual(["KITCHEN"]);
-    expect(lists.unconfirmed("location").map((entry) => entry.name)).toEqual(["CELLAR"]);
+  it("lists a location the same way, by heading", () => {
+    const lists = NameLists.of([heading("INT. KITCHEN - DAY"), heading("EXT. KITCHEN - NIGHT"), heading("INT. CELLAR - DAY")]);
+    expect(lists.list("location")).toEqual(["CELLAR", "KITCHEN"]);
   });
 
   it("keeps characters and locations apart", () => {
@@ -214,65 +174,124 @@ describe("confirmed", () => {
     expect(lists.uses("location", "KITCHEN")).toBe(1);
   });
 
-  it("lets the writer confirm a name at once, and it stays when the uses go", () => {
-    const lists = NameLists.of(cues("ANNE", "ANNE"));
-    expect(lists.isConfirmed("character", "ANNE")).toBe(false);
-    expect(lists.confirm("character", "anne")).toBe(true);
-    expect(lists.isConfirmed("character", "ANNE")).toBe(true);
-    expect(lists.entries("character")).toEqual([{ name: "ANNE", uses: 2, confirmed: true, explicit: true }]);
-    expect(lists.confirm("character", "ANNE")).toBe(false);
-
-    lists.apply(cues("ANNE", "ANNE"), []);
-    expect(lists.isConfirmed("character", "ANNE")).toBe(true);
-    expect(lists.explicit("character")).toEqual(["ANNE"]);
-    expect(lists.knownWords().has("ANNE")).toBe(true);
-  });
-
-  it("starts from the names file's confirmations", () => {
-    const lists = NameLists.of([heading("INT. CELLAR - DAY")], {
-      explicit: { character: ["MARA"], location: ["cellar"] },
-    });
-    expect(lists.confirmed("character")).toEqual(["MARA"]);
-    expect(lists.confirmed("location")).toEqual(["CELLAR"]);
-  });
-
-  it("stops confirming a name by use when cues are deleted, live", () => {
-    const lists = NameLists.of(cues("ANN", "ANN", "ANN"));
-    expect(lists.isConfirmed("character", "ANN")).toBe(true);
-    lists.apply([cue("ANN")], []);
-    expect(lists.isConfirmed("character", "ANN")).toBe(false);
-    lists.apply([], [cue("ANN")]);
-    expect(lists.isConfirmed("character", "ANN")).toBe(true);
-  });
-
-  it("drops an entry when its last use goes", () => {
+  it("drops a name when its last use goes, and lists it again with a new one", () => {
     const lists = NameLists.of(cues("ANN"));
     lists.apply(cues("ANN"), []);
-    expect(lists.entries("character")).toEqual([]);
+    expect(lists.list("character")).toEqual([]);
+    lists.apply([], cues("ANN"));
+    expect(lists.list("character")).toEqual(["ANN"]);
+  });
+
+  it("starts from the names file's added names, used or not", () => {
+    const lists = NameLists.of([heading("INT. CELLAR - DAY")], {
+      added: { character: ["mara"], location: ["cellar"] },
+    });
+    expect(lists.list("character")).toEqual(["MARA"]);
+    expect(lists.list("location")).toEqual(["CELLAR"]);
   });
 });
 
-describe("known words", () => {
-  it("are the words inside confirmed names and locations only", () => {
-    const lists = NameLists.of([
-      ...Array.from({ length: 3 }, () => heading("INT. BENNETT'S HOSPITAL ROOM - DAY")),
-      ...cues("DR. BENNETT", "DR. BENNETT", "DR. BENNETT", "MICHEAL"),
-      heading("INT. KITCHNE - DAY"),
-    ]);
-    expect([...lists.knownWords()].sort()).toEqual(["BENNETT", "BENNETT'S", "DR", "HOSPITAL", "ROOM"]);
+describe("Add and Remove", () => {
+  it("adds a name at once, and it stays when the uses go", () => {
+    const lists = NameLists.of(cues("ANNE"));
+    expect(lists.add("character", "zelda")).toBe(true);
+    expect(lists.add("character", "ZELDA")).toBe(false);
+    expect(lists.list("character")).toEqual(["ANNE", "ZELDA"]);
+    expect(lists.add("character", "anne")).toBe(true);
+    lists.apply(cues("ANNE"), []);
+    expect(lists.list("character")).toEqual(["ANNE", "ZELDA"]);
+    expect(lists.added("character")).toEqual(["ANNE", "ZELDA"]);
   });
 
-  it("splits a name into its words", () => {
-    expect(wordsOf("HOUSE - KITCHEN")).toEqual(["HOUSE", "KITCHEN"]);
-    expect(wordsOf("A.P. NEWSROOM (PARIS)")).toEqual(["A", "P", "NEWSROOM", "PARIS"]);
+  it("removes a name from its list, though the script still uses it", () => {
+    const lists = NameLists.of(cues("EDWARD", "EDWARD", "EDNA"));
+    expect(lists.remove("character", "edward")).toBe(true);
+    expect(lists.list("character")).toEqual(["EDNA"]);
+    expect(lists.startingWith("character", "ED")).toEqual(["EDNA"]);
+    expect(lists.isRemoved("character", "EDWARD")).toBe(true);
+    expect(lists.removed("character")).toEqual(["EDWARD"]);
+    // Removing it again changes nothing.
+    expect(lists.remove("character", "EDWARD")).toBe(false);
   });
 
-  it("are recomputed only when something changed", () => {
-    const lists = NameLists.of(cues("ANN", "ANN", "ANN"));
-    const first = lists.knownWords();
-    expect(lists.knownWords()).toBe(first);
-    lists.apply(cues("ANN"), []);
-    expect(lists.knownWords()).not.toBe(first);
+  it("removes an added name the script does not use without keeping it as removed", () => {
+    const lists = NameLists.of([], { added: { character: ["ZELDA"], location: [] } });
+    expect(lists.remove("character", "ZELDA")).toBe(true);
+    expect(lists.list("character")).toEqual([]);
+    expect(lists.added("character")).toEqual([]);
+    expect(lists.removed("character")).toEqual([]);
+    expect(lists.remove("character", "NOBODY")).toBe(false);
+  });
+
+  it("does not bring a removed name back from the uses already there, however the lists are worked out", () => {
+    const lists = NameLists.of(cues("EDWARD", "EDWARD"));
+    lists.remove("character", "EDWARD");
+    expect(lists.settle()).toBe(false);
+    expect(lists.list("character")).toEqual([]);
+    // Opened again, from what the names file holds: still off.
+    const reopened = NameLists.of(cues("EDWARD", "EDWARD"), { removed: { character: lists.removed("character"), location: [] } });
+    expect(reopened.list("character")).toEqual([]);
+    expect(reopened.settle()).toBe(false);
+    expect(reopened.list("character")).toEqual([]);
+  });
+
+  it("brings a removed name back with a new use, once the caret has left its line", () => {
+    const lists = NameLists.of(cues("EDWARD", "EDWARD"));
+    lists.remove("character", "EDWARD");
+    lists.apply([], cues("EDWARD"));
+    // Still being typed: it might yet be EDWARDO.
+    expect(lists.settle({ kind: "character", name: "EDWARD" })).toBe(false);
+    expect(lists.list("character")).toEqual([]);
+    // The caret moves on: it is back, and no longer removed.
+    expect(lists.settle()).toBe(true);
+    expect(lists.list("character")).toEqual(["EDWARD"]);
+    expect(lists.removed("character")).toEqual([]);
+  });
+
+  it("is not brought back by fixing a letter of a cue already there, or by undoing a cut", () => {
+    const lists = NameLists.of(cues("EDWARD", "EDWARD"));
+    lists.remove("character", "EDWARD");
+    // Backspace over the D, and type it again.
+    lists.apply(cues("EDWARD"), cues("EDWAR"));
+    lists.settle({ kind: "character", name: "EDWAR" });
+    lists.apply(cues("EDWAR"), cues("EDWARD"));
+    expect(lists.settle()).toBe(false);
+    // A scene cut and put back.
+    lists.apply(cues("EDWARD"), []);
+    lists.apply([], cues("EDWARD"));
+    expect(lists.settle()).toBe(false);
+    expect(lists.list("character")).not.toContain("EDWARD");
+  });
+
+  it("is not brought back by a longer name passing through it as it is typed", () => {
+    const lists = NameLists.of(cues("ED"));
+    lists.remove("character", "ED");
+    // Typing EDWARD letter by letter: the line reads ED for a moment.
+    let was: NameLine[] = [];
+    for (const typed of ["E", "ED", "EDW", "EDWA", "EDWAR", "EDWARD"]) {
+      lists.apply(was, cues(typed));
+      lists.settle({ kind: "character", name: typed });
+      was = cues(typed);
+    }
+    lists.settle();
+    expect(lists.list("character")).toEqual(["EDWARD"]);
+    expect(lists.isRemoved("character", "ED")).toBe(true);
+  });
+
+  it("is added back by hand at once", () => {
+    const lists = NameLists.of(cues("EDWARD"));
+    lists.remove("character", "EDWARD");
+    expect(lists.add("character", "EDWARD")).toBe(true);
+    expect(lists.list("character")).toEqual(["EDWARD"]);
+    expect(lists.removed("character")).toEqual([]);
+  });
+
+  it("forgets a removed name the script no longer uses when the project opens: it needs no mark", () => {
+    const reopened = NameLists.of([], { removed: { character: ["EDWRAD"], location: [] } });
+    expect(reopened.removed("character")).toEqual([]);
+    reopened.apply([], cues("EDWRAD"));
+    reopened.settle();
+    expect(reopened.list("character")).toEqual(["EDWRAD"]);
   });
 });
 
@@ -290,8 +309,9 @@ describe("apply", () => {
     const lists = NameLists.of(before);
     lists.apply(before.slice(1), after.slice(1));
     const fresh = NameLists.of(after);
-    expect(lists.entries("character")).toEqual(fresh.entries("character"));
-    expect(lists.entries("location")).toEqual(fresh.entries("location"));
+    expect(lists.list("character")).toEqual(fresh.list("character"));
+    expect(lists.list("location")).toEqual(fresh.list("location"));
+    expect(lists.uses("location", "A")).toBe(1);
   });
 
   it("counts a name typed in capitals or not as one", () => {

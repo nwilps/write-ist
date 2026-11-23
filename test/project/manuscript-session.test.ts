@@ -21,7 +21,6 @@ import {
   type SessionPorts,
 } from "../../src/project/manuscript-session.ts";
 import { openProject, type OpenedProject } from "../../src/project/open.ts";
-import { readConfirmations } from "../../src/project/names-file.ts";
 import { serialise } from "../../src/screenplay/serialise.ts";
 import { manuscriptOf } from "../../src/screenplay/editing.ts";
 import { layout } from "../../src/screenplay/layout.ts";
@@ -345,58 +344,35 @@ describe("leaving", () => {
   });
 });
 
-/** Put the caret in the first element of a type, and answer its name. */
-function caretInFirst(session: ManuscriptSession, type: string): void {
-  const words = manuscriptOf(session.state.doc);
-  const index = words.elements.findIndex((element) => element.type === type);
-  expect(index).toBeGreaterThanOrEqual(0);
-  const at = startOfElement(session.state, index);
-  session.apply(session.state.tr.setSelection(TextSelection.create(session.state.doc, at)));
-}
-
-describe("confirming a name", () => {
+describe("adding and removing a name by hand", () => {
   it("writes the names file whole, and the lists hold it", async () => {
     const { session, opened } = await aSession();
-    caretInFirst(session, "character");
-    expect(session.confirm("character")).toBe(true);
-    const name = session.names.explicit("character")[0]!;
+    expect(session.addName("character", "Zelda")).toBe(true);
     await session.settled();
-    expect(readFileSync(join(opened.project.path, NAMES_FILE), "utf8")).toContain(name);
-    expect(session.names.isConfirmed("character", name)).toBe(true);
+    expect(readFileSync(join(opened.project.path, NAMES_FILE), "utf8")).toBe("characters\n  ZELDA\n");
+    expect(session.names.isListed("character", "ZELDA")).toBe(true);
   });
 
-  it("asks the location list for a scene heading", async () => {
-    const { session } = await aSession();
-    caretInFirst(session, "scene-heading");
-    expect(session.confirm("location")).toBe(true);
-    expect(session.names.explicit("location")).toHaveLength(1);
-  });
-
-  it("has nothing to confirm where the caret is not in a name of that kind", async () => {
-    const { session } = await aSession();
-    caretInFirst(session, "scene-heading");
-    expect(session.confirm("character")).toBe(false);
-    expect(session.names.explicit("character")).toEqual([]);
-  });
-
-  it("keeps a confirmation through a reload from outside, without a second copy to go stale", async () => {
+  it("keeps what was done by hand through a reload from outside, without a second copy to go stale", async () => {
     const { session, opened } = await aSession();
-    caretInFirst(session, "character");
-    session.confirm("character");
-    const name = session.names.explicit("character")[0]!;
+    const removed = session.nameList("character")[0]!;
+    session.addName("character", "ZELDA");
+    session.removeName("character", removed);
     await session.settled();
     otherwiseWritten(opened, "Big-Fish-augmented.fountain");
     await session.save();
-    expect(session.names.explicit("character")).toEqual([name]);
+    expect(session.names.added("character")).toEqual(["ZELDA"]);
+    // Still removed, if the other version uses it, and not brought back by that version's uses.
+    expect(session.nameList("character")).not.toContain(removed);
   });
 
-  it("reads the confirmations already in the bundle", async () => {
+  it("reads the names already in the bundle", async () => {
     const opened = await aProject();
     writeFileSync(join(opened.project.path, NAMES_FILE), "characters\n  KNOWN PERSON\n");
     const made = ports(opened);
     const read = await readManuscript(made.ports.filesystem, made.ports.project, made.ports.report);
     const session = manuscriptSession(made.ports, read);
-    expect(session.names.isConfirmed("character", "known person")).toBe(true);
+    expect(session.names.isListed("character", "known person")).toBe(true);
   });
 
   it("refuses to change a names file it could not read, and says so", async () => {
@@ -407,19 +383,19 @@ describe("confirming a name", () => {
     expect(made.heard.reports).toHaveLength(1);
     expect(made.heard.reports[0]).toContain("will not change them");
     const session = manuscriptSession(made.ports, read);
-    caretInFirst(session, "character");
-    expect(session.confirm("character")).toBe(false);
-    expect(session.names.explicit("character")).toEqual([]);
+    const listed = session.nameList("character");
+    expect(session.addName("character", "ZELDA")).toBe(false);
+    expect(session.removeName("character", listed[0]!)).toBe(false);
+    expect(session.nameList("character")).toEqual(listed);
   });
 
-  it("says so when the file cannot be written, and the confirmation holds while the project is open", async () => {
+  it("says so when the file cannot be written, and the change holds while the project is open", async () => {
     const { session, heard } = await aSession({ filesystem: failing({ write: true }) });
-    caretInFirst(session, "character");
-    session.confirm("character");
+    session.addName("character", "ZELDA");
     await session.settled();
     expect(heard.reports).toHaveLength(1);
-    expect(heard.reports[0]).toContain("could not save the confirmed name");
-    expect(session.names.explicit("character")).toHaveLength(1);
+    expect(heard.reports[0]).toContain("could not save the change to the list");
+    expect(session.names.added("character")).toEqual(["ZELDA"]);
   });
 });
 

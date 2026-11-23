@@ -24,15 +24,15 @@ beforeAll(() => {
 });
 afterEach(() => document.body.replaceChildren());
 
-/** A dialog over real lists: EDWARD and EDGAR confirmed by use, EDNA by hand. */
+/** A dialog over real lists: EDWARD and EDGAR on them by use (EDGAR once), EDNA by hand. */
 function opened() {
-  const lists = NameLists.of(["EDWARD", "EDWARD", "EDWARD", "EDGAR", "EDGAR", "EDGAR"].map((text) => ({ type: "character" as const, text })));
+  const lists = NameLists.of(["EDWARD", "EDWARD", "EDWARD", "EDGAR"].map((text) => ({ type: "character" as const, text })));
   lists.add("character", "EDNA");
   const closed = vi.fn();
   const modal = openNameListDialog(document.body, {
     title: "Character List",
     noun: "character",
-    names: () => lists.confirmed("character"),
+    names: () => lists.list("character"),
     add: (name) => lists.add("character", name),
     remove: (name) => lists.remove("character", name),
     closed,
@@ -62,7 +62,7 @@ describe("a name list dialog", () => {
     const { type, button, shown, lists, field } = opened();
     type("zelda");
     button("Add").click();
-    expect(lists.confirmedStartingWith("character", "Z")).toEqual(["ZELDA"]);
+    expect(lists.startingWith("character", "Z")).toEqual(["ZELDA"]);
     expect(field.value).toBe("");
     expect(shown()).toContain("ZELDA");
   });
@@ -75,12 +75,16 @@ describe("a name list dialog", () => {
     expect(button("Add").disabled).toBe(true);
   });
 
-  it("removes a name: gone from the list and from autocomplete, and hidden while the paper uses it", () => {
+  it("removes a name: gone from the list and from autocomplete, though the script still uses it", () => {
     const { button, shown, lists } = opened();
     button("Remove EDWARD").click();
     expect(shown()).toEqual(["EDGAR", "EDNA"]);
-    expect(lists.isHidden("character", "EDWARD")).toBe(true);
-    expect(lists.confirmedStartingWith("character", "EDW")).toEqual([]);
+    expect(lists.isRemoved("character", "EDWARD")).toBe(true);
+    expect(lists.startingWith("character", "EDW")).toEqual([]);
+    // The script's own EDWARD cues do not put it back as the lists settle.
+    lists.settle();
+    expect(shown()).toEqual(["EDGAR", "EDNA"]);
+    expect(lists.list("character")).toEqual(["EDGAR", "EDNA"]);
   });
 
   it("says nothing when a name is added or removed", () => {

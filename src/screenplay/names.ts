@@ -2,35 +2,46 @@
  * The character list and the location list, derived from the manuscript
  * (slice 2, step 8; ADR-0022).
  *
- * Nothing is stored for the derivation: the lists are counts of what the
- * elements say, kept up to date by `apply`, which is handed only the elements
- * an edit removed and the ones it put in their place. The one thing that *is*
- * stored is which entries the writer confirmed by hand, and that lives in the
+ * The lists are counts of what the elements say, kept up to date by `apply`,
+ * which is handed only the elements an edit removed and the ones it put in
+ * their place. What the writer did by hand is the one thing stored, in the
  * bundle's names file (`src/project/names-file.ts`), not here.
  *
- * ## Confirmed
+ * ## On the list
  *
- * An entry is **confirmed** when it is used `confirmAfterUses` or more times,
- * or the writer confirmed it. Fewer uses leave it in the list, unconfirmed:
- * autocomplete (step 9) never offers it and spellcheck (step 10) never treats
- * it as a known word, so one typo cannot seed more typos. Confirmation by use
- * is live — delete cues and the name drops back — but an explicit confirmation
- * stays until the writer takes it away. Changing the threshold changes which
- * entries are confirmed and touches nothing in the manuscript.
+ * A name is **on its list once it is used** — one cue, one heading — or once
+ * the writer adds it by hand (Noah, 2026-11-22). There is no count to reach.
+ * Autocomplete offers what is on the list. A name used and then no longer
+ * used leaves its list; a name added by hand stays on it, used or not.
  *
  * ## Added and removed by hand (Edit ▸ Character List, Location List)
  *
- * The writer can **add** a name, which confirms it by hand (and so it is
- * offered at once), and **remove** one, which **hides** it: no longer
- * confirmed, so autocomplete stops offering it and the lists' dialogs stop
- * showing it. The manuscript is not touched. A hidden name **quietly returns**
- * once the paper uses it `RETURN_AFTER_USES` more times than when it was hidden
- * — a name the writer keeps typing is a name after all — and its hiding is
- * forgotten. Fewer uses since (cues deleted) lower the mark it counts from.
- * Hidden names are stored with the confirmations, in the names file.
+ * **Add** puts a name on its list at once. **Remove** takes it off: it is
+ * **deleted from the list**, not hidden, and the manuscript is not touched.
+ *
+ * A removed name **comes back only when it is typed again as a new use**.
+ * The names already in the script never bring it back — not as the list is
+ * worked out again, not when a dialog closes, not when the project reopens.
+ * So a removed name keeps a **mark**: how many uses the script had of it when
+ * it was removed, or when the project was opened, whichever is later. It
+ * returns once the script has **more** uses than that, and the caret has left
+ * the cue or heading that gave it the new one (`settle`). That way:
+ *
+ * - fixing a letter of a cue that was already there, undoing a cut, or pasting
+ *   a scene back is not a new use, and brings nothing back;
+ * - typing `ED` on the way to `EDWARD` does not bring back a removed `ED`.
+ *
+ * The mark is never lowered while the project is open (deleting a cue and
+ * typing it again is not a new use), and is not stored: on opening, it is the
+ * script's count then. Only the removed names are stored.
  *
  * A name is one record per kind, keyed by its capitals, so a later Replace
  * (one name for another, through the manuscript) has a single place to act.
+ *
+ * ## Spelling
+ *
+ * The lists have nothing to do with spellcheck or the dictionary
+ * (`spelling.ts`): a name on a list is not a dictionary word.
  *
  * ## Who is speaking, and where
  *
@@ -42,7 +53,6 @@
  * A use is one cue element or one heading. Cut material (the boneyard) is
  * skipped, and so is a cue or heading with nothing left after the rule.
  */
-import { DEFAULT_PREFERENCES } from "../preferences.ts";
 import { characterName } from "./continuations.ts";
 import type { Element } from "./document.ts";
 
@@ -54,29 +64,6 @@ export interface NameLine {
   readonly text: string;
   readonly omitted?: boolean;
 }
-
-/** One entry of a list. */
-export interface NameEntry {
-  /** In capitals, as it is offered and inserted. */
-  readonly name: string;
-  /** Cues or headings in the manuscript that give this name. */
-  readonly uses: number;
-  /** Used enough times, or confirmed by the writer. */
-  readonly confirmed: boolean;
-  /** The writer confirmed it by hand (it stays confirmed whatever the count). */
-  readonly explicit: boolean;
-  /** Present when the writer removed it from its list: not confirmed, however often it is used. */
-  readonly hidden?: true;
-}
-
-/** A name the writer removed, and how many uses it had then (the mark it returns from). */
-export interface HiddenName {
-  readonly name: string;
-  readonly since: number;
-}
-
-/** Uses beyond the mark at which a hidden name returns to its list. */
-export const RETURN_AFTER_USES = 3;
 
 /** A name as the lists key it: capitals, single-spaced. */
 export function normaliseName(raw: string): string {
@@ -187,18 +174,21 @@ export function nameOf(line: NameLine): { readonly kind: NameKind; readonly name
   return undefined;
 }
 
-/** The words inside a name, in capitals — the unit spellcheck knows. */
-export function wordsOf(name: string): string[] {
-  return name.split(/[^\p{L}\p{N}'’]+/u).filter((word) => word !== "");
+/** One name, as the census counts it. */
+export interface NameEntry {
+  /** In capitals, as it is offered and inserted. */
+  readonly name: string;
+  /** Cues or headings in the manuscript that give this name. */
+  readonly uses: number;
+  /** On its list: not removed by the writer. */
+  readonly listed: boolean;
 }
 
 export interface NameListOptions {
-  /** Uses that confirm an entry. Defaults to the preference. */
-  readonly confirmAfterUses?: number;
-  /** Names the writer confirmed by hand, from the names file. */
-  readonly explicit?: Readonly<Record<NameKind, Iterable<string>>>;
+  /** Names the writer added by hand, from the names file. */
+  readonly added?: Readonly<Record<NameKind, Iterable<string>>>;
   /** Names the writer removed, from the names file. */
-  readonly hidden?: Readonly<Record<NameKind, Iterable<HiddenName>>>;
+  readonly removed?: Readonly<Record<NameKind, Iterable<string>>>;
 }
 
 const KINDS: readonly NameKind[] = ["character", "location"];
@@ -208,46 +198,53 @@ export class NameLists {
     character: new Map(),
     location: new Map(),
   };
-  private readonly confirmedByHand: Record<NameKind, Set<string>> = {
+  private readonly addedByHand: Record<NameKind, Set<string>> = {
     character: new Set(),
     location: new Set(),
   };
-  /** Removed by hand: name → uses when it was removed (lowered as uses fall). */
-  private readonly hiddenByHand: Record<NameKind, Map<string, number>> = {
+  /** Removed by hand: name → its mark, the uses it had when removed or when the project opened. */
+  private readonly removedByHand: Record<NameKind, Map<string, number>> = {
     character: new Map(),
     location: new Map(),
   };
-  private threshold: number;
   private changes = 0;
-  private hiddenChanges = 0;
+  private removedChanges = 0;
 
-  private entryCache: { version: number; lists: Record<NameKind, readonly NameEntry[]> } | undefined;
-  private wordCache: { version: number; words: ReadonlySet<string> } | undefined;
+  private listCache: { version: number; lists: Record<NameKind, readonly string[]> } | undefined;
 
-  constructor(options: NameListOptions = {}) {
-    this.threshold = options.confirmAfterUses ?? DEFAULT_PREFERENCES.confirmAfterUses;
+  constructor(options: Pick<NameListOptions, "added"> = {}) {
     for (const kind of KINDS) {
-      for (const name of options.explicit?.[kind] ?? []) {
+      for (const name of options.added?.[kind] ?? []) {
         const key = normaliseName(name);
-        if (key !== "") this.confirmedByHand[kind].add(key);
-      }
-      for (const { name, since } of options.hidden?.[kind] ?? []) {
-        const key = normaliseName(name);
-        if (key !== "" && Number.isInteger(since) && since >= 0) this.hiddenByHand[kind].set(key, since);
+        if (key !== "") this.addedByHand[kind].add(key);
       }
     }
   }
 
-  /** The lists for a whole sequence, counted once. */
+  /**
+   * The lists for a whole sequence, counted once. A removed name's mark is
+   * its count here, so nothing already in the script brings it back; one the
+   * script does not use is simply off the list, and needs no mark.
+   */
   static of(lines: readonly NameLine[], options: NameListOptions = {}): NameLists {
     const lists = new NameLists(options);
     lists.apply([], lines);
+    for (const kind of KINDS) {
+      for (const name of options.removed?.[kind] ?? []) {
+        const key = normaliseName(name);
+        if (key === "" || lists.addedByHand[kind].has(key)) continue;
+        const uses = lists.counts[kind].get(key) ?? 0;
+        if (uses > 0) lists.removedByHand[kind].set(key, uses);
+      }
+    }
+    lists.changes += 1;
     return lists;
   }
 
   /**
    * An edit replaced `removed` with `inserted`. Cost: the size of the edit.
    * Returns whether any count changed, so a caller can skip redrawing.
+   * A removed name is not brought back here: that is `settle`'s.
    */
   apply(removed: readonly NameLine[], inserted: readonly NameLine[]): boolean {
     let changed = false;
@@ -259,36 +256,45 @@ export class NameLists {
       if (left > 0) counts.set(found.name, left);
       else counts.delete(found.name);
       changed = true;
-      // Fewer uses than when it was hidden: the next three count from here.
-      const hidden = this.hiddenByHand[found.kind];
-      const since = hidden.get(found.name);
-      if (since !== undefined && Math.max(left, 0) < since) {
-        hidden.set(found.name, Math.max(left, 0));
-        this.hiddenChanges += 1;
-      }
     }
     for (const line of inserted) {
       const found = nameOf(line);
       if (found === undefined) continue;
       const counts = this.counts[found.kind];
-      const uses = (counts.get(found.name) ?? 0) + 1;
-      counts.set(found.name, uses);
+      counts.set(found.name, (counts.get(found.name) ?? 0) + 1);
       changed = true;
-      // Used enough since it was hidden: it is a name after all, and comes back.
-      const hidden = this.hiddenByHand[found.kind];
-      const since = hidden.get(found.name);
-      if (since !== undefined && uses >= since + RETURN_AFTER_USES) {
-        hidden.delete(found.name);
-        this.hiddenChanges += 1;
-      }
     }
     if (changed) this.changes += 1;
     return changed;
   }
 
-  /** Bumps whenever a hidden name returns or its mark moves: what the names file holds changed. */
-  get hiddenVersion(): number {
-    return this.hiddenChanges;
+  /**
+   * Bring back every removed name the script now uses more than its mark —
+   * a new use, typed — except the one the caret is still in (`typing`), which
+   * may yet become another name. Answers whether any came back.
+   */
+  settle(typing?: { readonly kind: NameKind; readonly name: string }): boolean {
+    let back = false;
+    for (const kind of KINDS) {
+      const removed = this.removedByHand[kind];
+      if (removed.size === 0) continue;
+      for (const [name, mark] of removed) {
+        if ((this.counts[kind].get(name) ?? 0) <= mark) continue;
+        if (typing !== undefined && typing.kind === kind && typing.name === name) continue;
+        removed.delete(name);
+        back = true;
+      }
+    }
+    if (back) {
+      this.changes += 1;
+      this.removedChanges += 1;
+    }
+    return back;
+  }
+
+  /** Bumps whenever the names removed by hand change: what the names file holds changed. */
+  get removedVersion(): number {
+    return this.removedChanges;
   }
 
   /** Bumps whenever anything an answer depends on changes. */
@@ -296,32 +302,22 @@ export class NameLists {
     return this.changes;
   }
 
-  get confirmAfterUses(): number {
-    return this.threshold;
+  /** The names on a list, by name: used or added by hand, and not removed. */
+  list(kind: NameKind): readonly string[] {
+    return this.cachedLists()[kind];
   }
 
-  /** Change the threshold. The manuscript is not involved. */
-  setConfirmAfterUses(uses: number): void {
-    if (uses === this.threshold) return;
-    this.threshold = uses;
-    this.changes += 1;
-  }
-
-  /** Every entry of a list, by name; confirmed or not. */
+  /**
+   * Every name the manuscript uses or the writer added, by name, with its
+   * uses and whether it is on the list — the census a test or a measure reads.
+   */
   entries(kind: NameKind): readonly NameEntry[] {
-    return this.cachedEntries()[kind];
-  }
-
-  /** The confirmed names of a list, by name. */
-  confirmed(kind: NameKind): readonly string[] {
-    return this.entries(kind)
-      .filter((entry) => entry.confirmed)
-      .map((entry) => entry.name);
-  }
-
-  /** The entries used fewer times than it takes, and not confirmed by hand. */
-  unconfirmed(kind: NameKind): readonly NameEntry[] {
-    return this.entries(kind).filter((entry) => !entry.confirmed);
+    const names = new Set<string>([...this.counts[kind].keys(), ...this.addedByHand[kind]]);
+    return [...names].sort(compareNames).map((name) => ({
+      name,
+      uses: this.counts[kind].get(name) ?? 0,
+      listed: !this.removedByHand[kind].has(name),
+    }));
   }
 
   /** How many times the manuscript uses a name. */
@@ -329,126 +325,80 @@ export class NameLists {
     return this.counts[kind].get(normaliseName(name)) ?? 0;
   }
 
-  isConfirmed(kind: NameKind, name: string): boolean {
+  isListed(kind: NameKind, name: string): boolean {
     const key = normaliseName(name);
-    if (this.hiddenByHand[kind].has(key)) return false;
-    return this.confirmedByHand[kind].has(key) || (this.counts[kind].get(key) ?? 0) >= this.threshold;
+    if (this.removedByHand[kind].has(key)) return false;
+    return this.addedByHand[kind].has(key) || (this.counts[kind].get(key) ?? 0) > 0;
   }
 
-  isHidden(kind: NameKind, name: string): boolean {
-    return this.hiddenByHand[kind].has(normaliseName(name));
+  isRemoved(kind: NameKind, name: string): boolean {
+    return this.removedByHand[kind].has(normaliseName(name));
   }
 
   /**
    * The writer adds a name to its list (Edit ▸ Character List, Location List):
-   * confirmed by hand, and no longer hidden if it was. Answers whether
-   * anything changed.
+   * on it at once, and no longer removed if it was. Answers whether anything
+   * changed.
    */
   add(kind: NameKind, name: string): boolean {
     const key = normaliseName(name);
     if (key === "") return false;
-    const unhidden = this.hiddenByHand[kind].delete(key);
-    const confirmed = !this.confirmedByHand[kind].has(key);
-    this.confirmedByHand[kind].add(key);
-    if (!unhidden && !confirmed) return false;
-    if (unhidden) this.hiddenChanges += 1;
+    const unremoved = this.removedByHand[kind].delete(key);
+    const added = !this.addedByHand[kind].has(key);
+    this.addedByHand[kind].add(key);
+    if (!unremoved && !added) return false;
+    if (unremoved) this.removedChanges += 1;
     this.changes += 1;
     return true;
   }
 
   /**
-   * The writer removes a name from its list: no longer confirmed by hand, and
-   * hidden while the paper still uses it, so that use alone does not offer it
-   * again. A name the paper does not use is simply gone. Answers whether
-   * anything changed.
+   * The writer removes a name from its list: deleted from it, and marked at
+   * the uses the script has now, so those uses do not put it back. A name the
+   * script does not use needs no mark. Answers whether anything changed.
    */
   remove(kind: NameKind, name: string): boolean {
     const key = normaliseName(name);
     if (key === "") return false;
-    const unconfirmed = this.confirmedByHand[kind].delete(key);
+    const wasAdded = this.addedByHand[kind].delete(key);
     const uses = this.counts[kind].get(key) ?? 0;
-    const hides = uses > 0 && this.hiddenByHand[kind].get(key) !== uses;
-    if (hides) {
-      this.hiddenByHand[kind].set(key, uses);
-      this.hiddenChanges += 1;
+    const marks = uses > 0 && !this.removedByHand[kind].has(key);
+    if (marks) {
+      this.removedByHand[kind].set(key, uses);
+      this.removedChanges += 1;
     }
-    if (!unconfirmed && !hides) return false;
+    if (!wasAdded && !marks) return false;
     this.changes += 1;
     return true;
   }
 
-  /** The names the writer removed and their marks, for the names file. */
-  hidden(kind: NameKind): readonly HiddenName[] {
-    return [...this.hiddenByHand[kind]]
-      .sort(([a], [b]) => compareNames(a, b))
-      .map(([name, since]) => ({ name, since }));
+  /** The names the writer added by hand, for the names file. */
+  added(kind: NameKind): readonly string[] {
+    return [...this.addedByHand[kind]].sort(compareNames);
   }
 
-  /** The writer says this name is right. */
-  confirm(kind: NameKind, name: string): boolean {
-    const key = normaliseName(name);
-    if (key === "" || this.confirmedByHand[kind].has(key)) return false;
-    this.confirmedByHand[kind].add(key);
-    this.changes += 1;
-    return true;
+  /** The names the writer removed and that have not come back, for the names file. */
+  removed(kind: NameKind): readonly string[] {
+    return [...this.removedByHand[kind].keys()].sort(compareNames);
   }
 
   /**
-   * Take back a confirmation by hand (an undone Add to Dictionary). Uses are
-   * not touched, so a name used often enough stays confirmed. Answers whether
-   * there was one to take back.
-   */
-  unconfirm(kind: NameKind, name: string): boolean {
-    if (!this.confirmedByHand[kind].delete(normaliseName(name))) return false;
-    this.changes += 1;
-    return true;
-  }
-
-  /** The names the writer confirmed by hand, for the names file. */
-  explicit(kind: NameKind): readonly string[] {
-    return [...this.confirmedByHand[kind]].sort(compareNames);
-  }
-
-  /**
-   * The confirmed names a prefix begins, for autocomplete (step 9). Case is
+   * The names on a list a prefix begins, for autocomplete (step 9). Case is
    * the writer's to vary; what is returned is in capitals.
    */
-  confirmedStartingWith(kind: NameKind, prefix: string): readonly string[] {
+  startingWith(kind: NameKind, prefix: string): readonly string[] {
     const start = normaliseName(prefix);
-    return this.confirmed(kind).filter((name) => name.startsWith(start));
+    return this.list(kind).filter((name) => name.startsWith(start));
   }
 
-  /**
-   * The words inside confirmed names and locations, in capitals — what
-   * spellcheck (step 10) does not underline. `BENNETT'S HOSPITAL ROOM`
-   * gives `BENNETT'S`, `HOSPITAL` and `ROOM`.
-   */
-  knownWords(): ReadonlySet<string> {
-    if (this.wordCache?.version === this.changes) return this.wordCache.words;
-    const words = new Set<string>();
-    for (const kind of KINDS) {
-      for (const name of this.confirmed(kind)) {
-        for (const word of wordsOf(name)) words.add(word);
-      }
-    }
-    this.wordCache = { version: this.changes, words };
-    return words;
-  }
-
-  private cachedEntries(): Record<NameKind, readonly NameEntry[]> {
-    if (this.entryCache?.version === this.changes) return this.entryCache.lists;
-    const build = (kind: NameKind): NameEntry[] => {
-      const names = new Set<string>([...this.counts[kind].keys(), ...this.confirmedByHand[kind]]);
-      return [...names].sort(compareNames).map((name) => {
-        const uses = this.counts[kind].get(name) ?? 0;
-        const explicit = this.confirmedByHand[kind].has(name);
-        const hidden = this.hiddenByHand[kind].has(name);
-        const confirmed = !hidden && (explicit || uses >= this.threshold);
-        return hidden ? { name, uses, explicit, confirmed, hidden: true as const } : { name, uses, explicit, confirmed };
-      });
+  private cachedLists(): Record<NameKind, readonly string[]> {
+    if (this.listCache?.version === this.changes) return this.listCache.lists;
+    const build = (kind: NameKind): string[] => {
+      const names = new Set<string>([...this.counts[kind].keys(), ...this.addedByHand[kind]]);
+      return [...names].filter((name) => !this.removedByHand[kind].has(name)).sort(compareNames);
     };
     const lists = { character: build("character"), location: build("location") };
-    this.entryCache = { version: this.changes, lists };
+    this.listCache = { version: this.changes, lists };
     return lists;
   }
 }

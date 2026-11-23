@@ -10,11 +10,11 @@
  *
  * ## What is offered
  *
- * - **A cue:** the confirmed characters the typed letters begin. An entry used
- *   once or twice is in the list but unconfirmed and is never offered, so one
- *   typo cannot seed more typos (`names.ts`, glossary *Confirmed name*).
+ * - **A cue:** the characters on the list that the typed letters begin. A name
+ *   is on the list once it is used, or added by hand, and off it once the
+ *   writer removes it (`names.ts`). The line being typed never offers itself.
  * - **A heading, a piece at a time** (ADR-0021's prefixes): `INT.`/`EXT.` at the
- *   start; a confirmed location after the prefix; a time of day after ` - `.
+ *   start; a location on the list after the prefix; a time of day after ` - `.
  *   Accepting a piece inserts it and the separator that follows, so the caret
  *   lands where the next piece begins and the three accepted pieces spell
  *   `INT. KITCHEN - DAY`.
@@ -44,7 +44,7 @@
  * ## Cost
  *
  * The offer reads one element's text and the already-derived lists
- * (`NameLists.confirmedStartingWith`, built from a cache the edit already
+ * (`NameLists.startingWith`, built from a cache the edit already
  * kept up to date). It is worked out at most once per state and list version.
  */
 import { Plugin, PluginKey, TextSelection, EditorState } from "prosemirror-state";
@@ -97,7 +97,7 @@ export function completions(
   if (type === "character") {
     const typed = text.toUpperCase();
     const choices = names
-      .confirmedStartingWith("character", text)
+      .startingWith("character", text)
       .filter((name) => name.startsWith(typed) && name !== typed);
     return choices.length === 0 ? undefined : { piece: "cue", start: 0, choices: cap(choices) };
   }
@@ -116,7 +116,7 @@ export function completions(
   const wanted = rest.toUpperCase();
 
   const places = names
-    .confirmedStartingWith("location", rest)
+    .startingWith("location", rest)
     .filter((name) => name.startsWith(wanted) && name !== wanted);
   if (places.length > 0) {
     return {

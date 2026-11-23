@@ -14,7 +14,7 @@ The Pilot/
   plan.md              Plan: cards
   log.md               the Log: entries, tasks, pushes
   notes.md             notes
-  names.txt            the characters and locations the writer confirmed by hand
+  names.txt            the characters and locations the writer added to or removed from the lists by hand
   goals.md             the daily goal, the weekdays that count, and the words written each day
   details.md           the target page count and which workspaces the project shows
 ```
@@ -22,6 +22,12 @@ The Pilot/
 **`names.txt` is the exception (slice 2, step 8).** It holds only names the writer confirmed,
 plain text, a kind on a line and one indented name under it — kept trivial so its format can
 change cheaply. It is project-level and never frozen at lock, like the other sidecar files.
+
+> **Amended 2026-11-22 (Noah).** There is no confirming any more: a name is on its list from its
+> first use. `names.txt` holds the names the writer **added** by hand (`characters`, `locations`)
+> and those they **removed** (`removed characters`, `removed locations`), names only. An older
+> file's `hidden characters` / `hidden locations` sections are read as removed, their counts
+> ignored, and are written back as `removed …`.
 
 **`goals.md` follows the shape below** (ADR-0040): a heading, a labelled header (`Daily goal`, `Days`), and
 one line per day under *Words written*. Project-level and never frozen at lock.

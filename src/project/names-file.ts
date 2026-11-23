@@ -1,128 +1,114 @@
 /**
- * The names file: the characters and locations the writer confirmed by hand
- * (slice 2, step 8, Q1; ADR-0025).
+ * The names file: what the writer did to the character and location lists by
+ * hand (slice 2, step 8, Q1; ADR-0025).
  *
  * Everything else about the name lists is derived from the manuscript and
- * stored nowhere. This is the one fact no manuscript can say — *"this name is
- * right, whatever the count"* — so it is saved beside it, as plain text:
+ * stored nowhere (`src/screenplay/names.ts`). What no manuscript can say is
+ * *"this name belongs on the list"* (Add, for a name the script does not use
+ * yet) and *"this one does not"* (Remove, for one it does), so those are saved
+ * beside it, as plain text:
  *
  *   characters
  *     EDWARD
  *     SANDRA
  *   locations
  *     KITCHEN
+ *   removed characters
+ *     EDWRAD
  *
  * A kind on a line of its own, then one indented name per line. Kept trivial
  * so the format can change cheaply (the writer accepts it may be revisited).
- * Reading ignores blank lines and kinds it does not know.
+ * Reading ignores blank lines and kinds it does not know. A removed name's
+ * mark is not stored: it is the script's count when the project opens.
  *
- * The names the writer **removed** from a list (`NameLists.remove`) follow,
- * each with the uses it had then — the mark it returns from — after a tab:
+ * ## Older files
  *
- *   hidden characters
- *     EDWRAD	2
- *
- * An older Write-ist reads past them, as a kind it does not know.
+ * Before 2026-11-22 a removed name was **hidden**, under `hidden characters`
+ * and `hidden locations`, each with a count after a tab. Those sections are
+ * read as removed — the name stays off its list until it is typed again —
+ * and their counts are ignored. The next write puts them under `removed …`.
  *
  * ADR-0008 rule 3 holds here as everywhere: an absent file is a first run and
- * reads as nothing confirmed; one that exists and cannot be read **rejects**,
- * so the caller can refuse to write over it.
+ * reads as nothing done by hand; one that exists and cannot be read
+ * **rejects**, so the caller can refuse to write over it.
  */
 import { NAMES_FILE } from "./bundle.ts";
 import type { Project } from "./bundle.ts";
 import { join, type Filesystem } from "./filesystem.ts";
-import { normaliseName, type HiddenName, type NameKind } from "../screenplay/names.ts";
+import { normaliseName, type NameKind } from "../screenplay/names.ts";
 
-export interface Confirmations extends Readonly<Record<NameKind, readonly string[]>> {
-  /** The names removed from each list by hand, and their marks. Absent: none. */
-  readonly hidden?: Readonly<Record<NameKind, readonly HiddenName[]>>;
+/** The names the writer added to each list by hand, and those they removed. */
+export interface ListsByHand extends Readonly<Record<NameKind, readonly string[]>> {
+  /** The names removed from each list by hand. Absent: none. */
+  readonly removed?: Readonly<Record<NameKind, readonly string[]>>;
 }
+
+const KINDS: readonly NameKind[] = ["character", "location"];
 
 const HEADINGS: Readonly<Record<NameKind, string>> = {
   character: "characters",
   location: "locations",
 };
 
+const REMOVED_HEADINGS: Readonly<Record<NameKind, string>> = {
+  character: "removed characters",
+  location: "removed locations",
+};
+
+/** What an older Write-ist wrote for a removed name: read as removed, never written. */
 const HIDDEN_HEADINGS: Readonly<Record<NameKind, string>> = {
   character: "hidden characters",
   location: "hidden locations",
 };
 
-export const NO_CONFIRMATIONS: Confirmations = { character: [], location: [] };
+export const NOTHING_BY_HAND: ListsByHand = { character: [], location: [] };
 
-/** The file's text for a set of confirmations. */
-export function serialiseConfirmations(confirmations: Confirmations): string {
-  const sections = (["character", "location"] as const)
-    .map((kind) => {
-      const names = [...new Set(confirmations[kind].map(normaliseName).filter((name) => name !== ""))].sort();
-      return names.length === 0 ? "" : `${HEADINGS[kind]}\n${names.map((name) => `  ${name}\n`).join("")}`;
-    })
-    .filter((section) => section !== "");
-  const hidden = (["character", "location"] as const)
-    .map((kind) => {
-      const byName = new Map<string, number>();
-      for (const { name, since } of confirmations.hidden?.[kind] ?? []) {
-        const key = normaliseName(name);
-        if (key !== "" && Number.isInteger(since) && since >= 0) byName.set(key, since);
-      }
-      const names = [...byName].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-      return names.length === 0 ? "" : `${HIDDEN_HEADINGS[kind]}\n${names.map(([name, since]) => `  ${name}\t${since}\n`).join("")}`;
-    })
-    .filter((section) => section !== "");
-  return [...sections, ...hidden].join("");
+/** One section's text: its heading, then its names, each once, in order; nothing when there are none. */
+function section(heading: string, names: readonly string[]): string {
+  const kept = [...new Set(names.map(normaliseName).filter((name) => name !== ""))].sort();
+  return kept.length === 0 ? "" : `${heading}\n${kept.map((name) => `  ${name}\n`).join("")}`;
 }
 
-/** The confirmations a file's text holds. */
-export function parseConfirmations(text: string): Confirmations {
-  const found: Record<NameKind, string[]> = { character: [], location: [] };
-  const hidden: Record<NameKind, HiddenName[]> = { character: [], location: [] };
-  let kind: NameKind | undefined;
-  let hiding = false;
+/** The file's text for what the writer did by hand. */
+export function serialiseNamesFile(byHand: ListsByHand): string {
+  return [
+    ...KINDS.map((kind) => section(HEADINGS[kind], byHand[kind])),
+    ...KINDS.map((kind) => section(REMOVED_HEADINGS[kind], byHand.removed?.[kind] ?? [])),
+  ].join("");
+}
+
+/** What a file's text holds. */
+export function parseNamesFile(text: string): ListsByHand {
+  const added: Record<NameKind, string[]> = { character: [], location: [] };
+  const removed: Record<NameKind, string[]> = { character: [], location: [] };
+  let into: string[] | undefined;
   for (const line of text.split(/\r?\n/)) {
     if (line.trim() === "") continue;
     if (!/^\s/.test(line)) {
       const heading = line.trim().toLowerCase();
-      hiding = heading === HIDDEN_HEADINGS.character || heading === HIDDEN_HEADINGS.location;
-      kind =
-        heading === HEADINGS.character || heading === HIDDEN_HEADINGS.character
-          ? "character"
-          : heading === HEADINGS.location || heading === HIDDEN_HEADINGS.location
-            ? "location"
-            : undefined;
+      const kind = KINDS.find((one) => heading === HEADINGS[one]);
+      const gone = KINDS.find((one) => heading === REMOVED_HEADINGS[one] || heading === HIDDEN_HEADINGS[one]);
+      into = kind !== undefined ? added[kind] : gone !== undefined ? removed[gone] : undefined;
       continue;
     }
-    if (kind === undefined) continue;
-    if (hiding) {
-      // A name, a tab, its mark. A mark that is not a count is no mark: none.
-      const [raw = "", mark = ""] = line.split("\t");
-      const name = normaliseName(raw);
-      const since = /^\d+$/.test(mark.trim()) ? Number(mark.trim()) : 0;
-      if (name !== "") hidden[kind].push({ name, since });
-      continue;
-    }
-    const name = normaliseName(line);
-    if (name !== "") found[kind].push(name);
+    if (into === undefined) continue;
+    // An older file's hidden name carries a count after a tab: the name is what is before it.
+    const name = normaliseName(line.trim().split("\t")[0]!);
+    if (name !== "" && !into.includes(name)) into.push(name);
   }
-  return hidden.character.length === 0 && hidden.location.length === 0 ? found : { ...found, hidden };
+  return removed.character.length === 0 && removed.location.length === 0 ? added : { ...added, removed };
 }
 
-/** What the bundle's names file holds; nothing confirmed when there is no file. */
-export async function readConfirmations(
-  filesystem: Filesystem,
-  project: Project,
-): Promise<Confirmations> {
+/** What the bundle's names file holds; nothing done by hand when there is no file. */
+export async function readNamesFile(filesystem: Filesystem, project: Project): Promise<ListsByHand> {
   const path = join(project.path, NAMES_FILE);
-  if (!(await filesystem.exists(path))) return NO_CONFIRMATIONS;
+  if (!(await filesystem.exists(path))) return NOTHING_BY_HAND;
   const bytes = await filesystem.readFile(path);
-  return parseConfirmations(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  return parseNamesFile(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
-/** Write the confirmations, whole or not at all (temp, flush, rename). */
-export async function writeConfirmations(
-  filesystem: Filesystem,
-  project: Project,
-  confirmations: Confirmations,
-): Promise<void> {
-  const bytes = new TextEncoder().encode(serialiseConfirmations(confirmations));
+/** Write it, whole or not at all (temp, flush, rename). */
+export async function writeNamesFile(filesystem: Filesystem, project: Project, byHand: ListsByHand): Promise<void> {
+  const bytes = new TextEncoder().encode(serialiseNamesFile(byHand));
   await filesystem.writeFile(join(project.path, NAMES_FILE), bytes);
 }

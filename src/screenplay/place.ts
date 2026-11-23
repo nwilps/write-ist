@@ -17,7 +17,7 @@ export interface ElementUnder extends ElementAt {
 
 /**
  * The element containing `position`, with its text: the one answer the
- * Confirm gesture, autocomplete and spellcheck all ask ("what is the caret
+ * name lists, autocomplete and spellcheck all ask ("what is the caret
  * in?"), so none of them reads the document's depth for itself.
  */
 export function elementUnder(doc: EditorNode, position: number): ElementUnder | undefined {

@@ -62,8 +62,8 @@ describe("a document's lists", () => {
   it("count the cues and headings in it", () => {
     const lists = fresh(opened(SCRIPT));
     expect(lists.entries("character")).toEqual([
-      { name: "EDWARD", uses: 2, confirmed: false, explicit: false },
-      { name: "SANDRA", uses: 1, confirmed: false, explicit: false },
+      { name: "EDWARD", uses: 2, listed: true },
+      { name: "SANDRA", uses: 1, listed: true },
     ]);
     expect(lists.entries("location").map((entry) => [entry.name, entry.uses])).toEqual([
       ["KITCHEN", 1],
@@ -119,10 +119,10 @@ describe("typing", () => {
     expect(lists.uses("character", "EDWARDS")).toBe(0);
   });
 
-  it("confirms a name on its third use, live, and not before", () => {
+  it("keeps a name on its list while any cue gives it, live", () => {
     let state = opened(SCRIPT);
     const lists = fresh(state);
-    expect(lists.isConfirmed("character", "EDWARD")).toBe(false);
+    expect(lists.isListed("character", "EDWARD")).toBe(true);
 
     // The action line becomes a third EDWARD cue.
     state = edit(state, lists, (s) => {
@@ -134,7 +134,7 @@ describe("typing", () => {
       return press(s.apply(s.tr.setSelection(TextSelection.create(s.doc, at))), setCue);
     });
     expect(lists.uses("character", "EDWARD")).toBe(3);
-    expect(lists.isConfirmed("character", "EDWARD")).toBe(true);
+    expect(lists.isListed("character", "EDWARD")).toBe(true);
 
     // And it falls back when a cue goes.
     state = edit(state, lists, (s) => {
@@ -142,7 +142,13 @@ describe("typing", () => {
       return s.apply(s.tr.delete(start, start + textOf(s, 7).length));
     });
     expect(lists.uses("character", "EDWARD")).toBe(2);
-    expect(lists.isConfirmed("character", "EDWARD")).toBe(false);
+    expect(lists.isListed("character", "EDWARD")).toBe(true);
+    // SANDRA's one cue gone, she is off the list.
+    state = edit(state, lists, (s) => {
+      const start = startOfElement(s, 4);
+      return s.apply(s.tr.delete(start, start + textOf(s, 4).length));
+    });
+    expect(lists.isListed("character", "SANDRA")).toBe(false);
   });
 
   it("follows an element cycled through every type, and back", () => {

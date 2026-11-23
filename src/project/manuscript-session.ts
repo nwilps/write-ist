@@ -13,9 +13,9 @@
  *   (`editingSession`), and the three moments ADR-0028 names reach it from here.
  * - **Leaving.** The project closes only once the last words are on disk, and
  *   the writer's day goes in the ledger on the way out (ADR-0017, ADR-0028).
- * - **Confirmed names.** The writer's own confirmations are held in the name
- *   lists and nowhere else, and written to the names file whole or not at all
- *   (ADR-0022, ADR-0029).
+ * - **The name lists by hand.** What the writer added to and removed from the
+ *   lists is held in the lists and nowhere else, and written to the names file
+ *   whole or not at all (ADR-0022, ADR-0025).
  *
  * What is *not* here is the window. The Editor workspace gives this the ports
  * it needs — somewhere to say things, how to draw a seam, the spelling engine —
@@ -43,7 +43,7 @@ import { countsText, wordsIn } from "../screenplay/counts.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
 import { editorStateFor, manuscriptOf } from "../screenplay/editing.ts";
 import { layout, type Layout } from "../screenplay/layout.ts";
-import { locationRange, nameOf, normaliseName, wordsOf, type NameKind, type NameLists } from "../screenplay/names.ts";
+import { nameOf, type NameKind, type NameLists } from "../screenplay/names.ts";
 import { namesOf, syncNames } from "../screenplay/names-sync.ts";
 import { OffPaperHistory } from "../screenplay/off-paper-undo.ts";
 import { pageAtElement } from "../screenplay/paginate.ts";
@@ -59,10 +59,10 @@ import type { Project } from "./bundle.ts";
 import type { Filesystem } from "./filesystem.ts";
 import type { Ledger } from "./ledger.ts";
 import {
-  NO_CONFIRMATIONS,
-  readConfirmations,
-  writeConfirmations,
-  type Confirmations,
+  NOTHING_BY_HAND,
+  readNamesFile,
+  writeNamesFile,
+  type ListsByHand,
 } from "./names-file.ts";
 import { openProject, type OpenedProject } from "./open.ts";
 import { editingSession } from "./save.ts";
@@ -113,16 +113,21 @@ export interface SessionPorts {
 /** What opening a project's manuscript found. */
 export interface ManuscriptRead {
   readonly opened: OpenedProject;
-  /** The writer's confirmed names, or `undefined` when the file could not be read — then confirming is refused. */
-  readonly confirmed: Confirmations | undefined;
+  /**
+   * What the writer added to and removed from the name lists by hand, or
+   * `undefined` when the names file could not be read — then the lists are
+   * not changed by hand this session, and the file is not written.
+   */
+  readonly namesByHand: ListsByHand | undefined;
   /** The project's goals, or `undefined` when the file could not be read — then it is not written. */
   readonly goals: Goals | undefined;
 }
 
 /**
- * Read the manuscript and the confirmed names. A manuscript that cannot be read
+ * Read the manuscript and the names file. A manuscript that cannot be read
  * rejects, and nothing has been written. A names file that cannot be read is
- * said and **not overwritten**: confirming is refused for this session.
+ * said and **not overwritten**: adding and removing names is refused for this
+ * session.
  */
 export async function readManuscript(
   filesystem: Filesystem,
@@ -130,12 +135,12 @@ export async function readManuscript(
   report: (trouble: string) => void,
 ): Promise<ManuscriptRead> {
   const opened = await openProject(filesystem, project);
-  let confirmed: Confirmations | undefined;
+  let namesByHand: ListsByHand | undefined;
   try {
-    confirmed = await readConfirmations(filesystem, project);
+    namesByHand = await readNamesFile(filesystem, project);
   } catch (error) {
     report(
-      `Write-ist could not read this project's confirmed names, so it will not change them. ` +
+      `Write-ist could not read this project's character and location lists, so it will not change them. ` +
         `Your screenplay is not affected. ${message(error)}`,
     );
   }
@@ -149,7 +154,7 @@ export async function readManuscript(
         `Your screenplay is not affected. ${message(error)}`,
     );
   }
-  return { opened, confirmed, goals };
+  return { opened, namesByHand, goals };
 }
 
 export interface ManuscriptSession {
@@ -158,7 +163,7 @@ export interface ManuscriptSession {
   /** Where each sheet ends, and the pairs of dual dialogue (never in the document). */
   readonly seams: DecorationSet;
   readonly layout: Layout;
-  /** The character and location lists, with the writer's confirmations. */
+  /** The character and location lists, with what the writer added and removed by hand. */
   readonly names: NameLists;
   /** Underlining misspelt words. The session builds it; the view is turned on by the Editor. */
   readonly spellcheck: Spellcheck;
@@ -194,30 +199,28 @@ export interface ManuscriptSession {
    */
   readonly moveProject: (move: () => Promise<Project>) => Promise<Project>;
   /**
-   * Resolves when every confirmation so far has been written, and every
+   * Resolves when every change to the name lists so far has been written, and every
    * change to the dictionary made (or has failed, and been said).
    */
   readonly settled: () => Promise<void>;
   /**
-   * The writer says the name or location at a position (default: the caret)
-   * is right. Answers whether there was one to say it of.
-   */
-  readonly confirm: (kind: NameKind, at?: number) => boolean;
-  /**
-   * The names a list offers now (Edit ▸ Character List, Location List): its
-   * confirmed names, by name, without any the writer removed.
+   * The names on a list now (Edit ▸ Character List, Location List), by name:
+   * every one the script uses or the writer added, without any they removed.
+   * What autocomplete offers.
    */
   readonly nameList: (kind: NameKind) => readonly string[];
   /**
-   * The writer adds a name to a list: confirmed by hand, offered by
-   * autocomplete at once, and written to the names file. Answers whether it
-   * was added — never when the names file could not be read.
+   * The writer adds a name to a list: on it, and offered by autocomplete, at
+   * once, and written to the names file. Answers whether it was added — never
+   * when the names file could not be read.
    */
   readonly addName: (kind: NameKind, name: string) => boolean;
   /**
-   * The writer removes a name from a list: hidden, so autocomplete stops
-   * offering it, until the paper uses it `RETURN_AFTER_USES` more times. The
-   * manuscript is not touched, and nothing is said.
+   * The writer removes a name from a list: deleted from it, so autocomplete
+   * stops offering it, and written to the names file. It comes back only when
+   * a new cue or heading gives it again (`NameLists.settle`) — never from the
+   * uses already in the script. The manuscript is not touched, and nothing is
+   * said.
    */
   readonly removeName: (kind: NameKind, name: string) => boolean;
   /**
@@ -243,8 +246,6 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   let laid: Layout;
   let seams: DecorationSet;
   let names: NameLists;
-  // What the names file last had of the hidden names, by the lists' count of changes to them.
-  let hiddenKept = 0;
 
   const spellcheck = new Spellcheck({ engine: ports.spellEngine, pause: DEFAULT_PREFERENCES.spellcheckPauseMs });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
@@ -253,12 +254,27 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   const offPaper = new OffPaperHistory();
   const undo = { undo: offPaper.undo, redo: offPaper.redo };
 
-  /** The writer's confirmations, as the lists hold them: the only copy there is. */
-  const confirmationsOf = (lists: NameLists): Confirmations => ({
-    character: lists.explicit("character"),
-    location: lists.explicit("location"),
-    hidden: { character: lists.hidden("character"), location: lists.hidden("location") },
+  /** What the writer did by hand, as the lists hold it: the only copy there is. */
+  const byHandOf = (lists: NameLists): ListsByHand => ({
+    character: lists.added("character"),
+    location: lists.added("location"),
+    removed: { character: lists.removed("character"), location: lists.removed("location") },
   });
+
+  /**
+   * A removed name typed again — the script uses it more than its mark — is
+   * back on its list, and the names file says so, quietly. While `typing`,
+   * the cue or heading the caret is in is left until the caret leaves it: it
+   * may still become another name (`ED` on the way to `EDWARD`).
+   */
+  const welcomeBack = (typing = true): void => {
+    let at: ReturnType<typeof nameOf>;
+    if (typing) {
+      const under = elementUnder(state.doc, state.selection.head);
+      at = under === undefined ? undefined : nameOf(under);
+    }
+    if (names.settle(at) && read.namesByHand !== undefined) writeNames();
+  };
 
   /**
    * **The one pipeline from the model to the paper.** Whatever changed the
@@ -267,22 +283,16 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
    * the document it replaced, by the elements it changed — the same answer, at
    * the cost of the edit (#49, step 8).
    */
-  const settle = (basis: { readonly replaced: Confirmations } | { readonly editedFrom: EditorNode }): void => {
+  const settle = (basis: { readonly replaced: ListsByHand } | { readonly editedFrom: EditorNode }): void => {
     const document = manuscriptOf(state.doc);
     if ("replaced" in basis) {
       names = namesOf(state.doc, {
-        explicit: basis.replaced,
-        ...(basis.replaced.hidden === undefined ? {} : { hidden: basis.replaced.hidden }),
+        added: basis.replaced,
+        ...(basis.replaced.removed === undefined ? {} : { removed: basis.replaced.removed }),
       });
-      hiddenKept = names.hiddenVersion;
       laid = layout(document, undefined, undefined, ports.formatting);
     } else {
       syncNames(names, basis.editedFrom, state.doc);
-      // A removed name used enough to come back, or its mark moved: kept, quietly.
-      if (names.hiddenVersion !== hiddenKept) {
-        hiddenKept = names.hiddenVersion;
-        if (read.confirmed !== undefined) writeNames();
-      }
       laid = layout(document, laid, manuscriptElementAt(state.doc, state.selection.head), ports.formatting);
     }
     // Decorations, so they are never part of the document and never reach the file.
@@ -301,7 +311,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
 
   state = editorStateFor(opened.document, { autocomplete, spellcheck, undo });
   words = wordsIn(state.doc);
-  settle({ replaced: read.confirmed ?? NO_CONFIRMATIONS });
+  settle({ replaced: read.namesByHand ?? NOTHING_BY_HAND });
 
   const tracker = new GoalsTracker(read.goals ?? NO_GOALS, ports.instant === undefined ? {} : { instant: ports.instant });
   const showGoal = (): void => ports.setGoal(tracker.view(words).pill);
@@ -316,7 +326,10 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       offPaper.clear();
       // Someone else's words are not the writer's: counting starts from them.
       words = wordsIn(state.doc);
-      settle({ replaced: confirmationsOf(names) });
+      // A removed name typed again before this is back; the rest stay removed,
+      // marked at the other version's uses.
+      welcomeBack(false);
+      settle({ replaced: byHandOf(names) });
       showCounts();
       showGoal();
       ports.reloaded(spellingWasOn);
@@ -462,62 +475,42 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // The day's words, with the goal beside them. A failure is said and the
     // project still leaves, as with the ledger.
     await savingGoals.now();
+    // A removed name typed again with the caret still in its line is back too.
+    welcomeBack(false);
+    await writingNames;
     stopSwitchingAway();
     stopSwitchingBack();
     return true;
   };
 
-  // The writer says the name or location the caret is in is right, without
-  // waiting for it to be used enough times. Written to the names file, whole
-  // or not at all; the manuscript is not touched. A failed write is said, and
-  // the confirmation holds until the project closes.
+  // Adding and removing names by hand, written to the names file, whole or not
+  // at all; the manuscript is not touched. A failed write is said, and the
+  // change holds until the project closes.
   let writingNames: Promise<void> = Promise.resolve();
-  const nameAt = (at: number): ReturnType<typeof nameOf> => {
-    const under = elementUnder(state.doc, at);
-    return under === undefined ? undefined : nameOf(under);
-  };
-  /** The lists' confirmations, to the names file: whole, after any write before it. */
+  /** The lists as they are, to the names file: whole, after any write before it. */
   const writeNames = (): void => {
-    const toWrite = confirmationsOf(names);
+    const toWrite = byHandOf(names);
     writingNames = writingNames.then(() =>
       inFolderTurn(async () => {
         try {
-          await writeConfirmations(ports.filesystem, session.project, toWrite);
+          await writeNamesFile(ports.filesystem, session.project, toWrite);
         } catch (error) {
           ports.report(
-            `Write-ist could not save the confirmed name. It holds while this project is open. ` +
+            `Write-ist could not save the change to the list. It holds while this project is open. ` +
               `Your screenplay is unchanged. ${message(error)}`,
           );
         }
       }),
     );
   };
-  /** Confirm by hand, or take that back. Never when the names file could not be read. */
-  const confirmName = (kind: NameKind, name: string): boolean => {
-    if (read.confirmed === undefined || !names.confirm(kind, name)) return false;
-    writeNames();
-    return true;
-  };
-  const unconfirmName = (kind: NameKind, name: string): void => {
-    if (read.confirmed === undefined || !names.unconfirm(kind, name)) return;
-    writeNames();
-  };
   const addName = (kind: NameKind, name: string): boolean => {
-    if (read.confirmed === undefined || !names.add(kind, name)) return false;
-    hiddenKept = names.hiddenVersion;
+    if (read.namesByHand === undefined || !names.add(kind, name)) return false;
     writeNames();
     return true;
   };
   const removeName = (kind: NameKind, name: string): boolean => {
-    if (read.confirmed === undefined || !names.remove(kind, name)) return false;
-    hiddenKept = names.hiddenVersion;
+    if (read.namesByHand === undefined || !names.remove(kind, name)) return false;
     writeNames();
-    return true;
-  };
-  const confirm = (kind: NameKind, at = state.selection.head): boolean => {
-    const found = nameAt(at);
-    if (found === undefined || found.kind !== kind || read.confirmed === undefined) return false;
-    confirmName(kind, found.name);
     return true;
   };
 
@@ -566,8 +559,12 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
         }
       }
       // Selection moves still refresh the current page; the total only
-      // moves when the manuscript does.
-      if (transaction.docChanged || transaction.selectionSet) showCounts();
+      // moves when the manuscript does. Either may finish a new use of a
+      // removed name: the caret has left the line that gave it.
+      if (transaction.docChanged || transaction.selectionSet) {
+        showCounts();
+        welcomeBack();
+      }
     },
     unsaved: session.unsaved,
     save: () => saving.now(),
@@ -594,8 +591,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     leave,
     moveProject: (move) => inFolderTurn(() => session.relocate(move)),
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
-    confirm,
-    nameList: (kind) => names.confirmed(kind),
+    nameList: (kind) => names.list(kind),
     addName,
     removeName,
     addToDictionary: async (view, issue) => {

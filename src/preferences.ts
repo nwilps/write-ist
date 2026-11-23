@@ -9,12 +9,6 @@
  */
 export interface Preferences {
   /**
-   * How many uses make a character or a location **confirmed** without the
-   * writer saying so (slice 2, step 8). A name used fewer times is in the list
-   * but unconfirmed: not offered, not a known word.
-   */
-  readonly confirmAfterUses: number;
-  /**
    * How long the writer must stop typing before the scene they changed is
    * rechecked, while spellcheck is on (slice 2, step 10), in milliseconds.
    */
@@ -22,6 +16,5 @@ export interface Preferences {
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  confirmAfterUses: 3,
   spellcheckPauseMs: 1000,
 };
