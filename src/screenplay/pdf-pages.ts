@@ -46,16 +46,34 @@ export interface PageRange {
   readonly to: number;
 }
 
+/**
+ * Which types one export prints bold, whole: chosen in Export As, for that
+ * export only (Noah, 2026-11-22). The project's own bold choices are the
+ * paper's (`formatting.ts`) and never reach the PDF. Courier Prime's bold is
+ * metrically its regular, so neither moves a line: only the face changes.
+ */
+export interface PdfEmphasis {
+  readonly boldSceneHeadings: boolean;
+  readonly boldTransitions: boolean;
+}
+
+/** What an export prints unless the writer asks: headings and transitions regular. */
+export const PLAIN_EMPHASIS: PdfEmphasis = { boldSceneHeadings: false, boldTransitions: false };
+
 const round = (points: number): number => Math.round(points * 100) / 100;
 
 /**
- * The PDF's pages, set with the project's own formatting (`formatting.ts`):
- * its spacing above scene headings, and which types print bold.
+ * The PDF's pages, laid out with the project's own formatting (`formatting.ts`:
+ * its spacing above scene headings) and printed bold where this export asks.
  */
-export function pdfPagesOf(document: ScreenplayDocument, formatting: Formatting = DEFAULT_FORMATTING): PdfPages {
+export function pdfPagesOf(
+  document: ScreenplayDocument,
+  formatting: Formatting = DEFAULT_FORMATTING,
+  emphasis: PdfEmphasis = PLAIN_EMPHASIS,
+): PdfPages {
   const reduced = withoutCommentsAndBoneyard(document);
   const laid = layout(reduced, undefined, undefined, formatting);
-  const lineRuns = (document: ScreenplayDocument, line: LayoutLine) => setLine(document, line, formatting);
+  const lineRuns = (document: ScreenplayDocument, line: LayoutLine) => setLine(document, line, emphasis);
   const pages = laid.pages.map((page) => {
     const runs: TitlePageRun[] = [];
     if (page.number > 1) {
@@ -112,15 +130,15 @@ function run(
   return { text, x: round(x), y: round(y), bold, italic, underline };
 }
 
-function setLine(document: ScreenplayDocument, line: LayoutLine, formatting: Formatting): TitlePageRun[] {
+function setLine(document: ScreenplayDocument, line: LayoutLine, emphasis: PdfEmphasis): TitlePageRun[] {
   if (line.text === "") return [];
   // (MORE) and CHARACTER (CONT'D) sit at the cue's indent, like the paper's.
   const type = line.kind === "text" ? document.elements[line.elementIndex]!.type : "character";
   const left = LEFT + startCharacters(type, line) * ADVANCE;
   const baseline = TOP_BASELINE + line.row * PAGE.leadingPoints;
-  // The project's bold headings or transitions: the whole line, whatever its marks say.
+  // This export's bold headings or transitions: the whole line, whatever its marks say.
   const bold =
-    (type === "scene-heading" && formatting.boldSceneHeadings) || (type === "transition" && formatting.boldTransitions);
+    (type === "scene-heading" && emphasis.boldSceneHeadings) || (type === "transition" && emphasis.boldTransitions);
   return split(line.text, line.marks ?? []).map((part) =>
     run(part.text, left + part.offset * ADVANCE, baseline, bold || part.bold, part.italic, part.underline),
   );

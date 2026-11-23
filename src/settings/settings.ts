@@ -188,8 +188,9 @@ export const DEFAULT_PROJECT_DEFAULTS: ProjectDefaults = {
   dailyGoalOn: false,
   dailyGoal: 500,
   targetPages: 0,
-  boldSceneHeadings: false,
-  boldTransitions: false,
+  // The paper's: a new project's headings and transitions are drawn bold (the PDF's are its own, in Export As).
+  boldSceneHeadings: true,
+  boldTransitions: true,
   // Final Draft's template, as the spacing table has it (ADR-0038).
   blankLinesBeforeSceneHeadings: 2,
 };

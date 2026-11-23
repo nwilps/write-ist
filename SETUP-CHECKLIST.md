@@ -461,6 +461,13 @@ subset; nothing is fetched. `pdf-lib` and `@pdf-lib/fontkit` (MIT) in `src/pdf/r
 only code that touches them. It never writes `manuscript.fountain`. Measured on *Big Fish* at the
 time: 120 layout pages, 121 PDF pages.
 
+Headings and transitions print **regular** unless the writer switches on *Bold scene headings* or
+*Bold transitions* in Export As, for that export only (Noah, 2026-11-22). The project's own bold
+settings (`details.md`, New Project Defaults) are the paper's and never reach the PDF; the paper
+draws headings bold and transitions regular for a project that never chose, and a new project
+starts with both bold. Courier Prime's bold is metrically its regular, so bold moves no line or page
+on either.
+
 ### Done: writing goals, the Goal pill and the Goals dialog (ADR-0040)
 
 A daily word goal per project, with the weekdays that count and a streak; a one-time sprint; and a

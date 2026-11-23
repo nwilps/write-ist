@@ -282,7 +282,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     openExportDialog(into, {
       formats: EXPORT_FORMATS,
       pageCount: () => printedPageCount(writing.manuscript(), formatting),
-      write: (format, range) =>
+      write: (format, range, emphasis) =>
         exportScript(format, {
           filesystem: context.filesystem,
           project: context.project,
@@ -291,6 +291,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
           faces: courierPrimeFaces,
           range,
           formatting,
+          ...(emphasis === undefined ? {} : { emphasis }),
         }),
       report: context.report,
       closed: () => view?.focus(),

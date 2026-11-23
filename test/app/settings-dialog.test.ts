@@ -814,13 +814,14 @@ describe("New Project Defaults", () => {
     byId<HTMLButtonElement>("settings-defaults-feature-blank-lines").click();
     document.querySelector<HTMLElement>("#settings-defaults-feature-blank-lines-list [role=option]:nth-child(2)")!.click();
 
+    // Both bold start on (the paper's, for a new project); the click turned headings off.
     expect(current().projectDefaults["Feature"]).toEqual({
       shown: false,
       dailyGoalOn: true,
       dailyGoal: 750,
       targetPages: 110,
-      boldSceneHeadings: true,
-      boldTransitions: false,
+      boldSceneHeadings: false,
+      boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });
     expect(current().projectDefaults["Episode"]).toEqual(DEFAULT_SETTINGS.projectDefaults["Episode"]);

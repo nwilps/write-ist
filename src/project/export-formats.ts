@@ -9,7 +9,7 @@
  */
 import type { CourierPrimeFaces } from "../pdf/render.ts";
 import type { ScreenplayDocument } from "../screenplay/document.ts";
-import type { PageRange } from "../screenplay/pdf-pages.ts";
+import type { PageRange, PdfEmphasis } from "../screenplay/pdf-pages.ts";
 import type { Formatting } from "../screenplay/formatting.ts";
 import type { Project } from "./bundle.ts";
 import { saveFountainCopy, suggestedCopyName } from "./copy.ts";
@@ -32,6 +32,8 @@ export interface ExportWrite {
   readonly range: PageRange | undefined;
   /** The project's own formatting, for a format that sets the script on pages. */
   readonly formatting?: Formatting;
+  /** Which types this export prints bold, for a format set in type. Absent: none. */
+  readonly emphasis?: PdfEmphasis;
 }
 
 export interface ExportFormat {
@@ -41,6 +43,8 @@ export interface ExportFormat {
   readonly writable: boolean;
   /** Whether the format is made of numbered pages a writer could choose among. */
   readonly pageRange: boolean;
+  /** Whether the format is set in type, so this export can print headings and transitions bold. */
+  readonly emphasis: boolean;
   /** What the writer is told when the file could not be written. */
   readonly failure: string;
   readonly suggestedName: (project: Project) => string;
@@ -55,11 +59,12 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     label: "PDF",
     writable: true,
     pageRange: true,
+    emphasis: true,
     failure: "Write-ist could not export the PDF.",
     suggestedName: suggestedPdfName,
     chooseLocation: (places, name) => places.choosePdfLocation(name),
-    write: async ({ filesystem, project, document, faces, destination, range, formatting }) =>
-      exportPdf(filesystem, project, document, await faces(), destination, range, formatting),
+    write: async ({ filesystem, project, document, faces, destination, range, formatting, emphasis }) =>
+      exportPdf(filesystem, project, document, await faces(), destination, range, formatting, emphasis),
   },
   {
     // One continuous text file of the whole script: it has no pages to choose.
@@ -67,6 +72,7 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     label: "Fountain",
     writable: true,
     pageRange: false,
+    emphasis: false,
     failure: "Write-ist could not export the Fountain copy.",
     suggestedName: suggestedCopyName,
     chooseLocation: (places, name) => places.chooseCopyLocation(name),
@@ -80,6 +86,7 @@ export const EXPORT_FORMATS: readonly ExportFormat[] = [
     label: "Final Draft (.fdx)",
     writable: false,
     pageRange: false,
+    emphasis: false,
     failure: "Write-ist cannot export Final Draft files yet.",
     suggestedName: (project) => `${project.marker.name}.fdx`,
     chooseLocation: async () => undefined,
@@ -97,6 +104,8 @@ export interface ExportJob {
   readonly range?: PageRange | undefined;
   /** The project's own formatting (`details.md`). Default: as until now. */
   readonly formatting?: Formatting;
+  /** Which types this export prints bold (Export As). Default: none. */
+  readonly emphasis?: PdfEmphasis;
 }
 
 /** Ask where, then write. `false`: the writer cancelled the save dialog and nothing was written. */
@@ -112,6 +121,7 @@ export async function exportScript(format: ExportFormat, job: ExportJob): Promis
     destination,
     range: format.pageRange ? job.range : undefined,
     ...(job.formatting === undefined ? {} : { formatting: job.formatting }),
+    ...(job.emphasis === undefined || !format.emphasis ? {} : { emphasis: job.emphasis }),
   });
   return true;
 }

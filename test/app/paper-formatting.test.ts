@@ -68,13 +68,15 @@ describe("the paper's attributes", () => {
     expect(formattingAttributes(DEFAULT_FORMATTING)).toEqual({});
   });
 
-  it("say bold transitions, and one line before a heading", () => {
+  it("say bold transitions, regular headings, and one line before a heading", () => {
     expect(formattingAttributes({ ...DEFAULT_FORMATTING, boldTransitions: true, blankLinesBeforeSceneHeadings: 1 })).toEqual({
       "data-bold-transitions": "",
       "data-scene-heading-gap": "1",
     });
-    // The paper's headings are always bold; the choice is the PDF's.
-    expect(formattingAttributes({ ...DEFAULT_FORMATTING, boldSceneHeadings: true })).toEqual({});
+    // Headings are bold unless the project says otherwise: the paper as it always was.
+    expect(DEFAULT_FORMATTING.boldSceneHeadings).toBe(true);
+    expect(DEFAULT_FORMATTING.boldTransitions).toBe(false);
+    expect(formattingAttributes({ ...DEFAULT_FORMATTING, boldSceneHeadings: false })).toEqual({ "data-regular-scene-headings": "" });
   });
 });
 
@@ -82,6 +84,13 @@ describe("the paper, drawn by them", () => {
   it("bolds a transition only where the project says so", () => {
     expect(setting({}, [line("transition")], "font-weight")).toBeUndefined();
     expect(setting({ "data-bold-transitions": "" }, [line("transition")], "font-weight")).toBe("var(--weight-bold)");
+  });
+
+  it("bolds a heading unless the project says regular", () => {
+    expect(setting({}, [line("scene-heading")], "font-weight")).toBe("var(--weight-bold)");
+    expect(setting({ "data-regular-scene-headings": "" }, [line("scene-heading")], "font-weight")).toBe("var(--weight-regular)");
+    // Only the heading: a transition beside it is untouched.
+    expect(setting({ "data-regular-scene-headings": "" }, [line("transition")], "font-weight")).toBeUndefined();
   });
 
   it("puts one blank line above a heading where the table puts two, winning over the table", () => {

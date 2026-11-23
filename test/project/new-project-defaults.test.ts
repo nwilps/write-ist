@@ -5,8 +5,9 @@
  * `goals.md` — and the project keeps them as its own. An existing project is
  * never changed by them, and a later change in Settings reaches none.
  *
- * The formatting is then the project's look everywhere it is set: the page
- * count, the paper and the PDF.
+ * The formatting is then the project's look: its spacing on the paper, in the
+ * page count and in the PDF; its bold on the paper only — the PDF's bold is
+ * chosen in Export As, for one export at a time.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,7 +27,7 @@ import { readGoals } from "../../src/goals/file.ts";
 import { DEFAULT_FORMATTING, type Formatting } from "../../src/screenplay/formatting.ts";
 import { layout } from "../../src/screenplay/layout.ts";
 import { parse } from "../../src/screenplay/parse.ts";
-import { pdfPagesOf, printedPageCount } from "../../src/screenplay/pdf-pages.ts";
+import { PLAIN_EMPHASIS, pdfPagesOf, printedPageCount, type PdfEmphasis } from "../../src/screenplay/pdf-pages.ts";
 import { DEFAULT_PROJECT_DEFAULTS, DEFAULT_SETTINGS, type ProjectDefaults } from "../../src/settings/settings.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 
@@ -99,11 +100,12 @@ describe("New Project, given the type's defaults", () => {
     expect(written).toEqual([MANUSCRIPT_FILE, DETAILS_FILE, GOALS_FILE, MARKER_FILE]);
   });
 
-  it("gives Settings' own defaults as Final Draft has them: no target, no goal, two lines before a heading", async () => {
+  it("gives Settings' own defaults: no target, no goal, two lines before a heading, and bold on the paper", async () => {
     const project = await make("Plain", DEFAULT_SETTINGS.projectDefaults["Feature"]);
     const { details } = await readDetails(nodeFilesystem, project.path);
     expect(details.targetPages).toBe(0);
-    expect(formattingOf(details)).toEqual(DEFAULT_FORMATTING);
+    // A new project's paper draws both bold (Noah, 2026-11-22); the PDF's are Export As's.
+    expect(formattingOf(details)).toEqual({ boldSceneHeadings: true, boldTransitions: true, blankLinesBeforeSceneHeadings: 2 });
     expect(DEFAULT_PROJECT_DEFAULTS.blankLinesBeforeSceneHeadings).toBe(2);
     expect(existsSync(join(project.path, GOALS_FILE))).toBe(false);
   });
@@ -146,15 +148,17 @@ describe("the formatting in details.md", () => {
   it("is absent from a file that never chose, which reads as the paper always was", () => {
     expect(serialiseDetails(DEFAULT_DETAILS)).toBe("# Project details\n\nTarget pages: none\n");
     expect(parseDetails("# Project details\n\nTarget pages: none\n")?.formatting).toBeUndefined();
-    expect(formattingOf(DEFAULT_DETAILS)).toEqual({ boldSceneHeadings: false, boldTransitions: false, blankLinesBeforeSceneHeadings: 2 });
+    // As the paper always drew it: headings bold, transitions regular.
+    expect(formattingOf(DEFAULT_DETAILS)).toEqual({ boldSceneHeadings: true, boldTransitions: false, blankLinesBeforeSceneHeadings: 2 });
   });
 
   it("reads back as written, and puts a hand-edited value right quietly", () => {
     const formatting: Formatting = { boldSceneHeadings: false, boldTransitions: true, blankLinesBeforeSceneHeadings: 2 };
     const text = serialiseDetails({ targetPages: 0, workspaces: undefined, formatting });
     expect(parseDetails(text)?.formatting).toEqual(formatting);
+    // A line that is missing is the paper as it always was: headings bold.
     expect(parseDetails("# x\nBold transitions: YES\nBlank lines before scene headings: 7\n")?.formatting).toEqual({
-      boldSceneHeadings: false,
+      boldSceneHeadings: true,
       boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });
@@ -198,14 +202,46 @@ describe("the formatting, set", () => {
     expect(again.pages.map((page) => page.lines)).toEqual(layout(edited, undefined, undefined, one).pages.map((page) => page.lines));
   });
 
-  it("prints headings and transitions bold in the PDF when the project says so, and nothing else", () => {
+  it("never prints the project's bold in the PDF: headings and transitions are regular unless the export asks", () => {
     const document = parse(SCENES);
-    const runs = (formatting: Formatting) => pdfPagesOf(document, formatting).pages[0]!;
-    const boldOf = (formatting: Formatting, text: string) => runs(formatting).find((run) => run.text.startsWith(text))!.bold;
-    expect([boldOf(DEFAULT_FORMATTING, "INT. ROOM 0"), boldOf(DEFAULT_FORMATTING, "CUT TO:")]).toEqual([false, false]);
+    const boldOf = (pages: ReturnType<typeof pdfPagesOf>, text: string) => pages.pages[0]!.find((run) => run.text.startsWith(text))!.bold;
     const both: Formatting = { ...DEFAULT_FORMATTING, boldSceneHeadings: true, boldTransitions: true };
-    expect([boldOf(both, "INT. ROOM 0"), boldOf(both, "CUT TO:"), boldOf(both, "Somebody")]).toEqual([true, true, false]);
-    // Bold moves no line: Courier Prime's bold is metrically its regular.
-    expect(runs(both).map((run) => [run.x, run.y])).toEqual(runs(DEFAULT_FORMATTING).map((run) => [run.x, run.y]));
+    const neither: Formatting = { ...DEFAULT_FORMATTING, boldSceneHeadings: false, boldTransitions: false };
+    for (const formatting of [both, neither, DEFAULT_FORMATTING]) {
+      const plain = pdfPagesOf(document, formatting);
+      expect([boldOf(plain, "INT. ROOM 0"), boldOf(plain, "CUT TO:")]).toEqual([false, false]);
+      // The project's bold changes nothing in the PDF at all.
+      expect(plain).toEqual(pdfPagesOf(document, DEFAULT_FORMATTING));
+    }
+  });
+
+  it("prints headings, transitions or both bold when the export asks, and nothing else", () => {
+    const document = parse(SCENES);
+    const pdf = (emphasis: PdfEmphasis) => pdfPagesOf(document, DEFAULT_FORMATTING, emphasis);
+    const boldOf = (emphasis: PdfEmphasis, text: string) => pdf(emphasis).pages[0]!.find((run) => run.text.startsWith(text))!.bold;
+    const said = (emphasis: PdfEmphasis) => [boldOf(emphasis, "INT. ROOM 0"), boldOf(emphasis, "CUT TO:"), boldOf(emphasis, "Somebody")];
+    expect(said(PLAIN_EMPHASIS)).toEqual([false, false, false]);
+    expect(said({ boldSceneHeadings: true, boldTransitions: false })).toEqual([true, false, false]);
+    expect(said({ boldSceneHeadings: false, boldTransitions: true })).toEqual([false, true, false]);
+    expect(said({ boldSceneHeadings: true, boldTransitions: true })).toEqual([true, true, false]);
+    expect(pdfPagesOf(document)).toEqual(pdf(PLAIN_EMPHASIS));
+  });
+
+  it("moves no line and no page with bold, on the paper or in the PDF", () => {
+    const document = parse(SCENES);
+    const where = (pages: ReturnType<typeof pdfPagesOf>) => pages.pages.map((page) => page.map((run) => [run.text, run.x, run.y]));
+    const plain = pdfPagesOf(document);
+    const bold = pdfPagesOf(document, DEFAULT_FORMATTING, { boldSceneHeadings: true, boldTransitions: true });
+    expect(where(bold)).toEqual(where(plain));
+    expect(bold.pages.length).toBe(plain.pages.length);
+    // The paper: the project's bold is not an input to the layout, so every break is where it was.
+    const paper = (formatting: Formatting) => layout(document, undefined, undefined, formatting);
+    const neither = paper({ ...DEFAULT_FORMATTING, boldSceneHeadings: false, boldTransitions: false });
+    const both = paper({ ...DEFAULT_FORMATTING, boldSceneHeadings: true, boldTransitions: true });
+    expect(both.pagination).toEqual(neither.pagination);
+    expect(both.totalPages).toBe(neither.totalPages);
+    // And the paper's page count is the PDF's.
+    expect(printedPageCount(document)).toBe(plain.pages.length);
+    expect(both.totalPages).toBe(plain.pages.length);
   });
 });

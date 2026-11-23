@@ -119,7 +119,8 @@ describe("settings from anything at all", () => {
       dailyGoalOn: false,
       dailyGoal: MOST_WORDS,
       targetPages: 110,
-      boldSceneHeadings: false,
+      // Not said, so the default: a new project's paper draws headings bold.
+      boldSceneHeadings: true,
       boldTransitions: true,
       blankLinesBeforeSceneHeadings: 2,
     });

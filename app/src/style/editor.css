@@ -574,6 +574,7 @@ button.pill:focus-visible {
  * Prime's bold cut is metrically identical to its regular — the same 1228/2048
  * em advance, asserted in `test/app/manuscript-geometry.test.ts` — so it cannot
  * move a page break, which is the only thing the PDF is the authority on.
+ * A project can set them regular (`data-regular-scene-headings`, below).
  */
 .manuscript > [data-element="scene-heading"] {
   font-weight: var(--weight-bold);
@@ -594,12 +595,17 @@ button.pill:focus-visible {
 }
 
 /*
- * A project's own formatting (`paper-formatting.ts`, `formatting.ts`), which
- * the PDF is set with too.
+ * A project's own formatting (`paper-formatting.ts`, `formatting.ts`).
  *
- * Bold transitions. Courier Prime's bold is metrically its regular, so no
- * line moves.
+ * Bold scene headings and bold transitions are the paper's only: the PDF's are
+ * chosen in Export As. Courier Prime's bold is metrically its regular, so no
+ * line moves either way. A heading set regular keeps its accent colour, and
+ * a bold mark inside it (`<strong>`) stays bold.
  */
+.manuscript[data-regular-scene-headings] > [data-element="scene-heading"] {
+  font-weight: var(--weight-regular);
+}
+
 .manuscript[data-bold-transitions] > [data-element="transition"] {
   font-weight: var(--weight-bold);
 }
