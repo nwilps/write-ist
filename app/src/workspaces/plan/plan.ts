@@ -143,7 +143,14 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       tick.style.setProperty("--tick", String(cell));
       return tick;
     });
+    // A column of dots on every square's edge, the last edge included.
+    const dotColumns = range(0, layout.columns, 1).map((cell) => {
+      const column = element("div", { className: "plan__dot-column" });
+      column.style.setProperty("--dot-cell", String(cell));
+      return column;
+    });
     const grid = element("div", { className: "plan__grid" }, [
+      element("div", { className: "plan__dots", ariaHidden: "true" }, dotColumns),
       element("div", { className: "plan__past", ariaHidden: "true" }),
       element("div", { className: "plan__end", ariaHidden: "true" }),
       ...layout.placed.map((placed) => cardElement(placed)),
@@ -655,11 +662,13 @@ function place(item: HTMLElement, cell: number, lane: number, cells: number): vo
 }
 
 /**
- * The panel under the grid for the card selected: its title, colour, length
- * and description. Hidden while no card is.
+ * The panel under the grid for the card selected: the card itself, larger, to
+ * write on — its title and description typed straight onto it, in its own
+ * colour — with its colour, length and Delete along its foot. Hidden while no
+ * card is selected.
  */
 function cardPanel() {
-  const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off" });
+  const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off", placeholder: "Untitled" });
   title.setAttribute("aria-label", "Card title");
   title.spellcheck = false;
   const swatches = CARD_COLOURS.map((colour) => {
@@ -673,23 +682,21 @@ function cardPanel() {
   const longer = element("button", { className: "plan__step", type: "button", textContent: "+" });
   longer.setAttribute("aria-label", "Longer");
   const where = element("span", { className: "plan__where" });
-  const remove = element("button", { className: "plan__control plan__delete", type: "button" }, [
+  const remove = element("button", { className: "plan__delete", type: "button" }, [
     icon(Trash2),
     element("span", { textContent: "Delete" }),
   ]);
-  const description = element("textarea", { className: "plan__description", placeholder: "What happens here?" });
+  const description = element("textarea", { className: "plan__description", placeholder: "What happens here?", rows: 3 });
   description.setAttribute("aria-label", "Card description");
   description.spellcheck = false;
   const panel = element("section", { className: "plan__panel", hidden: true }, [
-    element("div", { className: "plan__panel-head" }, [
-      title,
+    element("div", { className: "plan__panel-head" }, [title]),
+    description,
+    element("div", { className: "plan__panel-foot" }, [
       element("div", { className: "plan__swatches" }, swatches),
-    ]),
-    element("div", { className: "plan__panel-row" }, [
       element("div", { className: "plan__stepper" }, [shorter, where, longer]),
       remove,
     ]),
-    description,
   ]);
   panel.setAttribute("aria-label", "Card");
 
@@ -730,6 +737,7 @@ function cardPanel() {
       shown = card.id;
       if (fresh || document.activeElement !== title) title.value = card.title;
       if (fresh || document.activeElement !== description) description.value = card.description;
+      panel.dataset["colour"] = card.colour;
       swatches.forEach((swatch) => swatch.setAttribute("aria-pressed", String(swatch.dataset["colour"] === card.colour)));
       cells = placed.cells;
       shorter.disabled = placed.cells <= 1;

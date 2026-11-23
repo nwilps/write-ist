@@ -665,29 +665,60 @@
   --size-plan-grip: var(--space-tight);
   /** How wide a title being typed is at least, in cells. */
   --count-plan-title-cells: 6;
-  --size-plan-swatch: 18px;
-  --size-plan-description: 96px;
-  /** A card being dragged, or its title being typed: over the other cards. */
-  --layer-plan-drag: 2;
   /**
-   * The grid's dots, over every card and its shadow (`plan.css`). A dot never
-   * falls on a card — it is a pixel either side of a corner, and a card sits
-   * `--space-plan-card` inside its squares — so being on top only means that
-   * no shadow ever passes over one.
+   * The selected card's panel (Noah, 2026-11-23: compact, and the card itself
+   * to write on rather than a form): its width, its colour swatches, the
+   * buttons along its foot, and the description's height at rest (three lines).
    */
-  --layer-plan-dots: 3;
+  --measure-plan-panel: 46ch;
+  --size-plan-swatch: 14px;
+  --size-plan-step: 20px;
+  --size-plan-description: calc(var(--size-label) * var(--leading-body) * 3 + var(--space-hair) * 2 + var(--rule-thin) * 2);
+  /**
+   * The title and description on the panel: clear at rest, a faint tint and
+   * hairline under the pointer, a shade deeper while typed in, edged in the
+   * card's own colour.
+   */
+  --colour-plan-field-hover: color-mix(in srgb, var(--colour-text) 5%, transparent);
+  --colour-plan-field-edge: color-mix(in srgb, var(--colour-text) 12%, transparent);
+  --colour-plan-field-focus: color-mix(in srgb, var(--colour-base) 45%, transparent);
+  /**
+   * The board's layers, bottom to top, inside the board's own stacking context
+   * (`plan.css`): the dots, then the beat lines and the end of the target, then
+   * the cards, then a card being dragged or its title being typed. **A card is
+   * always over the grid**, so no dot or line is ever drawn on or through one;
+   * each card is opaque, so nothing under it shows either.
+   */
+  --layer-plan-dots: 1;
+  --layer-plan-lines: 2;
+  --layer-plan-cards: 3;
+  --layer-plan-drag: 4;
   /**
    * A dot at each corner of the squares: square, a whole number of pixels, and
    * centred on the corner by half of it. Opaque, so it is the same colour over
-   * any background and at any pixel alignment.
+   * any background and at any pixel alignment. Quiet (Noah, 2026-11-23): a
+   * little lighter than the board, so the beat lines, the end of the target and
+   * the cards are what the eye finds first.
    */
   --size-plan-dot: 2px;
-  --colour-plan-dot: color-mix(in srgb, var(--colour-faint) 40%, var(--colour-raised));
-  /** One square's tile: the dot-sized square at its top-left, the rest clear. */
-  --image-plan-dot: conic-gradient(
-    at var(--size-plan-dot) var(--size-plan-dot),
-    transparent 75%,
-    var(--colour-plan-dot) 0
+  --colour-plan-dot: color-mix(in srgb, var(--colour-faint) 24%, var(--colour-raised));
+  /**
+   * A beat line and the end of the target are **exactly as wide as a column of
+   * dots, and drawn over the same span**: from half a dot before a square's edge
+   * to half a dot after it. Sharing the dots' edges is what keeps a line dead
+   * centre on its column at every display scale — a line of another width, or
+   * one starting at the edge, rounds to device pixels differently from the
+   * dots, and was off by up to a pixel and a quarter (#164).
+   */
+  --size-plan-line: var(--size-plan-dot);
+  /**
+   * One square's height of a column of dots: a dot at its top, the rest clear.
+   * Across, it fills the column's box, so its edges are the box's own.
+   */
+  --image-plan-dot: linear-gradient(
+    to bottom,
+    var(--colour-plan-dot) var(--size-plan-dot),
+    transparent var(--size-plan-dot)
   );
   /** The squares past the end of the target. */
   --colour-plan-past: color-mix(in srgb, var(--colour-base) 45%, transparent);

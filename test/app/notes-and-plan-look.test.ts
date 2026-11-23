@@ -6,9 +6,10 @@
  * and on a short window shrunk, still 16:9, to stay clear of the bar and the
  * pills. It is not the Editor's paper.
  *
- * Plan's grid is a dot at each corner of its squares, opaque, on a layer over
- * the cards and their shadows, so that nothing a card does — a drag included —
- * changes how a dot looks. The beats and the end of the target stay lines.
+ * Plan's grid is a dot at each corner of its squares, opaque and quiet, a
+ * column of them on every edge, under the lines and under every card. A beat
+ * line and the end of the target span exactly a column of dots, so each sits
+ * dead centre on one at any display scale; the cards sit over all of it.
  * (That nothing is drawn again mid-drag is `notes-and-plan.test.ts`.)
  */
 import { readFileSync } from "node:fs";
@@ -23,7 +24,8 @@ function sheet(path: string): string {
 }
 
 function rule(path: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // A selector list may be written over several lines.
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/, /g, ",\\s*");
   const found = [...sheet(path).matchAll(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "gm"))];
   if (found.length === 0) throw new Error(`no rule for ${selector}`);
   return found.map((match) => match[1]).join("\n").replace(/\s+/g, " ");
@@ -109,17 +111,20 @@ describe("Notes, a floating window", () => {
 
 describe("Plan's grid, a steady field of dots", () => {
   const grid = rule(PLAN, ".plan__grid");
-  const dots = rule(PLAN, ".plan__grid::after");
+  const dots = rule(PLAN, ".plan__dots");
+  const column = rule(PLAN, ".plan__dot-column");
 
-  it("is drawn as dots at the squares' corners, not as lines", () => {
+  it("is drawn as dots at the squares' corners, a column of them on every edge, not as lines", () => {
     expect(grid).not.toContain("gradient");
-    expect(grid).toContain("isolation: isolate");
-    expect(dots).toContain("background-image: var(--image-plan-dot)");
-    expect(dots).toContain("background-size: var(--size-plan-cell) var(--size-plan-cell)");
-    expect(dots).toContain("background-position: calc(var(--size-plan-dot) / -2) calc(var(--size-plan-dot) / -2)");
+    expect(dots).toContain("z-index: var(--layer-plan-dots)");
     expect(dots).toContain("pointer-events: none");
+    expect(column).toContain("left: calc(var(--dot-cell) * var(--size-plan-cell) - var(--size-plan-dot) / 2)");
+    expect(column).toContain("width: var(--size-plan-dot)");
+    expect(column).toContain("background-image: var(--image-plan-dot)");
+    expect(column).toContain("background-size: 100% var(--size-plan-cell)");
+    expect(column).toContain("background-position: 0 calc(var(--size-plan-dot) / -2)");
     expect(token("--image-plan-dot")).toBe(
-      "conic-gradient( at var(--size-plan-dot) var(--size-plan-dot), transparent 75%, var(--colour-plan-dot) 0 )",
+      "linear-gradient( to bottom, var(--colour-plan-dot) var(--size-plan-dot), transparent var(--size-plan-dot) )",
     );
     expect(tokens).not.toContain("--colour-plan-line");
   });
@@ -133,11 +138,26 @@ describe("Plan's grid, a steady field of dots", () => {
     expect(token("--colour-plan-dot")).toMatch(/^color-mix\(in srgb, var\(--colour-[\w-]+\) \d+%, var\(--colour-raised\)\)$/);
   });
 
-  it("is over every card and its shadow, and a dot never falls on a card", () => {
-    expect(dots).toContain("z-index: var(--layer-plan-dots)");
-    expect(Number(token("--layer-plan-dots"))).toBeGreaterThan(Number(token("--layer-plan-drag")));
-    // Half a dot either side of a corner; a card sits this far inside its squares.
-    expect(pixels("--size-plan-dot") / 2).toBeLessThan(pixels("--space-plan-card"));
+  it("is quieter than the beat lines and the end of the target (Noah, 2026-11-23)", () => {
+    const share = (name: string) => Number(/ (\d+)%, var\(--colour-raised\)\)$/.exec(token(name))![1]);
+    expect(share("--colour-plan-dot")).toBeLessThanOrEqual(25);
+    expect(share("--colour-plan-dot")).toBeLessThan(share("--colour-plan-beat"));
+    expect(token("--colour-plan-end")).toBe("var(--colour-faint)");
+  });
+
+  it("puts every card over the dots and the lines, so nothing of the grid is drawn on one", () => {
+    const layer = (name: string) => Number(token(name));
+    expect(layer("--layer-plan-dots")).toBeLessThan(layer("--layer-plan-lines"));
+    expect(layer("--layer-plan-lines")).toBeLessThan(layer("--layer-plan-cards"));
+    expect(layer("--layer-plan-cards")).toBeLessThan(layer("--layer-plan-drag"));
+    expect(rule(PLAN, ".plan__card")).toContain("z-index: var(--layer-plan-cards)");
+    expect(rule(PLAN, '.plan__card[data-dragging="true"]')).toContain("z-index: var(--layer-plan-drag)");
+    // The layers are the board's own, so they share one stacking context: the
+    // grid is not one, or the lines beside it could not go between its dots and its cards.
+    expect(rule(PLAN, ".plan__surface")).toContain("isolation: isolate");
+    expect(grid).not.toMatch(/isolation|z-index/);
+    // Opaque: a card's face and edge are mixed from opaque colours only.
+    expect(rule(PLAN, ".plan__card")).not.toMatch(/transparent|opacity/);
   });
 
   it("does not see-through a dragged card, so the grid under it never shows", () => {
@@ -145,13 +165,43 @@ describe("Plan's grid, a steady field of dots", () => {
     expect(tokens).not.toContain("--opacity-plan-drag");
   });
 
-  it("keeps the beats and the end of the target as lines, in opaque colours, clear of the cards' shadows", () => {
-    expect(rule(PLAN, ".plan__beat")).toContain("border-left: var(--rule-thin) dashed var(--colour-plan-beat)");
+  it("draws the beats and the end of the target over exactly the span of a column of dots, so each is dead centre on it", () => {
+    // The one rule that makes it so: a line is a dot wide, and starts half a dot before the edge, as the column does.
+    expect(token("--size-plan-line")).toBe("var(--size-plan-dot)");
+    const beat = rule(PLAN, ".plan__beat");
+    expect(beat).toContain("left: calc(var(--beat-cell) * var(--size-plan-cell) - var(--size-plan-line) / 2)");
+    expect(beat).toContain("border-left: var(--size-plan-line) dashed var(--colour-plan-beat)");
+    expect(beat).toContain("width: 0");
+    expect(beat).toContain("z-index: var(--layer-plan-lines)");
+    const end = rule(PLAN, ".plan__end");
+    expect(end).toContain("left: calc(var(--plan-length) * var(--size-plan-cell) - var(--size-plan-line) / 2)");
+    expect(end).toContain("width: var(--size-plan-line)");
+    expect(end).toContain("background: var(--colour-plan-end)");
+    expect(end).toContain("z-index: var(--layer-plan-lines)");
+    expect(end).not.toContain("border");
     expect(token("--colour-plan-beat")).toContain("var(--colour-raised)");
     expect(token("--colour-plan-beat")).not.toContain("transparent");
-    const end = rule(PLAN, ".plan__end");
-    expect(end).toContain("border-left: var(--rule-thin) solid var(--colour-plan-end)");
-    expect(end).toContain("z-index: var(--layer-plan-dots)");
-    expect(token("--colour-plan-end")).toBe("var(--colour-faint)");
+  });
+});
+
+describe("Plan's card panel, the card itself to write on", () => {
+  const panel = rule(PLAN, ".plan__panel");
+  const fields = rule(PLAN, ".plan__panel-title, .plan__description");
+
+  it("is compact, and wears the card's own tinted face and edge", () => {
+    expect(panel).toContain("width: min(var(--measure-plan-panel), 100%)");
+    expect(panel).toContain("padding: var(--space-tight)");
+    expect(panel).toContain("background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay))");
+    expect(rule(PLAN, '.plan__panel[data-colour="blue"]')).toContain("--card-tint: var(--colour-plan-blue)");
+  });
+
+  it("has a title and description with no box at rest, a hairline under the pointer, and a firmer edge while typed in", () => {
+    expect(fields).toContain("background: transparent");
+    expect(fields).toContain("border: var(--rule-thin) solid transparent");
+    expect(fields).toContain("cursor: text");
+    expect(rule(PLAN, ".plan__description")).toContain("resize: none");
+    expect(rule(PLAN, ".plan__panel-title:hover, .plan__description:hover")).toContain("border-color: var(--colour-plan-field-edge)");
+    expect(rule(PLAN, ".plan__panel-title:focus, .plan__description:focus")).toContain("background: var(--colour-plan-field-focus)");
+    expect(rule(PLAN, ".plan__panel-title::placeholder, .plan__description::placeholder")).toContain("color: var(--colour-faint)");
   });
 });

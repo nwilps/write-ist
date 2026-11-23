@@ -41,6 +41,9 @@
 
 .plan__surface {
   position: relative;
+  /* Its layers (dots, lines, cards) are its own: none is ever drawn over the
+     workspace bar or the pills when the board passes under them. */
+  isolation: isolate;
   width: calc(var(--plan-columns) * var(--size-plan-cell));
   font-size: var(--size-hint);
   color: var(--colour-faint);
@@ -62,31 +65,43 @@
 
 .plan__grid {
   position: relative;
-  /* Its layers (cards, the dots over them) are its own: a dot is never drawn
-     over the workspace bar or the pills when the board passes under them. */
-  isolation: isolate;
   height: calc(var(--plan-lanes) * var(--size-plan-cell));
   border-radius: var(--radius-slight);
   cursor: default;
 }
 
 /*
- * The grid is a dot at each corner of its squares, drawn once, on its own
- * layer over the cards. Each tile is a square, and its conic gradient fills
- * only the dot-sized square at its top-left; the whole is pulled back by half
- * a dot so the dot sits on the corner. Opaque, and over every card's shadow,
- * so a dot is the same dot wherever a card is or is dragged to. Nothing here
- * changes while a card moves: the grid is drawn again only once it is dropped.
+ * The grid is a dot at each corner of its squares, drawn once, on the lowest
+ * layer: under the lines and under every card.
+ *
+ * **Each column of dots is a box of its own**, a dot wide and centred on a
+ * square's edge, filled with a dot every square down. A beat line and the end
+ * of the target are boxes over exactly the same span (`--size-plan-line`), so
+ * the browser rounds a line and the dots under it to the same device pixels at
+ * any display scale and wherever the board sits. Drawn as one tiled image
+ * across the grid, the dots were resampled to a slightly different width and
+ * place at 1.25×, and a line could never sit dead centre on them (#164).
+ *
+ * Opaque, so a dot is the same dot over the board and over the squares past
+ * the target. Nothing here changes while a card moves: the grid is drawn again
+ * only once it is dropped.
  */
-.plan__grid::after {
-  content: "";
+.plan__dots {
   position: absolute;
   inset: 0;
   z-index: var(--layer-plan-dots);
-  background-image: var(--image-plan-dot);
-  background-size: var(--size-plan-cell) var(--size-plan-cell);
-  background-position: calc(var(--size-plan-dot) / -2) calc(var(--size-plan-dot) / -2);
   pointer-events: none;
+}
+
+.plan__dot-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--dot-cell) * var(--size-plan-cell) - var(--size-plan-dot) / 2);
+  width: var(--size-plan-dot);
+  background-image: var(--image-plan-dot);
+  background-size: 100% var(--size-plan-cell);
+  background-position: 0 calc(var(--size-plan-dot) / -2);
 }
 
 /* Past the target: still room to put a card, drawn as beyond the whole. */
@@ -100,14 +115,19 @@
   pointer-events: none;
 }
 
-/* The end of the target: a line, on the dots' layer, so no shadow passes over it either. */
+/*
+ * The end of the target: a line over the dots, under the cards. Like every
+ * line on the board it spans exactly the column of dots on its edge — half a
+ * dot either side — so it sits dead centre on them at any display scale.
+ */
 .plan__end {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--plan-length) * var(--size-plan-cell));
-  z-index: var(--layer-plan-dots);
-  border-left: var(--rule-thin) solid var(--colour-plan-end);
+  left: calc(var(--plan-length) * var(--size-plan-cell) - var(--size-plan-line) / 2);
+  width: var(--size-plan-line);
+  z-index: var(--layer-plan-lines);
+  background: var(--colour-plan-end);
   pointer-events: none;
 }
 
@@ -135,6 +155,8 @@
   color: var(--colour-text);
   font-size: var(--size-label);
   cursor: grab;
+  /* Over the dots and the lines: nothing of the grid is ever drawn on a card. */
+  z-index: var(--layer-plan-cards);
 }
 
 .plan__card[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
@@ -151,7 +173,7 @@
 /*
  * Dragged, it is lifted over the other cards, and stays opaque: drawn
  * see-through, it showed the grid through itself, so the squares under it
- * changed as it passed.
+ * changed as it passed. The dots under it are not drawn again as it moves.
  */
 .plan__card[data-dragging="true"] {
   z-index: var(--layer-plan-drag);
@@ -200,12 +222,19 @@
   height: calc(var(--plan-beat-rows) * var(--size-plan-beat-row) + var(--space-snug));
 }
 
+/*
+ * A beat's line runs up from its label through the grid, on a whole square's
+ * edge (`layoutBeats` rounds every beat to one), spanning exactly the column
+ * of dots there, as the end of the target does. Over the dots, under the cards.
+ */
 .plan__beat {
   position: absolute;
+  z-index: var(--layer-plan-lines);
   bottom: calc(100% - var(--space-snug) - var(--beat-row) * var(--size-plan-beat-row));
-  left: calc(var(--beat-cell) * var(--size-plan-cell));
+  left: calc(var(--beat-cell) * var(--size-plan-cell) - var(--size-plan-line) / 2);
+  width: 0;
   height: calc(var(--plan-lanes) * var(--size-plan-cell) + var(--space-snug) + var(--beat-row) * var(--size-plan-beat-row));
-  border-left: var(--rule-thin) dashed var(--colour-plan-beat);
+  border-left: var(--size-plan-line) dashed var(--colour-plan-beat);
   pointer-events: none;
 }
 
@@ -270,42 +299,66 @@
   flex: none;
 }
 
-/* The selected card: its title, colour, length and description. */
+/*
+ * The selected card, larger, to write on: the same tinted face and edge as the
+ * card on the grid, a little rounder, and compact. Its title and description
+ * are typed straight onto it: at rest they are the card's own text, with no
+ * box round them; a pointer over one gives it a faint tint and hairline, and
+ * while it is being typed in it is a shade deeper with a firmer edge.
+ */
 .plan__panel {
+  --card-tint: var(--colour-plan-plain);
   display: flex;
   flex-direction: column;
-  gap: var(--space-snug);
-  width: min(var(--measure-reading), 100%);
+  gap: var(--space-hair);
+  width: min(var(--measure-plan-panel), 100%);
   box-sizing: border-box;
-  padding: var(--space-roomy);
-  background: var(--colour-raised);
-  border: var(--rule-thin) solid var(--colour-border);
-  border-radius: var(--radius-float);
+  padding: var(--space-tight);
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
+  border: var(--rule-thin) solid color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
+  border-radius: var(--radius-round);
   box-shadow: var(--shadow-float);
 }
+
+.plan__panel[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__panel[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__panel[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__panel[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__panel[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__panel[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
 .plan__panel[hidden] {
   display: none;
 }
 
 .plan__panel-head,
-.plan__panel-row {
+.plan__panel-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-roomy);
+  gap: var(--space-snug);
+}
+
+.plan__panel-foot {
+  padding: var(--space-hair) var(--space-tight) 0;
 }
 
 .plan__panel-title,
 .plan__description {
   box-sizing: border-box;
-  padding: var(--space-tight) var(--space-snug);
-  background: var(--colour-base);
-  border: var(--rule-thin) solid var(--colour-border);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-hair) var(--space-tight);
+  background: transparent;
+  border: var(--rule-thin) solid transparent;
   border-radius: var(--radius-slight);
   color: var(--colour-text);
+  caret-color: var(--colour-accent);
   font: inherit;
   outline: none;
+  cursor: text;
+  transition:
+    background-color var(--duration-quick) ease-out,
+    border-color var(--duration-quick) ease-out;
 }
 
 .plan__panel-title {
@@ -315,19 +368,29 @@
 }
 
 .plan__description {
+  display: block;
   min-height: var(--size-plan-description);
   font-size: var(--size-label);
   line-height: var(--leading-body);
-  resize: vertical;
+  resize: none;
+}
+
+.plan__panel-title:hover,
+.plan__description:hover {
+  background: var(--colour-plan-field-hover);
+  border-color: var(--colour-plan-field-edge);
 }
 
 .plan__panel-title:focus,
 .plan__description:focus {
-  border-color: var(--colour-border-strong);
+  background: var(--colour-plan-field-focus);
+  border-color: color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
 }
 
+.plan__panel-title::placeholder,
 .plan__description::placeholder {
   color: var(--colour-faint);
+  opacity: 1;
 }
 
 .plan__swatches {
@@ -361,22 +424,46 @@
 .plan__stepper {
   display: flex;
   align-items: center;
-  gap: var(--space-snug);
+  gap: var(--space-hair);
+  margin-left: auto;
   color: var(--colour-muted);
-  font-size: var(--size-label);
+  font-size: var(--size-hint);
   font-variant-numeric: tabular-nums;
 }
 
-.plan__step {
-  width: var(--size-chip);
-  height: var(--size-chip);
+.plan__step,
+.plan__delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-hair);
+  height: var(--size-plan-step);
   padding: 0;
-  background: var(--colour-overlay);
-  border: var(--rule-thin) solid var(--colour-border-strong);
+  background: transparent;
+  border: var(--rule-thin) solid transparent;
   border-radius: var(--radius-slight);
-  color: var(--colour-text);
+  color: var(--colour-muted);
   font: inherit;
+  font-size: var(--size-hint);
   cursor: default;
+}
+
+.plan__step {
+  width: var(--size-plan-step);
+  color: var(--colour-text);
+}
+
+.plan__delete {
+  padding: 0 var(--space-tight);
+}
+
+.plan__step:hover:not(:disabled),
+.plan__step:focus-visible,
+.plan__delete:hover,
+.plan__delete:focus-visible {
+  background: var(--colour-plan-field-hover);
+  border-color: var(--colour-plan-field-edge);
+  outline: none;
 }
 
 .plan__step:disabled {

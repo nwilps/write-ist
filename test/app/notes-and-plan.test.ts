@@ -290,6 +290,30 @@ describe("Plan", () => {
     expect(into.querySelector(".pill--counts")!.textContent).toBe("1 card");
   });
 
+  it("puts every structure beat on a whole square's edge, with a column of dots under it, at every target length", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN.replace("# Plan\n", "# Plan\n\nStructure: save-the-cat, heros-journey, sequence-approach, story-circle\n"));
+    const into = await openProject();
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    for (const pages of ["90", "100", "110", "120"]) {
+      await editDetails(into, () => typePages(pages));
+      const columns = Number(surface(into).style.getPropertyValue("--plan-columns"));
+      const dotted = new Set(
+        [...into.querySelectorAll<HTMLElement>(".plan__dot-column")].map((column) => Number(column.style.getPropertyValue("--dot-cell"))),
+      );
+      // A column on every edge, the first and the last included, and no other.
+      expect(dotted.size).toBe(columns + 1);
+      expect(into.querySelectorAll(".plan__dot-column").length).toBe(columns + 1);
+      const beats = [...into.querySelectorAll<HTMLElement>(".plan__beat")].map((beat) => beat.style.getPropertyValue("--beat-cell"));
+      expect(beats.length).toBeGreaterThan(30);
+      for (const cell of beats) {
+        expect(cell).toMatch(/^\d+$/);
+        expect(dotted.has(Number(cell))).toBe(true);
+      }
+      expect(dotted.has(Number(pages))).toBe(true);
+    }
+  });
+
   it("follows a new target page count: the grid resizes, the card keeps its place in the whole, plan.md is not rewritten", async () => {
     writeFileSync(join(opened.path, "plan.md"), PLAN);
     const into = await openProject();
