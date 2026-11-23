@@ -1,31 +1,55 @@
 /*
- * Notes: a notepad on a sheet (`notes.ts`). **Every value here is a token**
- * (ADR-0030).
+ * Notes: a notepad in a window floating on the desk (`notes.ts`). **Every
+ * value here is a token** (ADR-0030).
  *
- * The sheet is the Editor's paper — its colour, corners and shadow, and its
- * width as drawn, so the shell's fades at the window's top and foot sit on it
- * exactly as they sit on the manuscript. It runs the window's full height and
- * grows with the notes. The writing is in the interface's face, not the
- * manuscript's: Courier Prime is the screenplay's and nothing else's.
+ * The window is shaped like a laptop's screen: three quarters of the
+ * workspace's width and 16:9, centred. It never grows with the notes — long
+ * notes scroll inside it — and on a short window it shrinks, still 16:9, to
+ * stay clear of the workspace bar and the pills. It wears what every floating
+ * surface on the desk wears: the raised colour, a border, the float corner and
+ * shadow. The writing is in the interface's face, not the manuscript's:
+ * Courier Prime is the screenplay's and nothing else's.
  */
 
+/*
+ * The desk fills the workspace exactly, and is the container the notepad is
+ * measured against: its content never sizes it, so the window never scrolls.
+ */
 .notes-desk {
   flex: 1 0 auto;
+  container-type: size;
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 .notes {
-  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(calc(var(--page-width) * var(--paper-zoom)), 100%);
-  padding: var(--space-notes-top) var(--space-notes-side) var(--space-notes-foot);
-  background: var(--colour-page);
-  border-radius: var(--radius-paper);
-  box-shadow: var(--shadow-paper);
+  flex: none;
+  /* As wide as its share of the desk, unless the desk is too short for 16:9 at
+     that width: then as wide as the height left between the insets allows. */
+  width: min(
+    calc(var(--size-notes-room-width) * var(--fraction-notes-width)),
+    calc((var(--size-notes-room-height) - var(--space-notes-inset) * 2) * var(--ratio-notes))
+  );
+  aspect-ratio: var(--ratio-notes);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--space-notes-y) var(--space-notes-x);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+/*
+ * The shell's fades belong to the paper. Notes has none under them, so with
+ * the moving background on they would be bands of paper colour over the desk.
+ */
+.shell:has(> .shell__view > .workspace[data-workspace="notes"]:not([hidden])) > .paper-fade {
+  display: none;
 }
 
 .notes__reading {

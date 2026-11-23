@@ -185,8 +185,13 @@ describe("Notes", () => {
     let view = await notesView(into);
     // "sec|ond": offset 14 in the text is position 16 in the document.
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 16)));
+    // The notepad scrolls inside itself; the window's column does not move.
+    const pad = into.querySelector<HTMLElement>(".notes")!;
+    pad.scrollTop = 340;
+    pad.dispatchEvent(new Event("scroll"));
+    // A scroll anywhere else is not the notepad's.
     const column = into.querySelector<HTMLElement>(".shell__view")!;
-    column.scrollTop = 340;
+    column.scrollTop = 25;
     column.dispatchEvent(new Event("scroll"));
     await closeProject();
     expect(readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8")).toBe(
@@ -199,7 +204,14 @@ describe("Notes", () => {
     view = await notesView(into);
     expect(view.state.doc.textContent).toBe("first linesecond linethird line");
     expect(view.state.selection.head).toBe(16);
-    await vi.waitFor(() => expect(into.querySelector<HTMLElement>(".shell__view")!.scrollTop).toBe(340));
+    await vi.waitFor(() => expect(into.querySelector<HTMLElement>(".notes")!.scrollTop).toBe(340));
+
+    // Away to the Editor and back: the notepad is where it was, even if it
+    // lost its scroll while it was out of sight.
+    alt("1");
+    into.querySelector<HTMLElement>(".notes")!.scrollTop = 0;
+    alt("2");
+    expect(into.querySelector<HTMLElement>(".notes")!.scrollTop).toBe(340);
   });
 
   it("answers a right-click with Write-ist's own menu, never the webview's", async () => {

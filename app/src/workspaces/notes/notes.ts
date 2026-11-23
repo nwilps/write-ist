@@ -3,10 +3,11 @@
  * simplified Windows Notepad"*).
  *
  * What the writer types is what they see and what `notes.md` holds — no
- * formatting, no elements, nothing drawn as Markdown. It is written on a sheet
- * the size of the Editor's paper, in the interface's face rather than the
- * manuscript's (ADR-0030: Courier Prime is the screenplay's and nothing
- * else's), and it saves itself the way the manuscript does (ADR-0028).
+ * formatting, no elements, nothing drawn as Markdown. It is written in a
+ * window floating on the desk, 16:9 like a laptop's screen, that scrolls inside
+ * itself rather than growing with the notes; in the interface's face rather
+ * than the manuscript's (ADR-0030: Courier Prime is the screenplay's and
+ * nothing else's); and it saves itself the way the manuscript does (ADR-0028).
  *
  * This file is the window's adapter over a **notes session**
  * (`src/notes/notes-session.ts`), which holds the text, the undo history, the
@@ -80,21 +81,20 @@ export function notesManifest(dependencies: NotesDependencies): WorkspaceManifes
 }
 
 function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: NotesDependencies): MountedWorkspace {
-  const paper = element("div", { className: "notes" });
+  // The notepad, which is also what scrolls: long notes scroll inside it.
+  const pad = element("div", { className: "notes" });
   const reading = element("p", { className: "notes__reading", textContent: "Reading your notes…" });
-  paper.append(reading);
-  into.replaceChildren(element("div", { className: "notes-desk" }, [paper]));
+  pad.append(reading);
+  into.replaceChildren(element("div", { className: "notes-desk" }, [pad]));
 
   let session: NotesSession | undefined;
   let view: EditorView | undefined;
   let gone = false;
   let hidden = false;
   let contextMenu: ContextMenu | undefined;
-  // A scroll recalled before the sheet could be scrolled to, put back when it can.
-  let pendingScroll: number | undefined;
+  // Where the notepad was scrolled to: kept, and put back whenever Notes is
+  // shown, since a notepad out of sight can lose its scroll.
   let lastScroll = 0;
-
-  const scroller = (): HTMLElement | undefined => scrollingAncestor(paper);
 
   // --- The writer's place: caret and scroll, kept in app data. ---
   let placeRest: ReturnType<typeof setTimeout> | undefined;
@@ -120,12 +120,11 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
   };
   const scrolled = (): void => {
-    const at = scroller();
-    if (hidden || at === undefined) return;
-    lastScroll = at.scrollTop;
+    if (hidden) return;
+    lastScroll = pad.scrollTop;
     restPlace();
   };
-  document.addEventListener("scroll", scrolled, true);
+  pad.addEventListener("scroll", scrolled);
 
   // --- What the keys and the menu do. ---
   const save = (): void => {
@@ -251,7 +250,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     }
     void openContext(event.clientX, event.clientY, at, false);
   };
-  paper.addEventListener("contextmenu", onContextMenu);
+  pad.addEventListener("contextmenu", onContextMenu);
 
   // Heard on the way down, wherever focus is, while Notes is on screen.
   const windowKeys = (event: KeyboardEvent): void => {
@@ -294,7 +293,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
         writing.select(place["anchor"] ?? 0, place["head"] ?? place["anchor"] ?? 0);
         placeKept = JSON.stringify({ anchor: place["anchor"], head: place["head"], scroll: place["scroll"] });
       }
-      view = new EditorView(paper, {
+      view = new EditorView(pad, {
         state: writing.state,
         dispatchTransaction: (transaction) => {
           writing.apply(transaction);
@@ -353,10 +352,8 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
         attributes: { class: "notes__text", spellcheck: "false", "aria-label": "Notes", "aria-multiline": "true" },
       });
       const editing = view;
-      const at = scroller();
-      if (!hidden && at !== undefined && place?.["scroll"] !== undefined) at.scrollTop = place["scroll"];
-      else if (place?.["scroll"] !== undefined) pendingScroll = place["scroll"];
       lastScroll = place?.["scroll"] ?? 0;
+      if (!hidden) pad.scrollTop = lastScroll;
       const active = document.activeElement;
       if (!hidden && (active === null || active === document.body)) editing.focus();
     } catch (error) {
@@ -370,8 +367,8 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   const takeDown = (): void => {
     gone = true;
     clearTimeout(placeRest);
-    paper.removeEventListener("contextmenu", onContextMenu);
-    document.removeEventListener("scroll", scrolled, true);
+    pad.removeEventListener("contextmenu", onContextMenu);
+    pad.removeEventListener("scroll", scrolled);
     window.removeEventListener("keydown", windowKeys, true);
     stopListeningForDetails();
     contextMenu?.close(false);
@@ -382,8 +379,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   return {
     focus: () => view?.focus(),
     hide: () => {
-      const at = scroller();
-      if (at !== undefined && !hidden) lastScroll = at.scrollTop;
+      if (!hidden) lastScroll = pad.scrollTop;
       hidden = true;
       contextMenu?.close(false);
       void session?.save();
@@ -391,11 +387,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     },
     show: () => {
       hidden = false;
-      const at = scroller();
-      if (pendingScroll !== undefined && at !== undefined) {
-        at.scrollTop = pendingScroll;
-        pendingScroll = undefined;
-      }
+      pad.scrollTop = lastScroll;
       view?.focus();
     },
     relocate: (move) => (session === undefined ? move() : session.relocate(move)),
@@ -404,7 +396,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
         takeDown();
         return true;
       }
-      // The last save decides: the sheet comes down only once the notes are on disk.
+      // The last save decides: the notepad comes down only once the notes are on disk.
       if (!(await session.leave())) return false;
       await keepPlace();
       takeDown();
@@ -423,11 +415,3 @@ async function recallPlace(context: WorkspaceContext): Promise<Readonly<Record<s
   }
 }
 
-/** The nearest element above this one that scrolls up and down. */
-function scrollingAncestor(from: HTMLElement): HTMLElement | undefined {
-  const window = from.ownerDocument.defaultView;
-  for (let at = from.parentElement; at !== null && window !== null; at = at.parentElement) {
-    if (/auto|scroll/.test(window.getComputedStyle(at).overflowY)) return at;
-  }
-  return undefined;
-}

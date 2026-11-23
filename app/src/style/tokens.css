@@ -625,12 +625,27 @@
 :root {
   /** The notepad's text: the interface's face, a little larger than its labels. */
   --size-notes: var(--size-body);
-  /** Room above the first line, clear of the workspace bar floating over the sheet. */
-  --space-notes-top: var(--space-panel-top);
-  /** Room either side of the writing. */
-  --space-notes-side: calc(var(--space-vast) + var(--space-loose));
-  /** Room below the last line, clear of the pills along the foot. */
-  --space-notes-foot: calc(var(--space-desk-foot) + var(--space-vast));
+  /**
+   * The notepad is a window floating on the desk, shaped like a laptop's
+   * screen (Noah, 2026-11-23): three quarters of the workspace's width, 16:9.
+   */
+  --fraction-notes-width: 0.75;
+  --ratio-notes: 16 / 9;
+  /**
+   * The room the notepad is measured against: the Notes desk's own width and
+   * height, which is a size container (`notes.css`), not the window's.
+   */
+  --size-notes-room-width: 100cqw;
+  --size-notes-room-height: 100cqh;
+  /**
+   * The desk kept clear above and below the notepad: past the workspace bar
+   * and the fade at the top, and the pills and the fade at the foot. On a
+   * short window the notepad shrinks, still 16:9, rather than run into them.
+   */
+  --space-notes-inset: var(--space-panel-top);
+  /** Room between the notepad's edge and the writing. */
+  --space-notes-y: var(--space-loose);
+  --space-notes-x: var(--space-vast);
   /** How many spaces wide a tab is drawn. */
   --count-notes-tab: 4;
 }
