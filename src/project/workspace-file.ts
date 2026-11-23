@@ -151,6 +151,11 @@ export interface WorkspaceFileSession {
    * has been told, and whatever holds the words must stay up.
    */
   readonly leave: () => Promise<boolean>;
+  /**
+   * Resolves when the save under way, if any — the pause's own included — has
+   * landed or failed. Starts none.
+   */
+  readonly settled: () => Promise<void>;
   /** Move the project's folder between saves, and go on saving where it went (`save.ts`'s `relocate`). */
   readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
   /** The file's path in the project's folder, as it is now: `rename` changes it. */
@@ -317,6 +322,7 @@ export function workspaceFileSession(ports: WorkspaceFilePorts, read: WorkspaceF
       stopBack();
       return true;
     },
+    settled: () => running,
     relocate: (move) => {
       const moving = (): Promise<Project> => withinLimit(move().then((moved) => (project = moved)), clock);
       const moved = running.then(moving, moving);

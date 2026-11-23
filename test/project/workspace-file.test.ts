@@ -43,8 +43,6 @@ function handClock(): Clock & { readonly turn: (by: number) => void } {
   };
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
-
 let temporary: { path: string; remove: () => void };
 let project: Project;
 beforeEach(() => {
@@ -122,10 +120,10 @@ describe("saving a workspace file", () => {
     session.changed();
     expect(session.unsaved()).toBe(true);
     clock.turn(PAUSE - 1);
-    await settle();
+    await session.settled();
     expect(existsSync(filePath())).toBe(false);
     clock.turn(1);
-    await settle();
+    await session.settled();
     expect(readFileSync(filePath(), "utf8")).toBe("The river is the whole story.");
     expect(session.unsaved()).toBe(false);
     expect(states).toEqual(["unsaved", "saving", "saved"]);
@@ -288,7 +286,7 @@ describe("a workspace file in a folder of its own", () => {
     session.changed();
     session.discard();
     clock.turn(PAUSE);
-    await settle();
+    await session.settled();
     await session.save();
     expect(await session.leave()).toBe(true);
     expect(readFileSync(notePath(), "utf8")).toBe("on disk");

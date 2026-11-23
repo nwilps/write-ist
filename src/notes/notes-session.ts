@@ -87,6 +87,8 @@ export interface NotesSession {
   readonly unsaved: () => boolean;
   readonly save: () => Promise<void>;
   readonly leave: () => Promise<boolean>;
+  /** Resolves when the save under way, if any, has landed or failed (`WorkspaceFileSession.settled`). */
+  readonly settled: () => Promise<void>;
   readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
   /** Move the note's file between saves, and go on saving there (`WorkspaceFileSession.rename`). */
   readonly rename: (move: (from: string) => Promise<string>) => Promise<string>;
@@ -222,6 +224,7 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
     unsaved: file.unsaved,
     save: file.save,
     leave: file.leave,
+    settled: file.settled,
     relocate: file.relocate,
     rename: file.rename,
     file: file.file,

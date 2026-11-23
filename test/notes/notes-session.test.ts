@@ -41,8 +41,6 @@ function handClock(): Clock & { readonly turn: (by: number) => void } {
   };
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
-
 let temporary: { path: string; remove: () => void };
 let project: Project;
 beforeEach(() => {
@@ -101,10 +99,10 @@ describe("typing in Notes", () => {
     type("**The ferry** crosses at night.");
     expect(session.unsaved()).toBe(true);
     clock.turn(PAUSE - 1);
-    await settle();
+    await session.settled();
     expect(existsSync(notesPath())).toBe(false);
     clock.turn(1);
-    await settle();
+    await session.settled();
     // Exactly what was typed: the hash and the asterisks are characters, not formatting.
     expect(readFileSync(notesPath(), "utf8")).toBe("# Ideas\n**The ferry** crosses at night.");
     expect(states.at(-1)).toBe("saved");
