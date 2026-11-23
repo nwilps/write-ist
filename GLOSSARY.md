@@ -205,7 +205,7 @@ The **character list** or the **location list** of a project (Edit ▸ Character
 List): every character a cue names and every place a scene heading names, **from its first
 use**, plus any the writer added by hand, minus any they removed. Autocomplete offers what is on
 it. **Remove** deletes a name from its list; the uses already in the script never put it back,
-only a new cue or heading typed later does. What was added and removed by hand is the one piece
+but typing it as a new cue or heading does, as soon as the caret leaves the line (no counting). What was added and removed by hand is the one piece
 of the lists that is stored (`names.txt` in the bundle). The lists have nothing to do with
 spellcheck or the dictionary.
 _Avoid_: confirmed name, approved name, known name, hidden name

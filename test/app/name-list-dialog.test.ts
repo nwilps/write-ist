@@ -81,8 +81,8 @@ describe("a name list dialog", () => {
     expect(shown()).toEqual(["EDGAR", "EDNA"]);
     expect(lists.isRemoved("character", "EDWARD")).toBe(true);
     expect(lists.startingWith("character", "EDW")).toEqual([]);
-    // The script's own EDWARD cues do not put it back as the lists settle.
-    lists.settle();
+    // The script's own EDWARD cues do not put it back as the lists change.
+    lists.apply([], [{ type: "character", text: "EDNA" }]);
     expect(shown()).toEqual(["EDGAR", "EDNA"]);
     expect(lists.list("character")).toEqual(["EDGAR", "EDNA"]);
   });

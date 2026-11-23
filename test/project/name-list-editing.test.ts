@@ -7,8 +7,8 @@
  * - **Add**: on the list, and offered by autocomplete, at once.
  * - **Remove**: deleted from the list. The uses already in the script never
  *   put it back — not when the list is worked out again, not when the dialog
- *   closes, not when the project is opened again. Only a new cue or heading
- *   typed afterwards does.
+ *   closes, not when the project is opened again. Typing it as a new cue or
+ *   heading does, as soon as the caret leaves the line: there is no counting.
  * - Kept per project, in the names file. Nothing is ever said.
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -103,12 +103,18 @@ describe("in a project", () => {
     };
   }
 
-  /** A new cue typed at the end of the script: a line of its own, then the name. */
+  /** A new cue typed at the end of the script: an empty line of its own, then the name, a letter at a time. */
   function typeCue(session: ManuscriptSession, name: string): void {
     const end = session.state.doc.content.size;
-    const node = session.state.schema.nodes["element"]!.create({ type: "character" }, session.state.schema.text(name));
+    const node = session.state.schema.nodes["element"]!.create({ type: "character" });
     const tr = session.state.tr.insert(end, node);
-    session.apply(tr.setSelection(TextSelection.create(tr.doc, tr.doc.content.size - 1)));
+    session.apply(tr.setSelection(TextSelection.create(tr.doc, end + 1)));
+    for (const letter of name) session.apply(session.state.tr.insertText(letter));
+  }
+
+  /** Put the caret at the start of the script, out of any line just typed. */
+  function moveAway(session: ManuscriptSession): void {
+    session.apply(session.state.tr.setSelection(TextSelection.create(session.state.doc, 1)));
   }
 
   it("adds a name: offered at once, and kept in the names file", async () => {
@@ -159,11 +165,59 @@ describe("in a project", () => {
     typeCue(session, "EDWARD");
     // The caret is still in the cue: it may yet become another name.
     expect(session.nameList("character")).toEqual(["EDNA"]);
-    session.apply(session.state.tr.setSelection(TextSelection.create(session.state.doc, 1)));
+    moveAway(session);
     expect(session.nameList("character")).toEqual(["EDNA", "EDWARD"]);
     await session.settled();
     expect((await readNamesFile(nodeFilesystem, project)).removed).toBeUndefined();
     expect(reports).toEqual([]);
+  });
+
+  it("brings it back when every cue was deleted and a new one typed, in the same sitting", async () => {
+    const { session } = await open();
+    session.removeName("character", "EDWARD");
+    // Delete every EDWARD cue, from the last up, so each position still holds.
+    const starts: number[] = [];
+    session.state.doc.forEach((node, offset) => void (node.textContent === "EDWARD" && starts.push(offset)));
+    for (const at of starts.reverse()) {
+      session.apply(session.state.tr.delete(at, at + session.state.doc.nodeAt(at)!.nodeSize));
+    }
+    expect(session.names.uses("character", "EDWARD")).toBe(0);
+    typeCue(session, "EDWARD");
+    moveAway(session);
+    expect(session.nameList("character")).toEqual(["EDNA", "EDWARD"]);
+  });
+
+  it("does not bring back a removed name a longer one passes through as it is typed", async () => {
+    const { session } = await open();
+    typeCue(session, "ED");
+    moveAway(session);
+    session.removeName("character", "ED");
+    expect(session.nameList("character")).toEqual(["EDNA", "EDWARD"]);
+    typeCue(session, "EDGAR");
+    moveAway(session);
+    expect(session.nameList("character")).toEqual(["EDGAR", "EDNA", "EDWARD"]);
+    expect(session.names.isRemoved("character", "ED")).toBe(true);
+  });
+
+  it("brings back a removed location typed in a new scene heading", async () => {
+    const { session } = await open();
+    session.removeName("location", "KITCHEN");
+    expect(session.nameList("location")).toEqual([]);
+    const end = session.state.doc.content.size;
+    const tr = session.state.tr.insert(end, session.state.schema.nodes["element"]!.create({ type: "scene-heading" }));
+    session.apply(tr.setSelection(TextSelection.create(tr.doc, end + 1)));
+    session.apply(session.state.tr.insertText("INT. KITCHEN - NIGHT"));
+    expect(session.nameList("location")).toEqual([]);
+    moveAway(session);
+    expect(session.nameList("location")).toEqual(["KITCHEN"]);
+  });
+
+  it("brings back a name typed in the line the caret is still in when the project closes", async () => {
+    const { session, project } = await open();
+    session.removeName("character", "EDWARD");
+    typeCue(session, "EDWARD");
+    expect(await session.leave()).toBe(true);
+    expect((await readNamesFile(nodeFilesystem, project)).removed).toBeUndefined();
   });
 
   it("keeps each project's own lists: what was removed stays removed when it is opened again", async () => {

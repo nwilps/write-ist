@@ -140,8 +140,9 @@ stopped at the element boundary (#26).
 - [x] **Name lists** — characters and locations derived from the cues and headings, on the list
       from their first use, kept up to date from the elements each edit changed (`names.ts`,
       `names-sync.ts`). Edit ▸ Character List / Location List add and remove by hand; Remove
-      deletes a name, and only a new use typed afterwards brings it back (Noah, 2026-11-22: no
-      three-use count, no hiding). What was added and removed is in `names.txt`. Spellcheck does
+      deletes a name, and typing it as a new cue or heading brings it straight back once the
+      caret leaves the line (Noah, 2026-11-22: no three-use count, no hiding, no counting of
+      uses at removal). What was added and removed is in `names.txt`. Spellcheck does
       not read them.
 - [x] **Autocomplete** — a character on the list finishes a cue; a heading is finished in pieces
       (`INT.`/`EXT.`, a location on the list, a time of day). Ghost text and a short list drawn as a

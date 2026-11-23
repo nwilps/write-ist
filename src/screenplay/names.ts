@@ -19,21 +19,13 @@
  * **Add** puts a name on its list at once. **Remove** takes it off: it is
  * **deleted from the list**, not hidden, and the manuscript is not touched.
  *
- * A removed name **comes back only when it is typed again as a new use**.
- * The names already in the script never bring it back — not as the list is
- * worked out again, not when a dialog closes, not when the project reopens.
- * So a removed name keeps a **mark**: how many uses the script had of it when
- * it was removed, or when the project was opened, whichever is later. It
- * returns once the script has **more** uses than that, and the caret has left
- * the cue or heading that gave it the new one (`settle`). That way:
- *
- * - fixing a letter of a cue that was already there, undoing a cut, or pasting
- *   a scene back is not a new use, and brings nothing back;
- * - typing `ED` on the way to `EDWARD` does not bring back a removed `ED`.
- *
- * The mark is never lowered while the project is open (deleting a cue and
- * typing it again is not a new use), and is not stored: on opening, it is the
- * script's count then. Only the removed names are stored.
+ * A removed name **comes back as soon as it is typed as a new cue or
+ * heading** (`typed`): there is no counting (Noah, 2026-11-22). The one guard
+ * is that the names already in the script never bring it back — not as the
+ * list is worked out again, not when a dialog closes, not when the project
+ * reopens — or Remove would undo itself. So the removed names are kept, as a
+ * set of names and nothing more, and the editor says when a line the caret
+ * has just left was typed to give one (`manuscript-session.ts`).
  *
  * A name is one record per kind, keyed by its capitals, so a later Replace
  * (one name for another, through the manuscript) has a single place to act.
@@ -202,10 +194,10 @@ export class NameLists {
     character: new Set(),
     location: new Set(),
   };
-  /** Removed by hand: name → its mark, the uses it had when removed or when the project opened. */
-  private readonly removedByHand: Record<NameKind, Map<string, number>> = {
-    character: new Map(),
-    location: new Map(),
+  /** Removed by hand, and not typed again since. */
+  private readonly removedByHand: Record<NameKind, Set<string>> = {
+    character: new Set(),
+    location: new Set(),
   };
   private changes = 0;
   private removedChanges = 0;
@@ -222,9 +214,9 @@ export class NameLists {
   }
 
   /**
-   * The lists for a whole sequence, counted once. A removed name's mark is
-   * its count here, so nothing already in the script brings it back; one the
-   * script does not use is simply off the list, and needs no mark.
+   * The lists for a whole sequence, counted once. A removed name stays
+   * removed whatever the script uses; one the script does not use is simply
+   * off the list, and is forgotten.
    */
   static of(lines: readonly NameLine[], options: NameListOptions = {}): NameLists {
     const lists = new NameLists(options);
@@ -233,8 +225,7 @@ export class NameLists {
       for (const name of options.removed?.[kind] ?? []) {
         const key = normaliseName(name);
         if (key === "" || lists.addedByHand[kind].has(key)) continue;
-        const uses = lists.counts[kind].get(key) ?? 0;
-        if (uses > 0) lists.removedByHand[kind].set(key, uses);
+        if (lists.counts[kind].has(key)) lists.removedByHand[kind].add(key);
       }
     }
     lists.changes += 1;
@@ -244,7 +235,7 @@ export class NameLists {
   /**
    * An edit replaced `removed` with `inserted`. Cost: the size of the edit.
    * Returns whether any count changed, so a caller can skip redrawing.
-   * A removed name is not brought back here: that is `settle`'s.
+   * A removed name is not brought back here: that is `typed`'s.
    */
   apply(removed: readonly NameLine[], inserted: readonly NameLine[]): boolean {
     let changed = false;
@@ -269,27 +260,15 @@ export class NameLists {
   }
 
   /**
-   * Bring back every removed name the script now uses more than its mark —
-   * a new use, typed — except the one the caret is still in (`typing`), which
-   * may yet become another name. Answers whether any came back.
+   * The writer typed a name as a new cue or heading, and the caret has left
+   * it: a removed name is back on its list, and no longer removed. Answers
+   * whether it was removed.
    */
-  settle(typing?: { readonly kind: NameKind; readonly name: string }): boolean {
-    let back = false;
-    for (const kind of KINDS) {
-      const removed = this.removedByHand[kind];
-      if (removed.size === 0) continue;
-      for (const [name, mark] of removed) {
-        if ((this.counts[kind].get(name) ?? 0) <= mark) continue;
-        if (typing !== undefined && typing.kind === kind && typing.name === name) continue;
-        removed.delete(name);
-        back = true;
-      }
-    }
-    if (back) {
-      this.changes += 1;
-      this.removedChanges += 1;
-    }
-    return back;
+  typed(kind: NameKind, name: string): boolean {
+    if (!this.removedByHand[kind].delete(normaliseName(name))) return false;
+    this.changes += 1;
+    this.removedChanges += 1;
+    return true;
   }
 
   /** Bumps whenever the names removed by hand change: what the names file holds changed. */
@@ -353,21 +332,21 @@ export class NameLists {
   }
 
   /**
-   * The writer removes a name from its list: deleted from it, and marked at
-   * the uses the script has now, so those uses do not put it back. A name the
-   * script does not use needs no mark. Answers whether anything changed.
+   * The writer removes a name from its list: deleted from it, and kept as
+   * removed so the uses the script has now do not put it back. A name the
+   * script does not use is simply off the list. Answers whether anything
+   * changed.
    */
   remove(kind: NameKind, name: string): boolean {
     const key = normaliseName(name);
     if (key === "") return false;
     const wasAdded = this.addedByHand[kind].delete(key);
-    const uses = this.counts[kind].get(key) ?? 0;
-    const marks = uses > 0 && !this.removedByHand[kind].has(key);
-    if (marks) {
-      this.removedByHand[kind].set(key, uses);
+    const removes = this.counts[kind].has(key) && !this.removedByHand[kind].has(key);
+    if (removes) {
+      this.removedByHand[kind].add(key);
       this.removedChanges += 1;
     }
-    if (!wasAdded && !marks) return false;
+    if (!wasAdded && !removes) return false;
     this.changes += 1;
     return true;
   }
@@ -379,7 +358,7 @@ export class NameLists {
 
   /** The names the writer removed and that have not come back, for the names file. */
   removed(kind: NameKind): readonly string[] {
-    return [...this.removedByHand[kind].keys()].sort(compareNames);
+    return [...this.removedByHand[kind]].sort(compareNames);
   }
 
   /**

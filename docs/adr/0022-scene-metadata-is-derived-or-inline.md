@@ -96,7 +96,8 @@ usage argument rests on vendor documentation, third-party walkthroughs and file 
   that can be read off the manuscript, and this is the one thing that cannot.
   *Amended 2026-11-22:* confirming is gone — a name is on its list from its first use — and what
   is stored is what the writer added to or removed from a list by hand. A removed name stays off
-  until a new use is typed; the uses already in the script never bring it back.
+  until it is typed as a new cue or heading, and then comes straight back, with no counting; the
+  uses already in the script never bring it back.
 - **Deriving is more portable than storing, which is the interoperability argument.** Location
   comes from the slugline and cast from the character cues, so Highland, Slugline and Final
   Draft all reach the same facts from the same text. The synopsis rides Fountain's standard `=`,

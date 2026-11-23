@@ -110,6 +110,12 @@ export interface SessionPorts {
   readonly autosaveClock?: Clock;
 }
 
+/** A line the caret is in: where it begins, and the name it gave when the caret arrived. */
+interface Visit {
+  readonly at: number;
+  readonly was: ReturnType<typeof nameOf>;
+}
+
 /** What opening a project's manuscript found. */
 export interface ManuscriptRead {
   readonly opened: OpenedProject;
@@ -217,10 +223,10 @@ export interface ManuscriptSession {
   readonly addName: (kind: NameKind, name: string) => boolean;
   /**
    * The writer removes a name from a list: deleted from it, so autocomplete
-   * stops offering it, and written to the names file. It comes back only when
-   * a new cue or heading gives it again (`NameLists.settle`) — never from the
-   * uses already in the script. The manuscript is not touched, and nothing is
-   * said.
+   * stops offering it, and written to the names file. It comes back as soon as
+   * it is typed as a new cue or heading and the caret leaves the line
+   * (`NameLists.typed`) — never from the uses already in the script. The
+   * manuscript is not touched, and nothing is said.
    */
   readonly removeName: (kind: NameKind, name: string) => boolean;
   /**
@@ -261,19 +267,49 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     removed: { character: lists.removed("character"), location: lists.removed("location") },
   });
 
+  /** Where the line holding `position` begins, and the name it gives now, if any. */
+  const lineAt = (position: number): Visit | undefined => {
+    const under = elementUnder(state.doc, position);
+    return under === undefined ? undefined : { at: position - under.offset - 1, was: nameOf(under) };
+  };
+
+  // The line the caret is in, and the name it gave when the caret arrived.
+  let visit: Visit | undefined;
+
   /**
-   * A removed name typed again — the script uses it more than its mark — is
-   * back on its list, and the names file says so, quietly. While `typing`,
-   * the cue or heading the caret is in is left until the caret leaves it: it
-   * may still become another name (`ED` on the way to `EDWARD`).
+   * The caret is leaving the line it was in, which now begins at `at`. If the
+   * writer typed it to give a removed name — a new cue or heading, or one
+   * changed to that name — the name is back on its list, and the names file
+   * says so, quietly. A line that gave the same name when the caret arrived
+   * was already in the script, so editing it brings nothing back; nor does
+   * `ED` on the way to `EDWARD`, because only the line as it is left counts.
    */
-  const welcomeBack = (typing = true): void => {
-    let at: ReturnType<typeof nameOf>;
-    if (typing) {
-      const under = elementUnder(state.doc, state.selection.head);
-      at = under === undefined ? undefined : nameOf(under);
+  const leftLine = (from: Visit, at: number): void => {
+    if (at + 1 > state.doc.content.size) return;
+    const now = lineAt(at + 1)?.was;
+    if (now === undefined || (from.was?.kind === now.kind && from.was.name === now.name)) return;
+    if (names.typed(now.kind, now.name) && read.namesByHand !== undefined) writeNames();
+  };
+
+  /** The caret may have moved to another line: leave the one it was in, and arrive. */
+  const caretMoved = (mapping: Transaction["mapping"] | undefined): void => {
+    const here = lineAt(state.selection.head);
+    if (visit !== undefined) {
+      const mapped = mapping === undefined ? { pos: visit.at, deleted: false } : mapping.mapResult(visit.at, 1);
+      if (!mapped.deleted && mapped.pos === here?.at) {
+        visit = { at: here.at, was: visit.was };
+        return;
+      }
+      if (!mapped.deleted) leftLine(visit, mapped.pos);
     }
-    if (names.settle(at) && read.namesByHand !== undefined) writeNames();
+    visit = here;
+  };
+
+  /** Leave the line the caret is in without moving it (a reload, or closing), so what was typed there counts. */
+  const leaveInPlace = (): void => {
+    if (visit === undefined) return;
+    leftLine(visit, visit.at);
+    visit = lineAt(state.selection.head);
   };
 
   /**
@@ -312,6 +348,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   state = editorStateFor(opened.document, { autocomplete, spellcheck, undo });
   words = wordsIn(state.doc);
   settle({ replaced: read.namesByHand ?? NOTHING_BY_HAND });
+  visit = lineAt(state.selection.head);
 
   const tracker = new GoalsTracker(read.goals ?? NO_GOALS, ports.instant === undefined ? {} : { instant: ports.instant });
   const showGoal = (): void => ports.setGoal(tracker.view(words).pill);
@@ -322,14 +359,15 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // version that was replaced.
     reload: (imported) => {
       const spellingWasOn = spellcheck.isOn(state);
+      // A removed name typed in the line the caret is in is back first; the
+      // rest stay removed, whatever the other version uses.
+      leaveInPlace();
       state = editorStateFor(imported.document, { autocomplete, spellcheck, undo });
       offPaper.clear();
       // Someone else's words are not the writer's: counting starts from them.
       words = wordsIn(state.doc);
-      // A removed name typed again before this is back; the rest stay removed,
-      // marked at the other version's uses.
-      welcomeBack(false);
       settle({ replaced: byHandOf(names) });
+      visit = lineAt(state.selection.head);
       showCounts();
       showGoal();
       ports.reloaded(spellingWasOn);
@@ -475,8 +513,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // The day's words, with the goal beside them. A failure is said and the
     // project still leaves, as with the ledger.
     await savingGoals.now();
-    // A removed name typed again with the caret still in its line is back too.
-    welcomeBack(false);
+    // A removed name typed with the caret still in its line is back too.
+    leaveInPlace();
     await writingNames;
     stopSwitchingAway();
     stopSwitchingBack();
@@ -559,11 +597,11 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
         }
       }
       // Selection moves still refresh the current page; the total only
-      // moves when the manuscript does. Either may finish a new use of a
-      // removed name: the caret has left the line that gave it.
+      // moves when the manuscript does. Either may take the caret out of a
+      // line typed to give a removed name.
       if (transaction.docChanged || transaction.selectionSet) {
         showCounts();
-        welcomeBack();
+        caretMoved(transaction.docChanged ? transaction.mapping : undefined);
       }
     },
     unsaved: session.unsaved,

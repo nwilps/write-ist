@@ -226,56 +226,32 @@ describe("Add and Remove", () => {
   it("does not bring a removed name back from the uses already there, however the lists are worked out", () => {
     const lists = NameLists.of(cues("EDWARD", "EDWARD"));
     lists.remove("character", "EDWARD");
-    expect(lists.settle()).toBe(false);
-    expect(lists.list("character")).toEqual([]);
+    lists.apply([], cues("EDNA"));
+    expect(lists.list("character")).toEqual(["EDNA"]);
     // Opened again, from what the names file holds: still off.
     const reopened = NameLists.of(cues("EDWARD", "EDWARD"), { removed: { character: lists.removed("character"), location: [] } });
     expect(reopened.list("character")).toEqual([]);
-    expect(reopened.settle()).toBe(false);
-    expect(reopened.list("character")).toEqual([]);
+    expect(reopened.removed("character")).toEqual(["EDWARD"]);
   });
 
-  it("brings a removed name back with a new use, once the caret has left its line", () => {
+  it("brings a removed name back as soon as it is typed, with no counting", () => {
     const lists = NameLists.of(cues("EDWARD", "EDWARD"));
     lists.remove("character", "EDWARD");
-    lists.apply([], cues("EDWARD"));
-    // Still being typed: it might yet be EDWARDO.
-    expect(lists.settle({ kind: "character", name: "EDWARD" })).toBe(false);
-    expect(lists.list("character")).toEqual([]);
-    // The caret moves on: it is back, and no longer removed.
-    expect(lists.settle()).toBe(true);
+    expect(lists.typed("character", "edward")).toBe(true);
     expect(lists.list("character")).toEqual(["EDWARD"]);
     expect(lists.removed("character")).toEqual([]);
+    // A name that was not removed is not touched.
+    expect(lists.typed("character", "EDWARD")).toBe(false);
   });
 
-  it("is not brought back by fixing a letter of a cue already there, or by undoing a cut", () => {
+  it("brings it back when typed after every one of its cues was deleted", () => {
     const lists = NameLists.of(cues("EDWARD", "EDWARD"));
     lists.remove("character", "EDWARD");
-    // Backspace over the D, and type it again.
-    lists.apply(cues("EDWARD"), cues("EDWAR"));
-    lists.settle({ kind: "character", name: "EDWAR" });
-    lists.apply(cues("EDWAR"), cues("EDWARD"));
-    expect(lists.settle()).toBe(false);
-    // A scene cut and put back.
-    lists.apply(cues("EDWARD"), []);
+    lists.apply(cues("EDWARD", "EDWARD"), []);
     lists.apply([], cues("EDWARD"));
-    expect(lists.settle()).toBe(false);
-    expect(lists.list("character")).not.toContain("EDWARD");
-  });
-
-  it("is not brought back by a longer name passing through it as it is typed", () => {
-    const lists = NameLists.of(cues("ED"));
-    lists.remove("character", "ED");
-    // Typing EDWARD letter by letter: the line reads ED for a moment.
-    let was: NameLine[] = [];
-    for (const typed of ["E", "ED", "EDW", "EDWA", "EDWAR", "EDWARD"]) {
-      lists.apply(was, cues(typed));
-      lists.settle({ kind: "character", name: typed });
-      was = cues(typed);
-    }
-    lists.settle();
+    expect(lists.list("character")).toEqual([]);
+    expect(lists.typed("character", "EDWARD")).toBe(true);
     expect(lists.list("character")).toEqual(["EDWARD"]);
-    expect(lists.isRemoved("character", "ED")).toBe(true);
   });
 
   it("is added back by hand at once", () => {
@@ -286,11 +262,10 @@ describe("Add and Remove", () => {
     expect(lists.removed("character")).toEqual([]);
   });
 
-  it("forgets a removed name the script no longer uses when the project opens: it needs no mark", () => {
+  it("forgets a removed name the script no longer uses when the project opens", () => {
     const reopened = NameLists.of([], { removed: { character: ["EDWRAD"], location: [] } });
     expect(reopened.removed("character")).toEqual([]);
     reopened.apply([], cues("EDWRAD"));
-    reopened.settle();
     expect(reopened.list("character")).toEqual(["EDWRAD"]);
   });
 });

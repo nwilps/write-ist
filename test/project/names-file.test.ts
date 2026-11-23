@@ -90,6 +90,12 @@ describe("the file's text", () => {
     expect(written).not.toMatch(/hidden|\t/);
     expect(written).toBe("characters\n  EDNA\nremoved characters\n  BOY\n  EDWRAD\nremoved locations\n  THE ATTIC\n");
   });
+
+  it("reads a removed name with a count left after a tab as the name alone, and writes it back without one", () => {
+    const read = parseNamesFile("removed characters\n  EDWARD\t3\n");
+    expect(read).toEqual({ character: [], location: [], removed: { character: ["EDWARD"], location: [] } });
+    expect(serialiseNamesFile(read)).toBe("removed characters\n  EDWARD\n");
+  });
 });
 
 describe("in the bundle", () => {

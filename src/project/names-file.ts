@@ -18,15 +18,18 @@
  *
  * A kind on a line of its own, then one indented name per line. Kept trivial
  * so the format can change cheaply (the writer accepts it may be revisited).
- * Reading ignores blank lines and kinds it does not know. A removed name's
- * mark is not stored: it is the script's count when the project opens.
+ * Reading ignores blank lines and kinds it does not know. A removed name is
+ * only its name: no count is kept. The set is there so that the cues and
+ * headings already in the script do not put it back on the list when the
+ * project opens; typing it as a new cue or heading does, and takes it out of
+ * the set.
  *
  * ## Older files
  *
  * Before 2026-11-22 a removed name was **hidden**, under `hidden characters`
  * and `hidden locations`, each with a count after a tab. Those sections are
- * read as removed — the name stays off its list until it is typed again —
- * and their counts are ignored. The next write puts them under `removed …`.
+ * read as removed and their counts are ignored, as is anything after a tab
+ * under `removed …`. The next write puts them under `removed …`, names only.
  *
  * ADR-0008 rule 3 holds here as everywhere: an absent file is a first run and
  * reads as nothing done by hand; one that exists and cannot be read
