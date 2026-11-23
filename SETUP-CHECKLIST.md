@@ -493,11 +493,12 @@ shell changed only in ways that name no workspace. A workspace is mounted the fi
 chosen and kept mounted, out of sight, while another is on screen; turning one off takes it down
 (saving it) and leaves its file alone.
 
-- **Notes**: one plain-text notepad per project, `notes.md`, exactly as typed. Autosave as the
+- **Notes**: one plain-text notepad per project, `notes.md`, exactly as typed, in a window
+  floating on the desk (16:9, three quarters of the workspace's width, scrolling inside itself). Autosave as the
   manuscript's (`src/project/workspace-file.ts`), undo and redo, Write-ist's own right-click menu,
   spellcheck on demand from the same dictionary (a plain-text pass, `src/notes/spelling.ts`). Caret
   and scroll kept in app data (`workspace-places.txt`, `src/project/workspace-places.ts`).
-- **Plan**: cards on a grid whose length is the project's target page count (100 with none),
+- **Plan**: cards on a grid of dots (the beats and the end of the target drawn as lines) whose length is the project's target page count (100 with none),
   stored in `plan.md` as shares of the whole, so a new target moves nothing; free lanes; colours;
   four structure sheets drawn as bands. Nothing in it reads the manuscript (ADR-0013).
 

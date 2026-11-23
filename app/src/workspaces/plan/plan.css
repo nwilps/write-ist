@@ -62,20 +62,31 @@
 
 .plan__grid {
   position: relative;
+  /* Its layers (cards, the dots over them) are its own: a dot is never drawn
+     over the workspace bar or the pills when the board passes under them. */
+  isolation: isolate;
   height: calc(var(--plan-lanes) * var(--size-plan-cell));
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      var(--colour-plan-line) 0 var(--rule-thin),
-      transparent var(--rule-thin) var(--size-plan-cell)
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      var(--colour-plan-line) 0 var(--rule-thin),
-      transparent var(--rule-thin) var(--size-plan-cell)
-    );
   border-radius: var(--radius-slight);
   cursor: default;
+}
+
+/*
+ * The grid is a dot at each corner of its squares, drawn once, on its own
+ * layer over the cards. Each tile is a square, and its conic gradient fills
+ * only the dot-sized square at its top-left; the whole is pulled back by half
+ * a dot so the dot sits on the corner. Opaque, and over every card's shadow,
+ * so a dot is the same dot wherever a card is or is dragged to. Nothing here
+ * changes while a card moves: the grid is drawn again only once it is dropped.
+ */
+.plan__grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-plan-dots);
+  background-image: var(--image-plan-dot);
+  background-size: var(--size-plan-cell) var(--size-plan-cell);
+  background-position: calc(var(--size-plan-dot) / -2) calc(var(--size-plan-dot) / -2);
+  pointer-events: none;
 }
 
 /* Past the target: still room to put a card, drawn as beyond the whole. */
@@ -89,11 +100,13 @@
   pointer-events: none;
 }
 
+/* The end of the target: a line, on the dots' layer, so no shadow passes over it either. */
 .plan__end {
   position: absolute;
   top: 0;
   bottom: 0;
   left: calc(var(--plan-length) * var(--size-plan-cell));
+  z-index: var(--layer-plan-dots);
   border-left: var(--rule-thin) solid var(--colour-plan-end);
   pointer-events: none;
 }
@@ -135,11 +148,14 @@
   border-color: var(--colour-accent);
 }
 
-/* Dragged, it is lifted, never hidden: the grid under it keeps its shape. */
+/*
+ * Dragged, it is lifted over the other cards, and stays opaque: drawn
+ * see-through, it showed the grid through itself, so the squares under it
+ * changed as it passed.
+ */
 .plan__card[data-dragging="true"] {
   z-index: var(--layer-plan-drag);
   cursor: grabbing;
-  opacity: var(--opacity-plan-drag);
 }
 
 .plan__card[data-invalid="true"] {

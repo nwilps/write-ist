@@ -667,14 +667,36 @@
   --count-plan-title-cells: 6;
   --size-plan-swatch: 18px;
   --size-plan-description: 96px;
+  /** A card being dragged, or its title being typed: over the other cards. */
   --layer-plan-drag: 2;
-  --opacity-plan-drag: 0.85;
-  /** The grid's lines: the border's colour, faint. */
-  --colour-plan-line: color-mix(in srgb, var(--colour-border) 70%, transparent);
+  /**
+   * The grid's dots, over every card and its shadow (`plan.css`). A dot never
+   * falls on a card — it is a pixel either side of a corner, and a card sits
+   * `--space-plan-card` inside its squares — so being on top only means that
+   * no shadow ever passes over one.
+   */
+  --layer-plan-dots: 3;
+  /**
+   * A dot at each corner of the squares: square, a whole number of pixels, and
+   * centred on the corner by half of it. Opaque, so it is the same colour over
+   * any background and at any pixel alignment.
+   */
+  --size-plan-dot: 2px;
+  --colour-plan-dot: color-mix(in srgb, var(--colour-faint) 40%, var(--colour-raised));
+  /** One square's tile: the dot-sized square at its top-left, the rest clear. */
+  --image-plan-dot: conic-gradient(
+    at var(--size-plan-dot) var(--size-plan-dot),
+    transparent 75%,
+    var(--colour-plan-dot) 0
+  );
   /** The squares past the end of the target. */
   --colour-plan-past: color-mix(in srgb, var(--colour-base) 45%, transparent);
   --colour-plan-end: var(--colour-faint);
-  --colour-plan-beat: color-mix(in srgb, var(--colour-faint) 55%, transparent);
+  /**
+   * A structure beat's line. Opaque, as the dots are: a see-through line
+   * changes shade over a card's shadow as the card moves past it.
+   */
+  --colour-plan-beat: color-mix(in srgb, var(--colour-faint) 55%, var(--colour-raised));
   /**
    * A card's colours: the palette the app already speaks in, two more from
    * the same family, each drawn as a tint over the card's grey so a page of

@@ -331,6 +331,36 @@ describe("Plan", () => {
     expect(saved).toContain("They cross without lights.");
   });
 
+  it("while a card is dragged, moves only that card: the grid is not drawn or measured again until it is dropped", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN);
+    const into = await openProject();
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    const grid = into.querySelector<HTMLElement>(".plan__grid")!;
+    const gridSize = () => ["--plan-columns", "--plan-lanes", "--plan-length", "--plan-beat-rows"].map((name) => surface(into).style.getPropertyValue(name));
+    const before = gridSize();
+    const card = cardOf(into, "card-1");
+    const pointer = (type: string, x: number, y: number) =>
+      card.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y }), { pointerId: 1 }));
+    // Without a layout in jsdom, a square is the token's 32 pixels.
+    pointer("pointerdown", 100, 100);
+    expect(card.dataset["dragging"]).toBe("true");
+    for (const [x, y] of [[132, 100], [164, 132], [228, 164], [260, 100]] as const) {
+      pointer("pointermove", x, y);
+      expect(into.querySelector(".plan__grid")).toBe(grid);
+      expect(cardOf(into, "card-1")).toBe(card);
+      expect(gridSize()).toEqual(before);
+    }
+    expect(card.style.getPropertyValue("--card-cell")).toBe("55");
+    expect(card.style.getPropertyValue("--card-lane")).toBe("1");
+    pointer("pointerup", 260, 100);
+    // Dropped: now the grid is drawn again, with the card in its new place.
+    expect(into.querySelector(".plan__grid")).not.toBe(grid);
+    expect(gridSize()).toEqual(before);
+    expect(cardOf(into, "card-1").style.getPropertyValue("--card-cell")).toBe("55");
+    expect(cardOf(into, "card-1").dataset["dragging"]).toBeUndefined();
+  });
+
   it("turned off, hides its tab, drops the writer into the Editor, and keeps plan.md; turned on, finds it as it was", async () => {
     writeFileSync(join(opened.path, "plan.md"), PLAN);
     const into = await openProject();
