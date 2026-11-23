@@ -3,24 +3,11 @@
  * without an editor and without a dictionary: the engine is the fake.
  */
 import { describe, expect, it } from "vitest";
-import { NameLists } from "../../src/screenplay/names.ts";
-import {
-  contextOf,
-  editDistance,
-  isChecked,
-  matchCase,
-  NO_CONTEXT,
-  sameContext,
-  Spelling,
-  tokensOf,
-  type SpellContext,
-} from "../../src/screenplay/spelling.ts";
+import { isChecked, matchCase, Spelling, tokensOf } from "../../src/screenplay/spelling.ts";
 import { fakeEngine } from "../support/spell-engine.ts";
 
-const OPTIONS = { nearDistance: 1, nearMinLength: 4 };
-
 async function spelling(words: string[]): Promise<Spelling> {
-  const held = new Spelling(fakeEngine(), OPTIONS);
+  const held = new Spelling(fakeEngine());
   await held.prepare(words);
   return held;
 }
@@ -62,24 +49,6 @@ describe("the words of a line", () => {
   });
 });
 
-describe("edit distance", () => {
-  it("counts a swap of neighbours as one edit", () => {
-    expect(editDistance("MICHEAL", "MICHAEL", 1)).toBe(1);
-    expect(editDistance("KITCHNE", "KITCHEN", 1)).toBe(1);
-  });
-
-  it("counts an insertion, a deletion and a substitution as one each", () => {
-    expect(editDistance("ANN", "ANNE", 1)).toBe(1);
-    expect(editDistance("ANNE", "ANN", 1)).toBe(1);
-    expect(editDistance("MIKE", "MAKE", 1)).toBe(1);
-  });
-
-  it("gives up past the limit", () => {
-    expect(editDistance("ABC", "XYZ", 1)).toBeGreaterThan(1);
-    expect(editDistance("A", "ABCDEF", 1)).toBeGreaterThan(1);
-  });
-});
-
 describe("case", () => {
   it("answers in the case the word was typed in", () => {
     expect(matchCase("kitchen", "KITCHNE")).toBe("KITCHEN");
@@ -90,54 +59,36 @@ describe("case", () => {
 });
 
 describe("a verdict", () => {
-  const known = new Set(["EDWARD", "MICHAEL", "KITCHEN", "ANN", "BENNETT'S"]);
-  const context: SpellContext = { known, unconfirmed: new Set(["ANNE", "ZORBLAX"]) };
-
   it("is nothing for a word the dictionary knows", async () => {
     const held = await spelling(["kitchen"]);
-    expect(held.judge("kitchen", context)).toBeUndefined();
+    expect(held.judge("kitchen")).toBeUndefined();
   });
 
-  it("is nothing for a confirmed word, its possessive, or a screenplay term", async () => {
-    const held = await spelling(["EDWARD", "Edward’s", "EDWARD'S", "INT", "CONT'D", "bennett's", "POV"]);
-    for (const word of ["EDWARD", "Edward’s", "EDWARD'S", "INT", "CONT'D", "POV"]) {
-      expect(held.judge(word, context), word).toBeUndefined();
-    }
+  it("is nothing for a screenplay term", async () => {
+    const held = await spelling(["INT", "CONT'D", "POV"]);
+    for (const word of ["INT", "CONT'D", "POV"]) expect(held.judge(word), word).toBeUndefined();
   });
 
   it("is a misspelling for a word the dictionary does not know", async () => {
     const held = await spelling(["teh"]);
-    expect(held.judge("teh", context)).toEqual({ kind: "misspelled" });
+    expect(held.judge("teh")).toEqual({ kind: "misspelled" });
   });
 
-  it("is a near-match when a confirmed word is one edit away", async () => {
-    const held = await spelling(["MICHEAL", "KITCHNE", "kitchne"]);
-    expect(held.judge("MICHEAL", context)).toEqual({ kind: "near", suggestion: "MICHAEL" });
-    expect(held.judge("KITCHNE", context)).toEqual({ kind: "near", suggestion: "KITCHEN" });
-    expect(held.judge("kitchne", context)).toEqual({ kind: "near", suggestion: "kitchen" });
-  });
-
-  it("is a near-match for an unconfirmed name the dictionary knows, as ANNE is to ANN", async () => {
-    // The dictionary knows `anne`; only the lists say it is a stray beside a confirmed ANN.
-    const held = new Spelling(fakeEngine(["anne"]), OPTIONS);
-    await held.prepare(["ANNE"]);
-    expect(held.judge("ANNE", context)).toEqual({ kind: "near", suggestion: "ANN" });
-    // Once the writer confirms ANNE it is a known word, and the flag ends.
-    const confirmed = { known: new Set([...context.known, "ANNE"]), unconfirmed: new Set<string>() };
-    expect(held.judge("ANNE", confirmed)).toBeUndefined();
-    // A dictionary word that is not a name is never second-guessed against the lists.
-    await held.prepare(["room"]);
-    expect(held.judge("room", { known: new Set(["ROOM", "ROOF"]), unconfirmed: new Set() })).toBeUndefined();
-  });
-
-  it("is never a near-match for a word too short to be a typo", async () => {
-    const held = await spelling(["Mik"]);
-    expect(held.judge("Mik", { known: new Set(["MIKE"]), unconfirmed: new Set() })).toEqual({ kind: "misspelled" });
+  it("is a misspelling for a name the dictionary does not know, whatever the script says of it", async () => {
+    // The character and location lists play no part (Noah, 2026-11-22): a
+    // name that is a cue fifty times is still only right once it is a word.
+    const held = await spelling(["MICHEAL", "EDWRAD", "KITCHNE", "Edward’s"]);
+    for (const word of ["MICHEAL", "EDWRAD", "KITCHNE"]) expect(held.judge(word), word).toEqual({ kind: "misspelled" });
+    // A name the dictionary knows is not second-guessed either.
+    const knows = new Spelling(fakeEngine(["anne", "ann"]));
+    await knows.prepare(["ANNE", "ANN"]);
+    expect(knows.judge("ANNE")).toBeUndefined();
+    expect(knows.judge("ANN")).toBeUndefined();
   });
 
   it("is nothing for a word that has no verdict yet", () => {
-    const held = new Spelling(fakeEngine(), OPTIONS);
-    expect(held.judge("teh", NO_CONTEXT)).toBeUndefined();
+    const held = new Spelling(fakeEngine());
+    expect(held.judge("teh")).toBeUndefined();
     expect(held.has("teh")).toBe(false);
   });
 });
@@ -145,7 +96,7 @@ describe("a verdict", () => {
 describe("the verdict cache", () => {
   it("sends each distinct word once", async () => {
     const engine = fakeEngine();
-    const held = new Spelling(engine, OPTIONS);
+    const held = new Spelling(engine);
     await held.prepare(["teh", "kitchen", "teh", "KITCHEN", "INT"]);
     await held.prepare(["teh", "kitchen"]);
     // INT is a term and never asked; "teh" and "kitchen" once; "KITCHEN" is its own word.
@@ -155,48 +106,19 @@ describe("the verdict cache", () => {
 
   it("forgets a word in every case when it is added", async () => {
     const engine = fakeEngine();
-    const held = new Spelling(engine, OPTIONS);
+    const held = new Spelling(engine);
     await held.prepare(["zorblax", "Zorblax", "ZORBLAX"]);
-    expect(held.judge("Zorblax", NO_CONTEXT)).toEqual({ kind: "misspelled" });
+    expect(held.judge("Zorblax")).toEqual({ kind: "misspelled" });
     await held.add("Zorblax");
     expect(held.has("zorblax")).toBe(false);
     await held.prepare(["zorblax", "Zorblax", "ZORBLAX"]);
-    expect(held.judge("Zorblax", NO_CONTEXT)).toBeUndefined();
+    expect(held.judge("Zorblax")).toBeUndefined();
     expect(held.epoch).toBe(1);
   });
 
   it("suggests in the case the word was typed in, once each", async () => {
-    const held = new Spelling(fakeEngine(), OPTIONS);
+    const held = new Spelling(fakeEngine());
     expect(await held.suggestions("KITCHNE")).toContain("KITCHEN");
     expect(await held.suggestions("kitchne")).toContain("kitchen");
-  });
-});
-
-describe("the context a script makes", () => {
-  const lines = (names: string[]) =>
-    names.flatMap((name) => [
-      { type: "character" as const, text: name },
-      { type: "dialogue" as const, text: "Hello." },
-    ]);
-
-  it("knows the words of confirmed names and sets the others aside", () => {
-    const lists = NameLists.of(
-      [
-        ...lines(["EDWARD", "EDWARD", "EDWARD", "EDNA"]),
-        ...[0, 1, 2].map(() => ({ type: "scene-heading" as const, text: "INT. BENNETT'S HOSPITAL ROOM - DAY" })),
-      ],
-      { confirmAfterUses: 3 },
-    );
-    const context = contextOf(lists);
-    expect([...context.known].sort()).toEqual(["BENNETT'S", "HOSPITAL", "ROOM", "EDWARD"].sort());
-    expect([...context.unconfirmed]).toEqual(["EDNA"]);
-  });
-
-  it("is the same context while it means the same, so what was judged stands", () => {
-    const a = contextOf(NameLists.of(lines(["EDWARD", "EDWARD", "EDWARD"])));
-    const b = contextOf(NameLists.of(lines(["EDWARD", "EDWARD", "EDWARD", "EDWARD"])));
-    const c = contextOf(NameLists.of(lines(["EDWARD", "EDWARD"])));
-    expect(sameContext(a, b)).toBe(true);
-    expect(sameContext(a, c)).toBe(false);
   });
 });

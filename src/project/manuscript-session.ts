@@ -199,13 +199,6 @@ export interface ManuscriptSession {
    */
   readonly settled: () => Promise<void>;
   /**
-   * The list a word between two positions belongs to, for Add to Dictionary:
-   * a word of a cue's character name, or a word inside a scene heading's
-   * location (not the INT./EXT., a scene number, an aside or the time of
-   * day). Nothing anywhere else — action, dialogue, a name merely mentioned.
-   */
-  readonly listOfWordAt: (from: number, to: number) => NameKind | undefined;
-  /**
    * The writer says the name or location at a position (default: the caret)
    * is right. Answers whether there was one to say it of.
    */
@@ -228,14 +221,13 @@ export interface ManuscriptSession {
    */
   readonly removeName: (kind: NameKind, name: string) => boolean;
   /**
-   * Add to Dictionary on a flagged word: always the writer's dictionary, and
-   * on a cue's name or a heading's location (`listOfWordAt`) that name joins
-   * its list as well. Spellcheck is redrawn after, so the newly confirmed
-   * name is trusted too.
+   * Add to Dictionary on a flagged word: the writer's dictionary and nothing
+   * else. The character and location lists are not touched — a cue's name
+   * added here is a dictionary word, not a name on a list (Noah, 2026-11-22).
+   * Spellcheck is redrawn after.
    *
    * One undo step, in order with the typing around it, that changes no text:
-   * Undo takes back what this call added (the word, if it was new to the
-   * dictionary; the name, if it was not already confirmed by hand) and Redo
+   * Undo takes the word back out if it was new to the dictionary, and Redo
    * puts it back. Resolves once the dictionary has answered.
    */
   readonly addToDictionary: (view: EditorView, issue: SpellIssue) => Promise<void>;
@@ -254,15 +246,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   // What the names file last had of the hidden names, by the lists' count of changes to them.
   let hiddenKept = 0;
 
-  const spellcheck = new Spellcheck({
-    engine: ports.spellEngine,
-    names: () => names,
-    pause: DEFAULT_PREFERENCES.spellcheckPauseMs,
-    spelling: {
-      nearDistance: DEFAULT_PREFERENCES.spellcheckNearDistance,
-      nearMinLength: DEFAULT_PREFERENCES.spellcheckNearMinLength,
-    },
-  });
+  const spellcheck = new Spellcheck({ engine: ports.spellEngine, pause: DEFAULT_PREFERENCES.spellcheckPauseMs });
   // The name lists are replaced when a manuscript is reloaded, hence a getter.
   const autocomplete = { names: () => names, draw: ports.drawOffer, place: ports.placeOffer };
   // Add to Dictionary's undo steps, which sit among the text's (`off-paper-undo.ts`).
@@ -548,21 +532,6 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   const dictionaryTrouble = (error: unknown): void =>
     ports.report(`Write-ist could not change your dictionary. Your screenplay is unchanged. ${message(error)}`);
 
-  const listOfWordAt = (from: number, to: number): NameKind | undefined => {
-    const under = elementUnder(state.doc, from);
-    const found = under === undefined ? undefined : nameOf(under);
-    if (under === undefined || found === undefined) return undefined;
-    // A cue: one of the words of the speaker's name, not an extension.
-    if (found.kind === "character") {
-      const word = normaliseName(state.doc.textBetween(from, to));
-      return wordsOf(found.name).includes(word) ? "character" : undefined;
-    }
-    // A heading: inside the place, by the same parse that names it.
-    const place = locationRange(under.text);
-    const end = under.offset + (to - from);
-    return place !== undefined && under.offset >= place.from && end <= place.to ? "location" : undefined;
-  };
-
   return {
     get state() {
       return state;
@@ -625,7 +594,6 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     leave,
     moveProject: (move) => inFolderTurn(() => session.relocate(move)),
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
-    listOfWordAt,
     confirm,
     nameList: (kind) => names.confirmed(kind),
     addName,
@@ -634,29 +602,15 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       // Typing before and after stays two undo steps, with this one between.
       const step = offPaper.begin(view.state);
       view.dispatch(step.close);
-      const list = listOfWordAt(issue.from, issue.to);
-      const found = list === undefined ? undefined : nameAt(issue.from);
-      // A names file that could not be read is not changed; the word still
-      // goes in the dictionary. A name already confirmed by hand is not this
-      // step's to take back.
-      const listed = found !== undefined && confirmName(found.kind, found.name) ? found : undefined;
       let added = false;
       try {
         added = await inTurn(() => spellcheck.addToDictionary(view, issue.word));
       } finally {
         // A word already in the dictionary is not this step's to take out.
-        if (added || listed !== undefined) {
+        if (added) {
           step.record({
-            undo: () => {
-              if (listed !== undefined) unconfirmName(listed.kind, listed.name);
-              if (added) void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble);
-              else spellcheck.refresh(view);
-            },
-            redo: () => {
-              if (listed !== undefined) confirmName(listed.kind, listed.name);
-              if (added) void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble);
-              else spellcheck.refresh(view);
-            },
+            undo: () => void inTurn(() => spellcheck.removeFromDictionary(view, issue.word)).catch(dictionaryTrouble),
+            redo: () => void inTurn(() => spellcheck.addToDictionary(view, issue.word)).catch(dictionaryTrouble),
           });
         }
       }

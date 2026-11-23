@@ -151,11 +151,12 @@ stopped at the element boundary (#26).
       the PDF). The engine is `spellbook` (MPL-2.0) in Rust behind a small `SpellEngine` trait,
       with SCOWL `en_US` compiled in beside its licence, off the UI thread, offline
       (`src-tauri/src/spelling.rs`, `src/screenplay/spelling.ts`, `src/screenplay/spellcheck.ts`;
-      slice 2, step 10, ADR-0032). Confirmed names and locations are known words; a typo of one
-      is "Did you mean MICHAEL?". The custom dictionary is `custom-words.txt` in the app's local
+      slice 2, step 10, ADR-0032). It checks everything, cues and headings included: the character
+      and location lists play no part, and a name is right only once it is in the dictionary (Noah,
+      2026-11-22; the "Did you mean MICHAEL?" near-match is gone with that link). The custom dictionary is `custom-words.txt` in the app's local
       data folder. The right-click menu on the paper is built (ADR-0039,
-      #105): up to five suggestions, then Add to Dictionary, via `suggestionsAt`, `replaceWord` and
-      `addToDictionary`. **Not built:** the same menu on text fields and the desk's panels; `en_GB`. A keyboard way to suggestions is the Menu key / Shift+F10.
+      #105): up to five suggestions, then Add to Dictionary (the dictionary only, never a list), via
+      `suggestionsAt`, `replaceWord` and `addToDictionary`. **Not built:** the same menu on text fields and the desk's panels; `en_GB`. A keyboard way to suggestions is the Menu key / Shift+F10.
 - [x] **Element identity** — the in-memory handle the editor redraws against (ADR-0019). It is a
       ProseMirror node: a persistent value, created on load, dead when the project closes, never
       written to a file (#39). Comment ends were still element *indices*, which nothing moved

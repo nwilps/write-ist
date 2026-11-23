@@ -7,7 +7,7 @@
  * the state, the seams, the counts and what is said out. Real files in a
  * temporary folder, a driven autosave clock, a fake spelling engine.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PAUSE, type Clock } from "../../src/project/autosave.ts";
@@ -453,8 +453,6 @@ async function aSampleSession(names?: Uint8Array) {
   const made = ports(opened, { spellEngine: engine });
   const read = await readManuscript(nodeFilesystem, made.ports.project, made.ports.report);
   const session = manuscriptSession(made.ports, read);
-  // Nothing is confirmed by use here, so only Add to Dictionary can list a name.
-  session.names.setConfirmAfterUses(1_000_000);
   return { session, engine, opened, heard: made.heard };
 }
 
@@ -482,76 +480,40 @@ const offPaper = (session: ManuscriptSession): EditorView =>
     dispatch: (transaction: Transaction) => session.apply(transaction),
   }) as EditorView;
 
-describe("Add to Dictionary", () => {
-  it("on a word of a cue's name, also adds the character to this project's list", async () => {
-    const { session, engine, opened } = await aSampleSession();
-    await session.addToDictionary(offPaper(session), flagged(session, "ZELDRA (V.O.)", "ZELDRA"));
-    expect(engine.added).toEqual(["ZELDRA"]);
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
-    expect(session.names.explicit("location")).toEqual([]);
-    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual(["ZELDRA"]);
-    await session.settled();
-    expect(readFileSync(join(opened.project.path, NAMES_FILE), "utf8")).toContain("ZELDRA");
-  });
-
-  it("on a word in a heading's location, also adds the location", async () => {
-    const { session, engine } = await aSampleSession();
-    const heading = "EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT";
-    await session.addToDictionary(offPaper(session), flagged(session, heading, "KORVATH"));
-    expect(engine.added).toEqual(["KORVATH"]);
-    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
-    expect(session.names.explicit("character")).toEqual([]);
-  });
-
-  it("knows the place from the time of day by position, not by spelling", async () => {
-    // DAY ROOM's DAY is the place; the DAY after the dash is the time.
-    const { session } = await aSampleSession();
-    expect(session.listOfWordAt(...span(flagged(session, "INT. DAY ROOM - DAY", "DAY", 0)))).toBe("location");
-    expect(session.listOfWordAt(...span(flagged(session, "INT. DAY ROOM - DAY", "DAY", 1)))).toBeUndefined();
-  });
-
-  it("everywhere else adds to the dictionary only, and leaves both lists alone", async () => {
-    const { session, engine } = await aSampleSession();
-    const heading = "EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT";
-    const elsewhere: [string, string][] = [
-      ["Zeldra waves at QUILLAN.", "Zeldra"], // a name mentioned in action
-      ["Zeldra waves at QUILLAN.", "QUILLAN"],
-      ["Hello, Korvath.", "Korvath"], // dialogue
-      ["(to Zeldra)", "Zeldra"], // a parenthetical
-      ["ZELDRA (V.O.)", "V"], // the cue's extension, not the name
-      ["INT. DAY ROOM - DAY", "INT"], // the prefix
-      [heading, "NIGHT"], // the time of day
-      [heading, "FLASHBACK"], // an aside
-    ];
-    for (const [line, word] of elsewhere) {
-      const issue = flagged(session, line, word);
-      expect(session.listOfWordAt(issue.from, issue.to), `${word} in ${line}`).toBeUndefined();
-      await session.addToDictionary(offPaper(session), issue);
-    }
-    expect(engine.added).toEqual(elsewhere.map(([, word]) => word));
-    expect(session.names.explicit("character")).toEqual([]);
-    expect(session.names.explicit("location")).toEqual([]);
-  });
-
-  it("still adds the word when the name is already on the list", async () => {
-    const { session, engine } = await aSampleSession();
-    const cue = flagged(session, "ZELDRA (V.O.)", "ZELDRA");
-    await session.addToDictionary(offPaper(session), cue);
-    await session.addToDictionary(offPaper(session), cue);
-    expect(engine.added).toEqual(["ZELDRA", "ZELDRA"]);
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
-  });
-
-  it("still adds the word when the names file could not be read, and leaves the lists alone", async () => {
-    const { session, engine, heard } = await aSampleSession(new Uint8Array([0xff, 0xfe, 0xfd]));
-    expect(heard.reports[0]).toContain("will not change them");
-    await session.addToDictionary(offPaper(session), flagged(session, "ZELDRA (V.O.)", "ZELDRA"));
-    expect(engine.added).toEqual(["ZELDRA"]);
-    expect(session.names.explicit("character")).toEqual([]);
-  });
+/** Both lists as the session holds them, to show Add to Dictionary left them alone. */
+const listsOf = (session: ManuscriptSession) => ({
+  character: [...session.nameList("character")],
+  location: [...session.nameList("location")],
 });
 
-const span = (issue: SpellIssue): [number, number] => [issue.from, issue.to];
+describe("Add to Dictionary", () => {
+  it("adds to the dictionary only: neither list, nor the names file, is touched", async () => {
+    const { session, engine, opened } = await aSampleSession();
+    const lists = listsOf(session);
+    const heading = "EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT";
+    const words: [string, string][] = [
+      ["ZELDRA (V.O.)", "ZELDRA"], // a cue's name
+      [heading, "KORVATH"], // a heading's place
+      ["Zeldra waves at QUILLAN.", "QUILLAN"], // a name mentioned in action
+      ["Hello, Korvath.", "Korvath"], // dialogue
+    ];
+    for (const [line, word] of words) await session.addToDictionary(offPaper(session), flagged(session, line, word));
+    await session.settled();
+    expect(engine.added).toEqual(words.map(([, word]) => word));
+    expect(listsOf(session)).toEqual(lists);
+    expect(existsSync(join(opened.project.path, NAMES_FILE))).toBe(false);
+  });
+
+  it("still adds the word when the names file could not be read, and leaves that file alone", async () => {
+    const unreadable = new Uint8Array([0xff, 0xfe, 0xfd]);
+    const { session, engine, heard, opened } = await aSampleSession(unreadable);
+    expect(heard.reports[0]).toContain("will not change them");
+    await session.addToDictionary(offPaper(session), flagged(session, "ZELDRA (V.O.)", "ZELDRA"));
+    await session.settled();
+    expect(engine.added).toEqual(["ZELDRA"]);
+    expect(new Uint8Array(readFileSync(join(opened.project.path, NAMES_FILE)))).toEqual(unreadable);
+  });
+});
 
 /* ------------------------------------------ Undo of Add to Dictionary */
 
@@ -575,67 +537,36 @@ describe("Undo and Redo of Add to Dictionary", () => {
       await made.session.spellcheck.flush(view);
     };
     const underlined = (): string[] => made.session.spellcheck.issues(made.session.state).map((issue) => issue.word);
-    /** The names file says what the lists hold. */
-    const namesOnDisk = async (): Promise<void> => {
-      expect(await readConfirmations(nodeFilesystem, made.opened.project)).toEqual({
-        character: made.session.names.explicit("character"),
-        location: made.session.names.explicit("location"),
-      });
-    };
     const text = (): string => serialise(made.session.manuscript());
-    return { ...made, view, press, add, underlined, namesOnDisk, text };
+    return { ...made, view, press, add, underlined, text };
   }
 
-  it("takes back a cue's name: out of the dictionary and off the list, underlined again; Redo puts it back", async () => {
-    const { session, engine, heard, press, add, underlined, namesOnDisk, text } = await checking();
+  it("takes a cue's name back out of the dictionary, underlined again; Redo puts it back; the lists never move", async () => {
+    const { session, engine, heard, press, add, underlined, text } = await checking();
     const before = text();
+    const lists = listsOf(session);
     expect(underlined()).toContain("ZELDRA");
 
     await add("ZELDRA (V.O.)", "ZELDRA");
     expect(engine.added).toEqual(["ZELDRA"]);
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
     expect(underlined()).not.toContain("ZELDRA");
-    await namesOnDisk();
+    expect(listsOf(session)).toEqual(lists);
 
     expect(await press("undo")).toBe(true);
     expect(engine.added).toEqual([]);
-    expect(session.names.explicit("character")).toEqual([]);
-    expect(session.names.isConfirmed("character", "ZELDRA")).toBe(false);
-    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual([]);
     expect(underlined()).toContain("ZELDRA");
-    await namesOnDisk();
+    expect(listsOf(session)).toEqual(lists);
 
     expect(await press("redo")).toBe(true);
     expect(engine.added).toEqual(["ZELDRA"]);
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
-    expect(session.names.confirmedStartingWith("character", "ZEL")).toEqual(["ZELDRA"]);
     expect(underlined()).not.toContain("ZELDRA");
-    await namesOnDisk();
+    expect(listsOf(session)).toEqual(lists);
 
     // None of it touched the screenplay, or marked it unsaved.
     expect(text()).toBe(before);
     expect(session.unsaved()).toBe(false);
     expect(heard.saved).not.toContain("unsaved");
     expect(heard.reports).toEqual([]);
-  });
-
-  it("takes back a heading's location the same way", async () => {
-    const { session, engine, press, add, underlined, namesOnDisk } = await checking();
-    await add("EXT. KORVATH TOWER [FLASHBACK] - LATER THAT NIGHT", "KORVATH");
-    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
-    expect(underlined()).not.toContain("KORVATH");
-
-    await press("undo");
-    expect(engine.added).toEqual([]);
-    expect(session.names.explicit("location")).toEqual([]);
-    expect(underlined()).toContain("KORVATH");
-    await namesOnDisk();
-
-    await press("redo");
-    expect(engine.added).toEqual(["KORVATH"]);
-    expect(session.names.explicit("location")).toEqual(["KORVATH TOWER"]);
-    expect(underlined()).not.toContain("KORVATH");
-    await namesOnDisk();
   });
 
   it("sits in the undo history in order with typing, and changes no text itself", async () => {
@@ -682,71 +613,14 @@ describe("Undo and Redo of Add to Dictionary", () => {
     expect(engine.added).toEqual([]);
   });
 
-  it("leaves a word that was already in the dictionary, and takes back only the name it listed", async () => {
-    const { session, engine, press, add, underlined, namesOnDisk } = await checking();
-    // Added before, as on another day: in the custom dictionary, not on the list.
+  it("is no step at all when the word was already in the dictionary", async () => {
+    const { engine, press, add, text } = await checking();
     await engine.addWord("ZELDRA");
-    await add("ZELDRA (V.O.)", "ZELDRA");
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
-
-    await press("undo");
-    expect(engine.added).toContain("ZELDRA");
-    expect(session.names.explicit("character")).toEqual([]);
-    expect(underlined()).not.toContain("ZELDRA");
-    await namesOnDisk();
-  });
-
-  it("is no step at all when it added nothing: the word was known and the name already listed", async () => {
-    const { session, engine, press, add, text } = await checking();
-    await add("ZELDRA (V.O.)", "ZELDRA");
-    await add("ZELDRA (V.O.)", "ZELDRA");
     const before = text();
-    // The one undo step is the first add's.
-    await press("undo");
-    expect(engine.added).toEqual([]);
-    expect(session.names.explicit("character")).toEqual([]);
+    await add("ZELDRA (V.O.)", "ZELDRA");
     expect(await press("undo")).toBe(false);
+    expect(engine.added).toContain("ZELDRA");
     expect(text()).toBe(before);
-  });
-
-  it("leaves a name the writer had already confirmed on its list", async () => {
-    const { session, engine, press, add, underlined, namesOnDisk } = await checking(
-      new TextEncoder().encode("characters\n  ZELDRA\n"),
-    );
-    // Confirmed already, so not underlined and not offered: the session is asked
-    // directly, as for a second Add to Dictionary on the same name.
-    expect(underlined()).not.toContain("ZELDRA");
-    await add("ZELDRA (V.O.)", "ZELDRA");
-    expect(engine.added).toEqual(["ZELDRA"]);
-
-    await press("undo");
-    expect(engine.added).toEqual([]);
-    expect(session.names.explicit("character")).toEqual(["ZELDRA"]);
-    await namesOnDisk();
-  });
-
-  it("leaves a name that its uses have confirmed since on the list, and trusted", async () => {
-    const { session, press, add, underlined } = await checking();
-    await add("QUILLAN", "QUILLAN");
-    // QUILLAN is a cue once: with the threshold at one, its use confirms it.
-    session.names.setConfirmAfterUses(1);
-    await press("undo");
-    expect(session.names.explicit("character")).toEqual([]);
-    expect(session.names.isConfirmed("character", "QUILLAN")).toBe(true);
-    expect(session.names.confirmedStartingWith("character", "QUI")).toEqual(["QUILLAN"]);
-    expect(underlined()).not.toContain("QUILLAN");
-  });
-
-  it("still takes the word back when the names file could not be read, and writes no names file", async () => {
-    const unreadable = new Uint8Array([0xff, 0xfe, 0xfd]);
-    const { session, engine, opened, press, add } = await checking(unreadable);
-    await add("ZELDRA (V.O.)", "ZELDRA");
-    expect(session.names.explicit("character")).toEqual([]);
-    await press("undo");
-    expect(engine.added).toEqual([]);
-    await press("redo");
-    expect(engine.added).toEqual(["ZELDRA"]);
-    expect(new Uint8Array(readFileSync(join(opened.project.path, NAMES_FILE)))).toEqual(unreadable);
   });
 });
 

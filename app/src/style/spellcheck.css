@@ -12,8 +12,3 @@
   text-decoration-style: wavy;
   text-decoration-color: var(--colour-misspelling);
 }
-
-/* *Did you mean MICHAEL?* — a typo of a name the script knows, not a stranger. */
-.manuscript .spell-error--near {
-  text-decoration-color: var(--colour-misspelling-near);
-}

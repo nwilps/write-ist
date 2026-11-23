@@ -37,6 +37,11 @@ package the writer may not have.
 - **Confirmed names and locations count as known words** (a derived list, ADR-0022, plus whatever
   stored state Slice 2's Question 1 settles).
 
+  > **Amended 2026-11-22 (Noah).** No longer. Spellcheck checks everything, names and locations
+  > included, and the character and location lists have no part in it: a name is right only once it
+  > is in the dictionary, Add to Dictionary adds to the dictionary and nothing else, and the "Did you
+  > mean MICHAEL?" near-match went with the link.
+
 ## What stays from ADR-0029
 
 The lists are derived, not a word bank. Autocomplete offers entries from those lists. Right-click is not

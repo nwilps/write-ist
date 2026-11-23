@@ -2,10 +2,9 @@
  * Spelling, without the editor (slice 2, step 10; ADR-0032).
  *
  * What a word is, which words the screenplay's own vocabulary makes right, and
- * what a verdict from the dictionary means once the script's confirmed names
- * are taken into account. Nothing here touches ProseMirror or the DOM, and
- * **nothing here looks a word up**: that is the engine's, on the other side of
- * the `SpellEngine` port, in Rust.
+ * what a verdict from the dictionary means. Nothing here touches ProseMirror
+ * or the DOM, and **nothing here looks a word up**: that is the engine's, on
+ * the other side of the `SpellEngine` port, in Rust.
  *
  * ## The port
  *
@@ -17,21 +16,18 @@
  *
  * ## What a verdict is
  *
- * 1. A word inside a **confirmed** name or location is known (`knownWords()`),
- *    and so is its possessive. A confirmed `EDWARD` makes `Edward's` right.
- * 2. The screenplay's own terms are known: `INT`, `EXT`, `CONT'D`, `POV`…
+ * 1. The screenplay's own terms are known: `INT`, `EXT`, `CONT'D`, `POV`…
  *    Single letters are never checked (`V.O.` is `V` and `O`).
- * 3. Otherwise the dictionary decides, once per distinct word: a verdict is
+ * 2. Otherwise the dictionary decides, once per distinct word: a verdict is
  *    cached, so a recheck of one scene asks the engine about no word it has
  *    already seen.
- * 4. A word the dictionary does not know — or a capitalised word that is an
- *    **unconfirmed** character name (used once or twice) — within a small edit
- *    distance of a confirmed word is a **near-match**: *"Did you mean
- *    MICHAEL?"* (Q-T).
- *    Everything else the dictionary does not know is a plain misspelling.
+ *
+ * **The character and location lists play no part** (Noah, 2026-11-22). A
+ * name on a list is not a dictionary word, and a misspelt cue or heading is
+ * underlined like any other misspelling. Only the writer's dictionary (Add to
+ * Dictionary, Settings ▸ Dictionary) makes a name right.
  */
 import type { Element } from "./document.ts";
-import { wordsOf, type NameLists } from "./names.ts";
 
 /** The dictionary, as the application sees it. */
 export interface SpellEngine {
@@ -50,14 +46,6 @@ export interface SpellEngine {
    * the word was among the writer's own words.
    */
   removeWord(word: string): Promise<boolean>;
-}
-
-/** The tunable values, named (`preferences.ts` carries the defaults). */
-export interface SpellingOptions {
-  /** Damerau–Levenshtein distance within which a word is a near-match of a confirmed one. */
-  readonly nearDistance: number;
-  /** Shortest word a near-match is offered for. */
-  readonly nearMinLength: number;
 }
 
 /** A word in a line of text. */
@@ -118,70 +106,10 @@ export function isChecked(type: Element["type"], omitted: boolean): boolean {
   return !omitted && !UNCHECKED.has(type);
 }
 
-/** What a verdict needs to know about the script. */
-export interface SpellContext {
-  /** Words inside confirmed names and locations, in capitals. */
-  readonly known: ReadonlySet<string>;
-  /** Words of character names used too few times to be confirmed, in capitals. */
-  readonly unconfirmed: ReadonlySet<string>;
-}
-
-export const NO_CONTEXT: SpellContext = { known: new Set(), unconfirmed: new Set() };
-
-/** The context a set of lists makes. */
-export function contextOf(names: NameLists): SpellContext {
-  const known = names.knownWords();
-  // Characters only: a place's words are ordinary words (`HILL`, `RING`), and a
-  // word the dictionary knows is not second-guessed because a heading used it.
-  const unconfirmed = new Set<string>();
-  for (const entry of names.unconfirmed("character")) {
-    for (const word of wordsOf(entry.name)) if (!known.has(word)) unconfirmed.add(word);
-  }
-  return { known, unconfirmed };
-}
-
-/** Whether two contexts mean the same, so what was judged under one stands under the other. */
-export function sameContext(a: SpellContext, b: SpellContext): boolean {
-  return sameSet(a.known, b.known) && sameSet(a.unconfirmed, b.unconfirmed);
-}
-
-function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a === b) return true;
-  if (a.size !== b.size) return false;
-  for (const item of a) if (!b.has(item)) return false;
-  return true;
-}
-
 /** What is wrong with a word. */
-export type Verdict =
-  | { readonly kind: "misspelled" }
-  | { readonly kind: "near"; readonly suggestion: string };
+export type Verdict = { readonly kind: "misspelled" };
 
-/**
- * Damerau–Levenshtein distance (optimal string alignment): insertion, deletion,
- * substitution, and the swap of two neighbours, each one edit. Stops early and
- * answers `limit + 1` once the words are further apart than `limit`.
- */
-export function editDistance(a: string, b: string, limit: number): number {
-  if (Math.abs(a.length - b.length) > limit) return limit + 1;
-  const rows: number[][] = [];
-  for (let i = 0; i <= a.length; i++) {
-    rows.push(new Array<number>(b.length + 1).fill(0));
-    rows[i]![0] = i;
-  }
-  for (let j = 0; j <= b.length; j++) rows[0]![j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      let best = Math.min(rows[i - 1]![j]! + 1, rows[i]![j - 1]! + 1, rows[i - 1]![j - 1]! + cost);
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-        best = Math.min(best, rows[i - 2]![j - 2]! + 1);
-      }
-      rows[i]![j] = best;
-    }
-  }
-  return rows[a.length]![b.length]!;
-}
+const MISSPELLED: Verdict = { kind: "misspelled" };
 
 /** `suggestion` in the case `original` was typed in: ALL CAPS, Title, or as it comes. */
 export function matchCase(suggestion: string, original: string): string {
@@ -208,10 +136,7 @@ export class Spelling {
   private changes = 0;
   private asks = 0;
 
-  constructor(
-    readonly engine: SpellEngine,
-    readonly options: SpellingOptions,
-  ) {}
+  constructor(readonly engine: SpellEngine) {}
 
   /** Words the engine has been sent, in total — what a recheck must not grow. */
   get wordsLookedUp(): number {
@@ -267,20 +192,9 @@ export class Spelling {
    * What is wrong with `word`, or undefined when nothing is. A word `prepare`
    * has not seen is not judged wrong.
    */
-  judge(word: string, context: SpellContext): Verdict | undefined {
-    const upper = word.toUpperCase();
-    if (context.known.has(upper) || this.isTerm(word)) return undefined;
-    if (isPossessiveOf(upper, context.known)) return undefined;
-
-    const wrong = this.verdicts.get(forEngine(word)) === true;
-    // A stray name (`Anne` against a confirmed `ANN`) is written with a capital;
-    // an ordinary lowercase word that happens to match one is not it.
-    const strayName = context.unconfirmed.has(upper) && word !== word.toLowerCase();
-    if (wrong || strayName) {
-      const near = this.nearest(upper, context.known);
-      if (near !== undefined) return { kind: "near", suggestion: matchCase(near, word) };
-    }
-    return wrong ? { kind: "misspelled" } : undefined;
+  judge(word: string): Verdict | undefined {
+    if (this.isTerm(word)) return undefined;
+    return this.verdicts.get(forEngine(word)) === true ? MISSPELLED : undefined;
   }
 
   /** The dictionary's suggestions for `word`, in the case it was typed in. */
@@ -314,31 +228,4 @@ export class Spelling {
   private isTerm(word: string): boolean {
     return SCREENPLAY_TERMS.has(forEngine(word).toUpperCase());
   }
-
-  /**
-   * The nearest confirmed word within the distance. The minimum length is the
-   * typo's: `ANNE` is a near-match of a confirmed `ANN` (the spec's own
-   * example), while `MIK` is too short to be called a typo of anything.
-   */
-  private nearest(upper: string, known: ReadonlySet<string>): string | undefined {
-    const { nearDistance, nearMinLength } = this.options;
-    if (upper.length < nearMinLength) return undefined;
-    let best: string | undefined;
-    let bestDistance = nearDistance + 1;
-    for (const candidate of known) {
-      if (candidate === upper) continue;
-      const distance = editDistance(upper, candidate, nearDistance);
-      if (distance < bestDistance) {
-        best = candidate;
-        bestDistance = distance;
-      }
-    }
-    return best;
-  }
-}
-
-/** `EDWARD'S` where `EDWARD` is known. */
-function isPossessiveOf(upper: string, known: ReadonlySet<string>): boolean {
-  const base = upper.replace(/['’]S$/, "");
-  return base !== upper && known.has(base);
 }

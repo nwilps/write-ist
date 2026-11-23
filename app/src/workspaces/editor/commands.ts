@@ -127,7 +127,7 @@ export interface EditorActions {
 
 /** A word the spelling pass has underlined, and what can be done about it. */
 export interface Misspelling {
-  /** Best first; the "Did you mean" fix for a confirmed name leads. */
+  /** The dictionary's, best first. */
   readonly suggestions: () => Promise<readonly string[]>;
   /** Replace the word: one undo step. */
   readonly replace: (text: string) => void;

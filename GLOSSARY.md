@@ -210,11 +210,6 @@ more typos. Use-based confirmation is live; the writer's own confirmation stays,
 piece of the lists that is stored (`names.txt` in the bundle).
 _Avoid_: approved, accepted, known name
 
-**Known word**:
-A word inside a confirmed name or location (`BENNETT'S` in `BENNETT'S HOSPITAL ROOM`) that
-spellcheck does not underline. Ordinary words inside the same name are still checked.
-_Avoid_: whitelisted word, dictionary word
-
 **Boneyard**:
 Text the writer has taken out of the screenplay without deleting it, wrapped in Fountain's
 `/* */`. It is in the file and absent from everything computed off the manuscript — the page
