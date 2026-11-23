@@ -1,0 +1,59 @@
+/*
+ * Notes: a notepad on a sheet (`notes.ts`). **Every value here is a token**
+ * (ADR-0030).
+ *
+ * The sheet is the Editor's paper — its colour, corners and shadow, and its
+ * width as drawn, so the shell's fades at the window's top and foot sit on it
+ * exactly as they sit on the manuscript. It runs the window's full height and
+ * grows with the notes. The writing is in the interface's face, not the
+ * manuscript's: Courier Prime is the screenplay's and nothing else's.
+ */
+
+.notes-desk {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.notes {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(calc(var(--page-width) * var(--paper-zoom)), 100%);
+  padding: var(--space-notes-top) var(--space-notes-side) var(--space-notes-foot);
+  background: var(--colour-page);
+  border-radius: var(--radius-paper);
+  box-shadow: var(--shadow-paper);
+}
+
+.notes__reading {
+  margin: 0;
+  color: var(--colour-faint);
+}
+
+.notes__text {
+  flex: 1 0 auto;
+  font-family: var(--face-interface);
+  font-size: var(--size-notes);
+  line-height: var(--leading-body);
+  color: var(--colour-text);
+  caret-color: var(--colour-accent);
+  /* The writer's spaces and tabs are drawn as typed, and long lines wrap. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: var(--count-notes-tab);
+  outline: none;
+}
+
+.notes__text ::selection {
+  background: color-mix(in srgb, var(--colour-accent) 30%, transparent);
+}
+
+/* Spellcheck's line, as on the paper (`spellcheck.css`). */
+.notes__text .spell-error {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--colour-misspelling);
+}

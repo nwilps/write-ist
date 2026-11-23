@@ -1,0 +1,373 @@
+/*
+ * Plan: cards on a grid (`plan.ts`). **Every value here is a token**
+ * (ADR-0030), and the look is Write-ist's — the raised panels, corners and
+ * two-layer shadows of the desk — not the prototype's.
+ *
+ * Where a card or a beat goes is said by its element in whole cells and lanes
+ * (`--card-cell`, `--card-lane`, `--card-cells`, `--beat-cell`, `--beat-row`),
+ * and the stylesheet turns those into room by the cell's size. No length is
+ * set from code.
+ */
+
+.plan-desk {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-roomy);
+  padding: var(--space-panel-top) 0 var(--space-desk-foot);
+}
+
+.plan__reading {
+  margin: 0 auto;
+  color: var(--colour-faint);
+}
+
+/* --- The board: the grid in a raised panel, scrolling along -------------- */
+
+.plan__board {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  outline: none;
+}
+
+.plan__board:focus-visible {
+  border-color: var(--colour-border-strong);
+}
+
+.plan__surface {
+  position: relative;
+  width: calc(var(--plan-columns) * var(--size-plan-cell));
+  font-size: var(--size-hint);
+  color: var(--colour-faint);
+  user-select: none;
+}
+
+.plan__ruler {
+  position: relative;
+  height: var(--size-plan-ruler);
+}
+
+.plan__tick {
+  position: absolute;
+  bottom: var(--space-hair);
+  left: calc(var(--tick) * var(--size-plan-cell));
+  padding-left: var(--space-hair);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__grid {
+  position: relative;
+  height: calc(var(--plan-lanes) * var(--size-plan-cell));
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--colour-plan-line) 0 var(--rule-thin),
+      transparent var(--rule-thin) var(--size-plan-cell)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--colour-plan-line) 0 var(--rule-thin),
+      transparent var(--rule-thin) var(--size-plan-cell)
+    );
+  border-radius: var(--radius-slight);
+  cursor: default;
+}
+
+/* Past the target: still room to put a card, drawn as beyond the whole. */
+.plan__past {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--plan-length) * var(--size-plan-cell));
+  right: 0;
+  background: var(--colour-plan-past);
+  pointer-events: none;
+}
+
+.plan__end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--plan-length) * var(--size-plan-cell));
+  border-left: var(--rule-thin) solid var(--colour-plan-end);
+  pointer-events: none;
+}
+
+/* --- Cards ------------------------------------------------------------------ */
+
+.plan__card,
+.plan__title-edit {
+  position: absolute;
+  box-sizing: border-box;
+  left: calc(var(--card-cell) * var(--size-plan-cell) + var(--space-plan-card));
+  top: calc(var(--card-lane) * var(--size-plan-cell) + var(--space-plan-card));
+  width: calc(var(--card-cells) * var(--size-plan-cell) - var(--space-plan-card) * 2);
+  height: calc(var(--size-plan-cell) - var(--space-plan-card) * 2);
+}
+
+.plan__card {
+  --card-tint: var(--colour-plan-plain);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-tight);
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
+  border: var(--rule-thin) solid color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
+  border-radius: var(--radius-slight);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-text);
+  font-size: var(--size-label);
+  cursor: grab;
+}
+
+.plan__card[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__card[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__card[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__card[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__card[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__card[data-colour="green"] { --card-tint: var(--colour-plan-green); }
+
+.plan__card[data-selected="true"] {
+  border-color: var(--colour-accent);
+}
+
+/* Dragged, it is lifted, never hidden: the grid under it keeps its shape. */
+.plan__card[data-dragging="true"] {
+  z-index: var(--layer-plan-drag);
+  cursor: grabbing;
+  opacity: var(--opacity-plan-drag);
+}
+
+.plan__card[data-invalid="true"] {
+  border-color: var(--colour-alarm);
+}
+
+.plan__card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The right edge lengthens the card. */
+.plan__card-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--size-plan-grip);
+  cursor: ew-resize;
+}
+
+.plan__title-edit {
+  z-index: var(--layer-plan-drag);
+  min-width: calc(var(--size-plan-cell) * var(--count-plan-title-cells));
+  padding: 0 var(--space-tight);
+  background: var(--colour-base);
+  border: var(--rule-thin) solid var(--colour-accent);
+  border-radius: var(--radius-slight);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: var(--size-label);
+  outline: none;
+}
+
+/* --- Structure beats, band under band ---------------------------------------- */
+
+.plan__beats {
+  position: relative;
+  height: calc(var(--plan-beat-rows) * var(--size-plan-beat-row) + var(--space-snug));
+}
+
+.plan__beat {
+  position: absolute;
+  bottom: calc(100% - var(--space-snug) - var(--beat-row) * var(--size-plan-beat-row));
+  left: calc(var(--beat-cell) * var(--size-plan-cell));
+  height: calc(var(--plan-lanes) * var(--size-plan-cell) + var(--space-snug) + var(--beat-row) * var(--size-plan-beat-row));
+  border-left: var(--rule-thin) dashed var(--colour-plan-beat);
+  pointer-events: none;
+}
+
+.plan__beat-label {
+  position: absolute;
+  top: calc(var(--space-snug) + var(--beat-row) * var(--size-plan-beat-row));
+  left: calc(var(--beat-cell) * var(--size-plan-cell));
+  display: flex;
+  gap: var(--space-tight);
+  height: calc(var(--size-plan-beat-row) - var(--space-hair));
+  align-items: center;
+  padding: 0 var(--space-tight);
+  white-space: nowrap;
+  color: var(--colour-muted);
+}
+
+.plan__beat-label--span {
+  box-sizing: border-box;
+  width: calc(var(--beat-cells) * var(--size-plan-cell));
+  overflow: hidden;
+  background: var(--colour-plan-past);
+  border-radius: var(--radius-slight);
+}
+
+.plan__beat-page {
+  color: var(--colour-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Under the board ---------------------------------------------------------- */
+
+.plan__controls {
+  display: flex;
+  gap: var(--space-snug);
+}
+
+.plan__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-pill);
+  padding: 0 var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-muted);
+  font: inherit;
+  font-size: var(--size-label);
+  cursor: default;
+}
+
+.plan__control:hover,
+.plan__control:focus-visible {
+  color: var(--colour-text);
+  outline: none;
+}
+
+.plan__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+/* The selected card: its title, colour, length and description. */
+.plan__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-snug);
+  width: min(var(--measure-reading), 100%);
+  box-sizing: border-box;
+  padding: var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+.plan__panel[hidden] {
+  display: none;
+}
+
+.plan__panel-head,
+.plan__panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-roomy);
+}
+
+.plan__panel-title,
+.plan__description {
+  box-sizing: border-box;
+  padding: var(--space-tight) var(--space-snug);
+  background: var(--colour-base);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-slight);
+  color: var(--colour-text);
+  font: inherit;
+  outline: none;
+}
+
+.plan__panel-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--size-body);
+}
+
+.plan__description {
+  min-height: var(--size-plan-description);
+  font-size: var(--size-label);
+  line-height: var(--leading-body);
+  resize: vertical;
+}
+
+.plan__panel-title:focus,
+.plan__description:focus {
+  border-color: var(--colour-border-strong);
+}
+
+.plan__description::placeholder {
+  color: var(--colour-faint);
+}
+
+.plan__swatches {
+  display: flex;
+  gap: var(--space-tight);
+}
+
+.plan__swatch {
+  --card-tint: var(--colour-plan-plain);
+  width: var(--size-plan-swatch);
+  height: var(--size-plan-swatch);
+  padding: 0;
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-swatch), var(--colour-overlay));
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-round);
+  cursor: default;
+}
+
+.plan__swatch[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__swatch[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__swatch[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__swatch[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__swatch[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__swatch[data-colour="green"] { --card-tint: var(--colour-plan-green); }
+
+.plan__swatch[aria-pressed="true"] {
+  border-color: var(--colour-accent);
+  box-shadow: 0 0 0 var(--rule-thin) var(--colour-accent);
+}
+
+.plan__stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-snug);
+  color: var(--colour-muted);
+  font-size: var(--size-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__step {
+  width: var(--size-chip);
+  height: var(--size-chip);
+  padding: 0;
+  background: var(--colour-overlay);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-slight);
+  color: var(--colour-text);
+  font: inherit;
+  cursor: default;
+}
+
+.plan__step:disabled {
+  opacity: var(--opacity-unavailable);
+}
+
+.plan__delete:hover,
+.plan__delete:focus-visible {
+  color: var(--colour-alarm);
+}

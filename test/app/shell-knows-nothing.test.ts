@@ -19,7 +19,7 @@
  * know the surface's **vocabulary** — no element type by name, and no reach into
  * the surface's code — or it knows one surface and the registry is decoration.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -110,11 +110,20 @@ describe("the shell knows nothing about what it hosts (ADR-0005)", () => {
 });
 
 describe("a workspace is a manifest, not surgery in the shell (ADR-0005)", () => {
-  it("declares the Editor, then the temporary Notes and Plan placeholders", () => {
-    // Notes and Plan are visual placeholders (workspaces/placeholders.ts); the
-    // real ones, and Log, are later slices, each a manifest of its own.
+  it("declares the Editor, then Notes and Plan, each a manifest of its own", () => {
+    // The placeholders they replaced are gone; Log and the rest come the same way.
     expect(WORKSPACES.map((workspace) => workspace.id)).toEqual(["editor", "notes", "plan"]);
     expect(WORKSPACES[0]?.name).toBe("Editor");
+    expect(existsSync(join(root, "app", "src", "workspaces", "placeholders.ts"))).toBe(false);
+  });
+
+  it("keeps Notes and Plan in folders of their own, out of the shell and the screenplay surface", () => {
+    for (const id of ["notes", "plan"]) {
+      expect(statSync(join(root, "app", "src", "workspaces", id)).isDirectory()).toBe(true);
+      expect(statSync(join(root, "src", id)).isDirectory()).toBe(true);
+    }
+    const shell = shellFiles().map(codeOf).join("\n");
+    expect(shell).not.toMatch(/notes\.md|plan\.md|workspaces\/(notes|plan)|src\/(notes|plan)\//);
   });
 
   it("gives every workspace everything the bar will need of it", () => {

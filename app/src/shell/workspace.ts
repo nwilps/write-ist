@@ -7,15 +7,19 @@
  * > what it is. […] Get this right and a new workspace is a manifest; get it
  * > wrong and every workspace is surgery in the shell.
  *
- * The Editor is the one real workspace. The workspace bar is drawn, and beside
- * the Editor it lists Notes and Plan, which are placeholders for now
- * (`app/src/workspaces/placeholders.ts`). Which of them a project shows is the
- * project's (Edit Project Details, `src/project/details.ts`); the shell shows
- * those, and every workspace that is `alwaysOn`. That is the whole point of the
- * manifest: those tabs, and the real Notes, Plan and Log workspaces after them,
- * arrive as entries in a registry rather than as changes in here. ADR-0005 records that stating this rule is what failed
- * last time — v1's architecture document already said modes must never be
- * hard-coded into the shell, and v1 still produced a 3,535-line `Draft.tsx`.
+ * Three workspaces come through it: the Editor, Notes and Plan
+ * (`app/src/workspaces/registry.ts`), each a manifest and a folder of its own.
+ * Which of them a project shows is the project's (Edit Project Details,
+ * `src/project/details.ts`); the shell shows those, and every workspace that is
+ * `alwaysOn`. That is the whole point of the manifest: the next workspace (the
+ * Log, say) arrives as an entry in the registry rather than as a change in
+ * here. ADR-0005 records that stating this rule is what failed last time —
+ * v1's architecture document already said modes must never be hard-coded into
+ * the shell, and v1 still produced a 3,535-line `Draft.tsx`.
+ *
+ * **This is a doorway, not a plugin system.** It is a list in code and a typed
+ * shape; nothing is loaded from anywhere. Everything below is what a workspace
+ * may be given or asked, and none of it names what a workspace holds.
  *
  * So the rule has a form a test can fail on, and
  * `test/app/shell-knows-nothing.test.ts` is it.
@@ -25,6 +29,8 @@ import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
+import type { ProjectDetails } from "../../../src/project/details.ts";
+import type { WorkspacePlaces } from "../../../src/project/workspace-places.ts";
 import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
 
 /**
@@ -113,9 +119,18 @@ export interface WorkspaceContext {
   /**
    * Open Edit Project Details for this project: its name, type, target page
    * count and workspaces. The shell's name pill, `project` and the workspace
-   * bar follow; the workspace stays mounted.
+   * bar follow; the workspace stays mounted. A rename's move waits its turn
+   * with every workspace that is up (`MountedWorkspace.relocate`), not only
+   * the one that asked.
    */
   readonly editProjectDetails: (request: DetailsRequest) => void;
+  /**
+   * Hear the project's details saved — its target page count, which
+   * workspaces it shows — whichever workspace asked for them. Answers how to
+   * stop listening. A workspace reads the details itself when it is mounted
+   * (`readDetails`); this is what changes after.
+   */
+  readonly whenDetailsChanged: (act: (details: ProjectDetails) => void) => () => void;
   /**
    * Open the application's Settings dialog into `into`, over the workspace.
    * The shell passes this through and does not know what is in it.
@@ -123,7 +138,8 @@ export interface WorkspaceContext {
   readonly openSettings: (request: SettingsRequest) => void;
   /**
    * Say whether the workspace's work is on disk, in the save pill beside the
-   * counts. `saving` is a save that has started and not yet landed; `unsaved`
+   * counts. Each workspace has its own state, and the pill shows the one on
+   * screen. `saving` is a save that has started and not yet landed; `unsaved`
    * is work waiting on the next one. A workspace with nothing to save never
    * calls this, and the pill stays on `saved`.
    */
@@ -162,6 +178,12 @@ export interface WorkspaceContext {
    */
   readonly places: () => Places | undefined;
   /**
+   * Where the writer was in every other workspace of each project — a caret, a
+   * scroll — kept in app data, never in the bundle and never in `localStorage`.
+   * A function for the same reason as `places`.
+   */
+  readonly workspacePlaces: () => WorkspacePlaces | undefined;
+  /**
    * Ask the writer where a copy of their work should go (a save dialog), given
    * the name to offer. Answers the chosen path, or `undefined` if they
    * cancelled. Given rather than found, like the window events: the dialog is
@@ -192,6 +214,23 @@ export interface MountedWorkspace {
   readonly unmount: () => Promise<boolean>;
   /** Give the keys back to the workspace, when a menu of the shell's closes. */
   readonly focus?: () => void;
+  /**
+   * The writer chose another workspace's tab. This one stays mounted, out of
+   * sight, so its selection, scroll and undo history are there when they come
+   * back. It should save what is waiting — leaving a workspace is one of the
+   * moments ADR-0028 saves at — and stop answering keys the window hears.
+   */
+  readonly hide?: () => void;
+  /** Back on screen after `hide`: take the keys again. */
+  readonly show?: () => void;
+  /**
+   * Run a move of the project's folder (a rename) at a moment when this
+   * workspace is not writing, and go on writing where it went. Any workspace
+   * that writes files in the folder should have it; the shell asks every one
+   * that is up, so a rename asked for in one never moves the folder under
+   * another's save.
+   */
+  readonly relocate?: (move: () => Promise<Project>) => Promise<Project>;
 }
 
 export interface WorkspaceManifest {
@@ -217,8 +256,9 @@ export interface WorkspaceManifest {
    * The files in a project's folder that hold this workspace's work, by name
    * (ADR-0025: `plan.md` is Plan's, `notes.md` Notes'). Declared so what
    * belongs to a workspace is said where the workspace is. Turning a
-   * workspace off for a project hides its tab and **never touches these**:
-   * turning it on again finds them as they were.
+   * workspace off for a project hides its tab, takes it down (saving it, as
+   * closing does) and **never touches these**: turning it on again finds them
+   * as they were.
    */
   readonly files: readonly string[];
   /**
@@ -229,8 +269,10 @@ export interface WorkspaceManifest {
    * every format is a screenplay that shows the same workspaces, so a field
    * listing which formats show this workspace could only ever hold every one of
    * them — an abstraction for a need nothing has yet. It arrives with the first
-   * format that differs or the second workspace, whichever comes first, and it
-   * costs one line in each manifest then.
+   * format that differs, and it costs one line in each manifest then. Notes and
+   * Plan did not need it: both are for any project (ADR-0006, and Plan is
+   * medium-agnostic), so every format shows every workspace until the writer
+   * turns one off.
    */
   /** Draw it into the element given, and answer how to take it down. */
   readonly mount: (into: HTMLElement, context: WorkspaceContext) => MountedWorkspace;

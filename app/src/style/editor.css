@@ -138,6 +138,11 @@
   padding: 0 var(--space-roomy);
 }
 
+/* A workspace out of sight behind another is still mounted (`shell.ts`). */
+.workspace[hidden] {
+  display: none;
+}
+
 /*
  * The paper fading off at the window's top and bottom edges. Fixed to the
  * column, as wide as the paper and centred on it, so the panels and the desk

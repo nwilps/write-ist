@@ -620,6 +620,63 @@
   --opacity-unavailable: 0.4;
 }
 
+/* --- Notes (`app/src/workspaces/notes/`) ------------------------------------ */
+
+:root {
+  /** The notepad's text: the interface's face, a little larger than its labels. */
+  --size-notes: var(--size-body);
+  /** Room above the first line, clear of the workspace bar floating over the sheet. */
+  --space-notes-top: var(--space-panel-top);
+  /** Room either side of the writing. */
+  --space-notes-side: calc(var(--space-vast) + var(--space-loose));
+  /** Room below the last line, clear of the pills along the foot. */
+  --space-notes-foot: calc(var(--space-desk-foot) + var(--space-vast));
+  /** How many spaces wide a tab is drawn. */
+  --count-notes-tab: 4;
+}
+
+/* --- Plan (`app/src/workspaces/plan/`) -------------------------------------- */
+
+:root {
+  /** One square of the grid: a cell across, a lane down. */
+  --size-plan-cell: 32px;
+  /** The numbers above the grid. */
+  --size-plan-ruler: 20px;
+  /** One row of structure beat labels under it. */
+  --size-plan-beat-row: 20px;
+  /** The gap a card keeps inside its squares. */
+  --space-plan-card: var(--space-hair);
+  /** The strip at a card's right edge that lengthens it. */
+  --size-plan-grip: var(--space-tight);
+  /** How wide a title being typed is at least, in cells. */
+  --count-plan-title-cells: 6;
+  --size-plan-swatch: 18px;
+  --size-plan-description: 96px;
+  --layer-plan-drag: 2;
+  --opacity-plan-drag: 0.85;
+  /** The grid's lines: the border's colour, faint. */
+  --colour-plan-line: color-mix(in srgb, var(--colour-border) 70%, transparent);
+  /** The squares past the end of the target. */
+  --colour-plan-past: color-mix(in srgb, var(--colour-base) 45%, transparent);
+  --colour-plan-end: var(--colour-faint);
+  --colour-plan-beat: color-mix(in srgb, var(--colour-faint) 55%, transparent);
+  /**
+   * A card's colours: the palette the app already speaks in, two more from
+   * the same family, each drawn as a tint over the card's grey so a page of
+   * cards stays quiet.
+   */
+  --colour-plan-plain: var(--colour-border-strong);
+  --colour-plan-yellow: var(--colour-accent);
+  --colour-plan-orange: #fe8019;
+  --colour-plan-red: var(--colour-alarm);
+  --colour-plan-purple: #d3869b;
+  --colour-plan-blue: var(--colour-info);
+  --colour-plan-green: var(--colour-affirm);
+  --mix-plan-card: 22%;
+  --mix-plan-card-edge: 55%;
+  --mix-plan-swatch: 70%;
+}
+
 /* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */
 
 :root {

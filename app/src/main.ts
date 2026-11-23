@@ -70,6 +70,7 @@ import { WORKSPACES } from "./workspaces/registry.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { openLedger } from "../../src/project/ledger.ts";
 import { openPlaces, type Places } from "../../src/project/places.ts";
+import { openWorkspacePlaces, type WorkspacePlaces } from "../../src/project/workspace-places.ts";
 import {
   defaultLedgerDirectory,
   defaultProjectsDirectory,
@@ -165,8 +166,13 @@ function useSettings(next: Settings): void {
  * project simply opens at the top of its script.
  */
 let places: Places | undefined;
+/** Where the writer was in every other workspace (Notes, Plan), beside it. */
+let workspacePlaces: WorkspacePlaces | undefined;
 void defaultLedgerDirectory().then(
-  (directory) => void (places = openPlaces(tauriFilesystem, directory)),
+  (directory) => {
+    places = openPlaces(tauriFilesystem, directory);
+    workspacePlaces = openWorkspacePlaces(tauriFilesystem, directory);
+  },
   () => {},
 );
 
@@ -197,6 +203,7 @@ function draw(): void {
       whenSwitchedBack,
       ledger: () => ledger,
       places: () => places,
+      workspacePlaces: () => workspacePlaces,
       // The dialog's answer is the only place a copy may be written outside the
       // home folder: the plugin widens the file scope to that one path.
       chooseCopyLocation: async (suggestedName) =>

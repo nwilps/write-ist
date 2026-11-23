@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
-import type { WorkspaceManifest } from "../../app/src/shell/workspace.ts";
+import type { WorkspaceContext, WorkspaceManifest } from "../../app/src/shell/workspace.ts";
 import { WORKSPACES } from "../../app/src/workspaces/registry.ts";
 import { COMMANDS, commandById, hintOf } from "../../app/src/workspaces/editor/commands.ts";
 import { shortcutGroups } from "../../app/src/workspaces/editor/keyboard-shortcuts-dialog.ts";
@@ -165,16 +165,133 @@ describe("choosing a tab", () => {
     expect(down.defaultPrevented).toBe(true);
   });
 
-  it("keeps the Editor mounted and on screen while Notes or Plan is selected, and mounts nothing else", () => {
+  it("mounts each workspace the first time its tab is chosen, and keeps it mounted, out of sight, after", () => {
     const into = shellOf(WORKSPACES);
+    const hostOf = (id: string) => into.querySelector<HTMLElement>(`.workspace[data-workspace="${id}"]`);
+    expect(mounts.has("notes")).toBe(false);
     alt("2");
     alt("3");
     tabsOf(into)[1]!.click();
     alt("1");
     expect(mounts.get("editor")).toEqual({ mounted: 1, unmounted: 0 });
-    expect(mounts.has("notes")).toBe(false);
-    expect(mounts.has("plan")).toBe(false);
+    expect(mounts.get("notes")).toEqual({ mounted: 1, unmounted: 0 });
+    expect(mounts.get("plan")).toEqual({ mounted: 1, unmounted: 0 });
+    // One on screen at a time; the others are still there, hidden.
+    expect(hostOf("editor")!.hidden).toBe(false);
+    expect(hostOf("notes")!.hidden).toBe(true);
+    expect(hostOf("plan")!.hidden).toBe(true);
     expect(into.querySelector(".mounted-editor")?.isConnected).toBe(true);
+    expect(into.querySelector(".mounted-notes")?.isConnected).toBe(true);
+  });
+
+  it("tells the workspace it leaves to step aside, and the one it reaches that it is back", () => {
+    const told: string[] = [];
+    const quietly = WORKSPACES.map((workspace) => ({
+      ...workspace,
+      mount: () => ({
+        unmount: async () => true,
+        hide: () => void told.push(`hide ${workspace.id}`),
+        show: () => void told.push(`show ${workspace.id}`),
+      }),
+    }));
+    const into = document.createElement("div");
+    document.body.append(into);
+    const shell = mountShell(into, {
+      project: { path: "/p", marker: { name: "Big Fish" } } as never,
+      filesystem: {} as never,
+      workspaces: quietly,
+      onClose: () => {},
+      onHome: () => {},
+      whenSwitchedAway: () => () => {},
+      whenSwitchedBack: () => () => {},
+      chooseCopyLocation: async () => undefined,
+      choosePdfLocation: async () => undefined,
+      askToEditDetails: () => {},
+      openSettings: () => {},
+      ledger: () => undefined,
+      places: () => undefined,
+    });
+    up.push(shell);
+    alt("2");
+    alt("1");
+    alt("2");
+    // Notes is mounted on screen the first time, so it is not told it is back.
+    expect(told).toEqual(["hide editor", "hide notes", "show editor", "hide editor", "show notes"]);
+  });
+
+  it("keeps each workspace's own save pill, counts and spellcheck, and shows the one on screen", async () => {
+    const said = WORKSPACES.map((workspace) => ({
+      ...workspace,
+      mount: (_host: HTMLElement, context: WorkspaceContext) => {
+        if (workspace.id === "editor") {
+          context.setStatus("p. ~1 / 1 | w. 3");
+          context.setSpellcheck(true);
+        } else {
+          context.setStatus("w. 12");
+          context.setSaved("unsaved");
+        }
+        return { unmount: async () => true };
+      },
+    }));
+    const into = document.createElement("div");
+    document.body.append(into);
+    up.push(
+      mountShell(into, {
+        project: { path: "/p", marker: { name: "Big Fish" } } as never,
+        filesystem: {} as never,
+        workspaces: said,
+        onClose: () => {},
+        onHome: () => {},
+        whenSwitchedAway: () => () => {},
+        whenSwitchedBack: () => () => {},
+        chooseCopyLocation: async () => undefined,
+        choosePdfLocation: async () => undefined,
+        askToEditDetails: () => {},
+        openSettings: () => {},
+        ledger: () => undefined,
+        places: () => undefined,
+      }),
+    );
+    const counts = into.querySelector<HTMLElement>(".pill--counts")!;
+    const save = into.querySelector<HTMLElement>(".pill--save")!;
+    const spelling = into.querySelector<HTMLElement>(".pill--spellcheck")!;
+    expect([counts.textContent, save.dataset["state"], spelling.hidden]).toEqual(["p. ~1 / 1 | w. 3", "saved", false]);
+    alt("2");
+    expect([counts.textContent, save.dataset["state"], spelling.hidden]).toEqual(["w. 12", "unsaved", true]);
+    alt("1");
+    expect([counts.textContent, save.dataset["state"], spelling.hidden]).toEqual(["p. ~1 / 1 | w. 3", "saved", false]);
+  });
+
+  it("takes down every workspace that is up when the project closes, and stays open if one cannot come down", async () => {
+    let refuse = true;
+    const stubborn = WORKSPACES.map((workspace) => ({
+      ...workspace,
+      mount: () => ({ unmount: async () => workspace.id !== "notes" || !refuse }),
+    }));
+    const into = document.createElement("div");
+    document.body.append(into);
+    const shell = mountShell(into, {
+      project: { path: "/p", marker: { name: "Big Fish" } } as never,
+      filesystem: {} as never,
+      workspaces: stubborn,
+      onClose: () => {},
+      onHome: () => {},
+      whenSwitchedAway: () => () => {},
+      whenSwitchedBack: () => () => {},
+      chooseCopyLocation: async () => undefined,
+      choosePdfLocation: async () => undefined,
+      askToEditDetails: () => {},
+      openSettings: () => {},
+      ledger: () => undefined,
+      places: () => undefined,
+    });
+    alt("2");
+    alt("1");
+    // Notes' last save failed: the project stays open, and Notes is put on screen.
+    expect(await shell.unmount()).toBe(false);
+    expect(selectedOf(into)).toEqual(["Notes"]);
+    refuse = false;
+    expect(await shell.unmount()).toBe(true);
   });
 
   it("leaves other keys alone: Alt+Enter, the menus' Alt+F, E and V, Ctrl+1, a bare 1, and Alt+4 with no fourth tab", () => {

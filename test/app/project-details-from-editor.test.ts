@@ -16,7 +16,6 @@ import type { EditorView } from "prosemirror-view";
 import { suppressNativeMenus } from "../../app/src/menus/native-menu.ts";
 import { askToEditProjectDetails, type WorkspaceChoice } from "../../app/src/screens/project-dialogs.ts";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
-import { notesPlaceholder, planPlaceholder } from "../../app/src/workspaces/placeholders.ts";
 import { DETAILS_FILE, MANUSCRIPT_FILE, MARKER_FILE, type Project } from "../../src/project/bundle.ts";
 import { createProject } from "../../src/project/create.ts";
 import { readDetails } from "../../src/project/details.ts";
@@ -41,7 +40,9 @@ vi.mock("prosemirror-view", async (actual) => {
 // The Rust dictionary is not here; the fake stands in for it.
 vi.mock("../../app/src/spell-tauri.ts", () => ({ tauriSpellEngine: fakeEngine() }));
 const { editorWorkspace } = await import("../../app/src/workspaces/editor/editor.ts");
-const WORKSPACES = [editorWorkspace, notesPlaceholder, planPlaceholder];
+const { notesManifest } = await import("../../app/src/workspaces/notes/notes.ts");
+const { planWorkspace } = await import("../../app/src/workspaces/plan/plan.ts");
+const WORKSPACES = [editorWorkspace, notesManifest({ spellEngine: fakeEngine() }), planWorkspace];
 const CHOICES: readonly WorkspaceChoice[] = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
 
 // jsdom has no modal dialog.

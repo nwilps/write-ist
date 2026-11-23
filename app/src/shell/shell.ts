@@ -24,11 +24,20 @@ import type { Project } from "../../../src/project/bundle.ts";
 import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
+import type { ProjectDetails } from "../../../src/project/details.ts";
+import type { WorkspacePlaces } from "../../../src/project/workspace-places.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
 import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
-import type { DetailsRequest, MountedWorkspace, SaveState, SettingsRequest, WorkspaceManifest } from "./workspace.ts";
+import type {
+  DetailsRequest,
+  MountedWorkspace,
+  SaveState,
+  SettingsRequest,
+  WorkspaceContext,
+  WorkspaceManifest,
+} from "./workspace.ts";
 import { workspaceAsked } from "./workspace-keys.ts";
 
 export interface ShellScreen {
@@ -37,9 +46,8 @@ export interface ShellScreen {
   readonly filesystem: Filesystem;
   /**
    * The workspaces the application offers, in the order the bar lists them.
-   * The first is the one on screen. The Editor is the only real workspace;
-   * Notes and Plan are placeholder tabs, so choosing one selects its tab and
-   * leaves the first mounted and on screen.
+   * The first is the one on screen when the project opens; the others are
+   * mounted the first time their tab is chosen.
    */
   readonly workspaces: readonly WorkspaceManifest[];
   /**
@@ -66,6 +74,8 @@ export interface ShellScreen {
   readonly ledger: () => Ledger | undefined;
   /** Where the writer was in each project. Handed straight on, like the ledger. */
   readonly places: () => Places | undefined;
+  /** Where the writer was in each workspace of each project. Handed straight on, like the ledger. */
+  readonly workspacePlaces?: () => WorkspacePlaces | undefined;
   /** Where a copy should go, asked of the writer. Handed straight to the workspace. */
   readonly chooseCopyLocation: (suggestedName: string) => Promise<string | undefined>;
   /** Where the PDF should go, asked the same way. */
@@ -93,27 +103,52 @@ export interface MountedShell {
   /**
    * Show these workspaces' tabs (ids; `undefined` for every one), as the
    * project's details now say. If the tab selected is one no longer shown,
-   * the first workspace's is selected: the writer is back in it.
+   * the first workspace's is selected: the writer is back in it. A workspace
+   * no longer shown is taken down, which saves it; its files stay where they
+   * are, and turning it on again finds them as they were.
    */
   readonly showWorkspaces: (shown: readonly string[] | undefined) => void;
 }
 
+/** What a workspace has said to the pills, kept while another one is on screen. */
+interface Pills {
+  status: string;
+  goal: { readonly text: string; readonly kind: string; readonly state: string } | undefined;
+  saved: SaveState;
+  spellcheck: boolean;
+}
+
+/** A workspace that has been put up, on screen or out of sight behind another. */
+interface Hosted {
+  readonly manifest: WorkspaceManifest;
+  /** The element it was drawn into, its own; hidden while another workspace is on screen. */
+  readonly host: HTMLElement;
+  mounted: MountedWorkspace | undefined;
+  readonly pills: Pills;
+  readonly goalsAsked: Set<() => void>;
+  readonly detailsAsked: Set<() => void>;
+  readonly detailsChanged: Set<(details: ProjectDetails) => void>;
+  /** Where the window was scrolled to when it was last left. */
+  scroll: number;
+}
+
 /**
- * Draw the shell and mount its workspace.
+ * Draw the shell and mount its first workspace.
  *
- * The workspace is mounted **once**, into an element the shell then leaves
- * alone. Redrawing the furniture around a live editing engine would throw away its
- * selection, its scroll position and eventually its undo stack, so the shell
- * does not own a `draw()` the way the menu screens do — it is put up when a
- * project opens and taken down when it closes.
+ * Each workspace is mounted **once**, into an element of its own the shell
+ * then leaves alone — the first when the project opens, each other the first
+ * time its tab is chosen — and is hidden, not taken down, while another is on
+ * screen. Redrawing the furniture around a live editing engine would throw away
+ * its selection, its scroll position and eventually its undo stack, so the
+ * shell does not own a `draw()` the way the menu screens do — it is put up
+ * when a project opens and taken down when it closes.
  */
 export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell {
   const gestures: readonly Gesture[] = [
     { label: "Home", key: LEAVE, act: screen.onHome },
   ];
 
-  const host = element("div", { className: "workspace" });
-  const view = element("main", { className: "shell__view" }, [host]);
+  const view = element("main", { className: "shell__view" });
   // The counts slot stays empty until the workspace has something to say
   // (#48) — real text, never a guess — and its pill is hidden until then.
   // Pressing the counts or the Goal pill asks the workspace for its goals.
@@ -128,10 +163,6 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const spellingIcon = createElement(SpellCheck as IconNode, { class: "pill__icon" });
   spellingIcon.setAttribute("aria-hidden", "true");
   spelling.append(spellingIcon);
-  const askers = new Set<() => void>();
-  const asked = (): void => askers.forEach((act) => act());
-  counts.addEventListener("click", asked);
-  goal.addEventListener("click", asked);
 
   // The project as it is now: a rename replaces it with the workspace still up.
   let project = screen.project;
@@ -143,10 +174,179 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     type: "button",
     textContent: project.marker.name,
   });
-  const detailsAskers = new Set<() => void>();
-  projectName.addEventListener("click", () => detailsAskers.forEach((act) => act()));
 
-  const bar = workspaceBar(screen.workspaces, screen.shown);
+  /**
+   * **Every workspace that has been put up, by id.** One is on screen; the
+   * others are hidden, still mounted, so the Editor's selection, scroll and
+   * undo history are where the writer left them when they come back. Each is
+   * mounted the first time its tab is chosen and taken down when the project
+   * closes or the workspace is turned off.
+   */
+  const hosted = new Map<string, Hosted>();
+  let active: Hosted | undefined;
+
+  // The pills belong to whichever workspace is on screen, and say what it last said.
+  const drawPills = (record: Hosted): void => {
+    counts.textContent = record.pills.status;
+    counts.hidden = record.pills.status === "";
+    const pill = record.pills.goal;
+    goal.hidden = pill === undefined;
+    if (pill !== undefined) {
+      goal.textContent = pill.text;
+      goal.dataset["kind"] = pill.kind;
+      goal.dataset["state"] = pill.state;
+    }
+    saved.set(record.pills.saved);
+    spelling.hidden = !record.pills.spellcheck;
+  };
+  const onScreen = (record: Hosted): boolean => active === record;
+  // A press on a pill is the on-screen workspace's to answer.
+  counts.addEventListener("click", () => active?.goalsAsked.forEach((act) => act()));
+  goal.addEventListener("click", () => active?.goalsAsked.forEach((act) => act()));
+  projectName.addEventListener("click", () => active?.detailsAsked.forEach((act) => act()));
+
+  /**
+   * A rename moves the folder under every workspace that is up, so the move
+   * waits its turn with each of them (`relocate`): none of them writes while
+   * the folder is on the move, and each goes on writing where it went.
+   */
+  const carryOutAround = (asking: Hosted, carryOut: DetailsRequest["carryOut"]): DetailsRequest["carryOut"] =>
+    [...hosted.values()]
+      .filter((record) => record !== asking)
+      .reduce<DetailsRequest["carryOut"]>((inner, record) => {
+        const relocate = record.mounted?.relocate;
+        return relocate === undefined ? inner : (move) => relocate(() => inner(move));
+      }, carryOut);
+
+  const contextFor = (record: Hosted): WorkspaceContext => ({
+    get project() {
+      return project;
+    },
+    filesystem: screen.filesystem,
+    report: (wrong) => void record.host.append(troublePanel(wrong)),
+    setStatus: (text) => {
+      record.pills.status = text;
+      if (onScreen(record)) drawPills(record);
+    },
+    setGoal: (pill) => {
+      record.pills.goal = pill;
+      if (onScreen(record)) drawPills(record);
+    },
+    whenGoalsAsked: (act) => {
+      record.goalsAsked.add(act);
+      return () => void record.goalsAsked.delete(act);
+    },
+    whenDetailsAsked: (act) => {
+      record.detailsAsked.add(act);
+      return () => void record.detailsAsked.delete(act);
+    },
+    whenDetailsChanged: (act) => {
+      record.detailsChanged.add(act);
+      return () => void record.detailsChanged.delete(act);
+    },
+    editProjectDetails: (request: DetailsRequest) =>
+      screen.askToEditDetails({
+        ...request,
+        carryOut: carryOutAround(record, request.carryOut),
+        renamed: (now) => {
+          project = now;
+          projectName.textContent = now.marker.name;
+        },
+        detailsChanged: (details) => {
+          bar.show(details.workspaces);
+          for (const each of hosted.values()) each.detailsChanged.forEach((act) => act(details));
+        },
+      }),
+    openSettings: screen.openSettings,
+    setSaved: (state) => {
+      record.pills.saved = state;
+      if (onScreen(record)) saved.set(state);
+    },
+    setSpellcheck: (on) => {
+      record.pills.spellcheck = on;
+      if (onScreen(record)) spelling.hidden = !on;
+    },
+    whenSwitchedAway: screen.whenSwitchedAway,
+    whenSwitchedBack: screen.whenSwitchedBack,
+    leave: { toProjects: screen.onClose, toHome: screen.onHome },
+    ledger: screen.ledger,
+    places: screen.places,
+    workspacePlaces: screen.workspacePlaces ?? (() => undefined),
+    chooseCopyLocation: screen.chooseCopyLocation,
+    choosePdfLocation: screen.choosePdfLocation,
+  });
+
+  const put = (manifest: WorkspaceManifest): Hosted => {
+    const record: Hosted = {
+      manifest,
+      host: element("div", { className: "workspace" }),
+      mounted: undefined,
+      pills: { status: "", goal: undefined, saved: "saved", spellcheck: false },
+      goalsAsked: new Set(),
+      detailsAsked: new Set(),
+      detailsChanged: new Set(),
+      scroll: 0,
+    };
+    record.host.dataset["workspace"] = manifest.id;
+    hosted.set(manifest.id, record);
+    view.append(record.host);
+    record.mounted = manifest.mount(record.host, contextFor(record));
+    return record;
+  };
+
+  /**
+   * Put this workspace on screen. The one leaving is hidden, not taken down,
+   * and told (`hide`), so it can save what is waiting — leaving a workspace is
+   * one of the moments ADR-0028 saves at — and stop answering the window's
+   * keys. Each keeps its own place in the window's scroll.
+   */
+  const bringUp = (manifest: WorkspaceManifest): void => {
+    if (active?.manifest.id === manifest.id) return;
+    const leaving = active;
+    if (leaving !== undefined) {
+      leaving.scroll = view.scrollTop;
+      leaving.host.hidden = true;
+      leaving.mounted?.hide?.();
+    }
+    const arriving = hosted.get(manifest.id);
+    if (arriving === undefined) {
+      active = put(manifest);
+      // Hosts are put up in the order their tabs were first chosen.
+      drawPills(active);
+      active.host.hidden = false;
+      view.scrollTop = 0;
+      return;
+    }
+    active = arriving;
+    arriving.host.hidden = false;
+    drawPills(arriving);
+    view.scrollTop = arriving.scroll;
+    arriving.mounted?.show?.();
+  };
+
+  /**
+   * Take down a workspace the project no longer shows. Its files are not
+   * touched: this is the same leaving as closing the project, so it saves
+   * first, and one whose save failed stays up, out of sight, to be tried
+   * again when the project closes.
+   */
+  const release = async (record: Hosted): Promise<boolean> => {
+    const down = (await record.mounted?.unmount()) ?? true;
+    if (!down) return false;
+    record.host.remove();
+    hosted.delete(record.manifest.id);
+    return true;
+  };
+
+  let ready = false;
+  const bar = workspaceBar(screen.workspaces, screen.shown, (manifest) => {
+    if (ready) bringUp(manifest);
+  }, (shownNow) => {
+    if (!ready) return;
+    for (const record of [...hosted.values()]) {
+      if (!shownNow.includes(record.manifest) && record !== active) void release(record);
+    }
+  });
   // Alt and a tab's key, or Alt+Left and Alt+Right, choose a tab as a click
   // does. Heard first, so the webview never takes Alt+Left for Back; and not
   // while a dialog has the writer's attention.
@@ -179,60 +379,27 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   // down and putting it back up.** Remounting would mount the workspace again,
   // which would fail again, which would report again — a loop rather than a
   // message.
-  const report = (wrong: string): void => void view.append(troublePanel(wrong));
-  const setStatus = (text: string): void => {
-    counts.textContent = text;
-    counts.hidden = text === "";
-  };
-  const setGoal = (pill: { readonly text: string; readonly kind: string; readonly state: string } | undefined): void => {
-    goal.hidden = pill === undefined;
-    if (pill === undefined) return;
-    goal.textContent = pill.text;
-    goal.dataset["kind"] = pill.kind;
-    goal.dataset["state"] = pill.state;
-  };
+  const report = (wrong: string): void => void (active?.host ?? view).append(troublePanel(wrong));
 
-  const mounted: MountedWorkspace = first(bar.shown()).mount(host, {
-    get project() {
-      return project;
-    },
-    filesystem: screen.filesystem,
-    report,
-    setStatus,
-    setGoal,
-    whenGoalsAsked: (act) => {
-      askers.add(act);
-      return () => void askers.delete(act);
-    },
-    whenDetailsAsked: (act) => {
-      detailsAskers.add(act);
-      return () => void detailsAskers.delete(act);
-    },
-    editProjectDetails: (request: DetailsRequest) =>
-      screen.askToEditDetails({
-        ...request,
-        renamed: (now) => {
-          project = now;
-          projectName.textContent = now.marker.name;
-        },
-        detailsChanged: (details) => bar.show(details.workspaces),
-      }),
-    openSettings: screen.openSettings,
-    setSaved: saved.set,
-    setSpellcheck: (on) => void (spelling.hidden = !on),
-    whenSwitchedAway: screen.whenSwitchedAway,
-    whenSwitchedBack: screen.whenSwitchedBack,
-    leave: { toProjects: screen.onClose, toHome: screen.onHome },
-    ledger: screen.ledger,
-    places: screen.places,
-    chooseCopyLocation: screen.chooseCopyLocation,
-    choosePdfLocation: screen.choosePdfLocation,
-  });
+  ready = true;
+  bringUp(first(bar.shown()));
 
+  /**
+   * Every workspace that is up comes down, the one on screen last. One that
+   * cannot (its last save failed) keeps the project open, and is put on screen
+   * so the writer sees why.
+   */
   const unmount = async (): Promise<boolean> => {
-    const down = await mounted.unmount();
-    if (down) window.removeEventListener("keydown", askedForTab, true);
-    return down;
+    const order = [...hosted.values()].sort((one, other) => Number(one === active) - Number(other === active));
+    for (const record of order) {
+      if (await release(record)) continue;
+      const index = bar.shown().indexOf(record.manifest);
+      if (index !== -1) bar.select(index);
+      else bringUp(record.manifest);
+      return false;
+    }
+    window.removeEventListener("keydown", askedForTab, true);
+    return true;
   };
   return { gestures, unmount, report, showWorkspaces: bar.show };
 }
@@ -334,18 +501,18 @@ function first(workspaces: readonly WorkspaceManifest[]): WorkspaceManifest {
  * manifest — never by the shell.
  *
  * The first is active to begin with. Clicking a tab selects it, and so do its
- * keys (`workspace-keys.ts`). Only the first workspace is mounted, and it stays
- * mounted and on screen whichever tab is selected: the others are placeholders
- * until they are real workspaces, and taking the first down would end its work.
+ * keys (`workspace-keys.ts`); `chosen` is told which workspace that is.
  *
  * **Which tabs** is the project's: every workspace offered that is `alwaysOn`
  * or in `shown` (`undefined` is every one). `show` draws them again when the
  * project's details change; the tab selected stays selected if it is still
- * shown, and otherwise the first is, which is the workspace on screen.
+ * shown, and otherwise the first is, and `drawn` is told which are shown now.
  */
 function workspaceBar(
   offered: readonly WorkspaceManifest[],
   initially: readonly string[] | undefined,
+  chosen: (workspace: WorkspaceManifest) => void,
+  drawn: (shown: readonly WorkspaceManifest[]) => void,
 ): {
   readonly element: HTMLElement;
   readonly selected: () => number;
@@ -361,6 +528,8 @@ function workspaceBar(
   const select = (index: number): void => {
     selected = index;
     tabs.forEach((tab, at) => tab.setAttribute("aria-selected", String(at === index)));
+    const workspace = visible[index];
+    if (workspace !== undefined) chosen(workspace);
   };
   const show = (shown: readonly string[] | undefined): void => {
     const was = visible[selected]?.id;
@@ -380,6 +549,7 @@ function workspaceBar(
     });
     pill.replaceChildren(...tabs);
     select(Math.max(0, visible.findIndex((workspace) => workspace.id === was)));
+    drawn(visible);
   };
   show(initially);
   return {
