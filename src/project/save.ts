@@ -331,14 +331,17 @@ export function editingSession(
  * sorts by when they happened. No colons: the bundle may be copied to Windows,
  * which refuses them. Names are compared without case, as `folderNameFor`
  * compares them, and for the same reason.
+ *
+ * The manuscript's by default; a workspace's own file (`workspace-file.ts`)
+ * names itself, so `notes.md` is kept as `notes changed elsewhere ….md`.
  */
-export function copyNameFor(moment: Date, taken: ReadonlySet<string>): string {
+export function copyNameFor(moment: Date, taken: ReadonlySet<string>, file: string = MANUSCRIPT_FILE): string {
   const two = (value: number): string => String(value).padStart(2, "0");
   const date = `${moment.getFullYear()}-${two(moment.getMonth() + 1)}-${two(moment.getDate())}`;
   const time = `${two(moment.getHours())}.${two(moment.getMinutes())}.${two(moment.getSeconds())}`;
-  const dot = MANUSCRIPT_FILE.lastIndexOf(".");
-  const stem = MANUSCRIPT_FILE.slice(0, dot);
-  const extension = MANUSCRIPT_FILE.slice(dot);
+  const dot = file.lastIndexOf(".");
+  const stem = file.slice(0, dot);
+  const extension = file.slice(dot);
   const base = `${stem} changed elsewhere ${date} ${time}`;
 
   const lowercased = new Set([...taken].map((name) => name.toLowerCase()));
@@ -349,7 +352,7 @@ export function copyNameFor(moment: Date, taken: ReadonlySet<string>): string {
 }
 
 /** The disk's answer, or a failure in the writer's words once `DISK_LIMIT` has passed. */
-function withinLimit<T>(write: Promise<T>, clock: Clock): Promise<T> {
+export function withinLimit<T>(write: Promise<T>, clock: Clock): Promise<T> {
   return new Promise((resolve, reject) => {
     const limit = clock.wait(
       () =>
@@ -375,7 +378,7 @@ function withinLimit<T>(write: Promise<T>, clock: Clock): Promise<T> {
  * A plain loop, because every save now makes this comparison at least once
  * (#42): `every` took 3.9 ms over the acceptance corpus, and this takes 0.3.
  */
-function identical(left: Uint8Array, right: Uint8Array): boolean {
+export function identical(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false;
   for (let index = 0; index < left.length; index++) {
     if (left[index] !== right[index]) return false;
