@@ -16,8 +16,8 @@
  * **Which workspaces a project shows is the project's** (Edit Project Details,
  * `src/project/details.ts`), every one but the `alwaysOn` Editor switchable
  * (ADR-0006). A project that never chose shows them all. Which a *new* project
- * starts with would be a format's default (ADR-0005); every format today
- * starts with all of them, so nothing here chooses yet.
+ * starts with is the writer's, per type, in Settings ▸ New Project Defaults —
+ * which reads this list too, and keeps "every one" until the writer changes it.
  */
 import type { WorkspaceManifest } from "../shell/workspace.ts";
 import { editorWorkspace } from "./editor/editor.ts";

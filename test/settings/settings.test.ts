@@ -129,6 +129,23 @@ describe("settings from anything at all", () => {
     expect(kept.projectDefaults["Episode"]!.shown).toBe(true);
   });
 
+  it("keep a type's workspaces as details.md keeps them, and none chosen as every one offered", () => {
+    const kept = settingsFrom({
+      projectDefaults: {
+        Feature: { workspaces: ["Editor", " notes ", "notes", "not an id!", 7, "outline"] },
+        Episode: { workspaces: "notes" },
+        Novel: { workspaces: [] },
+      },
+    });
+    expect(kept.projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "outline"]);
+    // Not a list: never chosen.
+    expect(kept.projectDefaults["Episode"]!.workspaces).toBeUndefined();
+    expect(kept.projectDefaults["Short Film"]!.workspaces).toBeUndefined();
+    // Chosen, and none of the optional ones: kept as chosen, not as "every one".
+    expect(kept.projectDefaults["Novel"]!.workspaces).toEqual([]);
+    expect(settingsFrom(JSON.parse(settingsText(kept))).projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "outline"]);
+  });
+
   it.each([
     { hour: 24, minute: 0 },
     { hour: 3, minute: 60 },

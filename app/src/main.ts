@@ -470,6 +470,9 @@ async function rereadProjects(): Promise<void> {
   draw();
 }
 
+/** The workspaces as Edit Project Details and New Project Defaults offer them: from the registry. */
+const WORKSPACE_CHOICES = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
+
 /**
  * Edit Project Details: for the open project (File ▸ Edit Project Details… and
  * the name pill), or for the one right-clicked on Open Project. The list is
@@ -481,7 +484,7 @@ function askToEditDetails(project: Project, route: ProjectDetailsRoute): void {
       filesystem: tauriFilesystem,
       projectsDirectory: defaultProjectsDirectory,
       reread: rereadProjects,
-      workspaces: WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true })),
+      workspaces: WORKSPACE_CHOICES,
     },
     project,
     route,
@@ -551,6 +554,7 @@ function openSettings(over: HTMLElement = document.body, closed: () => void = ()
     },
     shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: tauriDictionary,
+    workspaces: WORKSPACE_CHOICES,
     graveyard: {
       list: async () => listGraveyard(tauriFilesystem, await defaultProjectsDirectory()),
       recover: async (project) => {

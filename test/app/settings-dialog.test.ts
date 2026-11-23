@@ -90,6 +90,13 @@ function fakeGraveyard(start: readonly Project[] = []) {
   return graveyard;
 }
 
+/** The workspaces as the registry offers them: the Editor always, Notes and Plan by choice. */
+const WORKSPACES = [
+  { id: "editor", name: "Editor", alwaysOn: true },
+  { id: "notes", name: "Notes", alwaysOn: false },
+  { id: "plan", name: "Plan", alwaysOn: false },
+];
+
 function open(overrides: Partial<SettingsDialogOptions> = {}, start: Settings = DEFAULT_SETTINGS) {
   let settings: Settings = start;
   const kept: Settings[] = [];
@@ -111,6 +118,7 @@ function open(overrides: Partial<SettingsDialogOptions> = {}, start: Settings = 
     dictionary,
     graveyard,
     closed,
+    workspaces: WORKSPACES,
     ...overrides,
   });
   return { into, modal, kept, current: () => settings, dictionary, graveyard, closed };
@@ -741,8 +749,51 @@ describe("New Project Defaults", () => {
       "Bold scene headings",
       "Bold transitions",
       "Blank lines before scene headings",
+      "Workspaces",
+      "Notes",
+      "Plan",
     ]);
-    expect(labels("poem")).toEqual(["Show in New Project", "Daily word goal", "Target page count"]);
+    // A coming type has the workspaces too; the Editor is in every project, so never listed.
+    expect(labels("poem")).toEqual(["Show in New Project", "Daily word goal", "Target page count", "Workspaces", "Notes", "Plan"]);
+  });
+
+  it("offers each workspace a project may do without, on until the writer changes one", () => {
+    const { modal, current } = open();
+    choose(modal, "New Project Defaults");
+    head("Feature").click();
+    const notes = byId<HTMLButtonElement>("settings-defaults-feature-workspace-notes");
+    const plan = byId<HTMLButtonElement>("settings-defaults-feature-workspace-plan");
+    expect(document.querySelector("#settings-defaults-feature-workspace-editor")).toBeNull();
+    expect([notes, plan].map((toggle) => toggle.getAttribute("aria-checked"))).toEqual(["true", "true"]);
+    // Never chosen: every one offered, as a project that never chose (`details.md`).
+    expect(current().projectDefaults["Feature"]!.workspaces).toBeUndefined();
+
+    notes.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "plan"]);
+    plan.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor"]);
+    notes.click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes"]);
+    // Each type's own.
+    expect(current().projectDefaults["Episode"]!.workspaces).toBeUndefined();
+
+    // A coming type keeps its choice too.
+    head("Novel").click();
+    byId<HTMLButtonElement>("settings-defaults-novel-workspace-plan").click();
+    expect(current().projectDefaults["Novel"]!.workspaces).toEqual(["editor", "notes"]);
+  });
+
+  it("draws a type's kept workspaces, and keeps one this version does not offer", () => {
+    const start = settingsFrom({
+      projectDefaults: { Feature: { workspaces: ["editor", "plan", "outline"] } },
+    });
+    const { modal, current } = open({}, start);
+    choose(modal, "New Project Defaults");
+    head("Feature").click();
+    expect(byId("settings-defaults-feature-workspace-notes").getAttribute("aria-checked")).toBe("false");
+    expect(byId("settings-defaults-feature-workspace-plan").getAttribute("aria-checked")).toBe("true");
+    byId<HTMLButtonElement>("settings-defaults-feature-workspace-notes").click();
+    expect(current().projectDefaults["Feature"]!.workspaces).toEqual(["editor", "notes", "plan", "outline"]);
   });
 
   it("keeps each type's defaults on their own, and puts numbers right quietly", () => {

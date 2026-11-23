@@ -13,7 +13,8 @@
  *
  * **New Project Defaults** (Settings) are read here and nowhere else: given
  * the defaults for the type being made, the project starts with them —
- * `details.md` holding its target pages and a screenplay's formatting, and
+ * `details.md` holding its target pages, the workspaces it shows and a
+ * screenplay's formatting, and
  * `goals.md` its daily goal when that is on. They are the project's own from
  * then on: a later change in Settings never reaches a project already made,
  * and an existing project is never touched by them.
@@ -108,7 +109,8 @@ export async function createProject(
       new TextEncoder().encode(
         serialiseDetails({
           targetPages: defaults.targetPages,
-          workspaces: undefined,
+          // As Settings keeps them: `undefined` is every workspace offered.
+          workspaces: defaults.workspaces,
           formatting: {
             boldSceneHeadings: defaults.boldSceneHeadings,
             boldTransitions: defaults.boldTransitions,

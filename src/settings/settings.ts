@@ -114,6 +114,12 @@ export interface ProjectDefaults {
   readonly boldSceneHeadings: boolean;
   readonly boldTransitions: boolean;
   readonly blankLinesBeforeSceneHeadings: 1 | 2;
+  /**
+   * The workspaces a new project of this type shows, as `details.md` keeps
+   * them (`ProjectDetails.workspaces`): their ids, or `undefined` for "every
+   * one offered" — what a type the writer never chose for starts with.
+   */
+  readonly workspaces?: readonly string[] | undefined;
 }
 
 /**
@@ -157,6 +163,21 @@ export const DEFAULTS_ALL: readonly string[] = [...DEFAULTS_FOR, ...DEFAULTS_COM
 /** At most this many keys for one command, and this many commands changed. */
 export const MOST_BINDINGS = 8;
 const MOST_COMMANDS = 200;
+
+/** A workspace id as kept, here and in `details.md`: lower case, letters, digits and dashes. */
+export const WORKSPACE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/** Workspace ids put right: each one kept once, in lower case, anything that is not one left out. */
+export function workspaceIdsOf(ids: readonly unknown[]): string[] {
+  return [
+    ...new Set(
+      ids
+        .filter((id): id is string => typeof id === "string")
+        .map((id) => id.trim().toLowerCase())
+        .filter((id) => WORKSPACE_ID.test(id)),
+    ),
+  ];
+}
 
 /** The largest daily goal or target page count kept. */
 export const MOST_WORDS = 100_000;
@@ -284,6 +305,8 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
     boldTransitions: flag(kept["boldTransitions"], base.boldTransitions),
     blankLinesBeforeSceneHeadings:
       kept["blankLinesBeforeSceneHeadings"] === 1 ? 1 : kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : base.blankLinesBeforeSceneHeadings,
+    // Not a list: never chosen, so every workspace offered.
+    ...(Array.isArray(kept["workspaces"]) ? { workspaces: workspaceIdsOf(kept["workspaces"]) } : {}),
   };
 }
 

@@ -49,7 +49,7 @@ import { DETAILS_FILE, MARKER_FILE, type Project } from "./bundle.ts";
 import { FORMATS, serialiseMarker, type ProjectFormat } from "./marker.ts";
 import { confirmProject } from "./projects.ts";
 import { checkRename, CannotRename, renameProject } from "./rename.ts";
-import { MOST_PAGES, wholeNumber } from "../settings/settings.ts";
+import { MOST_PAGES, wholeNumber, workspaceIdsOf } from "../settings/settings.ts";
 import { DEFAULT_FORMATTING, type Formatting } from "../screenplay/formatting.ts";
 
 export interface ProjectDetails {
@@ -104,9 +104,6 @@ export function serialiseDetails(details: ProjectDetails): string {
   ].join("\n");
 }
 
-/** A workspace id as kept: lower case, letters, digits and dashes. */
-const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
-
 /** Read a `details.md`, or `null` if it is not one. Values are put right quietly. */
 export function parseDetails(text: string): ProjectDetails | null {
   const lines = text.split(/\r\n?|\n/);
@@ -122,10 +119,7 @@ export function parseDetails(text: string): ProjectDetails | null {
   return {
     ...(formatting === undefined ? {} : { formatting }),
     targetPages: /^none$/i.test(pages) ? 0 : wholeNumber(pages, 0, MOST_PAGES, 0),
-    workspaces:
-      listed === undefined
-        ? undefined
-        : [...new Set(listed.split(",").map((id) => id.trim().toLowerCase()).filter((id) => ID.test(id)))],
+    workspaces: listed === undefined ? undefined : workspaceIdsOf(listed.split(",")),
   };
 }
 

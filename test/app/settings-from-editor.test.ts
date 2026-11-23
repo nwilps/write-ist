@@ -66,6 +66,7 @@ const openSettings = vi.fn(({ into, closed }: SettingsRequest) => {
     shortcuts: { commands: shortcutCommands(), reserved: RESERVED_KEYS },
     dictionary: { words: async () => [], add: async () => true, remove: async () => true },
     graveyard: { list: async () => [], recover: async () => undefined, exile: async () => undefined },
+    workspaces: [],
     closed,
   });
 });

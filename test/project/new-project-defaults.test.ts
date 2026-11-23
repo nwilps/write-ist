@@ -1,7 +1,7 @@
 /**
  * Settings ▸ New Project Defaults, read (Noah, 2026-11-21: "saved but never
  * read"). New Project gives a new project the defaults of its type — its
- * target pages and a screenplay's formatting in `details.md`, its daily goal in
+ * target pages, workspaces and a screenplay's formatting in `details.md`, its daily goal in
  * `goals.md` — and the project keeps them as its own. An existing project is
  * never changed by them, and a later change in Settings reaches none.
  *
@@ -20,6 +20,7 @@ import {
   readDetails,
   saveProjectDetails,
   serialiseDetails,
+  workspaceShown,
 } from "../../src/project/details.ts";
 import { readGoals } from "../../src/goals/file.ts";
 import { DEFAULT_FORMATTING, type Formatting } from "../../src/screenplay/formatting.ts";
@@ -61,6 +62,23 @@ describe("New Project, given the type's defaults", () => {
     expect(readFileSync(join(project.path, DETAILS_FILE), "utf8")).toBe(
       "# Project details\n\nTarget pages: 110\nBold scene headings: yes\nBold transitions: yes\nBlank lines before scene headings: 1\n",
     );
+  });
+
+  it("starts the project with the type's workspaces in details.md, and every one when none were chosen", async () => {
+    const chosen = await make("Notes Only", { ...CHOSEN, workspaces: ["editor", "notes"] });
+    const { details } = await readDetails(nodeFilesystem, chosen.path);
+    expect(details.workspaces).toEqual(["editor", "notes"]);
+    expect(readFileSync(join(chosen.path, DETAILS_FILE), "utf8")).toContain("Workspaces: editor, notes\n");
+    expect(workspaceShown(details, "plan", false)).toBe(false);
+    expect(workspaceShown(details, "notes", false)).toBe(true);
+    // The Editor is always on, whatever the list says.
+    expect(workspaceShown({ ...details, workspaces: [] }, "editor", true)).toBe(true);
+
+    const never = await make("Every One", CHOSEN);
+    const read = (await readDetails(nodeFilesystem, never.path)).details;
+    expect(read.workspaces).toBeUndefined();
+    expect(readFileSync(join(never.path, DETAILS_FILE), "utf8")).not.toContain("Workspaces");
+    expect(["notes", "plan"].every((id) => workspaceShown(read, id, false))).toBe(true);
   });
 
   it("starts it with the daily goal when that is on, and with no goal file when it is off", async () => {

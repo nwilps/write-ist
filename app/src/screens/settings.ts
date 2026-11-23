@@ -55,7 +55,7 @@ import { dialogToggle, type DialogToggle } from "./dialog-toggle.ts";
 import { element } from "./element.ts";
 import { cursor } from "./menu.ts";
 import { chevron, field } from "./new-project.ts";
-import { showExileProject } from "./project-dialogs.ts";
+import { showExileProject, type WorkspaceChoice } from "./project-dialogs.ts";
 import { CAPTURES_KEYS, chordName, chordOf, chordsOverlap, type Chord } from "./shortcuts.ts";
 import { message, trouble as troublePanel } from "./trouble.ts";
 
@@ -112,6 +112,12 @@ export interface SettingsDialogOptions {
   readonly shortcuts: SettingsShortcuts;
   readonly dictionary: SettingsDictionary;
   readonly graveyard: SettingsGraveyard;
+  /**
+   * Every workspace the application offers, as Edit Project Details is given
+   * them: New Project Defaults offers a switch for each one a project may do
+   * without.
+   */
+  readonly workspaces: readonly WorkspaceChoice[];
   /** The section shown first. Default General. */
   readonly section?: SettingsSection;
   readonly closed: () => void;
@@ -364,6 +370,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
     });
     return box;
   };
+  const workspaces = options.workspaces;
   /** Which types are open. Each stays as the writer left it until the dialog closes. */
   const expanded = new Set<string>();
   const typeCells = DEFAULTS_ALL.map((type) => defaultsCell(type));
@@ -416,7 +423,34 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       ],
       onChange: (value) => change({ blankLinesBeforeSceneHeadings: value === "2" ? 2 : 1 }),
     });
+    // A switch for each workspace a project may do without, as in Edit Project
+    // Details. The Editor is in every project, so it is not listed.
+    const optional = workspaces.filter((workspace) => !workspace.alwaysOn);
+    const always = workspaces.filter((workspace) => workspace.alwaysOn).map((workspace) => workspace.id);
+    const offered = new Set(workspaces.map((workspace) => workspace.id));
+    const workspaceSwitches: [WorkspaceChoice, DialogToggle][] = optional.map((workspace) => [
+      workspace,
+      dialogToggle({
+        id: `${key}-workspace-${workspace.id}`,
+        onChange: () => {
+          // Written as Edit Project Details writes them: the ones always shown,
+          // the ones switched on, and any this version does not offer, kept.
+          const kept = defaultsOf().workspaces;
+          change({
+            workspaces: [
+              ...always,
+              ...workspaceSwitches.filter(([, toggle]) => toggle.on()).map(([chosen]) => chosen.id),
+              ...(kept ?? []).filter((id) => !offered.has(id)),
+            ],
+          });
+        },
+      }),
+    ]);
+
     const defaults = defaultsOf();
+    for (const [workspace, toggle] of workspaceSwitches) {
+      toggle.set(defaults.workspaces === undefined || defaults.workspaces.includes(workspace.id));
+    }
     shown.set(defaults.shown);
     goalOn.set(defaults.dailyGoalOn);
     goal.value = String(defaults.dailyGoal);
@@ -444,6 +478,9 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
             selectField("Blank lines before scene headings", blankLines),
           ]
         : []),
+      ...(workspaceSwitches.length === 0
+        ? []
+        : [subheading("Workspaces"), ...workspaceSwitches.map(([workspace, toggle]) => switchRow(workspace.name, toggle))]),
     ]);
     const head = element("button", { id: `${key}-head`, type: "button", className: "settings__cell-head" }, [
       icon(ChevronRight, "settings__cell-chevron"),
@@ -471,6 +508,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
               [goal],
               [pages],
               ...(screenplay ? [[boldHeadings.control], [boldTransitions.control], [blankLines.control]] : []),
+              ...workspaceSwitches.map(([, toggle]) => [toggle.control]),
             ]
           : []),
       ],
