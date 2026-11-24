@@ -12,10 +12,16 @@
  *
  * Above the window, and never wider than it, is a bar of pills: the **folder**
  * at the left lists every note in the folder (open one, or delete one), the
- * open notes are **tabs** in the middle — scrolling sideways when there are
- * more than fit — and **+** at the right makes a new one. Double-click the tab
- * in front to rename its note; × closes a tab and keeps the note. With no tab
- * open the window says so, quietly, and waits.
+ * open notes are **tabs** after it — every one the same width, scrolling
+ * sideways on a window too narrow for them — and **+** right beside the last
+ * tab makes a new one. Double-click the tab in front to rename its note; ×
+ * closes a tab and keeps the note. With no tab open the window says so,
+ * quietly, and waits.
+ *
+ * **Five tabs at the most** (`src/notes/tabs.ts`). With five open, + is greyed
+ * and so are the closed notes in the folder menu, until a tab is closed; a
+ * note already open is still brought forward from the menu, and any note can
+ * still be deleted from it. Nothing is said: the grey is the answer.
  *
  * This file is the window's adapter over one **notes session** per open note
  * (`src/notes/notes-session.ts`), which holds the text, the undo history, the
@@ -69,6 +75,7 @@ import {
   renameNoteFile,
 } from "../../../../src/notes/notes-folder.ts";
 import type { PlainSpellEngine } from "../../../../src/notes/spelling.ts";
+import { MOST_OPEN_NOTES, tabsToReopen } from "../../../../src/notes/tabs.ts";
 import { sliceOf, textOfSlice } from "../../../../src/notes/text.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import type { MenuEntry, MenuItem } from "../../menus/drop-menu.ts";
@@ -173,6 +180,16 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   const opening = new Map<string, Promise<OpenNote | undefined>>();
 
   const projectId = (): string => context.project.marker.projectId;
+
+  // --- Five tabs at the most: + is greyed while there is no room for another. ---
+  /** New notes being made just now, each on its way to a tab. */
+  let making = 0;
+  /** Every note open in a tab or on its way to one. */
+  const taken = (): number => new Set([...open.map((note) => note.name), ...opening.keys()]).size + making;
+  const full = (): boolean => taken() >= MOST_OPEN_NOTES;
+  const showRoom = (): void => {
+    newPill.disabled = full();
+  };
 
   // --- The save pill: the workspace is saved only when every open note is. ---
   const showSaved = (): void => {
@@ -497,6 +514,8 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     }
     const already = opening.get(name);
     if (already !== undefined) return already;
+    // No room for another tab: nothing happens, quietly, as the grey said.
+    if (full()) return Promise.resolve(undefined);
     const opened = (async (): Promise<OpenNote | undefined> => {
       let read;
       try {
@@ -598,13 +617,18 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       });
       open.push(made);
       strip.append(tab);
+      showRoom();
       showSaved();
       if (front) activate(made, { focus: focusIt });
       else void keepTabs();
       return made;
     })();
     opening.set(name, opened);
-    void opened.finally(() => opening.delete(name));
+    showRoom();
+    void opened.finally(() => {
+      opening.delete(name);
+      showRoom();
+    });
     return opened;
   };
 
@@ -614,6 +638,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     if (at < 0) return;
     open.splice(at, 1);
     note.tab.remove();
+    showRoom();
     showSaved();
     if (note === active) {
       active = undefined;
@@ -711,12 +736,15 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       return;
     }
     if (ask !== folderAsks || gone) return;
+    // With five tabs open, a closed note is greyed until one closes; an open one is still brought forward.
+    const noRoom = full();
     const items: MenuEntry[] =
       names.length === 0
         ? [{ label: "No notes yet", unavailable: true, act: () => {} }]
         : names.map((name) => ({
             label: name,
             icon: FileText,
+            ...(noRoom && !open.some((note) => note.name === name) ? { unavailable: true } : {}),
             act: () => void openNote(name),
             aside: { label: `Delete ${name}`, icon: Trash2, alarm: true, act: () => askToDelete(name) },
           }));
@@ -778,6 +806,9 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
 
   // --- New notes. ---
   newPill.addEventListener("click", () => {
+    if (full()) return;
+    making += 1;
+    showRoom();
     void (async () => {
       let name: string;
       try {
@@ -785,9 +816,11 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       } catch (error) {
         context.report(`Write-ist could not make a new note. ${message(error)}`);
         return;
+      } finally {
+        making -= 1;
       }
       if (!gone) await openNote(name);
-    })();
+    })().finally(showRoom);
   });
 
   // The wheel runs along the tabs, which are a row, not a column.
@@ -834,6 +867,8 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       );
       const wanted = kept["active"];
       front = typeof wanted === "string" && tabs.includes(wanted) ? wanted : tabs[0];
+      // Kept before there was a limit: five at the most, the one in front among them.
+      tabs = tabsToReopen(tabs, front);
     } else {
       // Never left in tabs: the old notes, brought in just now, or the first note.
       front = brought ?? names[0];

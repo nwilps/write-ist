@@ -73,7 +73,8 @@
   outline: none;
 }
 
-.drop-menu__item:disabled {
+.drop-menu__item:disabled,
+.drop-menu__item[aria-disabled="true"] {
   color: var(--colour-faint);
 }
 
@@ -92,6 +93,20 @@
   height: var(--rule-thin);
   margin: calc(var(--space-row-gap) / 2) var(--space-row-label);
   background: var(--colour-border);
+}
+
+/*
+ * Greyed but reachable, because it keeps a second action (a closed note in
+ * Notes' folder menu with five tabs open): the pointer does not light it, and
+ * focus shows only as the row's ground, the label staying faint.
+ */
+.drop-menu__item[aria-disabled="true"]:hover {
+  background: none;
+}
+
+.drop-menu__item[aria-disabled="true"]:hover,
+.drop-menu__item[aria-disabled="true"]:focus {
+  color: var(--colour-faint);
 }
 
 /* An item that is on or off shows a tick while it is on. */

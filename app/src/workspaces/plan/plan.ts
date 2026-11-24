@@ -17,18 +17,26 @@
  * drag the empty grid to pan. Right-click is Write-ist's own menu (ADR-0034),
  * and every gesture has a key.
  *
+ * Under the grid, the Structure button, and right beside it the selected card,
+ * larger, to write on. The card grows down as its description does, until its
+ * foot reaches the bottom pills' margin; past that the description scrolls
+ * inside it. One structure sheet is drawn under the grid at a time.
+ *
+ * The project name pill is not drawn while Plan is on screen
+ * (`showsProjectName`): the card has the foot of the desk.
+ *
  * This file draws a **plan session** (`src/plan/plan-session.ts`) and hands it
  * what the writer did; the session decides what fits and what is stored, and
  * saves `plan.md`.
  */
-import { createElement, ListChecks, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
+import { createElement, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
 import { readDetails } from "../../../../src/project/details.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
 import { STRUCTURE_SHEETS, layoutBeats } from "../../../../src/plan/structure.ts";
 import type { WorkspacePlace } from "../../../../src/project/workspace-places.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
-import type { MenuEntry } from "../../menus/drop-menu.ts";
+import { claimMenu, releaseMenu, type MenuEntry } from "../../menus/drop-menu.ts";
 import { element } from "../../screens/element.ts";
 import { chordHint, chordMatches, isCapturedKey, type Chord } from "../../screens/shortcuts.ts";
 import { message } from "../../screens/trouble.ts";
@@ -43,13 +51,18 @@ const DOUBLE_MS = 400;
 /** What each colour is called, where the writer sees it. */
 const COLOUR_NAMES: Readonly<Record<CardColour, string>> = {
   plain: "No Colour",
+  sand: "Sand",
   yellow: "Yellow",
   orange: "Orange",
   red: "Red",
   purple: "Purple",
   blue: "Blue",
+  aqua: "Aqua",
   green: "Green",
 };
+
+/** The colour picker's swatches across a row; the arrows move by one, or by a row. */
+const PALETTE_COLUMNS = 3;
 
 const KEYS = {
   save: { key: "s", mod: true },
@@ -73,6 +86,8 @@ export const planWorkspace: WorkspaceManifest = {
   key: "3",
   icon: ListChecks,
   files: [PLAN_FILE],
+  // The selected card has the foot of the desk, where the name pill would be.
+  showsProjectName: false,
   mount,
 };
 
@@ -88,6 +103,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   ]);
   const controls = element("div", { className: "plan__controls" }, [structureButton]);
   const inspector = cardPanel();
+  // Under the grid: the Structure button, and the selected card beside it.
+  const under = element("div", { className: "plan__under" }, [controls, element("div", { className: "plan__card-slot" }, [inspector.element])]);
   const desk = element("div", { className: "plan-desk" }, [reading]);
   into.replaceChildren(desk);
 
@@ -206,7 +223,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     const card = session?.plan().cards.find((each) => each.id === selected);
     const placed = session?.layout().placed.find((each) => each.card.id === selected);
     inspector.element.hidden = card === undefined;
-    if (card === undefined || placed === undefined || session === undefined) return;
+    if (card === undefined || placed === undefined || session === undefined) {
+      inspector.closePalette();
+      return;
+    }
     inspector.show(card, placed, session.layout());
   }
 
@@ -440,7 +460,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     board.focus({ preventScroll: true });
   };
 
-  // The structure sheets drawn under the grid: Write-ist's own menu, each a tick.
+  // The structure sheet drawn under the grid: Write-ist's own menu, a tick on
+  // the one shown. One at a time: choosing another puts it in place of the
+  // last, and choosing the one shown takes it away, leaving none.
   structureButton.addEventListener("click", () => {
     const box = structureButton.getBoundingClientRect();
     openMenu(
@@ -450,7 +472,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         act: () => {
           if (session === undefined) return;
           const shown = session.plan().structure;
-          session.setStructure(shown.includes(sheet.id) ? shown.filter((id) => id !== sheet.id) : [...shown, sheet.id]);
+          session.setStructure(shown.length === 1 && shown[0] === sheet.id ? [] : [sheet.id]);
           changed();
         },
       })),
@@ -486,9 +508,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       void session.save();
       return;
     }
-    // A title or a description being typed has its own keys, Undo among them.
+    // A title or a description being typed has its own keys, Undo among them; so has the colour picker.
     const target = event.target as HTMLElement | null;
     if (target !== null && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+    if (target?.closest?.(".plan__palette") != null) return;
     const writing = session;
     const step = (act: () => boolean): void => {
       event.preventDefault();
@@ -593,7 +616,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         },
         read,
       );
-      desk.replaceChildren(board, controls, inspector.element);
+      desk.replaceChildren(board, under);
       draw();
       const at = place?.["across"];
       if (typeof at === "number") {
@@ -616,6 +639,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     clearTimeout(placeRest);
     window.removeEventListener("keydown", keys, true);
     desk.removeEventListener("contextmenu", quietMenu);
+    inspector.closePalette();
     stopListeningForDetails();
     stopListeningForTarget();
     menu?.close(false);
@@ -626,6 +650,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     hide: () => {
       hidden = true;
       menu?.close(false);
+      inspector.closePalette();
       // A title being typed is kept, as a click away would keep it.
       (surface.querySelector(".plan__title-edit") as HTMLInputElement | null)?.blur();
       void session?.save();
@@ -663,38 +688,53 @@ function place(item: HTMLElement, cell: number, lane: number, cells: number): vo
 }
 
 /**
- * The panel under the grid for the card selected: the card itself, larger, to
- * write on — its title and description typed straight onto it, in its own
- * colour — with its colour, length and Delete along its foot. Hidden while no
+ * The selected card, larger, to write on, beside the Structure button under
+ * the grid: its title and description typed straight onto it, in its own
+ * colour, and along its foot the colour picker, its pages, and Delete — each
+ * an icon or a figure, no words. The description grows as it is written and,
+ * once the card is as tall as it may be, scrolls inside it. Hidden while no
  * card is selected.
+ *
+ * **The colour picker is Write-ist's own** (ADR-0034): the palette icon opens
+ * a small grid of the nine colours, three by three, over the card. The arrows
+ * move in it, Enter or a click chooses, Escape or a press outside closes it.
  */
 function cardPanel() {
   const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off", placeholder: "Untitled" });
   title.setAttribute("aria-label", "Card title");
   title.spellcheck = false;
   const swatches = CARD_COLOURS.map((colour) => {
-    const swatch = element("button", { className: "plan__swatch", type: "button" });
+    const swatch = element("button", { className: "plan__swatch", type: "button", role: "menuitemradio" });
     swatch.dataset["colour"] = colour;
+    swatch.tabIndex = -1;
     swatch.setAttribute("aria-label", COLOUR_NAMES[colour]);
     return swatch;
   });
+  const paletteButton = element("button", { className: "plan__icon-button plan__palette-button", type: "button", ariaLabel: "Colour" }, [
+    icon(Palette),
+  ]);
+  paletteButton.setAttribute("aria-haspopup", "menu");
+  paletteButton.setAttribute("aria-expanded", "false");
+  const paletteMenu = element("div", { className: "plan__palette-menu", role: "menu", ariaLabel: "Colour", hidden: true }, swatches);
   const shorter = element("button", { className: "plan__step", type: "button", textContent: "−" });
   shorter.setAttribute("aria-label", "Shorter");
   const longer = element("button", { className: "plan__step", type: "button", textContent: "+" });
   longer.setAttribute("aria-label", "Longer");
   const where = element("span", { className: "plan__where" });
-  const remove = element("button", { className: "plan__delete", type: "button" }, [
-    icon(Trash2),
-    element("span", { textContent: "Delete" }),
-  ]);
+  const remove = element("button", { className: "plan__icon-button plan__delete", type: "button", ariaLabel: "Delete Card" }, [icon(Trash2)]);
   const description = element("textarea", { className: "plan__description", placeholder: "What happens here?", rows: 3 });
   description.setAttribute("aria-label", "Card description");
   description.spellcheck = false;
+  // The description is as tall as what is written in it: an unseen copy of
+  // its text beside it sizes them both, and the box round them scrolls once
+  // the card can grow no further.
+  const descriptionBox = element("div", { className: "plan__description-box" }, [description]);
+  const mirror = (): void => void (descriptionBox.dataset["value"] = description.value);
   const panel = element("section", { className: "plan__panel", hidden: true }, [
     element("div", { className: "plan__panel-head" }, [title]),
-    description,
+    descriptionBox,
     element("div", { className: "plan__panel-foot" }, [
-      element("div", { className: "plan__swatches" }, swatches),
+      element("div", { className: "plan__palette" }, [paletteButton, paletteMenu]),
       element("div", { className: "plan__stepper" }, [shorter, where, longer]),
       remove,
     ]),
@@ -724,8 +764,73 @@ function cardPanel() {
       panel.dispatchEvent(new Event("plan-panel-left", { bubbles: true }));
     });
   }
-  description.addEventListener("input", () => descriptionListener(description.value));
-  swatches.forEach((swatch) => swatch.addEventListener("click", () => colourListener(swatch.dataset["colour"] as CardColour)));
+  description.addEventListener("input", () => {
+    mirror();
+    // Writing at the end of a description taller than the card keeps the end in sight.
+    if (description.selectionEnd === description.value.length) descriptionBox.scrollTop = descriptionBox.scrollHeight;
+    descriptionListener(description.value);
+  });
+
+  // --- The colour picker. ---
+  const outsidePress = (event: Event): void => {
+    if (event.target instanceof Node && (paletteMenu.contains(event.target) || paletteButton.contains(event.target))) return;
+    palette.close(false);
+  };
+  const palette = {
+    close: (returnFocus = true): void => {
+      if (paletteMenu.hidden) return;
+      paletteMenu.hidden = true;
+      paletteButton.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", outsidePress, true);
+      releaseMenu(palette);
+      if (returnFocus) paletteButton.focus();
+    },
+  };
+  const openPalette = (fromKeyboard: boolean): void => {
+    claimMenu(palette);
+    paletteMenu.hidden = false;
+    paletteButton.setAttribute("aria-expanded", "true");
+    document.addEventListener("pointerdown", outsidePress, true);
+    const chosen = swatches.find((swatch) => swatch.getAttribute("aria-checked") === "true") ?? swatches[0];
+    if (fromKeyboard) chosen?.focus();
+  };
+  let paletteKeyed = false;
+  paletteButton.addEventListener("keydown", (event) => {
+    paletteKeyed = event.key === "Enter" || event.key === " " || event.key === "ArrowDown" || event.key === "ArrowUp";
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      openPalette(true);
+    }
+  });
+  paletteButton.addEventListener("click", () => {
+    if (paletteMenu.hidden) openPalette(paletteKeyed);
+    else palette.close();
+    paletteKeyed = false;
+  });
+  paletteMenu.addEventListener("keydown", (event) => {
+    const at = swatches.indexOf(document.activeElement as HTMLButtonElement);
+    const steps: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -PALETTE_COLUMNS, ArrowDown: PALETTE_COLUMNS };
+    const step = steps[event.key];
+    if (step !== undefined) swatches[at < 0 ? 0 : (at + step + swatches.length) % swatches.length]?.focus();
+    else if (event.key === "Home") swatches[0]?.focus();
+    else if (event.key === "End") swatches[swatches.length - 1]?.focus();
+    else if (event.key === "Escape") palette.close();
+    else if (event.key === "Tab") {
+      palette.close(false);
+      return;
+    } else return;
+    // The picker's keys, not the window's: Escape here is not Home.
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  swatches.forEach((swatch) =>
+    swatch.addEventListener("click", () => {
+      palette.close();
+      colourListener(swatch.dataset["colour"] as CardColour);
+    }),
+  );
+
   shorter.addEventListener("click", () => lengthListener(Math.max(1, cells - 1)));
   longer.addEventListener("click", () => lengthListener(cells + 1));
   remove.addEventListener("click", () => deleteListener());
@@ -738,16 +843,22 @@ function cardPanel() {
       shown = card.id;
       if (fresh || document.activeElement !== title) title.value = card.title;
       if (fresh || document.activeElement !== description) description.value = card.description;
+      mirror();
+      if (fresh) {
+        descriptionBox.scrollTop = 0;
+        palette.close(false);
+      }
       panel.dataset["colour"] = card.colour;
-      swatches.forEach((swatch) => swatch.setAttribute("aria-pressed", String(swatch.dataset["colour"] === card.colour)));
+      swatches.forEach((swatch) => swatch.setAttribute("aria-checked", String(swatch.dataset["colour"] === card.colour)));
       cells = placed.cells;
       shorter.disabled = placed.cells <= 1;
       longer.disabled = !fits(layout, placed.cell, placed.lane, placed.cells + 1, card.id);
       // Counted from 1, as a person counts; the grid counts from 0.
       const first = placed.cell + 1;
       const last = placed.cell + placed.cells;
-      where.textContent = first === last ? `${first} of ${layout.length}` : `${first}–${last} of ${layout.length}`;
+      where.textContent = first === last ? `${first}` : `${first}–${last}`;
     },
+    closePalette: () => palette.close(false),
     onTitle: (act: (title: string) => void) => void (titleListener = act),
     onTitleDone: (act: () => void) => void (titleDone = act),
     onDescription: (act: (text: string) => void) => void (descriptionListener = act),

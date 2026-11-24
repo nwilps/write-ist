@@ -187,6 +187,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
 
   // The pills belong to whichever workspace is on screen, and say what it last said.
   const drawPills = (record: Hosted): void => {
+    projectName.hidden = record.manifest.showsProjectName === false;
     counts.textContent = record.pills.status;
     counts.hidden = record.pills.status === "";
     const pill = record.pills.goal;

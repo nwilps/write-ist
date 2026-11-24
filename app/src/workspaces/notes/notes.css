@@ -10,10 +10,12 @@
  * corner and shadow. The writing is in the interface's face, not the
  * manuscript's: Courier Prime is the screenplay's and nothing else's.
  *
- * The bar above it is **exactly as wide as the window, never wider**: the
- * folder pill pinned at its left, + pinned at its right, and the tabs between
- * them in a strip that scrolls sideways, with no scrollbar, when there are
- * more than fit.
+ * The bar above it is **never wider than the window**: the folder pill at its
+ * left, then the tabs — every one the same width — and + right beside the
+ * last of them, so + moves as tabs open and close. When the tabs are more than
+ * the window holds, their strip scrolls sideways, with no scrollbar, and +
+ * stays at the window's edge. Between every pill, and between the bar and the
+ * window, is the bottom pills' gap (`--space-pill-gap`).
  */
 
 /*
@@ -32,7 +34,7 @@
 .notes-window {
   display: flex;
   flex-direction: column;
-  gap: var(--space-notes-bar-gap);
+  gap: var(--space-pill-gap);
   flex: none;
   min-width: 0;
   /* As wide as its share of the desk, unless the desk is too short for 16:9 at
@@ -40,7 +42,7 @@
   width: min(
     calc(var(--size-notes-room-width) * var(--fraction-notes-width)),
     calc(
-      (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-notes-bar-gap)) *
+      (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) *
         var(--ratio-notes)
     )
   );
@@ -51,7 +53,7 @@
 .notes-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-notes-tab-gap);
+  gap: var(--space-pill-gap);
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -76,11 +78,16 @@
   cursor: default;
 }
 
-.notes-bar__pill:hover,
+.notes-bar__pill:hover:not(:disabled),
 .notes-bar__pill:focus-visible,
 .notes-bar__pill[aria-expanded="true"] {
   color: var(--colour-text);
   outline: none;
+}
+
+/* + with five tabs open: there, greyed, and doing nothing until one closes. */
+.notes-bar__pill:disabled {
+  opacity: var(--opacity-unavailable);
 }
 
 .notes-bar__icon {
@@ -90,18 +97,20 @@
 }
 
 /*
- * The tabs: a row that scrolls sideways and draws no scrollbar, a tab's gap
- * short of the folder and of +, so a tab cut off by the edge never touches
- * them. Its padding above and below leaves room for the pills' shadows, which
- * a scrolling box would otherwise cut off, and the same margin taken back
- * keeps the bar its height; the
+ * The tabs: a row as wide as its tabs, so + sits right after the last, which
+ * gives way only when the window is too narrow for them all — then it scrolls
+ * sideways and draws no scrollbar, a gap short of the folder and of +, so a
+ * tab cut off by the edge never touches them. With no tab open it is not
+ * drawn at all, and + sits beside the folder. Its padding above and below
+ * leaves room for the pills' shadows, which a scrolling box would otherwise
+ * cut off, and the same margin taken back keeps the bar its height; the
  * padding is not the strip's to press on, so it passes the pointer through.
  */
 .notes-tabs {
   display: flex;
   align-items: center;
-  gap: var(--space-notes-tab-gap);
-  flex: 1 1 auto;
+  gap: var(--space-pill-gap);
+  flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -115,15 +124,24 @@
   display: none;
 }
 
+.notes-tabs:empty {
+  display: none;
+}
+
+/*
+ * A tab is always the same width. Its name is centred on the whole tab, not
+ * on the room beside the ×: the padding on the left is the × and its gap, so
+ * the two sides match.
+ */
 .notes-tab {
   display: flex;
   align-items: center;
   gap: var(--space-hair);
   flex: none;
-  max-width: var(--measure-notes-tab);
+  width: var(--measure-notes-tab);
   height: var(--size-notes-bar);
   box-sizing: border-box;
-  padding: 0 var(--space-hair) 0 var(--space-snug);
+  padding: 0 var(--space-hair) 0 calc(var(--space-hair) * 2 + var(--size-notes-tab-close));
   background: var(--colour-raised);
   border: var(--rule-thin) solid var(--colour-border-strong);
   border-radius: var(--radius-float);
@@ -147,14 +165,18 @@
 }
 
 .notes-tab__name {
+  flex: 1 1 auto;
   min-width: 0;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .notes-tab__rename {
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
+  text-align: center;
   padding: 0;
   background: transparent;
   border: 0;

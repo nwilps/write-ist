@@ -9,12 +9,28 @@
  * set from code.
  */
 
+/*
+ * The grid panel is the same room from the workspace bar above it as from the
+ * window's left and right edges (`--space-plan-edge`), and the Structure
+ * button and the selected card are as far under it. Plan's host is held to
+ * that room at its sides.
+ */
+.workspace[data-workspace="plan"] {
+  padding: 0 var(--space-plan-edge);
+}
+
+/*
+ * The desk fills the workspace exactly, so the card under the grid can grow
+ * down to the bottom pills' margin and no further: its content never sizes it.
+ */
 .plan-desk {
   flex: 1 0 auto;
+  container-type: size;
   display: flex;
   flex-direction: column;
-  gap: var(--space-roomy);
-  padding: var(--space-panel-top) 0 var(--space-desk-foot);
+  gap: var(--space-plan-edge);
+  padding: var(--space-plan-top) 0 var(--space-desk-edge);
+  box-sizing: border-box;
 }
 
 .plan__reading {
@@ -25,6 +41,7 @@
 /* --- The board: the grid in a raised panel, scrolling along -------------- */
 
 .plan__board {
+  flex: none;
   overflow-x: auto;
   overflow-y: hidden;
   padding: var(--space-roomy);
@@ -164,6 +181,8 @@
 .plan__card[data-colour="red"] { --card-tint: var(--colour-plan-red); }
 .plan__card[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
 .plan__card[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__card[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__card[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
 .plan__card[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
 .plan__card[data-selected="true"] {
@@ -266,9 +285,31 @@
 
 /* --- Under the board ---------------------------------------------------------- */
 
+/*
+ * The Structure button, and the selected card right beside it: as far apart
+ * as the button is from the window's edge, and both as far under the grid.
+ * The row runs down to the desk's foot, which is the bottom pills' margin
+ * from the window's: the card may grow that far, and no further.
+ */
+.plan__under {
+  display: flex;
+  gap: var(--space-plan-edge);
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .plan__controls {
   display: flex;
+  flex: none;
+  align-self: flex-start;
   gap: var(--space-snug);
+}
+
+/* Where the card hangs: as tall as the row, so the card's room is the row's. */
+.plan__card-slot {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .plan__control {
@@ -304,14 +345,20 @@
  * card on the grid, a little rounder, and compact. Its title and description
  * are typed straight onto it: at rest they are the card's own text, with no
  * box round them; a pointer over one gives it a faint tint and hairline, and
- * while it is being typed in it is a shade deeper with a firmer edge.
+ * while it is being typed in it is a shade deeper with a firmer edge. It is
+ * as tall as what is written on it, up to the row's height; past that the
+ * description scrolls inside it.
  */
 .plan__panel {
   --card-tint: var(--colour-plan-plain);
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-hair);
   width: min(var(--measure-plan-panel), 100%);
+  max-height: 100%;
   box-sizing: border-box;
   padding: var(--space-tight);
   background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
@@ -325,40 +372,53 @@
 .plan__panel[data-colour="red"] { --card-tint: var(--colour-plan-red); }
 .plan__panel[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
 .plan__panel[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__panel[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__panel[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
 .plan__panel[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
 .plan__panel[hidden] {
   display: none;
 }
 
-.plan__panel-head,
-.plan__panel-foot {
+.plan__panel-head {
   display: flex;
   align-items: center;
-  gap: var(--space-snug);
+  flex: none;
 }
 
+/*
+ * Along the foot: the colour picker at the left, the card's pages in the
+ * middle of the card, and Delete at the right. Icons and figures, no words.
+ */
 .plan__panel-foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex: none;
   padding: var(--space-hair) var(--space-tight) 0;
 }
 
 .plan__panel-title,
-.plan__description {
+.plan__description-box {
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: var(--space-hair) var(--space-tight);
   background: transparent;
   border: var(--rule-thin) solid transparent;
   border-radius: var(--radius-slight);
+  transition:
+    background-color var(--duration-quick) ease-out,
+    border-color var(--duration-quick) ease-out;
+}
+
+.plan__panel-title,
+.plan__description {
+  padding: var(--space-hair) var(--space-tight);
   color: var(--colour-text);
   caret-color: var(--colour-accent);
   font: inherit;
   outline: none;
   cursor: text;
-  transition:
-    background-color var(--duration-quick) ease-out,
-    border-color var(--duration-quick) ease-out;
 }
 
 .plan__panel-title {
@@ -367,22 +427,61 @@
   font-size: var(--size-body);
 }
 
-.plan__description {
-  display: block;
+/*
+ * The description, and an unseen copy of its text, share one cell: the box is
+ * as tall as what is written (three lines at the least), and the field fills
+ * it. Once the card is as tall as it may be, the box gives way and scrolls,
+ * with no scrollbar drawn.
+ */
+.plan__description-box {
+  display: grid;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.plan__description-box::-webkit-scrollbar {
+  display: none;
+}
+
+.plan__description,
+.plan__description-box::after {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
   min-height: var(--size-plan-description);
+  margin: 0;
+  padding: var(--space-hair) var(--space-tight);
+  border: 0;
+  font: inherit;
   font-size: var(--size-label);
   line-height: var(--leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.plan__description-box::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+}
+
+.plan__description {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
   resize: none;
 }
 
 .plan__panel-title:hover,
-.plan__description:hover {
+.plan__description-box:hover {
   background: var(--colour-plan-field-hover);
   border-color: var(--colour-plan-field-edge);
 }
 
 .plan__panel-title:focus,
-.plan__description:focus {
+.plan__description-box:focus-within {
   background: var(--colour-plan-field-focus);
   border-color: color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
 }
@@ -393,9 +492,33 @@
   opacity: 1;
 }
 
-.plan__swatches {
+/*
+ * The colour picker: the palette icon, and over the card when it is open, the
+ * nine colours three by three, in a small panel that wears the menus' look.
+ */
+.plan__palette {
+  position: relative;
   display: flex;
-  gap: var(--space-tight);
+  justify-self: start;
+}
+
+.plan__palette-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-tight));
+  left: 0;
+  z-index: var(--layer-menu);
+  display: grid;
+  grid-template-columns: repeat(var(--count-plan-palette-columns), var(--size-plan-swatch));
+  gap: var(--space-snug);
+  padding: var(--space-snug);
+  background: var(--colour-raised);
+  border: var(--rule-menu) solid var(--colour-base);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+.plan__palette-menu[hidden] {
+  display: none;
 }
 
 .plan__swatch {
@@ -414,29 +537,37 @@
 .plan__swatch[data-colour="red"] { --card-tint: var(--colour-plan-red); }
 .plan__swatch[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
 .plan__swatch[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__swatch[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__swatch[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
 .plan__swatch[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
-.plan__swatch[aria-pressed="true"] {
+.plan__swatch[aria-checked="true"] {
   border-color: var(--colour-accent);
   box-shadow: 0 0 0 var(--rule-thin) var(--colour-accent);
+}
+
+.plan__swatch:hover,
+.plan__swatch:focus-visible {
+  outline: var(--focus-width) solid var(--colour-plan-field-edge);
+  outline-offset: var(--focus-offset);
 }
 
 .plan__stepper {
   display: flex;
   align-items: center;
+  justify-self: center;
   gap: var(--space-hair);
-  margin-left: auto;
   color: var(--colour-muted);
   font-size: var(--size-hint);
   font-variant-numeric: tabular-nums;
 }
 
 .plan__step,
-.plan__delete {
+.plan__icon-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-hair);
+  width: var(--size-plan-step);
   height: var(--size-plan-step);
   padding: 0;
   background: transparent;
@@ -449,20 +580,21 @@
 }
 
 .plan__step {
-  width: var(--size-plan-step);
   color: var(--colour-text);
 }
 
 .plan__delete {
-  padding: 0 var(--space-tight);
+  justify-self: end;
 }
 
 .plan__step:hover:not(:disabled),
 .plan__step:focus-visible,
-.plan__delete:hover,
-.plan__delete:focus-visible {
+.plan__icon-button:hover,
+.plan__icon-button:focus-visible,
+.plan__palette-button[aria-expanded="true"] {
   background: var(--colour-plan-field-hover);
   border-color: var(--colour-plan-field-edge);
+  color: var(--colour-text);
   outline: none;
 }
 

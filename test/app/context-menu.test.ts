@@ -480,4 +480,31 @@ describe("an item's second action (Notes' folder menu: Delete beside a note)", (
     again[again.length - 1]!.click();
     expect(main).not.toHaveBeenCalled();
   });
+
+  it("still works on a greyed item, which does nothing itself but is not skipped, so Delete can reach it", () => {
+    const main = vi.fn();
+    const aside = vi.fn();
+    const { menu, list, choices } = open([
+      { label: "Open", act: vi.fn() },
+      { label: "Closed", act: main, unavailable: true, aside: { label: "Delete Closed", icon: Trash2, alarm: true, act: aside } },
+    ]);
+    const greyed = choices()[1]!;
+    expect(greyed.disabled).toBe(false);
+    expect(greyed.getAttribute("aria-disabled")).toBe("true");
+    greyed.click();
+    expect(main).not.toHaveBeenCalled();
+    expect(menu.isOpen()).toBe(true);
+    // The arrows stop on it, and Delete there is its second action.
+    key(list, "ArrowDown");
+    key(choices()[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(greyed);
+    key(greyed, "Delete");
+    expect(aside).toHaveBeenCalledTimes(1);
+    expect(menu.isOpen()).toBe(false);
+    // And by the pointer.
+    const again = open([{ label: "Closed", act: main, unavailable: true, aside: { label: "Delete Closed", icon: Trash2, act: aside } }]);
+    again.list.querySelector<HTMLElement>(".drop-menu__aside")!.click();
+    expect(aside).toHaveBeenCalledTimes(2);
+    expect(main).not.toHaveBeenCalled();
+  });
 });

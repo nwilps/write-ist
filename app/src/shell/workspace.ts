@@ -253,6 +253,14 @@ export interface WorkspaceManifest {
    */
   readonly alwaysOn?: true;
   /**
+   * Whether the project name pill at the foot of the desk is shown while this
+   * workspace is on screen. Shown unless this says `false`: a workspace whose
+   * own surface runs down to the foot can ask for the room. The pill is the
+   * shell's; only whether it is drawn is the workspace's. File ▸ Edit Project
+   * Details is there either way.
+   */
+  readonly showsProjectName?: false;
+  /**
    * The files in a project's folder that hold this workspace's work, by name;
    * a name ending in `/` is a folder, and everything in it (ADR-0025:
    * `plan.md` is Plan's, the `notes/` folder Notes'). Declared so what

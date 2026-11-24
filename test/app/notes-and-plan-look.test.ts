@@ -4,14 +4,21 @@
  * Notes is a window floating on the desk, shaped like a laptop's screen: seven
  * tenths of the workspace's width, 16:9, centred, scrolling inside itself with
  * no scrollbar, and on a short window shrunk, still 16:9, to stay clear of the
- * bar and the pills. Its bar of pills is exactly the window's width, its tabs
- * scrolling sideways between the folder and +. It is not the Editor's paper.
+ * bar and the pills. Its bar of pills is never wider than the window: the
+ * folder, tabs all of one width, and + beside the last, the bottom pills' gap
+ * between each and under the bar, the tabs scrolling sideways on a window too
+ * narrow for them. It is not the Editor's paper.
  *
  * Plan's grid is a dot at each corner of its squares, opaque and quiet, a
  * column of them on every edge, under the lines and under every card. A beat
  * line and the end of the target span exactly a column of dots, so each sits
  * dead centre on one at any display scale; the cards sit over all of it.
  * (That nothing is drawn again mid-drag is `notes-and-plan.test.ts`.)
+ *
+ * Plan's grid panel is as far below the workspace bar as it is from the
+ * window's sides; under it, the Structure button and the selected card beside
+ * it, the card growing down to the bottom pills' margin and no further, with
+ * its colours in a three-by-three picker of nine.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -64,7 +71,7 @@ describe("Notes, a floating window", () => {
     expect(rule(NOTES, ".notes-desk")).toMatch(/align-items: center;.*justify-content: center/);
     expect(window).toContain(
       "width: min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
-        "calc( (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-notes-bar-gap)) * var(--ratio-notes) ) )",
+        "calc( (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) * var(--ratio-notes) ) )",
     );
     expect(notes).toContain("width: 100%");
     expect(notes).toContain("aspect-ratio: var(--ratio-notes)");
@@ -73,7 +80,7 @@ describe("Notes, a floating window", () => {
   // The width rule above, worked through for a wide workspace and a short one.
   const drawn = (roomWidth: number, roomHeight: number) => {
     const inset = pixels("--space-notes-inset");
-    const bar = pixels("--size-notes-bar") + pixels("--space-notes-bar-gap");
+    const bar = pixels("--size-notes-bar") + pixels("--space-pill-gap");
     const width = Math.min(roomWidth * 0.7, (roomHeight - inset * 2 - bar) * (16 / 9));
     const height = width / (16 / 9);
     return { width, height, above: (roomHeight - height - bar) / 2 };
@@ -129,15 +136,73 @@ describe("Notes' bar of pills", () => {
   const tab = rule(NOTES, ".notes-tab");
   const pill = rule(NOTES, ".notes-bar__pill");
 
-  it("is exactly as wide as the window, and can never be pushed wider by its tabs", () => {
+  it("is never wider than the window, and can never be pushed wider by its tabs", () => {
     expect(bar).toContain("width: 100%");
     expect(bar).toContain("min-width: 0");
     expect(bar).toContain("box-sizing: border-box");
     expect(rule(NOTES, ".notes-window")).toContain("min-width: 0");
-    // The folder and + keep their size; the tabs between them give way, and scroll.
+    // The folder and + keep their size; the tabs give way, and scroll, only when there is no room.
     expect(pill).toContain("flex: none");
-    expect(strip).toContain("flex: 1 1 auto");
+    expect(strip).toContain("flex: 0 1 auto");
     expect(strip).toContain("min-width: 0");
+  });
+
+  it("puts + right beside the last tab, and beside the folder when no tab is open", () => {
+    // In the bar's order: folder, the strip of tabs, +. The strip is as wide as
+    // its tabs (it does not grow), so + follows the last one.
+    expect(strip).not.toMatch(/flex: 1|flex-grow: [1-9]/);
+    expect(bar).not.toContain("justify-content: space-between");
+    expect(pill).not.toMatch(/margin-left: auto|margin-inline-start: auto/);
+    // Empty, it is not drawn, so there is one gap between the folder and +, not two.
+    expect(rule(NOTES, ".notes-tabs:empty")).toContain("display: none");
+  });
+
+  it("keeps the bottom pills' gap between every pill, and between the bar and the window", () => {
+    expect(token("--space-pill-gap")).toBe("var(--space-panel)");
+    expect(bar).toContain("gap: var(--space-pill-gap)");
+    expect(strip).toContain("gap: var(--space-pill-gap)");
+    expect(rule(NOTES, ".notes-window")).toContain("gap: var(--space-pill-gap)");
+    // The foot's own pills use the same token, so the two can never drift apart.
+    expect(rule("style/editor.css", ".pills")).toContain("gap: var(--space-pill-gap)");
+    // No gap of Notes' own is left to drift.
+    expect(tokens).not.toMatch(/--space-notes-(bar|tab)-gap/);
+    expect(sheet(NOTES)).not.toMatch(/--space-notes-(bar|tab)-gap/);
+  });
+
+  it("draws every tab the same width, its name centred on the whole tab and cut short with …, the × at its right", () => {
+    expect(tab).toContain("width: var(--measure-notes-tab)");
+    expect(tab).not.toMatch(/(?:^|[\s;])(max|min)-width/);
+    expect(tab).toContain("flex: none");
+    const name = rule(NOTES, ".notes-tab__name");
+    expect(name).toContain("text-align: center");
+    expect(name).toContain("flex: 1 1 auto");
+    expect(name).toContain("text-overflow: ellipsis");
+    expect(name).toContain("overflow: hidden");
+    expect(tab).toContain("white-space: nowrap");
+    // The left padding is the ×, and the gaps either side of it, so the name sits in the middle of the tab.
+    expect(tab).toContain("gap: var(--space-hair)");
+    expect(tab).toContain("padding: 0 var(--space-hair) 0 calc(var(--space-hair) * 2 + var(--size-notes-tab-close))");
+    expect(rule(NOTES, ".notes-tab__rename")).toContain("text-align: center");
+  });
+
+  it("fits five tabs, the folder, + and their gaps in the window at 1920 × 1080; narrower, the tabs keep their width and scroll", () => {
+    // 24ch of the interface's face at the label size: a column is 0.6em.
+    expect(token("--measure-notes-tab")).toBe("24ch");
+    expect(rule(NOTES, ".notes-tab")).toContain("font-size: var(--size-label)");
+    const tabWidth = 24 * 0.6 * pixels("--size-label");
+    const gap = pixels("--space-pill-gap");
+    const barFor = (tabs: number) => pixels("--size-notes-bar") * 2 + tabs * tabWidth + (tabs + 1) * gap;
+    // The window as drawn: the workspace less its sides, the height less the window's frame.
+    const windowAt = (width: number, height: number) => {
+      const room = { width: width - pixels("--space-roomy") * 2, height };
+      return Math.min(room.width * 0.7, (room.height - pixels("--space-notes-inset") * 2 - pixels("--size-notes-bar") - gap) * (16 / 9));
+    };
+    expect(barFor(5)).toBeCloseTo(1072, 6);
+    expect(barFor(5)).toBeLessThanOrEqual(windowAt(1920, 1080 - 40));
+    // A 1440-wide laptop's window is too narrow for five: the strip scrolls rather than the tabs shrinking.
+    expect(barFor(5)).toBeGreaterThan(windowAt(1440, 900 - 40));
+    expect(strip).toContain("overflow-x: auto");
+    expect(rule(NOTES, ".notes-tab")).toContain("flex: none");
   });
 
   it("scrolls its tabs sideways with no scrollbar, and never wraps them", () => {
@@ -147,8 +212,6 @@ describe("Notes' bar of pills", () => {
     expect(rule(NOTES, ".notes-tabs::-webkit-scrollbar")).toContain("display: none");
     expect(strip).not.toContain("flex-wrap");
     expect(tab).toContain("flex: none");
-    expect(tab).toContain("max-width: var(--measure-notes-tab)");
-    expect(rule(NOTES, ".notes-tab__name")).toContain("text-overflow: ellipsis");
     // Room for the pills' shadows, taken back so the bar keeps its height.
     expect(strip).toContain("padding: var(--space-notes-tab-shadow) 0");
     expect(strip).toContain("margin: calc(var(--space-notes-tab-shadow) * -1) 0");
@@ -164,6 +227,13 @@ describe("Notes' bar of pills", () => {
     }
     expect(token("--size-notes-bar")).toBe("var(--size-pill)");
     expect(rule(NOTES, '.notes-tab[aria-selected="true"]')).toContain("color: var(--colour-accent)");
+  });
+
+  it("greys + while five tabs are open, as an unavailable button is greyed elsewhere", () => {
+    expect(rule(NOTES, ".notes-bar__pill:disabled")).toContain("opacity: var(--opacity-unavailable)");
+    expect(rule(NOTES, ".notes-bar__pill:hover:not(:disabled), .notes-bar__pill:focus-visible, .notes-bar__pill[aria-expanded=\"true\"]")).toContain(
+      "color: var(--colour-text)",
+    );
   });
 });
 
@@ -242,9 +312,69 @@ describe("Plan's grid, a steady field of dots", () => {
   });
 });
 
-describe("Plan's card panel, the card itself to write on", () => {
+describe("Plan's grid panel, placed", () => {
+  it("is as far below the workspace bar as it is from the window's left and right, by one token", () => {
+    // The sides: Plan's host is held to the room, and nothing inside adds to it.
+    expect(rule(PLAN, '.workspace[data-workspace="plan"]')).toContain("padding: 0 var(--space-plan-edge)");
+    expect(rule(PLAN, ".plan__board")).not.toMatch(/margin/);
+    // The top: the bar's top margin, the bar, then the same room.
+    expect(rule(PLAN, ".plan-desk")).toContain("padding: var(--space-plan-top) 0 var(--space-desk-edge)");
+    expect(token("--space-plan-top")).toBe("calc(var(--space-desk-edge) + var(--size-pill) + var(--space-plan-edge))");
+    expect(rule("style/editor.css", ".workspace-bar")).toContain("top: var(--space-desk-edge)");
+    expect(rule("style/editor.css", ".workspace-bar__pill")).toContain("height: var(--size-pill)");
+    // Worked through: the bar's foot is at 44px, the panel's top at 60px; 16px, as at each side.
+    const barFoot = pixels("--space-desk-edge") + pixels("--size-pill");
+    const top = barFoot + pixels("--space-plan-edge");
+    expect(top - barFoot).toBe(pixels("--space-plan-edge"));
+    expect(pixels("--space-plan-edge")).toBe(16);
+  });
+});
+
+describe("Plan's selected card, beside the Structure button", () => {
   const panel = rule(PLAN, ".plan__panel");
-  const fields = rule(PLAN, ".plan__panel-title, .plan__description");
+  const under = rule(PLAN, ".plan__under");
+  const desk = rule(PLAN, ".plan-desk");
+
+  it("sits right of the Structure button, as far from it as the button is from the window's edge, and as far under the grid", () => {
+    // Side by side, the gap between them the window's edge's room.
+    expect(under).toContain("display: flex");
+    expect(under).toContain("gap: var(--space-plan-edge)");
+    expect(rule(PLAN, '.workspace[data-workspace="plan"]')).toContain("padding: 0 var(--space-plan-edge)");
+    // Both hang from the top of the row, so both are the desk's gap under the grid.
+    expect(desk).toContain("gap: var(--space-plan-edge)");
+    expect(rule(PLAN, ".plan__controls")).toContain("align-self: flex-start");
+    expect(panel).toContain("top: 0");
+    expect(panel).toContain("left: 0");
+    expect(rule(PLAN, ".plan__card-slot")).toContain("position: relative");
+  });
+
+  it("grows down with its description to the bottom pills' margin and no further, and then scrolls inside, with no scrollbar", () => {
+    // The desk fills the workspace and its content never sizes it: its foot is the bottom pills' margin.
+    expect(desk).toContain("container-type: size");
+    expect(desk).toMatch(/padding: [^;]* var\(--space-desk-edge\)/);
+    expect(rule("style/editor.css", ".pills")).toContain("bottom: var(--space-desk-edge)");
+    // The row takes what the grid leaves, and the card is at most as tall as the row.
+    expect(under).toContain("flex: 1 1 0");
+    expect(under).toContain("min-height: 0");
+    expect(panel).toContain("max-height: 100%");
+    expect(panel).toContain("position: absolute");
+    // As tall as what is written: the field and an unseen copy of its text share one cell.
+    const box = rule(PLAN, ".plan__description-box");
+    expect(box).toContain("display: grid");
+    expect(box).toContain("flex: 0 1 auto");
+    expect(box).toContain("min-height: 0");
+    expect(box).toContain("overflow-y: auto");
+    expect(box).toContain("scrollbar-width: none");
+    expect(rule(PLAN, ".plan__description-box::-webkit-scrollbar")).toContain("display: none");
+    const shared = rule(PLAN, ".plan__description, .plan__description-box::after");
+    expect(shared).toContain("grid-area: 1 / 1");
+    expect(shared).toContain("min-height: var(--size-plan-description)");
+    expect(shared).toContain("white-space: pre-wrap");
+    expect(rule(PLAN, ".plan__description-box::after")).toContain('content: attr(data-value) " "');
+    expect(rule(PLAN, ".plan__description-box::after")).toContain("visibility: hidden");
+    expect(rule(PLAN, ".plan__description")).toContain("overflow: hidden");
+    expect(rule(PLAN, ".plan__description")).toContain("resize: none");
+  });
 
   it("is compact, and wears the card's own tinted face and edge", () => {
     expect(panel).toContain("width: min(var(--measure-plan-panel), 100%)");
@@ -254,12 +384,52 @@ describe("Plan's card panel, the card itself to write on", () => {
   });
 
   it("has a title and description with no box at rest, a hairline under the pointer, and a firmer edge while typed in", () => {
+    const fields = rule(PLAN, ".plan__panel-title, .plan__description-box");
     expect(fields).toContain("background: transparent");
     expect(fields).toContain("border: var(--rule-thin) solid transparent");
-    expect(fields).toContain("cursor: text");
-    expect(rule(PLAN, ".plan__description")).toContain("resize: none");
-    expect(rule(PLAN, ".plan__panel-title:hover, .plan__description:hover")).toContain("border-color: var(--colour-plan-field-edge)");
-    expect(rule(PLAN, ".plan__panel-title:focus, .plan__description:focus")).toContain("background: var(--colour-plan-field-focus)");
+    expect(rule(PLAN, ".plan__panel-title, .plan__description")).toContain("cursor: text");
+    expect(rule(PLAN, ".plan__panel-title:hover, .plan__description-box:hover")).toContain("border-color: var(--colour-plan-field-edge)");
+    expect(rule(PLAN, ".plan__panel-title:focus, .plan__description-box:focus-within")).toContain("background: var(--colour-plan-field-focus)");
     expect(rule(PLAN, ".plan__panel-title::placeholder, .plan__description::placeholder")).toContain("color: var(--colour-faint)");
+  });
+
+  it("has along its foot the palette at the left, the pages centred, and the trash at the right", () => {
+    const foot = rule(PLAN, ".plan__panel-foot");
+    expect(foot).toContain("display: grid");
+    expect(foot).toContain("grid-template-columns: 1fr auto 1fr");
+    expect(rule(PLAN, ".plan__palette")).toContain("justify-self: start");
+    expect(rule(PLAN, ".plan__stepper")).toContain("justify-self: center");
+    expect(rule(PLAN, ".plan__delete")).toContain("justify-self: end");
+    expect(rule(PLAN, ".plan__delete:hover, .plan__delete:focus-visible")).toContain("color: var(--colour-alarm)");
+  });
+
+  it("offers nine colours, three by three, in a picker of Write-ist's own, each a token", () => {
+    const menu = rule(PLAN, ".plan__palette-menu");
+    expect(menu).toContain("display: grid");
+    expect(menu).toContain("grid-template-columns: repeat(var(--count-plan-palette-columns), var(--size-plan-swatch))");
+    expect(token("--count-plan-palette-columns")).toBe("3");
+    expect(menu).toContain("position: absolute");
+    expect(menu).toContain("z-index: var(--layer-menu)");
+    // The menus' look: their ground, their edge, the float corner and shadow.
+    expect(menu).toContain("background: var(--colour-raised)");
+    expect(menu).toContain("border: var(--rule-menu) solid var(--colour-base)");
+    expect(menu).toContain("box-shadow: var(--shadow-float)");
+    expect(rule(PLAN, ".plan__palette-menu[hidden]")).toContain("display: none");
+    // The same round swatch as before.
+    const swatch = rule(PLAN, ".plan__swatch");
+    expect(swatch).toContain("width: var(--size-plan-swatch)");
+    expect(swatch).toContain("height: var(--size-plan-swatch)");
+    expect(swatch).toContain("border-radius: var(--radius-round)");
+    expect(pixels("--radius-round") * 2).toBeGreaterThanOrEqual(pixels("--size-plan-swatch"));
+    // Nine named colours, each a token, each drawn on a card, the card panel and a swatch.
+    const names = ["plain", "sand", "yellow", "orange", "red", "purple", "blue", "aqua", "green"];
+    for (const name of names) {
+      expect(token(`--colour-plan-${name}`)).not.toBe("");
+      if (name === "plain") continue;
+      for (const kind of ["card", "panel", "swatch"]) {
+        expect(rule(PLAN, `.plan__${kind}[data-colour="${name}"]`)).toContain(`--card-tint: var(--colour-plan-${name})`);
+      }
+    }
+    expect(tokens.match(/--colour-plan-(?!field|dot|past|end|beat)[\w]+:/g)).toHaveLength(9);
   });
 });

@@ -31,8 +31,13 @@
  * for any kind of project, a novel included.
  */
 
-/** The colours a card may be, by stable name (the stylesheet's to draw). */
-export const CARD_COLOURS = ["plain", "yellow", "orange", "red", "purple", "blue", "green"] as const;
+/**
+ * The colours a card may be, by stable name (the stylesheet's to draw), in
+ * the order the colour picker lays them out, three to a row: round the wheel
+ * from no colour and sand through to green. A name, once written to
+ * `plan.md`, is never renamed; aqua and sand joined the first seven.
+ */
+export const CARD_COLOURS = ["plain", "sand", "yellow", "orange", "red", "purple", "blue", "aqua", "green"] as const;
 export type CardColour = (typeof CARD_COLOURS)[number];
 
 export interface PlanCard {

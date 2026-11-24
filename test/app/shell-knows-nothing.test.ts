@@ -126,6 +126,17 @@ describe("a workspace is a manifest, not surgery in the shell (ADR-0005)", () =>
     expect(shell).not.toMatch(/notes\.md|plan\.md|workspaces\/(notes|plan)|src\/(notes|plan)\//);
   });
 
+  it("hides the project name pill for a workspace that asks in its manifest, never by naming one", () => {
+    // Plan asks for the foot of the desk; the shell reads the manifest, not the id.
+    expect(WORKSPACES.filter((workspace) => workspace.showsProjectName === false).map((workspace) => workspace.id)).toEqual(["plan"]);
+    const shell = codeOf(join(SHELL, "shell.ts"));
+    expect(shell).toContain("manifest.showsProjectName === false");
+    for (const workspace of WORKSPACES) {
+      expect(shell).not.toContain(`"${workspace.id}"`);
+      expect(shell).not.toContain(`'${workspace.id}'`);
+    }
+  });
+
   it("gives every workspace everything the bar will need of it", () => {
     // Declared now rather than added later, because adding a field to a manifest
     // means touching every manifest there is.

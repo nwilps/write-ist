@@ -20,7 +20,9 @@
  *
  * **An item may carry a second action at its end** (`aside`: Delete beside a
  * note's name in Notes' folder menu) — a small icon of its own, chosen by the
- * pointer, or by Delete or Backspace while its item has focus.
+ * pointer, or by Delete or Backspace while its item has focus. An item that is
+ * unavailable keeps its second action: it is greyed and does nothing itself,
+ * but can still be reached, so its icon can still be chosen.
  *
  * **A row of steps** (View ▸ Zoom) is an item with − and + at its end and a dot
  * for each step between them. Choosing − or + steps and leaves the menu open,
@@ -43,7 +45,10 @@ export interface MenuItem {
   /** A Lucide icon drawn before the label (ADR-0035). */
   readonly icon?: IconNode;
   readonly act: () => void;
-  /** Drawn and doing nothing, and skipped by the arrow keys. */
+  /**
+   * Drawn and doing nothing, and skipped by the arrow keys — unless it has an
+   * `aside`, which still works: then it is greyed, and the arrows still stop on it.
+   */
   readonly unavailable?: boolean;
   /**
    * An item that is on or off (Spellcheck). Asked each time the menu opens, so
@@ -173,7 +178,10 @@ export function menuList(
     }
     const button = element("button", { type: "button", className: "drop-menu__item", role: "menuitem" });
     button.tabIndex = -1;
-    button.disabled = entry.unavailable === true;
+    // Unavailable with a second action: greyed but reachable, so the action can still be chosen.
+    const greyed = entry.unavailable === true && entry.aside !== undefined;
+    button.disabled = entry.unavailable === true && !greyed;
+    if (greyed) button.setAttribute("aria-disabled", "true");
     if (entry.icon !== undefined) {
       const icon = createElement(entry.icon, { class: "drop-menu__icon" });
       icon.setAttribute("aria-hidden", "true");
@@ -228,6 +236,7 @@ export function menuList(
       button.append(end);
     }
     button.addEventListener("click", () => {
+      if (greyed) return;
       // Focus goes back first so that an action which moves it elsewhere wins.
       close(true);
       entry.act();

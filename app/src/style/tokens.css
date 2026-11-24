@@ -650,13 +650,17 @@
   /** How many spaces wide a tab is drawn. */
   --count-notes-tab: 4;
   /**
-   * The bar of pills above the window — the folder, the tabs, + — and the
-   * gap between it and the window. A pill is the bottom pills' height.
+   * The bar of pills above the window — the folder, the tabs, + — is the
+   * bottom pills' height. There is no gap of its own: between the pills, and
+   * between the bar and the window, is the bottom pills' gap
+   * (`--space-pill-gap`), so the two can never drift apart (Noah, 2026-11-23).
    */
   --size-notes-bar: var(--size-pill);
-  --space-notes-bar-gap: var(--space-snug);
-  --space-notes-tab-gap: var(--space-tight);
-  /** The widest a tab is before its name is cut short with an ellipsis. */
+  /**
+   * Every tab's width, whatever its name and however many are open: a name
+   * longer than this is cut short with an ellipsis. Five tabs, the folder, +
+   * and the gaps between them fit in the window at 1920 × 1080.
+   */
   --measure-notes-tab: 24ch;
   /** A tab's ×. */
   --size-notes-tab-close: 20px;
@@ -690,6 +694,19 @@
   --measure-plan-panel: 46ch;
   --size-plan-swatch: 14px;
   --size-plan-step: 20px;
+  /**
+   * The room round Plan's grid panel, the same on three sides: from the
+   * workspace's left and right edges, and below the workspace bar (Noah,
+   * 2026-11-23). The left and right are the workspace's own sides
+   * (`.workspace`), which Plan's host is held to (`plan.css`). The Structure
+   * button and the selected card sit under the grid this far apart, and as far
+   * below it as the button is.
+   */
+  --space-plan-edge: var(--space-roomy);
+  /** How far the grid panel's top is from the window's: under the workspace bar, and the room above. */
+  --space-plan-top: calc(var(--space-desk-edge) + var(--size-pill) + var(--space-plan-edge));
+  /** The colour picker's swatches: three across, three down. */
+  --count-plan-palette-columns: 3;
   --size-plan-description: calc(var(--size-label) * var(--leading-body) * 3 + var(--space-hair) * 2 + var(--rule-thin) * 2);
   /**
    * The title and description on the panel: clear at rest, a faint tint and
@@ -746,9 +763,11 @@
    */
   --colour-plan-beat: color-mix(in srgb, var(--colour-faint) 55%, var(--colour-raised));
   /**
-   * A card's colours: the palette the app already speaks in, two more from
-   * the same family, each drawn as a tint over the card's grey so a page of
-   * cards stays quiet.
+   * A card's nine colours, three by three in the colour picker: the palette
+   * the app already speaks in, and the rest of its family (gruvbox's bright
+   * row) — orange, purple and aqua — and sand, the family's pale ink, so the
+   * last of the nine is a light card rather than a second grey. Each is drawn
+   * as a tint over the card's grey so a page of cards stays quiet.
    */
   --colour-plan-plain: var(--colour-border-strong);
   --colour-plan-yellow: var(--colour-accent);
@@ -756,7 +775,9 @@
   --colour-plan-red: var(--colour-alarm);
   --colour-plan-purple: #d3869b;
   --colour-plan-blue: var(--colour-info);
+  --colour-plan-aqua: #8ec07c;
   --colour-plan-green: var(--colour-affirm);
+  --colour-plan-sand: var(--colour-text);
   --mix-plan-card: 22%;
   --mix-plan-card-edge: 55%;
   --mix-plan-swatch: 70%;

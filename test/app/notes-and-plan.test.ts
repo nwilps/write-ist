@@ -1,7 +1,7 @@
 /**
  * Notes and Plan in the real shell, wired as `main.ts` wires them, over an
  * invented project in a temporary folder: Notes keeps each note as a `.md`
- * file in `notes/`, in tabs — new, opened, closed, renamed and deleted from its
+ * file in `notes/`, in tabs — five at most — new, opened, closed, renamed and deleted from its
  * bar — brings an old `notes.md` in, and opens again where the writer left it; Plan draws `plan.md`'s
  * cards on a grid as long as the project's target page count, and follows it
  * when Edit Project Details changes it; and turning either workspace off hides
@@ -351,22 +351,97 @@ describe("Notes", () => {
     expect(noteTabs(again)).toEqual([]);
   });
 
-  it("has no limit on tabs: each note opened is one more, in the order opened", async () => {
-    const names = Array.from({ length: 14 }, (_, index) => `Note ${index + 1}`);
+  it("opens five tabs at most: + and the closed notes in the folder menu grey, quietly, until a tab closes", async () => {
+    const names = Array.from({ length: 7 }, (_, index) => `Note ${index + 1}`);
     writeNotes(Object.fromEntries(names.map((name) => [name, name])));
     const into = await openProject();
     alt("2");
     await notesView(into);
-    for (const name of names.slice(1)) {
+    const plus = into.querySelector<HTMLButtonElement>(".notes-bar__new")!;
+    for (const name of names.slice(1, 5)) {
+      expect(plus.disabled).toBe(false);
       const rows = await folderMenu(into);
       rows.find((row) => row.textContent === name)!.click();
       await vi.waitFor(() => expect(frontNote(into)).toBe(name));
     }
-    expect(noteTabs(into)).toEqual(names);
-    // A note already open is brought to the front, not opened twice.
-    (await folderMenu(into)).find((row) => row.textContent === "Note 3")!.click();
-    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 3"));
-    expect(noteTabs(into)).toHaveLength(14);
+    expect(noteTabs(into)).toEqual(names.slice(0, 5));
+    // Five: + is still there, beside the last tab, greyed and doing nothing.
+    expect(plus.hidden).toBe(false);
+    expect(plus.disabled).toBe(true);
+    expect(plus.previousElementSibling?.lastElementChild).toBe(noteTab(into, "Note 5"));
+    plus.click();
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(folderFiles()).toHaveLength(7);
+    expect(noteTabs(into)).toHaveLength(5);
+
+    // The folder menu: the closed notes greyed, the open ones still brought forward.
+    let rows = await folderMenu(into);
+    const row = (name: string) => rows.find((each) => each.textContent === name)!;
+    for (const name of names.slice(5)) expect(row(name).getAttribute("aria-disabled")).toBe("true");
+    for (const name of names.slice(0, 5)) expect(row(name).hasAttribute("aria-disabled")).toBe(false);
+    row("Note 6").click();
+    // Nothing happens, and the menu stays open: nothing to dismiss, nothing said.
+    expect(document.querySelector(".drop-menu--context")).not.toBeNull();
+    expect(noteTabs(into)).toEqual(names.slice(0, 5));
+    expect(dialog()).toBeNull();
+    expect(into.querySelector(".trouble, [role='alert']")).toBeNull();
+    row("Note 2").click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 2"));
+    expect(noteTabs(into)).toHaveLength(5);
+
+    // A closed note can still be deleted from the menu while it is greyed.
+    rows = await folderMenu(into);
+    row("Note 7").querySelector<HTMLElement>(".drop-menu__aside")!.click();
+    await vi.waitFor(() => expect(dialog()).not.toBeNull());
+    dialog()!.querySelector<HTMLFormElement>("form")!.requestSubmit();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
+    expect(folderFiles()).not.toContain("Note 7.md");
+
+    // Close one: + and the closed notes come back.
+    noteTab(into, "Note 3").querySelector<HTMLButtonElement>(".notes-tab__close")!.click();
+    await vi.waitFor(() => expect(plus.disabled).toBe(false));
+    rows = await folderMenu(into);
+    expect(row("Note 6").hasAttribute("aria-disabled")).toBe(false);
+    row("Note 6").click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 6"));
+    expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 4", "Note 5", "Note 6"]);
+    expect(plus.disabled).toBe(true);
+  });
+
+  it("puts + right after the last tab, and after the folder with none open", async () => {
+    writeNotes({ Ideas: "" });
+    const into = await openProject();
+    alt("2");
+    await notesView(into);
+    const bar = into.querySelector<HTMLElement>(".notes-bar")!;
+    const strip = into.querySelector<HTMLElement>(".notes-tabs")!;
+    expect([...bar.children].map((child) => child.className)).toEqual(["notes-bar__pill notes-bar__folder", "notes-tabs", "notes-bar__pill notes-bar__new"]);
+    expect(strip.lastElementChild).toBe(noteTab(into, "Ideas"));
+    noteTab(into, "Ideas").querySelector<HTMLButtonElement>(".notes-tab__close")!.click();
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual([]));
+    // Empty, so the stylesheet does not draw it (`.notes-tabs:empty`): + is the folder's neighbour.
+    expect(strip.childNodes).toHaveLength(0);
+    expect(strip.matches(":empty")).toBe(true);
+  });
+
+  it("opens no more than five tabs kept from an older session, the one in front always among them", async () => {
+    const names = Array.from({ length: 7 }, (_, index) => `Note ${index + 1}`);
+    writeNotes(Object.fromEntries(names.map((name) => [name, name])));
+    await places.remember("id-paper-boats", "notes", {
+      open: 7,
+      ...Object.fromEntries(names.map((name, index) => [`tab-${index + 1}`, name])),
+      active: "Note 7",
+    });
+    const into = await openProject();
+    alt("2");
+    await notesView(into);
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 3", "Note 4", "Note 7"]));
+    expect(frontNote(into)).toBe("Note 7");
+    expect(into.querySelector<HTMLButtonElement>(".notes-bar__new")!.disabled).toBe(true);
+    await closeProject();
+    // Kept as it is now: five.
+    const kept = readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8");
+    expect(kept).toContain('id-paper-boats\tnotes\topen=5\ttab-1="Note 1"\ttab-2="Note 2"\ttab-3="Note 3"\ttab-4="Note 4"\ttab-5="Note 7"\tactive="Note 7"\n');
   });
 
   it("renames the note in front by double-clicking its tab: the file follows, made safe and numbered quietly", async () => {
@@ -526,6 +601,12 @@ describe("Plan", () => {
 
   const cardOf = (into: HTMLElement, id: string) => into.querySelector<HTMLElement>(`.plan__card[data-id="${id}"]`)!;
   const surface = (into: HTMLElement) => into.querySelector<HTMLElement>(".plan__surface")!;
+  /** Select a card as a press would, without a layout to measure in jsdom. */
+  const selectCard = (into: HTMLElement, id: string) => {
+    const press = new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 });
+    cardOf(into, id).dispatchEvent(Object.assign(press, { pointerId: 1 }));
+    cardOf(into, id).dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+  };
 
   it("is Alt+3's tab, and draws plan.md's cards on a grid as long as the target page count", async () => {
     writeFileSync(join(opened.path, "plan.md"), PLAN);
@@ -600,12 +681,171 @@ describe("Plan", () => {
     key("ArrowDown");
     expect(cardOf(into, "card-1").style.getPropertyValue("--card-cell")).toBe("51");
     expect(cardOf(into, "card-1").style.getPropertyValue("--card-lane")).toBe("2");
+    into.querySelector<HTMLButtonElement>(".plan__palette-button")!.click();
     into.querySelector<HTMLButtonElement>('.plan__swatch[data-colour="green"]')!.click();
     expect(cardOf(into, "card-1").dataset["colour"]).toBe("green");
     await closeProject();
     const saved = readFileSync(join(opened.path, "plan.md"), "utf8");
     expect(saved).toContain("Colour: green\nLane: 3\nStarts at: 51%");
     expect(saved).toContain("They cross without lights.");
+  });
+
+  it("hides the project name pill on Plan only, as Plan's manifest asks; the Editor and Notes show it", async () => {
+    const byId = Object.fromEntries(WORKSPACES.map((manifest) => [manifest.id, manifest]));
+    expect(byId["plan"]!.showsProjectName).toBe(false);
+    expect(byId["editor"]!.showsProjectName).toBeUndefined();
+    expect(byId["notes"]!.showsProjectName).toBeUndefined();
+    const into = await openProject();
+    const pill = into.querySelector<HTMLElement>(".pill--project")!;
+    expect(pill.hidden).toBe(false);
+    alt("2");
+    expect(pill.hidden).toBe(false);
+    alt("3");
+    expect(selected(into)).toBe("Plan");
+    expect(pill.hidden).toBe(true);
+    alt("1");
+    expect(pill.hidden).toBe(false);
+    alt("3");
+    expect(pill.hidden).toBe(true);
+    alt("2");
+    expect(pill.hidden).toBe(false);
+  });
+
+  it("puts the selected card beside the Structure button under the grid, its pages centred as − 56–57 +, Delete a trash icon alone", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN);
+    const into = await openProject();
+    await editDetails(into, () => typePages("110"));
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    const under = into.querySelector<HTMLElement>(".plan__under")!;
+    expect(under.previousElementSibling).toBe(into.querySelector(".plan__board"));
+    expect([...under.children].map((child) => child.className)).toEqual(["plan__controls", "plan__card-slot"]);
+    expect(under.querySelector(".plan__card-slot > .plan__panel")).not.toBeNull();
+    selectCard(into, "card-1");
+    const panel = into.querySelector<HTMLElement>(".plan__panel")!;
+    expect(panel.hidden).toBe(false);
+    const foot = panel.querySelector<HTMLElement>(".plan__panel-foot")!;
+    expect([...foot.children].map((child) => child.className)).toEqual([
+      "plan__palette",
+      "plan__stepper",
+      "plan__icon-button plan__delete",
+    ]);
+    // The pages, and nothing of the target.
+    expect(foot.querySelector(".plan__stepper")!.textContent).toBe("−56–57+");
+    expect(foot.textContent).not.toContain("of");
+    // Delete: the trash icon, no words.
+    const remove = foot.querySelector<HTMLButtonElement>(".plan__delete")!;
+    expect(remove.textContent).toBe("");
+    expect(remove.querySelectorAll("svg")).toHaveLength(1);
+    expect(remove.getAttribute("aria-label")).toBe("Delete Card");
+    // The palette: an icon, no words, and no swatches on the card itself.
+    const palette = foot.querySelector<HTMLButtonElement>(".plan__palette-button")!;
+    expect(palette.textContent).toBe("");
+    expect(palette.querySelectorAll("svg")).toHaveLength(1);
+    expect(panel.querySelector(".plan__swatches")).toBeNull();
+    // Shorter: one page.
+    foot.querySelector<HTMLButtonElement>('[aria-label="Shorter"]')!.click();
+    expect(foot.querySelector(".plan__stepper")!.textContent).toBe("−56+");
+    remove.click();
+    expect(into.querySelector('.plan__card[data-id="card-1"]')).toBeNull();
+    expect(panel.hidden).toBe(true);
+  });
+
+  it("chooses a colour from nine, three by three, in a picker of Write-ist's own that opens from the palette icon", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN);
+    const into = await openProject();
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    selectCard(into, "card-1");
+    const button = into.querySelector<HTMLButtonElement>(".plan__palette-button")!;
+    const menu = into.querySelector<HTMLElement>(".plan__palette-menu")!;
+    expect(menu.hidden).toBe(true);
+    expect(button.getAttribute("aria-haspopup")).toBe("menu");
+    // From the keyboard: open, on the card's own colour.
+    button.focus();
+    button.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    expect(menu.hidden).toBe(false);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const swatches = [...menu.querySelectorAll<HTMLButtonElement>(".plan__swatch")];
+    expect(swatches.map((swatch) => swatch.dataset["colour"])).toEqual(["plain", "sand", "yellow", "orange", "red", "purple", "blue", "aqua", "green"]);
+    expect(swatches.map((swatch) => swatch.getAttribute("aria-label"))).toEqual([
+      "No Colour", "Sand", "Yellow", "Orange", "Red", "Purple", "Blue", "Aqua", "Green",
+    ]);
+    expect(swatches.every((swatch) => swatch.getAttribute("role") === "menuitemradio")).toBe(true);
+    expect(document.activeElement).toBe(swatches[6]);
+    expect(swatches[6]!.getAttribute("aria-checked")).toBe("true");
+    // The arrows move across a row and down a column; the card does not move with them.
+    const press = (key: string) =>
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    press("ArrowRight");
+    expect(document.activeElement).toBe(swatches[7]);
+    press("ArrowUp");
+    expect(document.activeElement).toBe(swatches[4]);
+    expect(cardOf(into, "card-1").style.getPropertyValue("--card-cell")).toBe("50");
+    // Escape closes the picker and nothing else: the card stays selected.
+    press("Escape");
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(button);
+    expect(into.querySelector<HTMLElement>(".plan__panel")!.hidden).toBe(false);
+    // A press outside closes it too.
+    button.click();
+    expect(menu.hidden).toBe(false);
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(menu.hidden).toBe(true);
+    // Chosen: the card takes it, and the picker closes.
+    button.click();
+    swatches[1]!.click();
+    expect(menu.hidden).toBe(true);
+    expect(cardOf(into, "card-1").dataset["colour"]).toBe("sand");
+    expect(into.querySelector<HTMLElement>(".plan__panel")!.dataset["colour"]).toBe("sand");
+    expect(swatches[1]!.getAttribute("aria-checked")).toBe("true");
+    await closeProject();
+    expect(readFileSync(join(opened.path, "plan.md"), "utf8")).toContain("Colour: sand\n");
+  });
+
+  it("grows the card's description with what is written: an unseen copy of the text sizes it", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN);
+    const into = await openProject();
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    selectCard(into, "card-1");
+    const box = into.querySelector<HTMLElement>(".plan__description-box")!;
+    const field = box.querySelector<HTMLTextAreaElement>(".plan__description")!;
+    expect(box.dataset["value"]).toBe("They cross without lights.");
+    field.value = "They cross without lights.\nThe ferryman counts the coins.\nNobody speaks.";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(box.dataset["value"]).toBe(field.value);
+  });
+
+  it("shows one structure at a time: choosing another replaces it, choosing it again shows none", async () => {
+    writeFileSync(join(opened.path, "plan.md"), PLAN);
+    const into = await openProject();
+    alt("3");
+    await vi.waitFor(() => expect(cardOf(into, "card-1")).not.toBeNull());
+    const choose = async (name: string) => {
+      into.querySelector<HTMLButtonElement>(".plan__control")!.click();
+      await vi.waitFor(() => expect(document.querySelector(".drop-menu--context")).not.toBeNull());
+      [...document.querySelectorAll<HTMLElement>(".drop-menu--context [role='menuitemcheckbox']")].find((row) => row.textContent === name)!.click();
+    };
+    const sheets = () => new Set([...into.querySelectorAll<HTMLElement>(".plan__beat-label")].map((label) => label.dataset["sheet"]));
+    const ticked = async () => {
+      into.querySelector<HTMLButtonElement>(".plan__control")!.click();
+      await vi.waitFor(() => expect(document.querySelector(".drop-menu--context")).not.toBeNull());
+      const on = [...document.querySelectorAll<HTMLElement>(".drop-menu--context [aria-checked='true']")].map((row) => row.textContent);
+      document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      return on;
+    };
+    await choose("Save the Cat");
+    expect(sheets()).toEqual(new Set(["save-the-cat"]));
+    await choose("Story Circle");
+    expect(sheets()).toEqual(new Set(["story-circle"]));
+    expect(await ticked()).toEqual(["Story Circle"]);
+    await choose("Story Circle");
+    expect(sheets()).toEqual(new Set());
+    expect(await ticked()).toEqual([]);
+    await choose("Save the Cat");
+    await closeProject();
+    expect(readFileSync(join(opened.path, "plan.md"), "utf8")).toContain("Structure: save-the-cat\n");
   });
 
   it("while a card is dragged, moves only that card: the grid is not drawn or measured again until it is dropped", async () => {
