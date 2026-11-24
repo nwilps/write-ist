@@ -495,10 +495,12 @@ chosen and kept mounted, out of sight, while another is on screen; turning one o
 
 - **Notes**: plain-text notes, each a `.md` file in the project's `notes/` folder, exactly as typed,
   in a window floating on the desk (16:9, seven tenths of the workspace's width, scrolling inside
-  itself). A bar of pills exactly the window's width: a folder menu of every note (open, or delete
-  after an alarm-coloured confirmation), tabs (no limit; they scroll sideways; double-click the one in
-  front to rename it and its file; × closes and keeps it), and + for `Untitled`, `Untitled 2`…; with
-  no tab open, a quiet empty state. An old `notes.md` is moved in once as `notes/Notes.md` (never
+  itself). A bar of pills never wider than the window, the bottom pills' gap between each and under
+  it: a folder menu of every note (open, or delete after an alarm-coloured confirmation), tabs (all
+  one width; five at most, + and the closed notes in the menu greyed while five are open; they
+  scroll sideways on a narrow window; double-click the one in front to rename it and its file; ×
+  closes and keeps it), and + beside the last tab for `Untitled`, `Untitled 2`…; with no tab open, a
+  quiet empty state. An old `notes.md` is moved in once as `notes/Notes.md` (never
   over a note already there; `src/notes/notes-folder.ts`). Autosave as the manuscript's
   (`src/project/workspace-file.ts`), per note: undo and redo, Write-ist's own right-click menu,
   spellcheck on demand from the same dictionary (a plain-text pass, `src/notes/spelling.ts`). Open
@@ -506,8 +508,10 @@ chosen and kept mounted, out of sight, while another is on screen; turning one o
   (`workspace-places.txt`, `src/project/workspace-places.ts`, format in its header).
 - **Plan**: cards on a grid of quiet dots (the beats and the end of the target drawn as lines dead
   centre on a column of dots at any display scale, the cards over all of it) whose length is the project's target page count (100 with none),
-  stored in `plan.md` as shares of the whole, so a new target moves nothing; free lanes; colours;
-  four structure sheets drawn as bands. Nothing in it reads the manuscript (ADR-0013).
+  stored in `plan.md` as shares of the whole, so a new target moves nothing; free lanes; nine
+  colours from a palette picker; four structure sheets, one drawn at a time as bands. The selected
+  card sits beside the Structure button under the grid and grows with its description to the
+  bottom pills' margin; the project name pill is hidden on Plan (its manifest's `showsProjectName`). Nothing in it reads the manuscript (ADR-0013).
 
 ### Not started, and deliberately above this layer
 
