@@ -18,6 +18,10 @@
  * the workspace's business — the Editor's pages and words (#48) — so the shell
  * carries the project's name and a slot the workspace fills, and a save state it
  * is told rather than works out.
+ *
+ * **Each workspace is handed its toolbox** (ADR-0045, `toolbox.ts`): the one
+ * versioned object it reaches the application through, built here for it and
+ * scoped to it, and put away when it comes down.
  */
 import { createElement, Save, SaveCheck, SpellCheck, type IconNode } from "lucide";
 import type { Project } from "../../../src/project/bundle.ts";
@@ -26,16 +30,21 @@ import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
 import type { ProjectDetails } from "../../../src/project/details.ts";
 import type { WorkspacePlaces } from "../../../src/project/workspace-places.ts";
+import type { PlainSpellEngine } from "../../../src/spelling/plain.ts";
+import type { WorkspaceSettingValues } from "../../../src/settings/workspace-settings.ts";
 import { element } from "../screens/element.ts";
 import { LEAVE, type Gesture } from "../screens/shortcuts.ts";
 import { trouble as troublePanel } from "../screens/trouble.ts";
 import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
+import { offerWorkspaces } from "./hotkeys.ts";
+import { buildToolbox } from "./toolbox.ts";
 import type {
   DetailsRequest,
+  EarlierCalls,
   MountedWorkspace,
   SaveState,
   SettingsRequest,
-  WorkspaceContext,
+  Toolbox,
   WorkspaceManifest,
 } from "./workspace.ts";
 import { workspaceAsked } from "./workspace-keys.ts";
@@ -84,7 +93,16 @@ export interface ShellScreen {
   readonly askToEditDetails: (route: ProjectDetailsRoute) => void;
   /** Open the application's Settings. Handed straight to the workspace. */
   readonly openSettings: (request: SettingsRequest) => void;
+  /** The application's dictionary, for every workspace's `toolbox.spelling`. None: spellcheck is not offered. */
+  readonly spellEngine?: PlainSpellEngine | undefined;
+  /** The values of the workspaces' application-wide settings, as Settings keeps them now. */
+  readonly workspaceSettings?: () => WorkspaceSettingValues | undefined;
+  /** The writer changed Settings. Answers how to stop listening. */
+  readonly whenSettingsChanged?: (act: () => void) => () => void;
 }
+
+/** What the shell makes for a workspace before its toolbox is built round it. */
+type ToolboxEarlier = EarlierCalls & Pick<Toolbox, "project" | "report" | "leave" | "ledger" | "chooseCopyLocation" | "choosePdfLocation">;
 
 /** A shell that has been drawn, and what the window answers to while it is up. */
 export interface MountedShell {
@@ -124,6 +142,8 @@ interface Hosted {
   /** The element it was drawn into, its own; hidden while another workspace is on screen. */
   readonly host: HTMLElement;
   mounted: MountedWorkspace | undefined;
+  /** Puts its toolbox away (its hotkeys) when it comes down. */
+  dispose: () => void;
   readonly pills: Pills;
   readonly goalsAsked: Set<() => void>;
   readonly detailsAsked: Set<() => void>;
@@ -219,7 +239,8 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
         return relocate === undefined ? inner : (move) => relocate(() => inner(move));
       }, carryOut);
 
-  const contextFor = (record: Hosted): WorkspaceContext => ({
+  /** What every workspace was given before the toolbox, and the toolbox is built round (`EarlierCalls`). */
+  const earlierFor = (record: Hosted): ToolboxEarlier => ({
     get project() {
       return project;
     },
@@ -277,11 +298,27 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     choosePdfLocation: screen.choosePdfLocation,
   });
 
+  /** The workspace's toolbox (ADR-0045): everything it is given, in one versioned object. */
+  const toolboxFor = (record: Hosted): Toolbox => {
+    const built = buildToolbox({
+      manifest: record.manifest,
+      host: record.host,
+      earlier: earlierFor(record),
+      onScreen: () => onScreen(record),
+      spellEngine: screen.spellEngine,
+      appSettings: screen.workspaceSettings ?? (() => undefined),
+      whenAppSettingsChanged: screen.whenSettingsChanged ?? (() => () => {}),
+    });
+    record.dispose = built.dispose;
+    return built.toolbox;
+  };
+
   const put = (manifest: WorkspaceManifest): Hosted => {
     const record: Hosted = {
       manifest,
       host: element("div", { className: "workspace" }),
       mounted: undefined,
+      dispose: () => {},
       pills: { status: "", goal: undefined, saved: "saved", spellcheck: false },
       goalsAsked: new Set(),
       detailsAsked: new Set(),
@@ -291,7 +328,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     record.host.dataset["workspace"] = manifest.id;
     hosted.set(manifest.id, record);
     view.append(record.host);
-    record.mounted = manifest.mount(record.host, contextFor(record));
+    record.mounted = manifest.mount(record.host, toolboxFor(record));
     return record;
   };
 
@@ -334,10 +371,14 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const release = async (record: Hosted): Promise<boolean> => {
     const down = (await record.mounted?.unmount()) ?? true;
     if (!down) return false;
+    record.dispose();
     record.host.remove();
     hosted.delete(record.manifest.id);
     return true;
   };
+
+  // The Hotkeys lists name these workspaces' tabs, and no others.
+  offerWorkspaces(screen.workspaces);
 
   let ready = false;
   const bar = workspaceBar(screen.workspaces, screen.shown, (manifest) => {

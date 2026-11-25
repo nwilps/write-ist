@@ -110,31 +110,33 @@ describe("the shell knows nothing about what it hosts (ADR-0005)", () => {
 });
 
 describe("a workspace is a manifest, not surgery in the shell (ADR-0005)", () => {
-  it("declares the Editor, then Notes and Plan, each a manifest of its own", () => {
-    // The placeholders they replaced are gone; Log and the rest come the same way.
-    expect(WORKSPACES.map((workspace) => workspace.id)).toEqual(["editor", "notes", "plan"]);
-    expect(WORKSPACES[0]?.name).toBe("Editor");
+  // Read from the registry, whatever is in it: a workspace added or taken away
+  // needs no change here (ADR-0045).
+  it("declares the Editor first and always on, and every workspace once, by an id of its own", () => {
+    expect(WORKSPACES[0]?.id).toBe("editor");
+    expect(WORKSPACES[0]?.alwaysOn).toBe(true);
+    const ids = WORKSPACES.map((workspace) => workspace.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(WORKSPACES.map((workspace) => workspace.key)).size).toBe(ids.length);
+    // The placeholders the first workspaces replaced are gone; the rest come the same way.
     expect(existsSync(join(root, "app", "src", "workspaces", "placeholders.ts"))).toBe(false);
   });
 
-  it("keeps Notes and Plan in folders of their own, out of the shell and the screenplay surface", () => {
-    for (const id of ["notes", "plan"]) {
-      expect(statSync(join(root, "app", "src", "workspaces", id)).isDirectory()).toBe(true);
-      expect(statSync(join(root, "src", id)).isDirectory()).toBe(true);
-    }
+  it("keeps each workspace in a folder of its own, and never names one in the shell", () => {
     const shell = shellFiles().map(codeOf).join("\n");
-    expect(shell).not.toMatch(/notes\.md|plan\.md|workspaces\/(notes|plan)|src\/(notes|plan)\//);
+    for (const workspace of WORKSPACES) {
+      expect(statSync(join(root, "app", "src", "workspaces", workspace.id)).isDirectory(), workspace.id).toBe(true);
+      expect(shell).not.toContain(`"${workspace.id}"`);
+      expect(shell).not.toContain(`'${workspace.id}'`);
+      expect(shell).not.toMatch(new RegExp(`workspaces/${workspace.id}/|src/${workspace.id}/`));
+      for (const file of workspace.files) expect(shell, file).not.toContain(file);
+    }
   });
 
   it("hides the project name pill for a workspace that asks in its manifest, never by naming one", () => {
-    // Plan asks for the foot of the desk; the shell reads the manifest, not the id.
-    expect(WORKSPACES.filter((workspace) => workspace.showsProjectName === false).map((workspace) => workspace.id)).toEqual(["plan"]);
+    // The shell reads the manifest, not the id.
     const shell = codeOf(join(SHELL, "shell.ts"));
     expect(shell).toContain("manifest.showsProjectName === false");
-    for (const workspace of WORKSPACES) {
-      expect(shell).not.toContain(`"${workspace.id}"`);
-      expect(shell).not.toContain(`'${workspace.id}'`);
-    }
   });
 
   it("gives every workspace everything the bar will need of it", () => {

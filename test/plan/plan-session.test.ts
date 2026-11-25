@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Project } from "../../src/project/bundle.ts";
 import { PLAN_FILE, planSession, readPlan } from "../../src/plan/plan-session.ts";
+import { workspaceFiles } from "../../src/project/workspace-files.ts";
 import { nodeFilesystem, temporaryDirectory } from "../support/node-filesystem.ts";
 
 let temporary: { path: string; remove: () => void };
@@ -23,22 +24,19 @@ beforeEach(() => {
 afterEach(() => temporary.remove());
 
 const planPath = () => join(project.path, PLAN_FILE);
+/** Plan's files, as the toolbox hands them to Plan: `plan.md` and nothing else. */
+const files = () => workspaceFiles({ filesystem: nodeFilesystem, project: () => project, declared: [PLAN_FILE] });
 
 async function open(targetPages: number) {
   const status: string[] = [];
   const session = planSession(
     {
-      filesystem: nodeFilesystem,
-      project,
+      files: files(),
       targetPages,
-      report: () => {},
-      setSaved: () => {},
       setStatus: (text) => void status.push(text),
-      whenSwitchedAway: () => () => {},
-      whenSwitchedBack: () => () => {},
       redraw: () => {},
     },
-    await readPlan(nodeFilesystem, project),
+    await readPlan(files()),
   );
   return { session, status };
 }
@@ -127,7 +125,7 @@ describe("the target page count", () => {
 describe("a plan.md that is not a plan", () => {
   it("is refused when read, and so never opened for writing over", async () => {
     writeFileSync(planPath(), "a shopping list, not a plan");
-    await expect(readPlan(nodeFilesystem, project)).rejects.toThrow(/not a plan Write-ist can read/);
+    await expect(readPlan(files())).rejects.toThrow(/not a plan Write-ist can read/);
     expect(readFileSync(planPath(), "utf8")).toBe("a shopping list, not a plan");
   });
 });

@@ -7,11 +7,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
 import type { WorkspaceContext, WorkspaceManifest } from "../../app/src/shell/workspace.ts";
 import { WORKSPACES } from "../../app/src/workspaces/registry.ts";
-import { COMMANDS, commandById, hintOf } from "../../app/src/workspaces/editor/commands.ts";
+import { offerWorkspaces } from "../../app/src/shell/hotkeys.ts";
+import { COMMANDS, commandById, hintOf, withWorkspaceTabs } from "../../app/src/workspaces/editor/commands.ts";
 import { shortcutGroups } from "../../app/src/workspaces/editor/keyboard-shortcuts-dialog.ts";
 
 const style = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src", "style");
@@ -330,9 +331,19 @@ describe("choosing a tab", () => {
 });
 
 describe("the tab keys in the command table and the Hotkeys list", () => {
+  // Read from the workspaces offered now, as the application says them at launch (`main.ts`).
+  beforeEach(() => offerWorkspaces(WORKSPACES));
+  const tab = (id: string) => withWorkspaceTabs().find((command) => command.id === id);
+
+  it("are not written in the command table: the registry is where they come from", () => {
+    for (const workspace of WORKSPACES) expect(commandById(`workspace-${workspace.id}`)).toBeUndefined();
+    offerWorkspaces([]);
+    expect(withWorkspaceTabs()).toEqual(COMMANDS);
+  });
+
   it("name each workspace in the registry, with its manifest key, as [Alt + 1] and so on", () => {
     for (const workspace of WORKSPACES) {
-      const command = commandById(`workspace-${workspace.id}`)!;
+      const command = tab(`workspace-${workspace.id}`)!;
       expect(command.label).toBe(workspace.name);
       expect(command.chord).toEqual({ key: workspace.key, alt: true });
       expect(hintOf(command)).toBe(`[Alt + ${workspace.key}]`);
@@ -344,8 +355,8 @@ describe("the tab keys in the command table and the Hotkeys list", () => {
   it("are answered by the shell, not the Editor, and run nothing there", () => {
     const ids = [...WORKSPACES.map((workspace) => `workspace-${workspace.id}`), "previous-workspace", "next-workspace"];
     for (const id of ids) {
-      expect(commandById(id), id).toMatchObject({ keys: "elsewhere", listedUnder: "View" });
-      expect(commandById(id)!.menu, id).toBeUndefined();
+      expect(tab(id), id).toMatchObject({ keys: "elsewhere", listedUnder: "View" });
+      expect(tab(id)!.menu, id).toBeUndefined();
     }
   });
 
@@ -362,10 +373,8 @@ describe("the tab keys in the command table and the Hotkeys list", () => {
 
   it("are listed under View", () => {
     const view = shortcutGroups().find((group) => group.name === "View")!;
-    expect(view.rows.slice(-5)).toEqual([
-      { label: "Editor", hints: ["[Alt + 1]"] },
-      { label: "Notes", hints: ["[Alt + 2]"] },
-      { label: "Plan", hints: ["[Alt + 3]"] },
+    expect(view.rows.slice(-(WORKSPACES.length + 2))).toEqual([
+      ...WORKSPACES.map((workspace) => ({ label: workspace.name, hints: [`[Alt + ${workspace.key}]`] })),
       { label: "Previous Workspace", hints: ["[Alt + Left]"] },
       { label: "Next Workspace", hints: ["[Alt + Right]"] },
     ]);
@@ -390,8 +399,9 @@ describe("the tabs a project shows", () => {
   it("declare the files their work is kept in, so turning one off is known to leave them be", () => {
     expect(Object.fromEntries(WORKSPACES.map((workspace) => [workspace.id, workspace.files]))).toEqual({
       editor: ["manuscript.fountain"],
-      // A folder, named with its slash: every note in it is Notes' (ADR-0025, 2026-11-23).
-      notes: ["notes/"],
+      // A folder, named with its slash: every note in it is Notes' (ADR-0025, 2026-11-23). And the
+      // old single note at the top, which Notes brings into the folder once (ADR-0045).
+      notes: ["notes/", "notes.md"],
       plan: ["plan.md"],
     });
     expect(WORKSPACES.filter((workspace) => workspace.alwaysOn === true).map((workspace) => workspace.id)).toEqual(["editor"]);

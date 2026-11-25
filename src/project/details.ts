@@ -26,6 +26,12 @@
  * New Project from Settings ▸ New Project Defaults and kept by the project
  * from then on: Settings changing later never reaches a project already made.
  *
+ * A workspace's own per-project settings (ADR-0045) follow, a line each,
+ * `Setting <workspace>.<setting>: yes` — none in a project whose workspaces
+ * declare none, which is every project today. Edit Project Details changes
+ * them; New Project starts them from Settings ▸ New Project Defaults; one for
+ * a workspace this version does not offer is kept as it is.
+ *
  * ## Reading it
  *
  * - **Absent** (every project made before it): no target, every workspace
@@ -51,6 +57,12 @@ import { confirmProject } from "./projects.ts";
 import { checkRename, CannotRename, renameProject } from "./rename.ts";
 import { MOST_PAGES, wholeNumber, workspaceIdsOf } from "../settings/settings.ts";
 import { DEFAULT_FORMATTING, type Formatting } from "../screenplay/formatting.ts";
+import {
+  hasSettings,
+  sameSettings,
+  SETTING_ID,
+  type WorkspaceSettingValues,
+} from "../settings/workspace-settings.ts";
 
 export interface ProjectDetails {
   /** Pages the writer is aiming at; 0 for none. */
@@ -66,6 +78,12 @@ export interface ProjectDetails {
    * chose: it is set as the paper and the PDF always were (`formattingOf`).
    */
   readonly formatting?: Formatting | undefined;
+  /**
+   * The workspaces' own per-project settings that are set (`WorkspaceSetting`,
+   * `place: "project"`), by workspace and setting id; the rest are each
+   * setting's default. Absent when none are.
+   */
+  readonly workspaceSettings?: WorkspaceSettingValues | undefined;
 }
 
 export const DEFAULT_DETAILS: ProjectDetails = { targetPages: 0, workspaces: undefined };
@@ -100,8 +118,30 @@ export function serialiseDetails(details: ProjectDetails): string {
           `${LABELS.boldTransitions}: ${yesNo(details.formatting.boldTransitions)}`,
           `${LABELS.blankLinesBeforeSceneHeadings}: ${details.formatting.blankLinesBeforeSceneHeadings}`,
         ]),
+    ...Object.entries(details.workspaceSettings ?? {})
+      .flatMap(([workspace, values]) => Object.entries(values).map(([id, on]) => `${SETTING_LINE} ${workspace}.${id}: ${yesNo(on)}`))
+      .sort(),
     "",
   ].join("\n");
+}
+
+/** How a workspace's setting starts its line in `details.md`. */
+const SETTING_LINE = "Setting";
+
+/** A workspace's setting's line: `Setting notes.word-wrap: yes`. */
+const SETTING = /^Setting ([a-z0-9][a-z0-9-]{0,63})\.([a-z0-9][a-z0-9-]{0,63}):[ \t]*(yes|no)[ \t]*$/i;
+
+/** The workspaces' settings in a file's lines, put right quietly: a line that is not one is left out. */
+function workspaceSettingsFrom(lines: readonly string[]): WorkspaceSettingValues | undefined {
+  const values: Record<string, Record<string, boolean>> = {};
+  for (const line of lines) {
+    const match = SETTING.exec(line);
+    if (match === null) continue;
+    const [, workspace, id, said] = match as unknown as [string, string, string, string];
+    if (!SETTING_ID.test(workspace) || !SETTING_ID.test(id) || values[workspace]?.[id] !== undefined) continue;
+    (values[workspace] ??= {})[id] = /^yes$/i.test(said);
+  }
+  return hasSettings(values) ? values : undefined;
 }
 
 /** Read a `details.md`, or `null` if it is not one. Values are put right quietly. */
@@ -116,8 +156,10 @@ export function parseDetails(text: string): ProjectDetails | null {
   const pages = labelled.get(LABELS.targetPages) ?? "";
   const listed = labelled.get(LABELS.workspaces);
   const formatting = formattingFrom(labelled);
+  const workspaceSettings = workspaceSettingsFrom(lines);
   return {
     ...(formatting === undefined ? {} : { formatting }),
+    ...(workspaceSettings === undefined ? {} : { workspaceSettings }),
     targetPages: /^none$/i.test(pages) ? 0 : wholeNumber(pages, 0, MOST_PAGES, 0),
     workspaces: listed === undefined ? undefined : workspaceIdsOf(listed.split(",")),
   };
@@ -167,6 +209,18 @@ export function workspaceShown(details: ProjectDetails, id: string, alwaysOn: bo
   return alwaysOn || details.workspaces === undefined || details.workspaces.includes(id);
 }
 
+/** `{ workspaceSettings }`: those held, with those wanted over them; nothing when there are none. */
+function mergedSettings(
+  held: WorkspaceSettingValues | undefined,
+  wanted: WorkspaceSettingValues | undefined,
+): { workspaceSettings?: WorkspaceSettingValues } {
+  const merged: Record<string, Record<string, boolean>> = {};
+  for (const values of [held, wanted]) {
+    for (const [workspace, each] of Object.entries(values ?? {})) merged[workspace] = { ...merged[workspace], ...each };
+  }
+  return hasSettings(merged) ? { workspaceSettings: merged } : {};
+}
+
 /** Thrown for a change that was refused; its message is for the writer. */
 export class CannotEditDetails extends Error {}
 
@@ -179,7 +233,8 @@ export interface WantedDetails {
 const sameDetails = (one: ProjectDetails, other: ProjectDetails): boolean =>
   one.targetPages === other.targetPages &&
   (one.workspaces === undefined) === (other.workspaces === undefined) &&
-  [...(one.workspaces ?? [])].sort().join() === [...(other.workspaces ?? [])].sort().join();
+  [...(one.workspaces ?? [])].sort().join() === [...(other.workspaces ?? [])].sort().join() &&
+  sameSettings(one.workspaceSettings, other.workspaceSettings);
 
 /**
  * Save what Edit Project Details asks for, and answer the project as it now is.
@@ -214,6 +269,8 @@ export async function saveProjectDetails(
       workspaces: wanted.details.workspaces,
       // Not Edit Project Details' to change: kept as the project has it.
       ...(held.details.formatting === undefined ? {} : { formatting: held.details.formatting }),
+      // The workspaces' own: the ones asked for over the ones held, so one this version does not offer is kept.
+      ...mergedSettings(held.details.workspaceSettings, wanted.details.workspaceSettings),
     };
     const detailsChange = !sameDetails(details, held.details);
     if (detailsChange && !held.readable) {

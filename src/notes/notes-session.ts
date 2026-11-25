@@ -17,40 +17,36 @@
 import { history, redo as redoCommand, undo as undoCommand } from "prosemirror-history";
 import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
-import type { Clock } from "../project/autosave.ts";
-import type { Filesystem } from "../project/filesystem.ts";
 import type { Project } from "../project/bundle.ts";
-import {
-  workspaceFileSession,
-  type FileSaveState,
-  type WorkspaceFileRead,
-} from "../project/workspace-file.ts";
+import type { FileSaveState, WorkspaceFileRead } from "../project/workspace-file.ts";
+import type { WorkspaceFiles } from "../project/workspace-files.ts";
 import { message } from "../message.ts";
-import { plainSpelling, type PlainSpellEngine } from "./spelling.ts";
+import { plainSpelling, type PlainSpellEngine } from "../spelling/plain.ts";
 import { docOf, offsetOf, positionOf, textOf, wordsOf } from "./text.ts";
 
 export interface NotesSessionPorts {
-  readonly filesystem: Filesystem;
-  readonly project: Project;
+  /**
+   * Notes' files (`toolbox.files`, ADR-0045): the note is opened through
+   * them, so its saving — safe, automatic, quiet about outside changes — is
+   * the toolbox's.
+   */
+  readonly files: Pick<WorkspaceFiles, "open">;
   /** The note's path in the project's folder (`notePath`). Plain text, exactly as typed. */
   readonly file: string;
   readonly report: (trouble: string) => void;
+  /** This note's save state; Notes puts every open note's together for the save pill. */
   readonly setSaved: (state: FileSaveState) => void;
   /** The counts pill: Notes' words. */
   readonly setStatus: (text: string) => void;
   /** The spellcheck pill, shown while the pass is on. */
   readonly setSpellcheck: (on: boolean) => void;
-  readonly whenSwitchedAway: (act: () => void) => () => void;
-  readonly whenSwitchedBack: (act: () => void) => () => void;
-  /** The dictionary. Without one, spellcheck cannot be turned on. */
+  /** The dictionary (`toolbox.spelling`). Without one, spellcheck cannot be turned on. */
   readonly spellEngine?: PlainSpellEngine | undefined;
   /**
    * The state was replaced from outside the view — the file changed elsewhere
    * and was loaded — or the spelling pass has new lines to draw.
    */
   readonly redraw: () => void;
-  readonly clock?: Clock;
-  readonly now?: () => Date;
 }
 
 /** A misspelt word in the document, by position. */
@@ -90,8 +86,8 @@ export interface NotesSession {
   /** Resolves when the save under way, if any, has landed or failed (`WorkspaceFileSession.settled`). */
   readonly settled: () => Promise<void>;
   readonly relocate: (move: () => Promise<Project>) => Promise<Project>;
-  /** Move the note's file between saves, and go on saving there (`WorkspaceFileSession.rename`). */
-  readonly rename: (move: (from: string) => Promise<string>) => Promise<string>;
+  /** Move the note's file to `to` between saves, never over another, and go on saving there (`OpenFile.moveTo`). */
+  readonly moveTo: (to: string) => Promise<string>;
   readonly file: () => string;
   /** Stop saving this note, for good: it is being deleted (`WorkspaceFileSession.discard`). */
   readonly discard: () => void;
@@ -131,11 +127,9 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
     return found;
   };
 
-  const file = workspaceFileSession(
+  const file = ports.files.open(
+    ports.file,
     {
-      filesystem: ports.filesystem,
-      project: ports.project,
-      file: ports.file,
       noun: "your notes",
       text: () => text,
       reload: (found) => {
@@ -148,12 +142,7 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
         void spelling?.edited(text);
         ports.redraw();
       },
-      report: ports.report,
       setSaved: ports.setSaved,
-      whenSwitchedAway: ports.whenSwitchedAway,
-      whenSwitchedBack: ports.whenSwitchedBack,
-      ...(ports.clock === undefined ? {} : { clock: ports.clock }),
-      ...(ports.now === undefined ? {} : { now: ports.now }),
     },
     read,
   );
@@ -226,7 +215,7 @@ export function notesSession(ports: NotesSessionPorts, read: WorkspaceFileRead):
     leave: file.leave,
     settled: file.settled,
     relocate: file.relocate,
-    rename: file.rename,
+    moveTo: file.moveTo,
     file: file.file,
     discard: file.discard,
     project: () => file.project,

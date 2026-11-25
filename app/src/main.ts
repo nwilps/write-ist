@@ -60,8 +60,9 @@ import { openProjectSearch } from "./screens/project-search.ts";
 import { applyAppearance, openSettingsDialog } from "./screens/settings.ts";
 import { mountGround } from "./background/ground.ts";
 import { suppressNativeMenus } from "./menus/native-menu.ts";
-import { tauriDictionary } from "./spell-tauri.ts";
-import { RESERVED_KEYS, shortcutCommands, useKeyBindings } from "./workspaces/editor/commands.ts";
+import { tauriDictionary, tauriSpellEngine } from "./spell-tauri.ts";
+import { RESERVED_KEYS, shortcutCommands, takenKeys, useKeyBindings } from "./workspaces/editor/commands.ts";
+import { alsoTaken, offerWorkspaces } from "./shell/hotkeys.ts";
 import { askToImportProject, IMPORT_PICKER } from "./screens/import-project.ts";
 import { answerKey, type Gesture, type KeyPress } from "./screens/shortcuts.ts";
 import { message } from "./screens/trouble.ts";
@@ -149,6 +150,9 @@ const settingsRead: Promise<void> = (async () => {
   }
 })();
 
+/** Told when the settings change, for a workspace's own (`toolbox.settings.whenChanged`). */
+const settingsChanged = new Set<() => void>();
+
 /** Use these settings from now on: where the day ends, how the window looks, and the writer's keys. */
 function useSettings(next: Settings): void {
   settings = next;
@@ -158,6 +162,7 @@ function useSettings(next: Settings): void {
   ground.react(next.appearance.backgroundMotion === "reactive");
   ground.set(next.appearance.backgroundAnimation);
   useKeyBindings(next.keyBindings);
+  for (const told of settingsChanged) told();
 }
 
 /**
@@ -204,6 +209,13 @@ function draw(): void {
       ledger: () => ledger,
       places: () => places,
       workspacePlaces: () => workspacePlaces,
+      // The same dictionary as the Editor's, for every workspace's toolbox.
+      spellEngine: tauriSpellEngine,
+      workspaceSettings: () => settings.workspaceSettings,
+      whenSettingsChanged: (act) => {
+        settingsChanged.add(act);
+        return () => void settingsChanged.delete(act);
+      },
       // The dialog's answer is the only place a copy may be written outside the
       // home folder: the plugin widens the file scope to that one path.
       chooseCopyLocation: async (suggestedName) =>
@@ -477,8 +489,18 @@ async function rereadProjects(): Promise<void> {
   draw();
 }
 
-/** The workspaces as Edit Project Details and New Project Defaults offer them: from the registry. */
-const WORKSPACE_CHOICES = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
+/** The workspaces as Edit Project Details and New Project Defaults offer them, with any settings of their own: from the registry. */
+const WORKSPACE_CHOICES = WORKSPACES.map(({ id, name, alwaysOn, settings }) => ({
+  id,
+  name,
+  alwaysOn: alwaysOn === true,
+  ...(settings === undefined ? {} : { settings }),
+}));
+
+// The Hotkeys lists name the registry's workspaces from launch, so Settings has
+// them from Home; and a key a workspace adds is never one the Editor's commands have.
+offerWorkspaces(WORKSPACES);
+alsoTaken(takenKeys);
 
 /**
  * Edit Project Details: for the open project (File ▸ Edit Project Details… and

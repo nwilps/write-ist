@@ -28,19 +28,29 @@
  * This file draws a **plan session** (`src/plan/plan-session.ts`) and hands it
  * what the writer did; the session decides what fits and what is stored, and
  * saves `plan.md`.
+ *
+ * **Everything it asks of the application is a toolbox call** (ADR-0045): its
+ * file (`toolbox.files`, which keep it to `plan.md`), the writer's place
+ * (`toolbox.memory`), the project's details, the pills and its menus. It
+ * imports nothing else of the application's.
  */
 import { createElement, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
-import { readDetails } from "../../../../src/project/details.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
 import { STRUCTURE_SHEETS, layoutBeats } from "../../../../src/plan/structure.ts";
-import type { WorkspacePlace } from "../../../../src/project/workspace-places.ts";
-import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
-import { claimMenu, releaseMenu, type MenuEntry } from "../../menus/drop-menu.ts";
-import { element } from "../../screens/element.ts";
-import { chordHint, chordMatches, isCapturedKey, type Chord } from "../../screens/shortcuts.ts";
-import { message } from "../../screens/trouble.ts";
-import type { MountedWorkspace, WorkspaceContext, WorkspaceManifest } from "../../shell/workspace.ts";
+import {
+  chordHint,
+  chordMatches,
+  element,
+  isCapturedKey,
+  message,
+  type Chord,
+  type ContextMenu,
+  type MenuEntry,
+  type MountedWorkspace,
+  type Toolbox,
+  type WorkspaceManifest,
+} from "../../toolbox/index.ts";
 import "./plan.css";
 
 /** How long the view rests before its place is kept. Leaving keeps it too. */
@@ -91,7 +101,7 @@ export const planWorkspace: WorkspaceManifest = {
   mount,
 };
 
-function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
+function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   const surface = element("div", { className: "plan__surface" });
   const board = element("div", { className: "plan__board", tabIndex: 0 });
   board.setAttribute("aria-label", "Plan");
@@ -102,7 +112,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     element("span", { textContent: "Structure" }),
   ]);
   const controls = element("div", { className: "plan__controls" }, [structureButton]);
-  const inspector = cardPanel();
+  const inspector = cardPanel(toolbox);
   // Under the grid: the Structure button, and the selected card beside it.
   const under = element("div", { className: "plan__under" }, [controls, element("div", { className: "plan__card-slot" }, [inspector.element])]);
   const desk = element("div", { className: "plan-desk" }, [reading]);
@@ -122,12 +132,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const keepPlace = async (): Promise<void> => {
     clearTimeout(placeRest);
     placeRest = undefined;
-    const places = context.workspacePlaces();
     const now = Math.round(across);
-    if (places === undefined || session === undefined || now === placeKept) return;
+    if (session === undefined || now === placeKept) return;
     try {
-      await places.remember(context.project.marker.projectId, "plan", { across: now });
-      placeKept = now;
+      if (await toolbox.memory.remember({ across: now })) placeKept = now;
     } catch {
       // Only where the view was: Plan opens at the start next time.
     }
@@ -411,7 +419,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // --- Write-ist's own right-click menu (ADR-0034). ---
   const openMenu = (items: MenuEntry[], x: number, y: number, fromKeyboard: boolean): void => {
     menu?.close(false);
-    menu = openContextMenu({ label: "Plan", items, x, y, fromKeyboard, restoreFocus: () => board.focus({ preventScroll: true }) });
+    menu = toolbox.menus.open({ label: "Plan", items, x, y, fromKeyboard, restoreFocus: () => board.focus({ preventScroll: true }) });
   };
   const cardMenu = (id: string): MenuEntry[] => {
     const card = session?.plan().cards.find((each) => each.id === id);
@@ -560,12 +568,12 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   window.addEventListener("keydown", keys, true);
 
   // File ▸ Edit Project Details is the name pill's, here as in the Editor.
-  const stopListeningForDetails = context.whenDetailsAsked(() => {
+  const stopListeningForDetails = toolbox.details.whenAsked(() => {
     if (session === undefined || into.querySelector("dialog[open]") !== null) return;
-    context.editProjectDetails({ into, carryOut: session.relocate, closed: () => board.focus({ preventScroll: true }) });
+    toolbox.details.edit({ into, carryOut: session.relocate, closed: () => board.focus({ preventScroll: true }) });
   });
   // A new target page count: the grid takes it, the cards keep their places.
-  const stopListeningForTarget = context.whenDetailsChanged((details) => {
+  const stopListeningForTarget = toolbox.details.whenChanged((details) => {
     session?.setTargetPages(details.targetPages);
     draw();
   });
@@ -596,22 +604,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   void (async () => {
     try {
-      const [read, details, place] = await Promise.all([
-        readPlan(context.filesystem, context.project),
-        readDetails(context.filesystem, context.project.path),
-        recallPlace(context),
-      ]);
+      const [read, details, place] = await Promise.all([readPlan(toolbox.files), toolbox.details.read(), toolbox.memory.recall()]);
       if (gone) return;
       session = planSession(
         {
-          filesystem: context.filesystem,
-          project: context.project,
-          targetPages: details.details.targetPages,
-          report: context.report,
-          setSaved: context.setSaved,
-          setStatus: context.setStatus,
-          whenSwitchedAway: context.whenSwitchedAway,
-          whenSwitchedBack: context.whenSwitchedBack,
+          files: toolbox.files,
+          targetPages: details.targetPages,
+          setStatus: toolbox.pills.setStatus,
           redraw: () => draw(),
         },
         read,
@@ -630,7 +629,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     } catch (error) {
       if (gone) return;
       reading.textContent = "";
-      context.report(`Write-ist could not read this project's plan, so nothing has been changed. ${message(error)}`);
+      toolbox.report(`Write-ist could not read this project's plan, so nothing has been changed. ${message(error)}`);
     }
   })();
 
@@ -699,7 +698,7 @@ function place(item: HTMLElement, cell: number, lane: number, cells: number): vo
  * a small grid of the nine colours, three by three, over the card. The arrows
  * move in it, Enter or a click chooses, Escape or a press outside closes it.
  */
-function cardPanel() {
+function cardPanel(toolbox: Toolbox) {
   const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off", placeholder: "Untitled" });
   title.setAttribute("aria-label", "Card title");
   title.spellcheck = false;
@@ -782,12 +781,12 @@ function cardPanel() {
       paletteMenu.hidden = true;
       paletteButton.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", outsidePress, true);
-      releaseMenu(palette);
+      toolbox.menus.release(palette);
       if (returnFocus) paletteButton.focus();
     },
   };
   const openPalette = (fromKeyboard: boolean): void => {
-    claimMenu(palette);
+    toolbox.menus.claim(palette);
     paletteMenu.hidden = false;
     paletteButton.setAttribute("aria-expanded", "true");
     document.addEventListener("pointerdown", outsidePress, true);
@@ -885,13 +884,4 @@ function range(from: number, to: number, by: number): number[] {
 function tokenPixels(name: string, fallback: number): number {
   const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-/** Where Plan was left in this project, or `undefined`. */
-async function recallPlace(context: WorkspaceContext): Promise<WorkspacePlace | undefined> {
-  try {
-    return await context.workspacePlaces()?.recall(context.project.marker.projectId, "plan");
-  } catch {
-    return undefined;
-  }
 }

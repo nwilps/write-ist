@@ -144,17 +144,18 @@ export const nodeFilesystem: Filesystem = {
     await unlink(from);
   },
 
-  async removeNote(path: string): Promise<void> {
-    // The checks `remove_note_within` makes, every one before the delete.
+  async removeWorkspaceFile(path: string, folder: string): Promise<void> {
+    // The checks `remove_file_within` makes, every one before the delete.
+    if (folder === "" || folder.startsWith(".") || /[\\/]/.test(folder)) throw new Error(`${folder} is not a folder a workspace may declare.`);
     if (!isAbsolute(path) || path.split(/[\\/]/).some((part) => part === ".." || part === ".")) {
       throw new Error(`${path} is not a plain path.`);
     }
     const name = basename(path);
-    const folder = dirname(path);
-    if (name.startsWith(".") || !name.toLowerCase().endsWith(".md")) throw new Error(`${path} is not a note.`);
-    if (basename(folder) !== "notes" || !(await lstat(folder)).isDirectory()) throw new Error(`${path} is not in a notes folder.`);
+    const parent = dirname(path);
+    if (name.startsWith(".")) throw new Error(`${path} is hidden.`);
+    if (basename(parent) !== folder || !(await lstat(parent)).isDirectory()) throw new Error(`${path} is not in the folder ${folder}.`);
     if (!(await lstat(path)).isFile()) throw new Error(`${path} is not a file.`);
-    if (!(await lstat(join(dirname(folder), "project.md"))).isFile()) throw new Error(`${path} is not in a project.`);
+    if (!(await lstat(join(dirname(parent), "project.md"))).isFile()) throw new Error(`${path} is not in a project.`);
     await unlink(path);
   },
 

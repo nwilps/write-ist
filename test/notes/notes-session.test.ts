@@ -11,7 +11,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PAUSE, type Clock } from "../../src/project/autosave.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { readWorkspaceFile, type FileSaveState } from "../../src/project/workspace-file.ts";
-import { notePath } from "../../src/notes/notes-folder.ts";
+import { notePath, NOTES_FILES } from "../../src/notes/notes-folder.ts";
+import { workspaceFiles } from "../../src/project/workspace-files.ts";
 import { notesSession } from "../../src/notes/notes-session.ts";
 
 /** The note these tests write, in the project's notes folder. */
@@ -63,18 +64,20 @@ async function open(engine = fakeEngine()) {
   const read = await readWorkspaceFile(nodeFilesystem, project, NOTE);
   const session = notesSession(
     {
-      filesystem: nodeFilesystem,
-      project,
+      files: workspaceFiles({
+        filesystem: nodeFilesystem,
+        project: () => project,
+        declared: NOTES_FILES,
+        report: (trouble) => void reports.push(trouble),
+        clock,
+      }),
       file: NOTE,
       report: (trouble) => void reports.push(trouble),
       setSaved: (state) => void states.push(state),
       setStatus: (text) => void status.push(text),
       setSpellcheck: (on) => void spellcheck.push(on),
-      whenSwitchedAway: () => () => {},
-      whenSwitchedBack: () => () => {},
       spellEngine: engine,
       redraw: () => {},
-      clock,
     },
     read,
   );
@@ -192,15 +195,12 @@ describe("spellcheck in Notes", () => {
     const read = await readWorkspaceFile(nodeFilesystem, project, NOTE);
     const session = notesSession(
       {
-        filesystem: nodeFilesystem,
-        project,
+        files: workspaceFiles({ filesystem: nodeFilesystem, project: () => project, declared: NOTES_FILES }),
         file: NOTE,
         report: () => {},
         setSaved: () => {},
         setStatus: () => {},
         setSpellcheck: () => {},
-        whenSwitchedAway: () => () => {},
-        whenSwitchedBack: () => () => {},
         redraw: () => {},
       },
       read,

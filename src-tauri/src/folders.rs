@@ -2,7 +2,7 @@
 //! moving it into the `Graveyard` (`src/project/rename.ts`,
 //! `src/project/delete.ts`). And the two things done to a single file in a
 //! project: moving one, which never replaces anything (renaming a note), and
-//! deleting a note (`src/notes/notes-folder.ts`).
+//! deleting one from a folder a workspace declared (`src/project/workspace-files.ts`).
 //!
 //! Its own module, with nothing from Tauri in it, so that the one piece of the
 //! shell that moves a writer's work can be compiled and tested on its own:
@@ -132,35 +132,43 @@ pub fn move_file_within(root: &Path, from: &Path, to: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// The folder a project's notes are kept in (`NOTES_FOLDER` in
-/// `src/notes/notes-folder.ts`).
-pub const NOTES_FOLDER: &str = "notes";
-
-/// Delete one note, for good (Noah, 2026-11-23: Delete in Notes' folder menu,
-/// after a confirmation in the alarm colour).
+/// Delete one file, for good, from a folder a workspace keeps its work in
+/// (Noah, 2026-11-23: Delete in Notes' folder menu, after a confirmation in
+/// the alarm colour). Which folder is the workspace's to say — the one its
+/// manifest declares (`files`, ADR-0045) — and is passed in as `folder`, so
+/// this knows nothing of notes or of any other workspace.
 ///
-/// As narrow as `exile_within`. `path` must be a plain, absolute path to a
-/// real file — not a link, not a folder — whose name ends `.md` and does not
-/// start with a dot, directly inside a real folder named `notes`, which is
+/// As narrow as `exile_within`. `folder` must be one plain name — not empty,
+/// not hidden, no separator, not `.` or `..`. `path` must be a plain,
+/// absolute path to a real file — not a link, not a folder, not hidden —
+/// directly inside a real folder (not a link) of exactly that name, which is
 /// directly inside a project (a folder holding a real `project.md`) inside
-/// `root`. Anything else is refused, and nothing is touched.
-pub fn remove_note_within(root: &Path, path: &Path) -> io::Result<()> {
+/// `root`. Anything else is refused, and nothing is touched. Nothing is ever
+/// replaced, and nothing outside that one folder can be reached.
+pub fn remove_file_within(root: &Path, path: &Path, folder_name: &str) -> io::Result<()> {
+    if folder_name.is_empty()
+        || folder_name.starts_with('.')
+        || folder_name.contains(['/', '\\'])
+        || Path::new(folder_name).components().count() != 1
+    {
+        return Err(refused(format!("{folder_name} is not a folder a workspace may declare")));
+    }
     plain(path)?;
     let root = root.canonicalize()?;
     if !fs::symlink_metadata(path)?.is_file() {
         return Err(refused(format!("{} is not a file", path.display())));
     }
     let (Some(folder), Some(name)) = (path.parent(), path.file_name()) else {
-        return Err(refused(format!("{} is not a note", path.display())));
+        return Err(refused(format!("{} is not in a workspace's folder", path.display())));
     };
     let name = name.to_string_lossy();
-    if name.starts_with('.') || !name.to_lowercase().ends_with(".md") {
-        return Err(refused(format!("{} is not a note", path.display())));
+    if name.starts_with('.') {
+        return Err(refused(format!("{} is hidden", path.display())));
     }
-    if folder.file_name().map(|each| each.to_string_lossy() != NOTES_FOLDER).unwrap_or(true)
+    if folder.file_name().map(|each| each.to_string_lossy() != folder_name).unwrap_or(true)
         || !fs::symlink_metadata(folder)?.is_dir()
     {
-        return Err(refused(format!("{} is not in a notes folder", path.display())));
+        return Err(refused(format!("{} is not in the folder {folder_name}", path.display())));
     }
     let folder = folder.canonicalize()?;
     let Some(project) = folder.parent() else {
@@ -173,7 +181,7 @@ pub fn remove_note_within(root: &Path, path: &Path) -> io::Result<()> {
     fs::remove_file(&path)?;
     #[cfg(unix)]
     if let Err(error) = File::open(&folder).and_then(|handle| handle.sync_all()) {
-        eprintln!("Write-ist deleted a note but could not flush {}: {error}", folder.display());
+        eprintln!("Write-ist deleted a file but could not flush {}: {error}", folder.display());
     }
     Ok(())
 }
@@ -619,7 +627,7 @@ mod tests {
     fn project_with_a_note(folder: &Folder) -> (PathBuf, PathBuf, PathBuf) {
         let (root, project) = projects_with(folder, "Paper Boats");
         fs::write(project.join(MARKER_FILE), "# Paper Boats\n\nProject id: id-boats\n").unwrap();
-        let notes = project.join(NOTES_FOLDER);
+        let notes = project.join("notes");
         fs::create_dir(&notes).unwrap();
         fs::write(notes.join("Ideas.md"), "The ferry crosses at night.").unwrap();
         (root, project, notes)
@@ -669,40 +677,63 @@ mod tests {
     }
 
     #[test]
-    fn deletes_one_note_and_nothing_else() {
-        let folder = Folder::new("remove-note");
+    fn deletes_one_file_in_the_declared_folder_and_nothing_else() {
+        let folder = Folder::new("remove-file");
         let (root, project, notes) = project_with_a_note(&folder);
-        fs::write(notes.join("Keep.txt"), "Not a note.").unwrap();
+        fs::write(notes.join("Keep.txt"), "Any file in the folder may go, but only on its own.").unwrap();
+        fs::write(notes.join(".hidden.md"), "Hidden.").unwrap();
         fs::write(project.join("notes.md"), "At the top, not in the folder.").unwrap();
         fs::create_dir(notes.join("Inner.md")).unwrap();
+        fs::create_dir(notes.join("Deeper")).unwrap();
+        fs::write(notes.join("Deeper").join("Down.md"), "Deeper than declared.").unwrap();
         let refusals = [
-            notes.join("Keep.txt"),
+            notes.join(".hidden.md"),
             project.join("notes.md"),
+            project.join(MARKER_FILE),
             project.join("manuscript.fountain"),
             notes.join("Inner.md"),
+            notes.join("Deeper").join("Down.md"),
             notes.join("Absent.md"),
             notes.join("..").join("notes").join("Ideas.md"),
             PathBuf::from("notes/Ideas.md"),
         ];
         for path in &refusals {
-            assert!(remove_note_within(&root, path).is_err(), "{}", path.display());
+            assert!(remove_file_within(&root, path, "notes").is_err(), "{}", path.display());
         }
-        // A notes folder that is not in a project.
-        let loose = root.join(NOTES_FOLDER);
+        // The folder named must be the one the file is in, and a plain name.
+        for wrong in ["plan", "", ".", "..", ".notes", "notes/", "a/notes"] {
+            assert!(remove_file_within(&root, &notes.join("Ideas.md"), wrong).is_err(), "{wrong}");
+        }
+        // A folder of that name that is not in a project.
+        let loose = root.join("notes");
         fs::create_dir(&loose).unwrap();
         fs::write(loose.join("Loose.md"), "No project.").unwrap();
-        assert!(remove_note_within(&root, &loose.join("Loose.md")).is_err());
+        assert!(remove_file_within(&root, &loose.join("Loose.md"), "notes").is_err());
+        // Outside the projects folder altogether.
+        let outside = folder.0.join("elsewhere");
+        fs::create_dir_all(outside.join("notes")).unwrap();
+        fs::write(outside.join(MARKER_FILE), "# Elsewhere\n").unwrap();
+        fs::write(outside.join("notes").join("Out.md"), "Not under the root.").unwrap();
+        assert!(remove_file_within(&root, &outside.join("notes").join("Out.md"), "notes").is_err());
         #[cfg(unix)]
         {
             let link = notes.join("Link.md");
             std::os::unix::fs::symlink(project.join("manuscript.fountain"), &link).unwrap();
-            assert!(remove_note_within(&root, &link).is_err());
+            assert!(remove_file_within(&root, &link, "notes").is_err());
             assert!(project.join("manuscript.fountain").exists());
+            // A folder of the right name that is a link to another.
+            let linked = project.join("linked");
+            std::os::unix::fs::symlink(&notes, &linked).unwrap();
+            assert!(remove_file_within(&root, &linked.join("Ideas.md"), "linked").is_err());
         }
-        assert!(notes.join("Keep.txt").exists() && project.join("notes.md").exists() && loose.join("Loose.md").exists());
+        assert!(project.join("notes.md").exists() && loose.join("Loose.md").exists());
+        assert!(notes.join(".hidden.md").exists() && notes.join("Deeper").join("Down.md").exists());
+        assert!(outside.join("notes").join("Out.md").exists());
 
-        remove_note_within(&root, &notes.join("Ideas.md")).unwrap();
+        remove_file_within(&root, &notes.join("Ideas.md"), "notes").unwrap();
         assert!(!notes.join("Ideas.md").exists());
-        assert!(project.join("manuscript.fountain").exists());
+        remove_file_within(&root, &notes.join("Keep.txt"), "notes").unwrap();
+        assert!(!notes.join("Keep.txt").exists());
+        assert!(project.join("manuscript.fountain").exists() && project.join(MARKER_FILE).exists());
     }
 }

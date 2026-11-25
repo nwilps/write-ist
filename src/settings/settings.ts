@@ -26,6 +26,7 @@
 import { join, type Filesystem } from "../project/filesystem.ts";
 import { DEFAULT_DAY_ENDS_AT, type TimeOfDay } from "../goals/day.ts";
 import { COMING_FORMATS, FORMATS } from "../project/marker.ts";
+import { hasSettings, workspaceSettingValuesOf, type WorkspaceSettingValues } from "./workspace-settings.ts";
 
 /** The file's name, in app data. */
 export const SETTINGS_FILE = "settings.json";
@@ -120,6 +121,13 @@ export interface ProjectDefaults {
    * one offered" — what a type the writer never chose for starts with.
    */
   readonly workspaces?: readonly string[] | undefined;
+  /**
+   * What a new project of this type starts with for the settings workspaces
+   * keep per project (`WorkspaceSetting`, `place: "project"`), by workspace
+   * and setting id. Only those the writer set; the rest are each setting's
+   * default. Absent when there are none.
+   */
+  readonly workspaceSettings?: WorkspaceSettingValues;
 }
 
 /**
@@ -151,6 +159,12 @@ export interface Settings {
    * commands, and which keys may be changed, is the application's to say.
    */
   readonly keyBindings: Readonly<Record<string, readonly KeyBinding[]>>;
+  /**
+   * The values of the settings workspaces keep for the whole application
+   * (`WorkspaceSetting`, `place: "app"`; ADR-0045), by workspace and setting
+   * id: only those the writer set. Absent when there are none.
+   */
+  readonly workspaceSettings?: WorkspaceSettingValues;
 }
 
 /** The project types a default can be kept for: those New Project can make. */
@@ -308,7 +322,14 @@ function projectDefaultsOf(value: unknown): ProjectDefaults {
       kept["blankLinesBeforeSceneHeadings"] === 1 ? 1 : kept["blankLinesBeforeSceneHeadings"] === 2 ? 2 : base.blankLinesBeforeSceneHeadings,
     // Not a list: never chosen, so every workspace offered.
     ...(Array.isArray(kept["workspaces"]) ? { workspaces: workspaceIdsOf(kept["workspaces"]) } : {}),
+    ...withWorkspaceSettings(kept["workspaceSettings"]),
   };
+}
+
+/** `{ workspaceSettings }`, put right, or nothing when none are kept. */
+function withWorkspaceSettings(value: unknown): { workspaceSettings?: WorkspaceSettingValues } {
+  const values = workspaceSettingValuesOf(value);
+  return hasSettings(values) ? { workspaceSettings: values } : {};
 }
 
 /**
@@ -383,6 +404,7 @@ export function settingsFrom(value: unknown): Settings {
     },
     projectDefaults: Object.fromEntries(DEFAULTS_ALL.map((type) => [type, projectDefaultsOf(defaults[type])])),
     keyBindings: keyBindingsOf(kept["keyBindings"]),
+    ...withWorkspaceSettings(kept["workspaceSettings"]),
   };
 }
 

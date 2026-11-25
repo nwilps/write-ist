@@ -47,6 +47,7 @@ import {
   type ProjectDefaults,
   type Settings,
 } from "../../../src/settings/settings.ts";
+import { settingValue, withSetting } from "../../../src/settings/workspace-settings.ts";
 import { LOOKS } from "../background/presets.ts";
 import { dialogAction } from "./dialog-action.ts";
 import { dialogKeys } from "./dialog-keys.ts";
@@ -309,6 +310,23 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
   backgroundPreset.control.disabled = !current.appearance.backgroundAnimation;
   backgroundMotion.control.disabled = !current.appearance.backgroundAnimation;
 
+  // A switch for each setting a workspace keeps for the whole application
+  // (ADR-0045), under the workspace's name, after Appearance. None of the
+  // workspaces has one today, so General is as it was.
+  const appSettings = options.workspaces.map((workspace) => ({
+    workspace,
+    toggles: (workspace.settings ?? [])
+      .filter((setting) => setting.place === "app")
+      .map((setting) => {
+        const toggle = dialogToggle({
+          id: idOf(`setting-${workspace.id}-${setting.id}`),
+          onChange: (on) => update({ ...current, workspaceSettings: withSetting(current.workspaceSettings, workspace.id, setting.id, on) }),
+        });
+        toggle.set(settingValue(current.workspaceSettings, workspace.id, setting));
+        return { setting, toggle };
+      }),
+  })).filter((each) => each.toggles.length > 0);
+
   const general: Section = {
     body: [
       subheading("Author"),
@@ -327,6 +345,10 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       switchRow("Background animation", backgroundAnimation),
       selectField("Background", backgroundPreset),
       selectField("Background motion", backgroundMotion),
+      ...appSettings.flatMap(({ workspace, toggles }) => [
+        subheading(workspace.name),
+        ...toggles.map(({ setting, toggle }) => switchRow(setting.label, toggle)),
+      ]),
     ],
     rows: () => [
       [name],
@@ -342,6 +364,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       [backgroundAnimation.control],
       [backgroundPreset.control],
       [backgroundMotion.control],
+      ...appSettings.flatMap(({ toggles }) => toggles.map(({ toggle }) => [toggle.control])),
     ],
   };
 
@@ -447,6 +470,25 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       }),
     ]);
 
+    // What a new project of this type starts with for each setting a workspace
+    // keeps per project (ADR-0045), under the workspace's name.
+    const settingSwitches = workspaces.flatMap((workspace) =>
+      (workspace.settings ?? [])
+        .filter((setting) => setting.place === "project")
+        .map((setting) => {
+          const toggle = dialogToggle({
+            id: `${key}-setting-${workspace.id}-${setting.id}`,
+            onChange: (on) => change({ workspaceSettings: withSetting(defaultsOf().workspaceSettings, workspace.id, setting.id, on) }),
+          });
+          toggle.set(settingValue(defaultsOf().workspaceSettings, workspace.id, setting));
+          return { workspace, setting, toggle };
+        }),
+    );
+    const settingRows = workspaces.flatMap((workspace) => {
+      const own = settingSwitches.filter((each) => each.workspace === workspace);
+      return own.length === 0 ? [] : [subheading(workspace.name), ...own.map(({ setting, toggle }) => switchRow(setting.label, toggle))];
+    });
+
     const defaults = defaultsOf();
     for (const [workspace, toggle] of workspaceSwitches) {
       toggle.set(defaults.workspaces === undefined || defaults.workspaces.includes(workspace.id));
@@ -481,6 +523,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
       ...(workspaceSwitches.length === 0
         ? []
         : [subheading("Workspaces"), ...workspaceSwitches.map(([workspace, toggle]) => switchRow(workspace.name, toggle))]),
+      ...settingRows,
     ]);
     const head = element("button", { id: `${key}-head`, type: "button", className: "settings__cell-head" }, [
       icon(ChevronRight, "settings__cell-chevron"),
@@ -509,6 +552,7 @@ export function openSettingsDialog(into: HTMLElement, options: SettingsDialogOpt
               [pages],
               ...(screenplay ? [[boldHeadings.control], [boldTransitions.control], [blankLines.control]] : []),
               ...workspaceSwitches.map(([, toggle]) => [toggle.control]),
+              ...settingSwitches.map(({ toggle }) => [toggle.control]),
             ]
           : []),
       ],

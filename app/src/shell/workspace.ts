@@ -21,6 +21,15 @@
  * shape; nothing is loaded from anywhere. Everything below is what a workspace
  * may be given or asked, and none of it names what a workspace holds.
  *
+ * **What a workspace is given is the toolbox** (`Toolbox`, ADR-0045): one
+ * versioned object, handed to `mount`, through which a workspace reaches
+ * everything the application already does — its files, the writer's place,
+ * spellcheck, the pills, hotkeys, settings, menus and dialogs. It is a public
+ * contract: a call is added freely, and is removed or renamed only by a dated
+ * amendment to ADR-0045. `docs/WORKSPACES.md` is the guide, and
+ * `app/src/workspaces/_template/` the folder to copy. A workspace imports from
+ * `app/src/toolbox/` and nothing else of the application's.
+ *
  * So the rule has a form a test can fail on, and
  * `test/app/shell-knows-nothing.test.ts` is it.
  */
@@ -30,8 +39,14 @@ import type { Filesystem } from "../../../src/project/filesystem.ts";
 import type { Ledger } from "../../../src/project/ledger.ts";
 import type { Places } from "../../../src/project/places.ts";
 import type { ProjectDetails } from "../../../src/project/details.ts";
-import type { WorkspacePlaces } from "../../../src/project/workspace-places.ts";
+import type { WorkspaceFiles } from "../../../src/project/workspace-files.ts";
+import type { WorkspacePlace, WorkspacePlaces } from "../../../src/project/workspace-places.ts";
+import type { WordAt } from "../../../src/spelling/plain.ts";
+import type { WorkspaceSetting } from "../../../src/settings/workspace-settings.ts";
+import type { ContextMenu, ContextMenuSpec } from "../menus/context-menu.ts";
+import type { ConfirmSpec } from "../screens/confirm-dialog.ts";
 import type { ProjectDetailsRoute } from "../screens/project-dialogs.ts";
+import type { Chord } from "../screens/shortcuts.ts";
 
 /**
  * How a workspace has the open project's details edited (Edit Project
@@ -50,15 +65,181 @@ export interface SettingsRequest {
 /** Where a workspace's work stands against the disk. */
 export type SaveState = "saved" | "unsaved" | "saving";
 
-/** Everything a workspace is given. Nothing in it names a surface. */
-export interface WorkspaceContext {
+/**
+ * The toolbox's version. **A public contract** (ADR-0045): calls are added
+ * without changing it; a call removed or renamed, or one whose promise
+ * changes, raises it — and only by a dated amendment to ADR-0045.
+ */
+export const TOOLBOX_VERSION = 1;
+
+/** A hotkey a workspace adds (`toolbox.hotkeys.add`). */
+export interface WorkspaceHotkey {
+  /** Stable within the workspace; never shown. */
+  readonly id: string;
+  /** What the Hotkeys lists call it. */
+  readonly label: string;
+  readonly chord: Chord;
+  /** Pressed while this workspace is on screen and no dialog is open. */
+  readonly act: () => void;
+}
+
+/** A goal for the Goal pill: what it says, and the hooks the stylesheet colours it by. */
+export interface GoalPill {
+  readonly text: string;
+  readonly kind: string;
+  readonly state: string;
+}
+
+/**
+ * **The toolbox: everything a workspace is given** (ADR-0045), version
+ * `TOOLBOX_VERSION`. Nothing in it names a surface or a workspace.
+ *
+ * Grouped by what it is for; each call is one line (`docs/WORKSPACES.md`
+ * has an example of every one). After the groups come the calls the context
+ * had before the toolbox, which the Editor still uses (`EarlierCalls`).
+ */
+export interface Toolbox extends EarlierCalls {
+  /** Which version of this contract it is. */
+  readonly version: typeof TOOLBOX_VERSION;
+  /** Which workspace this toolbox is for: its manifest's id and name. */
+  readonly workspace: { readonly id: string; readonly name: string };
   /**
    * Which project is open — a path and what its marker says (ADR-0015). **As it
    * is now**: a rename moves the folder while the workspace stays up, so read
    * this when it is needed rather than keeping it.
    */
   readonly project: Project;
-  readonly filesystem: Filesystem;
+
+  /**
+   * **Files** — the files and folders the manifest declares (`files`), and
+   * nothing else: paths inside the project's folder, `"notes/Ideas.md"`.
+   * Read, open for saving (the safe save, autosave and the save pill), list,
+   * make, move (never over another file) and delete (for good: ask first).
+   * See `src/project/workspace-files.ts`.
+   */
+  readonly files: WorkspaceFiles;
+
+  /**
+   * **Place memory** — where the writer was in this workspace of this project
+   * (a caret, a scroll, which tabs), kept in `workspace-places.txt` in app
+   * data, never in the project (ADR-0009, ADR-0012). A place is a few named
+   * whole numbers and short texts; `item` keeps one for each thing in the
+   * workspace (each note, by name).
+   */
+  readonly memory: {
+    /** The place kept, or `undefined`. Never rejects. */
+    readonly recall: (item?: string) => Promise<WorkspacePlace | undefined>;
+    /**
+     * Keep it. Answers `false`, keeping nothing, when there is nowhere to keep
+     * it yet; rejects, writing nothing, when the file there will not read.
+     */
+    readonly remember: (place: WorkspacePlace, item?: string) => Promise<boolean>;
+    /** Forget an item's place, or move it to a new name. */
+    readonly forget: (item: string, movedTo?: string) => Promise<void>;
+  };
+
+  /**
+   * **Spellcheck** — the application's dictionary, the one the Editor uses
+   * (ADR-0032): offline, and a word added here is added everywhere.
+   * `available` is false when there is none; then nothing else answers.
+   */
+  readonly spelling: {
+    readonly available: boolean;
+    /** The words in `text` the dictionary does not know, where they are. */
+    readonly check: (text: string) => Promise<readonly WordAt[]>;
+    /** Which of these words the dictionary does not know. */
+    readonly misspelled: (words: readonly string[]) => Promise<readonly string[]>;
+    readonly suggest: (word: string) => Promise<readonly string[]>;
+    /** Add a word to the writer's own dictionary. Answers whether it was new. */
+    readonly addWord: (word: string) => Promise<boolean>;
+  };
+
+  /**
+   * **Pills** — the furniture at the foot of the desk. The shell draws them;
+   * what they say is the workspace's, and each workspace's are its own.
+   */
+  readonly pills: {
+    /** The counts pill, bottom right: a short line. `""` hides it. */
+    readonly setStatus: (text: string) => void;
+    /** The Goal pill, bottom left, or hide it with `undefined` (ADR-0040). */
+    readonly setGoal: (pill: GoalPill | undefined) => void;
+    /** The writer pressed the counts pill or the Goal pill. Answers how to stop listening. */
+    readonly whenGoalsAsked: (act: () => void) => () => void;
+    /** The save pill. A workspace that opens its files through `files` need not call this. */
+    readonly setSaved: (state: SaveState) => void;
+    /** The spellcheck pill: shown while this workspace's spellcheck is on. */
+    readonly setSpellcheck: (on: boolean) => void;
+  };
+
+  /**
+   * **Hotkeys** — add a key, listed in View ▸ Hotkeys and Settings ▸ Hotkeys
+   * under the workspace's name, and answered while it is on screen. A key
+   * someone already has is refused, quietly: `add` answers `undefined`.
+   * Otherwise it answers how to take the key away; it goes by itself when
+   * the workspace comes down.
+   */
+  readonly hotkeys: {
+    readonly add: (hotkey: WorkspaceHotkey) => (() => void) | undefined;
+  };
+
+  /**
+   * **Menus** — Write-ist's own (ADR-0034), never the system's: the menu File,
+   * Edit and View are drawn with, opened where the workspace says.
+   */
+  readonly menus: {
+    /** Open a menu of items at a point; answers it, to close. */
+    readonly open: (spec: ContextMenuSpec) => ContextMenu;
+    /** A menu-like thing of the workspace's own (a picker) is open: any other closes. */
+    readonly claim: (menu: { readonly close: (returnFocus?: boolean) => void }) => void;
+    /** …and is closed again. */
+    readonly release: (menu: { readonly close: (returnFocus?: boolean) => void }) => void;
+  };
+
+  /**
+   * **Dialogs** — the application's confirm, in the workspace's own words:
+   * Cancel [Esc] and one action [Enter], over the workspace. `alarm` is the
+   * alarm colour Exile uses, with focus on Cancel, for what cannot be undone.
+   * Never the system's `confirm()` or `alert()` (ADR-0034).
+   */
+  readonly dialogs: {
+    readonly confirm: (spec: ConfirmSpec) => void;
+  };
+
+  /**
+   * **Settings** — the workspace's own switches, declared in its manifest
+   * (`settings`) and drawn by the application in Settings, Edit Project
+   * Details and New Project Defaults (`WorkspaceSetting`).
+   */
+  readonly settings: {
+    /** A setting's value now: kept, or its default. */
+    readonly read: (id: string) => Promise<boolean>;
+    /** The writer changed one of them. Answers how to stop listening. */
+    readonly whenChanged: (act: () => void) => () => void;
+    /** Open the application's Settings dialog over the workspace. */
+    readonly open: (request: SettingsRequest) => void;
+  };
+
+  /**
+   * **Project details** — the open project's name, type, target page count
+   * and workspaces (Edit Project Details).
+   */
+  readonly details: {
+    /** As `details.md` holds them now. Never rejects: unreadable reads as the defaults. */
+    readonly read: () => Promise<ProjectDetails>;
+    /** Open Edit Project Details over the workspace (`editProjectDetails`). */
+    readonly edit: (request: DetailsRequest) => void;
+    /** The writer clicked the project's name pill. Answers how to stop listening. */
+    readonly whenAsked: (act: () => void) => () => void;
+    /** The details were saved, from any workspace. Answers how to stop listening. */
+    readonly whenChanged: (act: (details: ProjectDetails) => void) => () => void;
+  };
+
+  /** **The window** — the writer switched to another application, or came back. */
+  readonly window: {
+    readonly whenSwitchedAway: (act: () => void) => () => void;
+    readonly whenSwitchedBack: (act: () => void) => () => void;
+  };
+
   /**
    * Something went wrong that the writer must see, in words about their file.
    *
@@ -67,89 +248,6 @@ export interface WorkspaceContext {
    * which that is.
    */
   readonly report: (trouble: string) => void;
-  /**
-   * The writer switched to another application. Answers how to stop listening.
-   *
-   * ADR-0028 makes that one of the three moments autosave fires, and it is
-   * given to a workspace rather than found by one because *how the window
-   * knows* is the window's business: the application asks Tauri, and a test
-   * asks whatever it likes. A workspace that reached for the DOM's own `blur`
-   * would be guessing at the system webview's behaviour, which is a guess that
-   * fails quietly (`docs/STANDARDS.md`).
-   */
-  readonly whenSwitchedAway: (act: () => void) => () => void;
-  /**
-   * The writer came back to Write-ist from another application. Answers how to
-   * stop listening.
-   *
-   * ADR-0028 has the manuscript on disk compared then with what Write-ist last
-   * read or wrote — the moment something else is most likely to have changed
-   * it. Given rather than found, for the same reason as `whenSwitchedAway`.
-   */
-  readonly whenSwitchedBack: (act: () => void) => () => void;
-  /**
-   * Put a short line in the counts pill, bottom right (the desk design, §2.3).
-   *
-   * The shell draws the furniture; the workspace decides what the line says.
-   * The Editor puts its pages and words here (#48). The shell still does not
-   * know what a page is — only that a workspace may have something to say.
-   */
-  readonly setStatus: (text: string) => void;
-  /**
-   * Put a goal in the Goal pill at the foot of the left, or hide the pill with
-   * `undefined` (ADR-0040). The shell draws the pill and its placement; what it
-   * says and which of its states it is in belong to the workspace. `kind` and
-   * `state` are only hooks the stylesheet colours by.
-   */
-  readonly setGoal: (pill: { readonly text: string; readonly kind: string; readonly state: string } | undefined) => void;
-  /**
-   * Hear the writer click the counts pill or the Goal pill — the ways in to the
-   * Goals dialog besides the menu. Given rather than found, like the window
-   * events: the shell owns the pills, and says only that one was pressed.
-   * Answers how to stop listening.
-   */
-  readonly whenGoalsAsked: (act: () => void) => () => void;
-  /**
-   * Hear the writer choose Edit Project Details on the project name pill. The
-   * shell owns the pill; the workspace decides whether the details can be
-   * edited just now (a rename moves the folder under its writing). Answers how
-   * to stop listening.
-   */
-  readonly whenDetailsAsked: (act: () => void) => () => void;
-  /**
-   * Open Edit Project Details for this project: its name, type, target page
-   * count and workspaces. The shell's name pill, `project` and the workspace
-   * bar follow; the workspace stays mounted. A rename's move waits its turn
-   * with every workspace that is up (`MountedWorkspace.relocate`), not only
-   * the one that asked.
-   */
-  readonly editProjectDetails: (request: DetailsRequest) => void;
-  /**
-   * Hear the project's details saved — its target page count, which
-   * workspaces it shows — whichever workspace asked for them. Answers how to
-   * stop listening. A workspace reads the details itself when it is mounted
-   * (`readDetails`); this is what changes after.
-   */
-  readonly whenDetailsChanged: (act: (details: ProjectDetails) => void) => () => void;
-  /**
-   * Open the application's Settings dialog into `into`, over the workspace.
-   * The shell passes this through and does not know what is in it.
-   */
-  readonly openSettings: (request: SettingsRequest) => void;
-  /**
-   * Say whether the workspace's work is on disk, in the save pill beside the
-   * counts. Each workspace has its own state, and the pill shows the one on
-   * screen. `saving` is a save that has started and not yet landed; `unsaved`
-   * is work waiting on the next one. A workspace with nothing to save never
-   * calls this, and the pill stays on `saved`.
-   */
-  readonly setSaved: (state: SaveState) => void;
-  /**
-   * Show the spellcheck pill, just left of the counts, while the workspace's
-   * spellcheck is on; hide it while it is off. Off to begin with. The pill only
-   * says so — it is not a switch.
-   */
-  readonly setSpellcheck: (on: boolean) => void;
   /**
    * Where the writer can go from here. Both close this project first — saving
    * it, and staying open if that fails (ADR-0028) — so a workspace offers them
@@ -172,18 +270,6 @@ export interface WorkspaceContext {
    */
   readonly ledger: () => Ledger | undefined;
   /**
-   * Where the writer was in each project, kept in app data between sessions.
-   * Opened at launch like the ledger, so a function for the same reason; the
-   * shell passes it through and does not read it.
-   */
-  readonly places: () => Places | undefined;
-  /**
-   * Where the writer was in every other workspace of each project — a caret, a
-   * scroll — kept in app data, never in the bundle and never in `localStorage`.
-   * A function for the same reason as `places`.
-   */
-  readonly workspacePlaces: () => WorkspacePlaces | undefined;
-  /**
    * Ask the writer where a copy of their work should go (a save dialog), given
    * the name to offer. Answers the chosen path, or `undefined` if they
    * cancelled. Given rather than found, like the window events: the dialog is
@@ -193,6 +279,59 @@ export interface WorkspaceContext {
   /** The same for the PDF export: a save dialog, the chosen path or `undefined`. */
   readonly choosePdfLocation: (suggestedName: string) => Promise<string | undefined>;
 }
+
+/**
+ * **The calls the context had before the toolbox** — part of version 1, and
+ * kept. The Editor reaches the manuscript through them (`filesystem` is the
+ * whole disk, which the manuscript, its names and its exports need); each of
+ * the others is the same as a grouped call above. **A new workspace uses the
+ * groups**, never these: `files` keeps it to its own files, where
+ * `filesystem` would not. `test/app/toolbox.test.ts` holds Notes and Plan to
+ * that. Retiring these, once the Editor has moved, is a dated amendment to
+ * ADR-0045.
+ */
+export interface EarlierCalls {
+  /** The disk, unscoped: the Editor's manuscript. A new workspace uses `files`. */
+  readonly filesystem: Filesystem;
+  /** `window.whenSwitchedAway`. */
+  readonly whenSwitchedAway: (act: () => void) => () => void;
+  /** `window.whenSwitchedBack`. */
+  readonly whenSwitchedBack: (act: () => void) => () => void;
+  /** `pills.setStatus`. */
+  readonly setStatus: (text: string) => void;
+  /** `pills.setGoal`. */
+  readonly setGoal: (pill: GoalPill | undefined) => void;
+  /** `pills.whenGoalsAsked`. */
+  readonly whenGoalsAsked: (act: () => void) => () => void;
+  /** `details.whenAsked`. */
+  readonly whenDetailsAsked: (act: () => void) => () => void;
+  /**
+   * `details.edit`: open Edit Project Details for this project. The shell's
+   * name pill, `project` and the workspace bar follow; the workspace stays
+   * mounted. A rename's move waits its turn with every workspace that is up
+   * (`MountedWorkspace.relocate`), not only the one that asked.
+   */
+  readonly editProjectDetails: (request: DetailsRequest) => void;
+  /** `details.whenChanged`. */
+  readonly whenDetailsChanged: (act: (details: ProjectDetails) => void) => () => void;
+  /** `settings.open`. */
+  readonly openSettings: (request: SettingsRequest) => void;
+  /** `pills.setSaved`. */
+  readonly setSaved: (state: SaveState) => void;
+  /** `pills.setSpellcheck`. */
+  readonly setSpellcheck: (on: boolean) => void;
+  /**
+   * Where the writer was in each project's manuscript, kept in app data
+   * between sessions (`places.txt`) — the Editor's caret. Opened at launch,
+   * so a function, as the ledger is.
+   */
+  readonly places: () => Places | undefined;
+  /** Every workspace's places, unscoped. A new workspace uses `memory`. */
+  readonly workspacePlaces: () => WorkspacePlaces | undefined;
+}
+
+/** The name the toolbox had before it was one (ADR-0045): the same object. */
+export type WorkspaceContext = Toolbox;
 
 /** A workspace that has been put on screen. */
 export interface MountedWorkspace {
@@ -283,6 +422,15 @@ export interface WorkspaceManifest {
    * medium-agnostic), so every format shows every workspace until the writer
    * turns one off.
    */
-  /** Draw it into the element given, and answer how to take it down. */
-  readonly mount: (into: HTMLElement, context: WorkspaceContext) => MountedWorkspace;
+  /**
+   * Its own settings (`WorkspaceSetting`), if it has any: switches the
+   * application draws in Settings ▸ General (`place: "app"`), or in Edit
+   * Project Details and Settings ▸ New Project Defaults (`place: "project"`),
+   * under the workspace's name, and keeps in the files settings are kept in.
+   * Read with `toolbox.settings.read`. None of the workspaces has any yet;
+   * the hook is here so the next one need not change the application.
+   */
+  readonly settings?: readonly WorkspaceSetting[];
+  /** Draw it into the element given, and answer how to take it down. Everything it may use is in `toolbox`. */
+  readonly mount: (into: HTMLElement, toolbox: Toolbox) => MountedWorkspace;
 }

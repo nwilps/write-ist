@@ -88,6 +88,8 @@ async function openProject() {
     ledger: () => undefined,
     places: () => undefined,
     workspacePlaces: () => places,
+    // As `main.ts` hands it over: the dictionary, for every workspace's toolbox.
+    spellEngine: fakeEngine(),
     chooseCopyLocation: async () => undefined,
     choosePdfLocation: async () => undefined,
     openSettings: () => {},
