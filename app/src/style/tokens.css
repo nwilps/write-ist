@@ -639,6 +639,18 @@
   --size-notes-room-width: 100cqw;
   --size-notes-room-height: 100cqh;
   /**
+   * The notepad's width: its share of the desk, unless the desk is too short
+   * for 16:9 at that width with the bar above — then as wide as the height
+   * left allows. The window, its bar and the tabs are all measured from this.
+   */
+  --size-notes-window-width: min(
+    calc(var(--size-notes-room-width) * var(--fraction-notes-width)),
+    calc(
+      (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) *
+        var(--ratio-notes)
+    )
+  );
+  /**
    * The desk kept clear above and below the notepad: past the workspace bar
    * and the fade at the top, and the pills and the fade at the foot. On a
    * short window the notepad shrinks, still 16:9, rather than run into them.
@@ -647,8 +659,11 @@
   /** Room between the notepad's edge and the writing. */
   --space-notes-y: var(--space-loose);
   --space-notes-x: var(--space-vast);
-  /** How many spaces wide a tab is drawn. */
-  --count-notes-tab: 4;
+  /**
+   * How many spaces wide a tab character typed in a note is drawn. Not the
+   * tabs in the bar: those are `--count-notes-tabs`.
+   */
+  --count-notes-tab-stop: 4;
   /**
    * The bar of pills above the window — the folder, the tabs, + — is the
    * bottom pills' height. There is no gap of its own: between the pills, and
@@ -658,10 +673,22 @@
   --size-notes-bar: var(--size-pill);
   /**
    * Every tab's width, whatever its name and however many are open: a name
-   * longer than this is cut short with an ellipsis. Five tabs, the folder, +
-   * and the gaps between them fit in the window at 1920 × 1080.
+   * longer than this is cut short with an ellipsis. It is measured so that
+   * with the most tabs open (`MOST_OPEN_NOTES`, `src/notes/tabs.ts`, which
+   * must say the same number) the folder, the tabs, + and the gaps between
+   * them are **exactly** the window's width (Noah, 2026-11-25): the window,
+   * less the folder and +, less a gap either side of each tab, shared out.
+   * It follows the window as the window narrows, and stops at
+   * `--measure-notes-tab-least`: past that the tabs keep their width and
+   * their strip scrolls sideways inside the window.
    */
-  --measure-notes-tab: 24ch;
+  --count-notes-tabs: 6;
+  --measure-notes-tab-least: 12ch;
+  --measure-notes-tab-fit: calc(
+    (var(--size-notes-window-width) - var(--size-notes-bar) * 2 - var(--space-pill-gap) * (var(--count-notes-tabs) + 1)) /
+      var(--count-notes-tabs)
+  );
+  --measure-notes-tab: max(var(--measure-notes-tab-least), var(--measure-notes-tab-fit));
   /** A tab's ×. */
   --size-notes-tab-close: 20px;
   /**

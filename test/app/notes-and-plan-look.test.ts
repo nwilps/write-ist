@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { MOST_OPEN_NOTES } from "../../src/notes/tabs.ts";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src");
 
@@ -69,8 +70,9 @@ describe("Notes, a floating window", () => {
     expect(token("--size-notes-room-height")).toBe("100cqh");
     expect(rule(NOTES, ".notes-desk")).toContain("container-type: size");
     expect(rule(NOTES, ".notes-desk")).toMatch(/align-items: center;.*justify-content: center/);
-    expect(window).toContain(
-      "width: min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
+    expect(window).toContain("width: var(--size-notes-window-width)");
+    expect(token("--size-notes-window-width")).toBe(
+      "min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
         "calc( (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) * var(--ratio-notes) ) )",
     );
     expect(notes).toContain("width: 100%");
@@ -185,22 +187,40 @@ describe("Notes' bar of pills", () => {
     expect(rule(NOTES, ".notes-tab__rename")).toContain("text-align: center");
   });
 
-  it("fits five tabs, the folder, + and their gaps in the window at 1920 × 1080; narrower, the tabs keep their width and scroll", () => {
-    // 24ch of the interface's face at the label size: a column is 0.6em.
-    expect(token("--measure-notes-tab")).toBe("24ch");
+  it("measures the tabs so six of them, the folder, + and their gaps are exactly the window's width, at any window", () => {
+    // Six, as many as may be open, in the stylesheet and in the code.
+    expect(token("--count-notes-tabs")).toBe(String(MOST_OPEN_NOTES));
+    expect(MOST_OPEN_NOTES).toBe(6);
+    // From the window's own width token, the one the window is drawn at, so the two cannot drift.
+    expect(token("--measure-notes-tab-fit")).toBe(
+      "calc( (var(--size-notes-window-width) - var(--size-notes-bar) * 2 - var(--space-pill-gap) * (var(--count-notes-tabs) + 1)) / var(--count-notes-tabs) )",
+    );
+    expect(token("--measure-notes-tab")).toBe("max(var(--measure-notes-tab-least), var(--measure-notes-tab-fit))");
     expect(rule(NOTES, ".notes-tab")).toContain("font-size: var(--size-label)");
-    const tabWidth = 24 * 0.6 * pixels("--size-label");
+    // Worked through: the window as drawn, the tab as measured from it, and the bar they make.
     const gap = pixels("--space-pill-gap");
-    const barFor = (tabs: number) => pixels("--size-notes-bar") * 2 + tabs * tabWidth + (tabs + 1) * gap;
-    // The window as drawn: the workspace less its sides, the height less the window's frame.
+    const pill = pixels("--size-notes-bar");
+    const least = 12 * 0.6 * pixels("--size-label");
+    expect(token("--measure-notes-tab-least")).toBe("12ch");
     const windowAt = (width: number, height: number) => {
       const room = { width: width - pixels("--space-roomy") * 2, height };
-      return Math.min(room.width * 0.7, (room.height - pixels("--space-notes-inset") * 2 - pixels("--size-notes-bar") - gap) * (16 / 9));
+      return Math.min(room.width * 0.7, (room.height - pixels("--space-notes-inset") * 2 - pill - gap) * (16 / 9));
     };
-    expect(barFor(5)).toBeCloseTo(1072, 6);
-    expect(barFor(5)).toBeLessThanOrEqual(windowAt(1920, 1080 - 40));
-    // A 1440-wide laptop's window is too narrow for five: the strip scrolls rather than the tabs shrinking.
-    expect(barFor(5)).toBeGreaterThan(windowAt(1440, 900 - 40));
+    const tabAt = (window: number) => Math.max(least, (window - pill * 2 - gap * 7) / 6);
+    const barAt = (window: number, tabs: number) => pill * 2 + tabs * tabAt(window) + (tabs + 1) * gap;
+    // 1920 × 1080, 1440 × 900, 1280 × 800 and a short 1600 × 600: six tabs fill the window to the pixel.
+    for (const [width, height] of [[1920, 1040], [1440, 860], [1280, 760], [1600, 600]] as const) {
+      const window = windowAt(width, height);
+      expect(barAt(window, 6)).toBeCloseTo(window, 9);
+      expect(tabAt(window)).toBeGreaterThan(least);
+    }
+    // Fewer open: the same width each, + beside the last, short of the window's edge.
+    expect(tabAt(windowAt(1920, 1040))).toBeCloseTo((windowAt(1920, 1040) - pill * 2 - gap * 7) / 6, 9);
+    expect(barAt(windowAt(1920, 1040), 3)).toBeLessThan(windowAt(1920, 1040));
+    // The smallest window Write-ist opens: the tabs stop at their least width, and the strip scrolls inside the window.
+    const smallest = windowAt(560, 420);
+    expect(tabAt(smallest)).toBe(least);
+    expect(barAt(smallest, 6)).toBeGreaterThan(smallest);
     expect(strip).toContain("overflow-x: auto");
     expect(rule(NOTES, ".notes-tab")).toContain("flex: none");
   });
@@ -229,7 +249,7 @@ describe("Notes' bar of pills", () => {
     expect(rule(NOTES, '.notes-tab[aria-selected="true"]')).toContain("color: var(--colour-accent)");
   });
 
-  it("greys + while five tabs are open, as an unavailable button is greyed elsewhere", () => {
+  it("greys + while six tabs are open, as an unavailable button is greyed elsewhere", () => {
     expect(rule(NOTES, ".notes-bar__pill:disabled")).toContain("opacity: var(--opacity-unavailable)");
     expect(rule(NOTES, ".notes-bar__pill:hover:not(:disabled), .notes-bar__pill:focus-visible, .notes-bar__pill[aria-expanded=\"true\"]")).toContain(
       "color: var(--colour-text)",

@@ -18,7 +18,7 @@
  * closes a tab and keeps the note. With no tab open the window says so,
  * quietly, and waits.
  *
- * **Five tabs at the most** (`src/notes/tabs.ts`). With five open, + is greyed
+ * **Six tabs at the most** (`src/notes/tabs.ts`). With six open, + is greyed
  * and so are the closed notes in the folder menu, until a tab is closed; a
  * note already open is still brought forward from the menu, and any note can
  * still be deleted from it. Nothing is said: the grey is the answer.
@@ -183,7 +183,7 @@ function mountNotes(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   /** Notes being opened just now, so two quick asks for one note open one tab. */
   const opening = new Map<string, Promise<OpenNote | undefined>>();
 
-  // --- Five tabs at the most: + is greyed while there is no room for another. ---
+  // --- Six tabs at the most: + is greyed while there is no room for another. ---
   /** New notes being made just now, each on its way to a tab. */
   let making = 0;
   /** Every note open in a tab or on its way to one. */
@@ -729,7 +729,7 @@ function mountNotes(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       return;
     }
     if (ask !== folderAsks || gone) return;
-    // With five tabs open, a closed note is greyed until one closes; an open one is still brought forward.
+    // With six tabs open, a closed note is greyed until one closes; an open one is still brought forward.
     const noRoom = full();
     const items: MenuEntry[] =
       names.length === 0
@@ -866,7 +866,7 @@ function mountNotes(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       );
       const wanted = kept["active"];
       front = typeof wanted === "string" && tabs.includes(wanted) ? wanted : tabs[0];
-      // Kept before there was a limit: five at the most, the one in front among them.
+      // Kept before there was a limit: six at the most, the one in front among them.
       tabs = tabsToReopen(tabs, front);
     } else {
       // Never left in tabs: the old notes, brought in just now, or the first note.

@@ -2,15 +2,20 @@
  * How many notes may be open in tabs at once, and which to open again when an
  * older session left more (Noah, 2026-11-23).
  *
- * Five tabs, at the most. With five open, + is greyed and the closed notes in
- * the folder menu with it, until a tab is closed — quietly, with nothing said.
- * A session kept before there was a limit may have left more than five open:
- * the first five are opened again, but never without the one that was in
- * front, which takes the fifth place if it was further along.
+ * Six tabs, at the most (Noah, 2026-11-25; five before). With six open, + is
+ * greyed and the closed notes in the folder menu with it, until a tab is
+ * closed — quietly, with nothing said. A session kept before there was a limit
+ * may have left more than six open: the first six are opened again, but never
+ * without the one that was in front, which takes the sixth place if it was
+ * further along.
+ *
+ * Six is also what the bar's tabs are measured for: six of them, the folder, +
+ * and the gaps exactly fill the Notes window (`--count-notes-tabs`,
+ * `tokens.css`, which must say the same number).
  */
 
 /** The most notes open in tabs at once. */
-export const MOST_OPEN_NOTES = 5;
+export const MOST_OPEN_NOTES = 6;
 
 /**
  * Which of the tabs kept from last time to open again, in order: at most

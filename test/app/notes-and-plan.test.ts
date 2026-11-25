@@ -1,7 +1,7 @@
 /**
  * Notes and Plan in the real shell, wired as `main.ts` wires them, over an
  * invented project in a temporary folder: Notes keeps each note as a `.md`
- * file in `notes/`, in tabs — five at most — new, opened, closed, renamed and deleted from its
+ * file in `notes/`, in tabs — six at most — new, opened, closed, renamed and deleted from its
  * bar — brings an old `notes.md` in, and opens again where the writer left it; Plan draws `plan.md`'s
  * cards on a grid as long as the project's target page count, and follows it
  * when Edit Project Details changes it; and turning either workspace off hides
@@ -353,60 +353,60 @@ describe("Notes", () => {
     expect(noteTabs(again)).toEqual([]);
   });
 
-  it("opens five tabs at most: + and the closed notes in the folder menu grey, quietly, until a tab closes", async () => {
-    const names = Array.from({ length: 7 }, (_, index) => `Note ${index + 1}`);
+  it("opens six tabs at most: + and the closed notes in the folder menu grey, quietly, until a tab closes", async () => {
+    const names = Array.from({ length: 8 }, (_, index) => `Note ${index + 1}`);
     writeNotes(Object.fromEntries(names.map((name) => [name, name])));
     const into = await openProject();
     alt("2");
     await notesView(into);
     const plus = into.querySelector<HTMLButtonElement>(".notes-bar__new")!;
-    for (const name of names.slice(1, 5)) {
+    for (const name of names.slice(1, 6)) {
       expect(plus.disabled).toBe(false);
       const rows = await folderMenu(into);
       rows.find((row) => row.textContent === name)!.click();
       await vi.waitFor(() => expect(frontNote(into)).toBe(name));
     }
-    expect(noteTabs(into)).toEqual(names.slice(0, 5));
-    // Five: + is still there, beside the last tab, greyed and doing nothing.
+    expect(noteTabs(into)).toEqual(names.slice(0, 6));
+    // Six: + is still there, beside the last tab, greyed and doing nothing.
     expect(plus.hidden).toBe(false);
     expect(plus.disabled).toBe(true);
-    expect(plus.previousElementSibling?.lastElementChild).toBe(noteTab(into, "Note 5"));
+    expect(plus.previousElementSibling?.lastElementChild).toBe(noteTab(into, "Note 6"));
     plus.click();
     await new Promise((settle) => setTimeout(settle, 0));
-    expect(folderFiles()).toHaveLength(7);
-    expect(noteTabs(into)).toHaveLength(5);
+    expect(folderFiles()).toHaveLength(8);
+    expect(noteTabs(into)).toHaveLength(6);
 
     // The folder menu: the closed notes greyed, the open ones still brought forward.
     let rows = await folderMenu(into);
     const row = (name: string) => rows.find((each) => each.textContent === name)!;
-    for (const name of names.slice(5)) expect(row(name).getAttribute("aria-disabled")).toBe("true");
-    for (const name of names.slice(0, 5)) expect(row(name).hasAttribute("aria-disabled")).toBe(false);
-    row("Note 6").click();
+    for (const name of names.slice(6)) expect(row(name).getAttribute("aria-disabled")).toBe("true");
+    for (const name of names.slice(0, 6)) expect(row(name).hasAttribute("aria-disabled")).toBe(false);
+    row("Note 7").click();
     // Nothing happens, and the menu stays open: nothing to dismiss, nothing said.
     expect(document.querySelector(".drop-menu--context")).not.toBeNull();
-    expect(noteTabs(into)).toEqual(names.slice(0, 5));
+    expect(noteTabs(into)).toEqual(names.slice(0, 6));
     expect(dialog()).toBeNull();
     expect(into.querySelector(".trouble, [role='alert']")).toBeNull();
     row("Note 2").click();
     await vi.waitFor(() => expect(frontNote(into)).toBe("Note 2"));
-    expect(noteTabs(into)).toHaveLength(5);
+    expect(noteTabs(into)).toHaveLength(6);
 
     // A closed note can still be deleted from the menu while it is greyed.
     rows = await folderMenu(into);
-    row("Note 7").querySelector<HTMLElement>(".drop-menu__aside")!.click();
+    row("Note 8").querySelector<HTMLElement>(".drop-menu__aside")!.click();
     await vi.waitFor(() => expect(dialog()).not.toBeNull());
     dialog()!.querySelector<HTMLFormElement>("form")!.requestSubmit();
     await vi.waitFor(() => expect(dialog()).toBeNull());
-    expect(folderFiles()).not.toContain("Note 7.md");
+    expect(folderFiles()).not.toContain("Note 8.md");
 
     // Close one: + and the closed notes come back.
     noteTab(into, "Note 3").querySelector<HTMLButtonElement>(".notes-tab__close")!.click();
     await vi.waitFor(() => expect(plus.disabled).toBe(false));
     rows = await folderMenu(into);
-    expect(row("Note 6").hasAttribute("aria-disabled")).toBe(false);
-    row("Note 6").click();
-    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 6"));
-    expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 4", "Note 5", "Note 6"]);
+    expect(row("Note 7").hasAttribute("aria-disabled")).toBe(false);
+    row("Note 7").click();
+    await vi.waitFor(() => expect(frontNote(into)).toBe("Note 7"));
+    expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 4", "Note 5", "Note 6", "Note 7"]);
     expect(plus.disabled).toBe(true);
   });
 
@@ -426,24 +426,24 @@ describe("Notes", () => {
     expect(strip.matches(":empty")).toBe(true);
   });
 
-  it("opens no more than five tabs kept from an older session, the one in front always among them", async () => {
-    const names = Array.from({ length: 7 }, (_, index) => `Note ${index + 1}`);
+  it("opens no more than six tabs kept from an older session, the one in front always among them", async () => {
+    const names = Array.from({ length: 8 }, (_, index) => `Note ${index + 1}`);
     writeNotes(Object.fromEntries(names.map((name) => [name, name])));
     await places.remember("id-paper-boats", "notes", {
-      open: 7,
+      open: 8,
       ...Object.fromEntries(names.map((name, index) => [`tab-${index + 1}`, name])),
-      active: "Note 7",
+      active: "Note 8",
     });
     const into = await openProject();
     alt("2");
     await notesView(into);
-    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 3", "Note 4", "Note 7"]));
-    expect(frontNote(into)).toBe("Note 7");
+    await vi.waitFor(() => expect(noteTabs(into)).toEqual(["Note 1", "Note 2", "Note 3", "Note 4", "Note 5", "Note 8"]));
+    expect(frontNote(into)).toBe("Note 8");
     expect(into.querySelector<HTMLButtonElement>(".notes-bar__new")!.disabled).toBe(true);
     await closeProject();
-    // Kept as it is now: five.
+    // Kept as it is now: six.
     const kept = readFileSync(join(temporary.path, "app-data", "workspace-places.txt"), "utf8");
-    expect(kept).toContain('id-paper-boats\tnotes\topen=5\ttab-1="Note 1"\ttab-2="Note 2"\ttab-3="Note 3"\ttab-4="Note 4"\ttab-5="Note 7"\tactive="Note 7"\n');
+    expect(kept).toContain('id-paper-boats\tnotes\topen=6\ttab-1="Note 1"\ttab-2="Note 2"\ttab-3="Note 3"\ttab-4="Note 4"\ttab-5="Note 5"\ttab-6="Note 8"\tactive="Note 8"\n');
   });
 
   it("renames the note in front by double-clicking its tab: the file follows, made safe and numbered quietly", async () => {
