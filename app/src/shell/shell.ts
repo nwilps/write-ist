@@ -205,9 +205,18 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
   const hosted = new Map<string, Hosted>();
   let active: Hosted | undefined;
 
-  // The pills belong to whichever workspace is on screen, and say what it last said.
+  // The paper fades off under the window's top and bottom edges. Purely a
+  // picture over the paper: it takes no clicks and is never in the document.
+  const fades = [
+    element("div", { className: "paper-fade paper-fade--top", ariaHidden: "true" }),
+    element("div", { className: "paper-fade paper-fade--bottom", ariaHidden: "true" }),
+  ];
+
+  // The pills belong to whichever workspace is on screen, and say what it last
+  // said; the fades are drawn only if it has the paper under them.
   const drawPills = (record: Hosted): void => {
     projectName.hidden = record.manifest.showsProjectName === false;
+    for (const fade of fades) fade.hidden = record.manifest.showsPaperFade === false;
     counts.textContent = record.pills.status;
     counts.hidden = record.pills.status === "";
     const pill = record.pills.goal;
@@ -405,10 +414,7 @@ export function mountShell(into: HTMLElement, screen: ShellScreen): MountedShell
     element("div", { className: "shell" }, [
       bar.element,
       view,
-      // The paper fades off under the window's top and bottom edges. Purely a
-      // picture over the paper: it takes no clicks and is never in the document.
-      element("div", { className: "paper-fade paper-fade--top", ariaHidden: "true" }),
-      element("div", { className: "paper-fade paper-fade--bottom", ariaHidden: "true" }),
+      ...fades,
       element("div", { className: "pills pills--left" }, [
         projectName,
         goal,

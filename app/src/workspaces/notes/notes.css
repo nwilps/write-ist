@@ -230,14 +230,6 @@
   display: none;
 }
 
-/*
- * The shell's fades belong to the paper. Notes has none under them, so with
- * the moving background on they would be bands of paper colour over the desk.
- */
-.shell:has(> .shell__view > .workspace[data-workspace="notes"]:not([hidden])) > .paper-fade {
-  display: none;
-}
-
 .notes__reading {
   margin: 0;
   color: var(--colour-faint);

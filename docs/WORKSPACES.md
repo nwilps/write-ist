@@ -48,6 +48,9 @@ Optional:
 - `alwaysOn: true` — shown in every project and never switched off (only the Editor is).
 - `showsProjectName: false` — hide the project's name pill at the bottom left while yours is on
   screen, if you need the room (Plan does).
+- `showsPaperFade: false` — don't draw the paper's fades at the window's top and bottom edges
+  while yours is on screen. They are for the Editor's paper; a workspace with no paper under them
+  turns them off (Notes and Plan do).
 - `settings: [...]` — switches of your own (see **Settings** below).
 
 `mount(into, toolbox)` draws into `into` and answers a few things the application asks of it:

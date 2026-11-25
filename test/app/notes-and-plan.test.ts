@@ -713,6 +713,29 @@ describe("Plan", () => {
     expect(pill.hidden).toBe(false);
   });
 
+  it("draws the paper's fades on the Editor only: Notes and Plan ask them away in their manifests", async () => {
+    const byId = Object.fromEntries(WORKSPACES.map((manifest) => [manifest.id, manifest]));
+    expect(byId["plan"]!.showsPaperFade).toBe(false);
+    expect(byId["notes"]!.showsPaperFade).toBe(false);
+    expect(byId["editor"]!.showsPaperFade).toBeUndefined();
+    const into = await openProject();
+    const fades = [...into.querySelectorAll<HTMLElement>(".paper-fade")];
+    expect(fades).toHaveLength(2);
+    const shown = () => fades.map((fade) => !fade.hidden);
+    expect(shown()).toEqual([true, true]);
+    alt("3");
+    expect(selected(into)).toBe("Plan");
+    expect(shown()).toEqual([false, false]);
+    alt("1");
+    expect(shown()).toEqual([true, true]);
+    alt("2");
+    expect(shown()).toEqual([false, false]);
+    alt("3");
+    expect(shown()).toEqual([false, false]);
+    alt("1");
+    expect(shown()).toEqual([true, true]);
+  });
+
   it("puts the selected card beside the Structure button under the grid, its pages centred as − 56–57 +, Delete a trash icon alone", async () => {
     writeFileSync(join(opened.path, "plan.md"), PLAN);
     const into = await openProject();

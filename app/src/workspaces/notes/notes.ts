@@ -133,6 +133,8 @@ export const notesWorkspace: WorkspaceManifest = {
   icon: StickyNote,
   // The notes folder, and the old single `notes.md`, which Notes brings into it once.
   files: NOTES_FILES,
+  // No paper under the shell's fades: with the moving background on they would be bands over the desk.
+  showsPaperFade: false,
   mount: (into, toolbox) => mountNotes(into, toolbox),
 };
 

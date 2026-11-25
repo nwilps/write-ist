@@ -29,7 +29,9 @@
  * at a time.
  *
  * The project name pill is not drawn while Plan is on screen
- * (`showsProjectName`): the card has the foot of the desk.
+ * (`showsProjectName`): the card has the foot of the desk. Nor are the
+ * paper's fades at the window's top and bottom (`showsPaperFade`): there is
+ * no paper here, and they faded the cards' text.
  *
  * This file draws a **plan session** (`src/plan/plan-session.ts`) and hands it
  * what the writer did; the session decides what fits and what is stored, and
@@ -105,6 +107,8 @@ export const planWorkspace: WorkspaceManifest = {
   files: [PLAN_FILE],
   // The selected card has the foot of the desk, where the name pill would be.
   showsProjectName: false,
+  // The paper's fades are the Editor's: over Plan they faded the open cards' text at the foot of the desk.
+  showsPaperFade: false,
   mount,
 };
 

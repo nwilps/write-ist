@@ -170,6 +170,11 @@
   );
 }
 
+/* Not drawn while a workspace with no paper under it is on screen (`showsPaperFade`). */
+.paper-fade[hidden] {
+  display: none;
+}
+
 .paper-fade--top {
   top: 0;
 }

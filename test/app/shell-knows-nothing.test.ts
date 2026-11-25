@@ -139,6 +139,21 @@ describe("a workspace is a manifest, not surgery in the shell (ADR-0005)", () =>
     expect(shell).toContain("manifest.showsProjectName === false");
   });
 
+  it("hides the paper's fades for a workspace that asks in its manifest, and no stylesheet hides them by naming one", () => {
+    const shell = codeOf(join(SHELL, "shell.ts"));
+    expect(shell).toContain("manifest.showsPaperFade === false");
+    const styles = join(root, "app", "src");
+    const sheets = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? sheets(join(dir, entry.name)) : entry.name.endsWith(".css") ? [join(dir, entry.name)] : [],
+      );
+    for (const sheet of sheets(styles)) {
+      const css = readFileSync(sheet, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      // A selector that names a workspace and reaches the fades: what Notes did before the manifest said it.
+      expect(css, sheet).not.toMatch(/data-workspace[^{}]*\.paper-fade/);
+    }
+  });
+
   it("gives every workspace everything the bar will need of it", () => {
     // Declared now rather than added later, because adding a field to a manifest
     // means touching every manifest there is.

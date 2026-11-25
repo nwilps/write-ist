@@ -400,6 +400,14 @@ export interface WorkspaceManifest {
    */
   readonly showsProjectName?: false;
   /**
+   * Whether the paper's fades — the bands at the window's top and bottom edges
+   * that the Editor's writing fades into — are drawn while this workspace is
+   * on screen. Drawn unless this says `false`: a workspace with no paper under
+   * them, whose own surface would be faded or banded by them, asks them away.
+   * The fades are the shell's; only whether they are drawn is the workspace's.
+   */
+  readonly showsPaperFade?: false;
+  /**
    * The files in a project's folder that hold this workspace's work, by name;
    * a name ending in `/` is a folder, and everything in it (ADR-0025:
    * `plan.md` is Plan's, the `notes/` folder Notes'). Declared so what
