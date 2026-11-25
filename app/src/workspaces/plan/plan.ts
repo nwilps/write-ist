@@ -17,10 +17,16 @@
  * drag the empty grid to pan. Right-click is Write-ist's own menu (ADR-0034),
  * and every gesture has a key.
  *
- * Under the grid, the Structure button, and right beside it the selected card,
- * larger, to write on. The card grows down as its description does, until its
- * foot reaches the bottom pills' margin; past that the description scrolls
- * inside it. One structure sheet is drawn under the grid at a time.
+ * Under the grid, the Structure button, and right beside it **up to three
+ * cards, open**, larger, to write on (Noah, 2026-11-25; `src/plan/open-cards.ts`).
+ * A card clicked on the grid opens in the first place, beside the button, and
+ * the open ones move a place along; the third, if there was one, slides off to
+ * the right, fading, and closes. A card already open stays where it is. An
+ * open card is dragged by its top edge to another place, and is put in there,
+ * the others moving over — not swapped. Each grows down as its description
+ * does, until its foot reaches the bottom pills' margin; past that the
+ * description scrolls inside it. One structure sheet is drawn under the grid
+ * at a time.
  *
  * The project name pill is not drawn while Plan is on screen
  * (`showsProjectName`): the card has the foot of the desk.
@@ -34,7 +40,8 @@
  * (`toolbox.memory`), the project's details, the pills and its menus. It
  * imports nothing else of the application's.
  */
-import { createElement, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
+import { createElement, GripHorizontal, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
+import { closeCard, moveCard, openCard, placeUnder } from "../../../../src/plan/open-cards.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
 import { STRUCTURE_SHEETS, layoutBeats } from "../../../../src/plan/structure.ts";
@@ -112,9 +119,9 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     element("span", { textContent: "Structure" }),
   ]);
   const controls = element("div", { className: "plan__controls" }, [structureButton]);
-  const inspector = cardPanel(toolbox);
-  // Under the grid: the Structure button, and the selected card beside it.
-  const under = element("div", { className: "plan__under" }, [controls, element("div", { className: "plan__card-slot" }, [inspector.element])]);
+  // Under the grid: the Structure button, and the open cards beside it.
+  const slot = element("div", { className: "plan__card-slot" });
+  const under = element("div", { className: "plan__under" }, [controls, slot]);
   const desk = element("div", { className: "plan-desk" }, [reading]);
   into.replaceChildren(desk);
 
@@ -122,6 +129,9 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   let gone = false;
   let hidden = false;
   let selected: string | undefined;
+  /** The open cards, the first place (beside the Structure button) first. */
+  let open: string[] = [];
+  const panels = new Map<string, CardPanel>();
   let menu: ContextMenu | undefined;
   let pendingAcross: number | undefined;
 
@@ -160,6 +170,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     const layout = session.layout();
     const plan = session.plan();
     if (selected !== undefined && !plan.cards.some((card) => card.id === selected)) selected = undefined;
+    open = open.filter((id) => layout.placed.some((placed) => placed.card.id === id));
     surface.style.setProperty("--plan-columns", String(layout.columns));
     surface.style.setProperty("--plan-lanes", String(layout.lanes));
     surface.style.setProperty("--plan-length", String(layout.length));
@@ -208,7 +219,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       grid,
       element("div", { className: "plan__beats" }, beats.flat()),
     );
-    drawPanel();
+    drawPanels();
   };
 
   const cardElement = (placed: PlacedCard): HTMLElement => {
@@ -226,25 +237,113 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     return card;
   };
 
-  // --- The card panel: the selected card's title, colour, length and description. ---
-  function drawPanel(): void {
-    const card = session?.plan().cards.find((each) => each.id === selected);
-    const placed = session?.layout().placed.find((each) => each.card.id === selected);
-    inspector.element.hidden = card === undefined;
-    if (card === undefined || placed === undefined || session === undefined) {
-      inspector.closePalette();
-      return;
+  // --- The open cards: each one's title, colour, length and description. ---
+  /** Draw every open card in its place, making the newly opened and taking away the closed. */
+  function drawPanels(): void {
+    for (const [id, panel] of panels) {
+      if (open.includes(id)) continue;
+      panel.closePalette();
+      panel.element.remove();
+      panels.delete(id);
     }
-    inspector.show(card, placed, session.layout());
+    if (session === undefined) return;
+    const layout = session.layout();
+    open.forEach((id, at) => {
+      const card = session!.plan().cards.find((each) => each.id === id);
+      const placed = layout.placed.find((each) => each.card.id === id);
+      if (card === undefined || placed === undefined) return;
+      let panel = panels.get(id);
+      if (panel === undefined) {
+        panel = cardPanel(toolbox, id, panelActions);
+        panels.set(id, panel);
+        slot.append(panel.element);
+      }
+      panel.element.style.setProperty("--plan-position", String(at));
+      panel.show(card, placed, layout);
+    });
   }
 
-  const select = (id: string | undefined): void => {
+  /** Light a card on the grid, without opening it or moving it among the open ones. */
+  const mark = (id: string | undefined): void => {
     selected = id;
     for (const card of surface.querySelectorAll<HTMLElement>(".plan__card")) {
       if (card.dataset["id"] === id) card.dataset["selected"] = "true";
       else delete card.dataset["selected"];
     }
-    drawPanel();
+  };
+
+  /**
+   * Select a card: lit on the grid and open under it — in the first place if
+   * it was not open, pushing the third out; where it is if it was. Nothing
+   * selected closes them all, as a press on the empty grid always has.
+   */
+  const select = (id: string | undefined): void => {
+    mark(id);
+    if (id === undefined) open = [];
+    else {
+      const opened = openCard(open, id);
+      open = opened.open;
+      if (opened.out !== undefined) pushOut(opened.out);
+    }
+    drawPanels();
+  };
+
+  /** The card in the third place, pushed out by a new one: it slides off to the right, fading, and is gone. */
+  const pushOut = (id: string): void => {
+    const panel = panels.get(id);
+    if (panel === undefined) return;
+    panels.delete(id);
+    panel.closePalette();
+    const leaving = panel.element;
+    if (leaving.contains(document.activeElement)) board.focus({ preventScroll: true });
+    leaving.dataset["leaving"] = "true";
+    leaving.inert = true;
+    const gone = (): void => leaving.remove();
+    leaving.addEventListener("transitionend", (event) => {
+      if (event.target === leaving && event.propertyName === "opacity") gone();
+    });
+    setTimeout(gone, tokenMilliseconds("--duration-plan-panel", 240));
+  };
+
+  /**
+   * An open card dragged by its top edge: it follows the pointer, and the
+   * others move over to show where it would go in. Dropped, it is put in at
+   * the place it is over — the others moved over, never swapped.
+   */
+  const dragPanel = (id: string, event: PointerEvent): void => {
+    const panel = panels.get(id);
+    const from = open.indexOf(id);
+    if (event.button !== 0 || panel === undefined || from < 0) return;
+    event.preventDefault();
+    mark(id);
+    const handle = event.currentTarget as HTMLElement;
+    handle.setPointerCapture?.(event.pointerId);
+    const step = panel.element.getBoundingClientRect().width + tokenPixels("--space-plan-panels", 16);
+    const startX = event.clientX;
+    const before = open;
+    let order = open;
+    panel.element.dataset["dragging"] = "true";
+    const move = (next: PointerEvent): void => {
+      const dx = next.clientX - startX;
+      panel.element.style.setProperty("--plan-drag-x", `${dx}px`);
+      order = moveCard(before, id, placeUnder(from, dx, step, before.length));
+      order.forEach((each, at) => {
+        if (each !== id) panels.get(each)?.element.style.setProperty("--plan-position", String(at));
+      });
+    };
+    const up = (): void => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      delete panel.element.dataset["dragging"];
+      panel.element.style.setProperty("--plan-drag-x", "");
+      // Only the cards still open: one may have been closed under the drag.
+      open = order.filter((each) => open.includes(each));
+      drawPanels();
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
   };
 
   const changed = (): void => {
@@ -463,6 +562,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
 
   const removeCard = (id: string): void => {
     session?.remove(id);
+    open = closeCard(open, id);
     if (selected === id) selected = undefined;
     changed();
     board.focus({ preventScroll: true });
@@ -578,29 +678,30 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     draw();
   });
 
-  // --- The card panel's own wiring. ---
-  inspector.onTitle((title) => {
-    if (selected === undefined || session === undefined) return;
-    session.setTitle(selected, title);
-    const shown = surface.querySelector<HTMLElement>(`.plan__card[data-id="${selected}"] .plan__card-title`);
-    if (shown !== null) shown.textContent = title.trim();
-  });
-  inspector.onTitleDone(() => draw());
-  inspector.onDescription((text) => {
-    if (selected !== undefined) session?.setDescription(selected, text);
-  });
-  inspector.onColour((colour) => {
-    if (selected === undefined) return;
-    session?.setColour(selected, colour);
-    changed();
-  });
-  inspector.onLength((cells) => {
-    if (selected !== undefined && session?.resize(selected, cells) === true) changed();
-  });
-  inspector.element.addEventListener("plan-panel-left", () => board.focus({ preventScroll: true }));
-  inspector.onDelete(() => {
-    if (selected !== undefined) removeCard(selected);
-  });
+  // --- What the open cards do. ---
+  const panelActions: PanelActions = {
+    title: (id, title) => {
+      session?.setTitle(id, title);
+      const shown = surface.querySelector<HTMLElement>(`.plan__card[data-id="${id}"] .plan__card-title`);
+      if (shown !== null) shown.textContent = title.trim();
+    },
+    titleDone: () => draw(),
+    description: (id, text) => session?.setDescription(id, text),
+    colour: (id, colour) => {
+      session?.setColour(id, colour);
+      changed();
+    },
+    length: (id, cells) => {
+      if (session?.resize(id, cells) === true) changed();
+    },
+    remove: (id) => removeCard(id),
+    left: () => board.focus({ preventScroll: true }),
+    // Writing on an open card selects it on the grid, so its keys are its own; it stays in its place.
+    touched: (id) => {
+      if (selected !== id) mark(id);
+    },
+    drag: dragPanel,
+  };
 
   void (async () => {
     try {
@@ -638,7 +739,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     clearTimeout(placeRest);
     window.removeEventListener("keydown", keys, true);
     desk.removeEventListener("contextmenu", quietMenu);
-    inspector.closePalette();
+    for (const panel of panels.values()) panel.closePalette();
     stopListeningForDetails();
     stopListeningForTarget();
     menu?.close(false);
@@ -649,7 +750,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     hide: () => {
       hidden = true;
       menu?.close(false);
-      inspector.closePalette();
+      for (const panel of panels.values()) panel.closePalette();
       // A title being typed is kept, as a click away would keep it.
       (surface.querySelector(".plan__title-edit") as HTMLInputElement | null)?.blur();
       void session?.save();
@@ -686,19 +787,41 @@ function place(item: HTMLElement, cell: number, lane: number, cells: number): vo
   item.style.setProperty("--card-cells", String(cells));
 }
 
+/** What an open card asks of the workspace, each for the card it is. */
+interface PanelActions {
+  title(id: string, title: string): void;
+  titleDone(): void;
+  description(id: string, text: string): void;
+  colour(id: string, colour: CardColour): void;
+  length(id: string, cells: number): void;
+  remove(id: string): void;
+  /** Escape in a field: back to the grid. */
+  left(): void;
+  /** Pressed or written on. */
+  touched(id: string): void;
+  /** Pressed on its top edge, to drag it to another place. */
+  drag(id: string, event: PointerEvent): void;
+}
+
+type CardPanel = ReturnType<typeof cardPanel>;
+
 /**
- * The selected card, larger, to write on, beside the Structure button under
- * the grid: its title and description typed straight onto it, in its own
- * colour, and along its foot the colour picker, its pages, and Delete — each
- * an icon or a figure, no words. The description grows as it is written and,
- * once the card is as tall as it may be, scrolls inside it. Hidden while no
- * card is selected.
+ * An open card, larger, to write on, beside the Structure button under the
+ * grid: along its top edge the grip it is dragged to another place by, its
+ * title and description typed straight onto it, in its own colour, and along
+ * its foot the colour picker, its pages, and Delete — each an icon or a
+ * figure, no words. The description grows as it is written and, once the card
+ * is as tall as it may be, scrolls inside it. Its place among the open cards
+ * is `--plan-position`, which the stylesheet turns into room.
  *
  * **The colour picker is Write-ist's own** (ADR-0034): the palette icon opens
  * a small grid of the nine colours, three by three, over the card. The arrows
  * move in it, Enter or a click chooses, Escape or a press outside closes it.
  */
-function cardPanel(toolbox: Toolbox) {
+function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
+  const grip = element("div", { className: "plan__panel-grip" }, [icon(GripHorizontal)]);
+  grip.setAttribute("aria-hidden", "true");
+  grip.addEventListener("pointerdown", (event) => actions.drag(id, event));
   const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off", placeholder: "Untitled" });
   title.setAttribute("aria-label", "Card title");
   title.spellcheck = false;
@@ -729,7 +852,8 @@ function cardPanel(toolbox: Toolbox) {
   // the card can grow no further.
   const descriptionBox = element("div", { className: "plan__description-box" }, [description]);
   const mirror = (): void => void (descriptionBox.dataset["value"] = description.value);
-  const panel = element("section", { className: "plan__panel", hidden: true }, [
+  const panel = element("section", { className: "plan__panel" }, [
+    grip,
     element("div", { className: "plan__panel-head" }, [title]),
     descriptionBox,
     element("div", { className: "plan__panel-foot" }, [
@@ -739,17 +863,14 @@ function cardPanel(toolbox: Toolbox) {
     ]),
   ]);
   panel.setAttribute("aria-label", "Card");
+  panel.dataset["id"] = id;
+  panel.addEventListener("pointerdown", () => actions.touched(id));
+  panel.addEventListener("focusin", () => actions.touched(id));
 
   let cells = 1;
-  let shown: string | undefined;
-  let titleListener: (title: string) => void = () => {};
-  let titleDone: () => void = () => {};
-  let descriptionListener: (text: string) => void = () => {};
-  let colourListener: (colour: CardColour) => void = () => {};
-  let lengthListener: (cells: number) => void = () => {};
-  let deleteListener: () => void = () => {};
-  title.addEventListener("input", () => titleListener(title.value));
-  title.addEventListener("change", () => titleDone());
+  let fresh = true;
+  title.addEventListener("input", () => actions.title(id, title.value));
+  title.addEventListener("change", () => actions.titleDone());
   title.addEventListener("keydown", (event) => {
     if (event.key === "Enter") title.blur();
   });
@@ -760,14 +881,14 @@ function cardPanel(toolbox: Toolbox) {
       event.preventDefault();
       event.stopPropagation();
       field.blur();
-      panel.dispatchEvent(new Event("plan-panel-left", { bubbles: true }));
+      actions.left();
     });
   }
   description.addEventListener("input", () => {
     mirror();
     // Writing at the end of a description taller than the card keeps the end in sight.
     if (description.selectionEnd === description.value.length) descriptionBox.scrollTop = descriptionBox.scrollHeight;
-    descriptionListener(description.value);
+    actions.description(id, description.value);
   });
 
   // --- The colour picker. ---
@@ -826,27 +947,22 @@ function cardPanel(toolbox: Toolbox) {
   swatches.forEach((swatch) =>
     swatch.addEventListener("click", () => {
       palette.close();
-      colourListener(swatch.dataset["colour"] as CardColour);
+      actions.colour(id, swatch.dataset["colour"] as CardColour);
     }),
   );
 
-  shorter.addEventListener("click", () => lengthListener(Math.max(1, cells - 1)));
-  longer.addEventListener("click", () => lengthListener(cells + 1));
-  remove.addEventListener("click", () => deleteListener());
+  shorter.addEventListener("click", () => actions.length(id, Math.max(1, cells - 1)));
+  longer.addEventListener("click", () => actions.length(id, cells + 1));
+  remove.addEventListener("click", () => actions.remove(id));
 
   return {
     element: panel,
     show: (card: PlacedCard["card"], placed: PlacedCard, layout: PlanLayout) => {
       // What the writer is typing into is theirs: it is not written over under them.
-      const fresh = shown !== card.id;
-      shown = card.id;
       if (fresh || document.activeElement !== title) title.value = card.title;
       if (fresh || document.activeElement !== description) description.value = card.description;
       mirror();
-      if (fresh) {
-        descriptionBox.scrollTop = 0;
-        palette.close(false);
-      }
+      fresh = false;
       panel.dataset["colour"] = card.colour;
       swatches.forEach((swatch) => swatch.setAttribute("aria-checked", String(swatch.dataset["colour"] === card.colour)));
       cells = placed.cells;
@@ -858,12 +974,6 @@ function cardPanel(toolbox: Toolbox) {
       where.textContent = first === last ? `${first}` : `${first}–${last}`;
     },
     closePalette: () => palette.close(false),
-    onTitle: (act: (title: string) => void) => void (titleListener = act),
-    onTitleDone: (act: () => void) => void (titleDone = act),
-    onDescription: (act: (text: string) => void) => void (descriptionListener = act),
-    onColour: (act: (colour: CardColour) => void) => void (colourListener = act),
-    onLength: (act: (cells: number) => void) => void (lengthListener = act),
-    onDelete: (act: () => void) => void (deleteListener = act),
   };
 }
 
@@ -878,6 +988,14 @@ function range(from: number, to: number, by: number): number[] {
   const out: number[] = [];
   for (let at = from; at <= to; at += by) out.push(at);
   return out;
+}
+
+/** A duration token's value in milliseconds, or `fallback` where there is no stylesheet. */
+function tokenMilliseconds(name: string, fallback: number): number {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount < 0 || value === "") return fallback;
+  return value.endsWith("ms") ? amount : value.endsWith("s") ? amount * 1000 : fallback;
 }
 
 /** A pixel token's value as a number, or `fallback` where there is no stylesheet. */

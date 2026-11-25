@@ -714,11 +714,41 @@
   /** How wide a title being typed is at least, in cells. */
   --count-plan-title-cells: 6;
   /**
-   * The selected card's panel (Noah, 2026-11-23: compact, and the card itself
+   * An open card's panel (Noah, 2026-11-23: compact, and the card itself
    * to write on rather than a form): its width, its colour swatches, the
    * buttons along its foot, and the description's height at rest (three lines).
    */
   --measure-plan-panel: 46ch;
+  /**
+   * Up to three cards open beside the Structure button, side by side (Noah,
+   * 2026-11-25; `MOST_OPEN_CARDS`, `src/plan/open-cards.ts`, which must say
+   * the same number), the room between them the room beside the button. Each
+   * is the compact width above while all three fit beside the button, and
+   * narrower, a third of the room less the gaps, when they would not.
+   */
+  --count-plan-open-cards: 3;
+  --space-plan-panels: var(--space-plan-edge);
+  /**
+   * How an open card moves to another place — one opened in front of it, or
+   * one dragged past it — and how the third slides away and fades when it is
+   * pushed out: quick, and easing to rest rather than stopping hard.
+   */
+  --duration-plan-panel: 240ms;
+  --ease-plan-panel: cubic-bezier(0.2, 0, 0, 1);
+  /** How far the pushed-out card slides: the width of the desk, so it is off the window. */
+  --size-plan-room-width: 100cqw;
+  --opacity-plan-panel-gone: 0;
+  /** A card being dragged by its top edge is drawn over the others. */
+  --layer-plan-panel-drag: 1;
+  /**
+   * The grip on an open card's top edge: an icon, faint, a shade brighter under
+   * the pointer, so it reads as a handle without drawing the eye from the title.
+   */
+  --size-plan-panel-grip: var(--size-icon);
+  --colour-plan-panel-grip: var(--colour-faint);
+  --colour-plan-panel-grip-hover: var(--colour-muted);
+  /** The description, a step quieter than the title above it. */
+  --colour-plan-description: var(--colour-muted);
   --size-plan-swatch: 14px;
   --size-plan-step: 20px;
   /**
@@ -726,7 +756,7 @@
    * workspace's left and right edges, and below the workspace bar (Noah,
    * 2026-11-23). The left and right are the workspace's own sides
    * (`.workspace`), which Plan's host is held to (`plan.css`). The Structure
-   * button and the selected card sit under the grid this far apart, and as far
+   * button and the open cards sit under the grid this far apart, and as far
    * below it as the button is.
    */
   --space-plan-edge: var(--space-roomy);

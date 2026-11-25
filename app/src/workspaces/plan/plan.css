@@ -12,7 +12,7 @@
 /*
  * The grid panel is the same room from the workspace bar above it as from the
  * window's left and right edges (`--space-plan-edge`), and the Structure
- * button and the selected card are as far under it. Plan's host is held to
+ * button and the open cards are as far under it. Plan's host is held to
  * that room at its sides.
  */
 .workspace[data-workspace="plan"] {
@@ -286,7 +286,7 @@
 /* --- Under the board ---------------------------------------------------------- */
 
 /*
- * The Structure button, and the selected card right beside it: as far apart
+ * The Structure button, and the open cards right beside it: as far apart
  * as the button is from the window's edge, and both as far under the grid.
  * The row runs down to the desk's foot, which is the bottom pills' margin
  * from the window's: the card may grow that far, and no further.
@@ -305,7 +305,7 @@
   gap: var(--space-snug);
 }
 
-/* Where the card hangs: as tall as the row, so the card's room is the row's. */
+/* Where the open cards hang: as tall as the row, so a card's room is the row's. */
 .plan__card-slot {
   position: relative;
   flex: 1 1 auto;
@@ -341,13 +341,20 @@
 }
 
 /*
- * The selected card, larger, to write on: the same tinted face and edge as the
+ * An open card, larger, to write on: the same tinted face and edge as the
  * card on the grid, a little rounder, and compact. Its title and description
  * are typed straight onto it: at rest they are the card's own text, with no
  * box round them; a pointer over one gives it a faint tint and hairline, and
  * while it is being typed in it is a shade deeper with a firmer edge. It is
  * as tall as what is written on it, up to the row's height; past that the
  * description scrolls inside it.
+ */
+/*
+ * An open card, in one of three places side by side (`--plan-position`, set
+ * from `plan.ts`, 0 beside the Structure button). Each is the compact width,
+ * or a third of the slot less the gaps where three of that would not fit, so
+ * all three always fit beside the button. A place is the card's own width
+ * and a gap along, and a card moving to another place slides there.
  */
 .plan__panel {
   --card-tint: var(--colour-plan-plain);
@@ -357,8 +364,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-hair);
-  width: min(var(--measure-plan-panel), 100%);
+  width: min(
+    var(--measure-plan-panel),
+    calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards))
+  );
   max-height: 100%;
+  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels))));
+  transition:
+    transform var(--duration-plan-panel) var(--ease-plan-panel),
+    opacity var(--duration-plan-panel) var(--ease-plan-panel);
   box-sizing: border-box;
   padding: var(--space-tight);
   background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
@@ -376,8 +390,51 @@
 .plan__panel[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
 .plan__panel[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
-.plan__panel[hidden] {
-  display: none;
+/* Dragged by its top edge: it follows the pointer from its place, over the others, at once. */
+.plan__panel[data-dragging="true"] {
+  z-index: var(--layer-plan-panel-drag);
+  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--plan-drag-x)));
+  transition: opacity var(--duration-plan-panel) var(--ease-plan-panel);
+}
+
+/* Pushed out of the third place by a card opened: it slides off the window to the right, fading. */
+.plan__panel[data-leaving="true"] {
+  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--size-plan-room-width)));
+  opacity: var(--opacity-plan-panel-gone);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan__panel {
+    transition: none;
+  }
+}
+
+/* The grip along the top edge, centred: what the card is dragged to another place by. */
+.plan__panel-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: var(--size-plan-panel-grip);
+  margin-top: calc(var(--space-tight) * -1);
+  color: var(--colour-plan-panel-grip);
+  cursor: grab;
+  touch-action: none;
+}
+
+.plan__panel-grip:hover {
+  color: var(--colour-plan-panel-grip-hover);
+}
+
+.plan__panel[data-dragging="true"] .plan__panel-grip {
+  color: var(--colour-plan-panel-grip-hover);
+  cursor: grabbing;
+}
+
+.plan__panel-grip .plan__icon {
+  width: var(--size-plan-panel-grip);
+  height: var(--size-plan-panel-grip);
 }
 
 .plan__panel-head {
@@ -469,6 +526,7 @@
 .plan__description {
   display: block;
   width: 100%;
+  color: var(--colour-plan-description);
   overflow: hidden;
   background: transparent;
   resize: none;

@@ -16,7 +16,7 @@
  * (That nothing is drawn again mid-drag is `notes-and-plan.test.ts`.)
  *
  * Plan's grid panel is as far below the workspace bar as it is from the
- * window's sides; under it, the Structure button and the selected card beside
+ * window's sides; under it, the Structure button and up to three open cards beside
  * it, the card growing down to the bottom pills' margin and no further, with
  * its colours in a three-by-three picker of nine.
  */
@@ -25,6 +25,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { MOST_OPEN_NOTES } from "../../src/notes/tabs.ts";
+import { MOST_OPEN_CARDS } from "../../src/plan/open-cards.ts";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src");
 
@@ -350,7 +351,7 @@ describe("Plan's grid panel, placed", () => {
   });
 });
 
-describe("Plan's selected card, beside the Structure button", () => {
+describe("Plan's open cards, beside the Structure button", () => {
   const panel = rule(PLAN, ".plan__panel");
   const under = rule(PLAN, ".plan__under");
   const desk = rule(PLAN, ".plan-desk");
@@ -397,10 +398,71 @@ describe("Plan's selected card, beside the Structure button", () => {
   });
 
   it("is compact, and wears the card's own tinted face and edge", () => {
-    expect(panel).toContain("width: min(var(--measure-plan-panel), 100%)");
     expect(panel).toContain("padding: var(--space-tight)");
     expect(panel).toContain("background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay))");
     expect(rule(PLAN, '.plan__panel[data-colour="blue"]')).toContain("--card-tint: var(--colour-plan-blue)");
+  });
+
+  it("has three places side by side, each card compact, all three always fitting beside the Structure button", () => {
+    expect(token("--count-plan-open-cards")).toBe(String(MOST_OPEN_CARDS));
+    expect(MOST_OPEN_CARDS).toBe(3);
+    expect(token("--space-plan-panels")).toBe("var(--space-plan-edge)");
+    expect(panel).toContain(
+      "width: min( var(--measure-plan-panel), calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards)) )",
+    );
+    // A place is the card's own width and a gap along.
+    expect(panel).toContain("transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels))))");
+    // Worked through: the slot is the workspace less its sides, the Structure button and the gap beside it.
+    const gap = pixels("--space-plan-edge");
+    const compact = 46 * 0.6 * pixels("--size-body");
+    const button = 130;
+    for (const window of [1920, 1440, 1280, 1024, 800, 560]) {
+      const room = window - gap * 2 - button - gap;
+      const width = Math.min(compact, (room - gap * 2) / 3);
+      expect(width * 3 + gap * 2).toBeLessThanOrEqual(room + 1e-9);
+      if (window >= 1920) expect(width).toBe(compact);
+      else expect(width).toBeGreaterThan(0);
+    }
+  });
+
+  it("slides a card to its new place, eased, and the pushed-out card off the window to the right, fading", () => {
+    expect(panel).toContain(
+      "transition: transform var(--duration-plan-panel) var(--ease-plan-panel), opacity var(--duration-plan-panel) var(--ease-plan-panel)",
+    );
+    expect(token("--duration-plan-panel")).toBe("240ms");
+    expect(token("--ease-plan-panel")).toMatch(/^cubic-bezier\(/);
+    const leaving = rule(PLAN, '.plan__panel[data-leaving="true"]');
+    expect(leaving).toContain(
+      "transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--size-plan-room-width)))",
+    );
+    expect(token("--size-plan-room-width")).toBe("100cqw");
+    expect(leaving).toContain("opacity: var(--opacity-plan-panel-gone)");
+    expect(token("--opacity-plan-panel-gone")).toBe("0");
+    expect(leaving).toContain("pointer-events: none");
+    // While dragged it follows the pointer at once, over the others; let go, it slides into its place.
+    const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
+    expect(dragging).toContain("transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--plan-drag-x)))");
+    expect(dragging).not.toMatch(/transition:[^;]*transform/);
+    expect(dragging).toContain("z-index: var(--layer-plan-panel-drag)");
+    expect(sheet(PLAN)).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.plan__panel \{\s*transition: none;/);
+  });
+
+  it("has a grip on its top edge, centred and faint, brighter under the pointer", () => {
+    const grip = rule(PLAN, ".plan__panel-grip");
+    expect(grip).toContain("justify-content: center");
+    expect(grip).toContain("margin-top: calc(var(--space-tight) * -1)");
+    expect(grip).toContain("color: var(--colour-plan-panel-grip)");
+    expect(grip).toContain("cursor: grab");
+    expect(token("--colour-plan-panel-grip")).toBe("var(--colour-faint)");
+    expect(rule(PLAN, ".plan__panel-grip:hover")).toContain("color: var(--colour-plan-panel-grip-hover)");
+    expect(token("--colour-plan-panel-grip-hover")).toBe("var(--colour-muted)");
+  });
+
+  it("draws the description a step quieter than the title", () => {
+    expect(rule(PLAN, ".plan__panel-title, .plan__description")).toContain("color: var(--colour-text)");
+    expect(rule(PLAN, ".plan__description")).toContain("color: var(--colour-plan-description)");
+    expect(token("--colour-plan-description")).toBe("var(--colour-muted)");
+    expect(rule(PLAN, ".plan__panel-title::placeholder, .plan__description::placeholder")).toContain("color: var(--colour-faint)");
   });
 
   it("has a title and description with no box at rest, a hairline under the pointer, and a firmer edge while typed in", () => {
@@ -450,6 +512,6 @@ describe("Plan's selected card, beside the Structure button", () => {
         expect(rule(PLAN, `.plan__${kind}[data-colour="${name}"]`)).toContain(`--card-tint: var(--colour-plan-${name})`);
       }
     }
-    expect(tokens.match(/--colour-plan-(?!field|dot|past|end|beat)[\w]+:/g)).toHaveLength(9);
+    expect(tokens.match(/--colour-plan-(?!field|dot|past|end|beat|description|panel)[\w]+:/g)).toHaveLength(9);
   });
 });
