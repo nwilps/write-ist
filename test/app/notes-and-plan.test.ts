@@ -953,6 +953,70 @@ describe("Plan", () => {
       expect(slot(into).querySelector("[data-leaving]")).toBeNull();
     });
 
+    /** A press on the grid where there is no card, at a square, as jsdom measures it (a square is 32 pixels). */
+    const pressGrid = (into: HTMLElement, cell: number, lane: number) => {
+      const grid = into.querySelector<HTMLElement>(".plan__grid")!;
+      const at = { bubbles: true, cancelable: true, button: 0, clientX: cell * 32 + 5, clientY: lane * 32 + 5 };
+      grid.dispatchEvent(Object.assign(new MouseEvent("pointerdown", at), { pointerId: 1 }));
+      grid.dispatchEvent(Object.assign(new MouseEvent("pointerup", at), { pointerId: 1 }));
+    };
+
+    it("leaves the open cards open when the empty grid is clicked: only the card lit on the grid is let go", async () => {
+      const into = await openPlan();
+      for (const id of ["c-1", "c-2", "c-3"]) selectCard(into, id);
+      const drawn = [...slot(into).querySelectorAll(".plan__panel")];
+      expect(cardOf(into, "c-3").dataset["selected"]).toBe("true");
+      pressGrid(into, 5, 0);
+      expect(places(into)).toEqual(["c-3", "c-2", "c-1"]);
+      expect([...slot(into).querySelectorAll(".plan__panel")]).toEqual(drawn);
+      expect(slot(into).querySelector("[data-leaving]")).toBeNull();
+      expect(into.querySelector(".plan__card[data-selected]")).toBeNull();
+    });
+
+    it("leaves the open cards open on Escape: the first lets go of the lit card, and a field's Escape only leaves the field", async () => {
+      const into = await openPlan();
+      for (const id of ["c-1", "c-2"]) selectCard(into, id);
+      const escape = () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      escape();
+      expect(places(into)).toEqual(["c-2", "c-1"]);
+      expect(into.querySelector(".plan__card[data-selected]")).toBeNull();
+      // Typing in an open card, Escape leaves the field for the grid; the card stays open, and Plan stays on screen.
+      const field = panelOf(into, "c-1").querySelector<HTMLTextAreaElement>(".plan__description")!;
+      field.focus();
+      const press = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+      field.dispatchEvent(press);
+      expect(press.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(into.querySelector(".plan__board"));
+      expect(places(into)).toEqual(["c-2", "c-1"]);
+      expect(selected(into)).toBe("Plan");
+    });
+
+    it("opens a card made on the grid in the first place, the open ones moved along, none dismissed", async () => {
+      const into = await openPlan();
+      for (const id of ["c-1", "c-2"]) selectCard(into, id);
+      const before = [...slot(into).querySelectorAll(".plan__panel")];
+      // A double press on an empty square makes a card there, and names it on the grid.
+      pressGrid(into, 5, 0);
+      pressGrid(into, 5, 0);
+      const title = into.querySelector<HTMLInputElement>(".plan__title-edit")!;
+      expect(title).not.toBeNull();
+      const made = places(into)[0]!;
+      expect(["c-1", "c-2", "c-3", "c-4"]).not.toContain(made);
+      expect(places(into)).toEqual([made, "c-2", "c-1"]);
+      // The cards that were open are the same cards, a place along.
+      for (const panel of before) expect(panel.isConnected).toBe(true);
+      expect(panelOf(into, "c-1").style.getPropertyValue("--plan-position")).toBe("2");
+      title.value = "The new one";
+      title.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      expect(places(into)).toEqual([made, "c-2", "c-1"]);
+      // With three open, a fourth made on the grid pushes the third out, as one opened does.
+      pressGrid(into, 8, 0);
+      pressGrid(into, 8, 0);
+      expect(places(into)).toHaveLength(3);
+      expect(places(into).slice(1)).toEqual([made, "c-2"]);
+      expect(panelOf(into, "c-1").dataset["leaving"]).toBe("true");
+    });
+
     it("closes a deleted card's place, the ones after it moving up", async () => {
       const into = await openPlan();
       for (const id of ["c-1", "c-2", "c-3"]) selectCard(into, id);
@@ -977,6 +1041,8 @@ describe("Plan", () => {
         grip.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: 0 }), { pointerId: 1 }));
       pointer("pointerdown", 100);
       expect(panel.dataset["dragging"]).toBe("true");
+      // Pressed and not yet moved, it already has its offset: lifted without one, it was drawn at the first place (round 2's snap).
+      expect(panel.style.getPropertyValue("--plan-drag-x")).toBe("0px");
       // Over the second place: the second card moves over into the first to show where it would go.
       pointer("pointermove", 100 + 316);
       expect(panel.style.getPropertyValue("--plan-drag-x")).toBe("316px");
@@ -998,6 +1064,27 @@ describe("Plan", () => {
       // The cards are only moved under the grid: the plan is unchanged.
       await closeProject();
       expect(readFileSync(join(opened.path, "plan.md"), "utf8")).toBe(FOUR);
+    });
+
+    it("holds the others still while a dragged card trembles at halfway between two places", async () => {
+      const into = await openPlan();
+      for (const id of ["c-3", "c-2", "c-1"]) selectCard(into, id);
+      for (const each of slot(into).querySelectorAll<HTMLElement>(".plan__panel")) each.getBoundingClientRect = () => ({ width: 300 }) as DOMRect;
+      const grip = panelOf(into, "c-3").querySelector<HTMLElement>(".plan__panel-grip")!;
+      const pointer = (type: string, x: number) =>
+        grip.dispatchEvent(Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: 0 }), { pointerId: 1 }));
+      const others = () => ["c-1", "c-2"].map((id) => panelOf(into, id).style.getPropertyValue("--plan-position"));
+      pointer("pointerdown", 1000);
+      // From the third place to halfway to the second (a place is 316 pixels), a few pixels either side, again and again.
+      for (let i = 0; i < 20; i++) {
+        pointer("pointermove", 1000 - 158 + (i % 2 === 0 ? -3 : 3));
+        expect(others()).toEqual(["0", "1"]);
+      }
+      // Clearly over the second place: the second card makes room.
+      pointer("pointermove", 1000 - 316);
+      expect(others()).toEqual(["0", "2"]);
+      pointer("pointerup", 1000 - 316);
+      expect(places(into)).toEqual(["c-1", "c-3", "c-2"]);
     });
   });
 

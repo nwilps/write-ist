@@ -274,17 +274,16 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
 
   /**
    * Select a card: lit on the grid and open under it — in the first place if
-   * it was not open, pushing the third out; where it is if it was. Nothing
-   * selected closes them all, as a press on the empty grid always has.
+   * it was not open, pushing the third out; where it is if it was. A new card
+   * made on the grid comes in the same way. Nothing closes the open cards but
+   * a fourth pushing one out, or deleting one: a press on the empty grid, or
+   * Escape, only lets go of the card lit on the grid (Noah, 2026-11-25).
    */
-  const select = (id: string | undefined): void => {
+  const select = (id: string): void => {
     mark(id);
-    if (id === undefined) open = [];
-    else {
-      const opened = openCard(open, id);
-      open = opened.open;
-      if (opened.out !== undefined) pushOut(opened.out);
-    }
+    const opened = openCard(open, id);
+    open = opened.open;
+    if (opened.out !== undefined) pushOut(opened.out);
     drawPanels();
   };
 
@@ -309,6 +308,12 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
    * An open card dragged by its top edge: it follows the pointer, and the
    * others move over to show where it would go in. Dropped, it is put in at
    * the place it is over — the others moved over, never swapped.
+   *
+   * **Nothing here may throw a card back to where it was** (Plan round 2).
+   * The press itself is the drag's first position, so the card is never drawn
+   * without its offset; and the place it is over changes only once it is
+   * clearly past halfway (`placeUnder`), so the others never turn back and
+   * forth while the pointer rests near the line.
    */
   const dragPanel = (id: string, event: PointerEvent): void => {
     const panel = panels.get(id);
@@ -321,20 +326,28 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     const step = panel.element.getBoundingClientRect().width + tokenPixels("--space-plan-panels", 16);
     const startX = event.clientX;
     const before = open;
+    let under = from;
     let order = open;
-    panel.element.dataset["dragging"] = "true";
     const move = (next: PointerEvent): void => {
       const dx = next.clientX - startX;
       panel.element.style.setProperty("--plan-drag-x", `${dx}px`);
-      order = moveCard(before, id, placeUnder(from, dx, step, before.length));
+      const now = placeUnder(from, dx, step, before.length, under);
+      if (now === under && order !== before) return;
+      under = now;
+      order = moveCard(before, id, under);
       order.forEach((each, at) => {
         if (each !== id) panels.get(each)?.element.style.setProperty("--plan-position", String(at));
       });
     };
+    // Its offset first, then lifted: lifted with no offset, it was drawn at the first place until the pointer moved.
+    move(event);
+    panel.element.dataset["dragging"] = "true";
     const up = (): void => {
       handle.removeEventListener("pointermove", move);
       handle.removeEventListener("pointerup", up);
       handle.removeEventListener("pointercancel", up);
+      handle.removeEventListener("lostpointercapture", up);
+      if (panel.element.dataset["dragging"] === undefined) return;
       delete panel.element.dataset["dragging"];
       panel.element.style.setProperty("--plan-drag-x", "");
       // Only the cards still open: one may have been closed under the drag.
@@ -344,6 +357,8 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up);
     handle.addEventListener("pointercancel", up);
+    // Let go outside the window, the drag still ends: the card is never left following nothing.
+    handle.addEventListener("lostpointercapture", up);
   };
 
   const changed = (): void => {
@@ -397,7 +412,10 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     editTitle(id);
   };
 
-  /** A drag on the empty grid moves the view along it; a press without one clears the selection. */
+  /**
+   * A drag on the empty grid moves the view along it; a press without one lets
+   * go of the card lit on the grid, and leaves the open cards open.
+   */
   const pan = (event: PointerEvent): void => {
     const startX = event.clientX;
     const startLeft = board.scrollLeft;
@@ -414,7 +432,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       grid.removeEventListener("pointermove", move);
       grid.removeEventListener("pointerup", up);
       grid.removeEventListener("pointercancel", up);
-      if (!moved) select(undefined);
+      if (!moved) mark(undefined);
     };
     grid.addEventListener("pointermove", move);
     grid.addEventListener("pointerup", up);
@@ -543,7 +561,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     if (session === undefined) return;
     const card = (event.target as HTMLElement).closest<HTMLElement>(".plan__card");
     if (card !== null) {
-      select(card.dataset["id"]);
+      select(card.dataset["id"]!);
       openMenu(cardMenu(card.dataset["id"]!), event.clientX, event.clientY, false);
       return;
     }
@@ -648,10 +666,11 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       return;
     }
     if (event.key === "Escape") {
-      // Let go of the card first; Escape again goes Home, as everywhere.
+      // Let go of the card lit on the grid, as a press on the empty grid does,
+      // and leave the open cards open; Escape again goes Home, as everywhere.
       event.preventDefault();
       event.stopPropagation();
-      select(undefined);
+      mark(undefined);
       return;
     }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -848,8 +867,9 @@ function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
   description.setAttribute("aria-label", "Card description");
   description.spellcheck = false;
   // The description is as tall as what is written in it: an unseen copy of
-  // its text beside it sizes them both, and the box round them scrolls once
-  // the card can grow no further.
+  // its text beside it sizes the box round them both. Once the card can grow
+  // no further the box stops growing, and **the field itself scrolls**, the
+  // one scroller for the wheel and the caret alike (Plan round 2).
   const descriptionBox = element("div", { className: "plan__description-box" }, [description]);
   const mirror = (): void => void (descriptionBox.dataset["value"] = description.value);
   const panel = element("section", { className: "plan__panel" }, [
@@ -886,8 +906,6 @@ function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
   }
   description.addEventListener("input", () => {
     mirror();
-    // Writing at the end of a description taller than the card keeps the end in sight.
-    if (description.selectionEnd === description.value.length) descriptionBox.scrollTop = descriptionBox.scrollHeight;
     actions.description(id, description.value);
   });
 

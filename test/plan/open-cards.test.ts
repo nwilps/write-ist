@@ -4,7 +4,7 @@
  * already open stays put; a dragged one is inserted, never swapped.
  */
 import { describe, expect, it } from "vitest";
-import { MOST_OPEN_CARDS, closeCard, moveCard, openCard, placeUnder } from "../../src/plan/open-cards.ts";
+import { MOST_OPEN_CARDS, PLACE_HOLD, closeCard, moveCard, openCard, placeUnder } from "../../src/plan/open-cards.ts";
 
 describe("open Plan cards", () => {
   it("is three at the most", () => {
@@ -47,16 +47,38 @@ describe("open Plan cards", () => {
     expect(moveCard(["a", "b"], "z", 0)).toEqual(["a", "b"]);
   });
 
-  it("finds the nearest place under a dragged card", () => {
+  it("finds the place under a dragged card: the one it is over, once it is clearly past halfway", () => {
+    expect(PLACE_HOLD).toBeGreaterThan(0);
     expect(placeUnder(0, 0, 300, 3)).toBe(0);
     expect(placeUnder(0, 140, 300, 3)).toBe(0);
-    expect(placeUnder(0, 160, 300, 3)).toBe(1);
+    // Just past halfway is not yet the next place (round 1 said 1 here, and jittered: see below)…
+    expect(placeUnder(0, 160, 300, 3)).toBe(0);
+    // …clearly past it is.
+    expect(placeUnder(0, 300 * (0.5 + PLACE_HOLD) + 1, 300, 3)).toBe(1);
     expect(placeUnder(0, 620, 300, 3)).toBe(2);
     expect(placeUnder(0, 2000, 300, 3)).toBe(2);
     expect(placeUnder(2, -2000, 300, 3)).toBe(0);
     expect(placeUnder(1, 400, 300, 2)).toBe(1);
     // Nothing to measure by: where it was.
     expect(placeUnder(1, 400, 0, 3)).toBe(1);
+  });
+
+  it("does not flip between two places while the pointer trembles at halfway (the round 2 jitter)", () => {
+    // Dragged from the third place to halfway between the second and the third, a hand's tremor either side.
+    let now = 2;
+    const seen = new Set<number>();
+    for (let i = 0; i < 40; i++) {
+      now = placeUnder(2, -150 + (i % 2 === 0 ? -3 : 3), 300, 3, now);
+      seen.add(now);
+    }
+    expect([...seen]).toEqual([2]);
+    // Clearly over the second place, it is the second; trembling back over halfway, it stays there.
+    now = placeUnder(2, -300, 300, 3, now);
+    expect(now).toBe(1);
+    for (const dx of [-153, -147, -153, -147]) now = placeUnder(2, dx, 300, 3, now);
+    expect(now).toBe(1);
+    // Taken clearly back, it is the third again.
+    expect(placeUnder(2, -40, 300, 3, now)).toBe(2);
   });
 
   it("does not change the list it is given", () => {

@@ -36,10 +36,24 @@ export function moveCard(open: readonly string[], id: string, to: number): strin
 }
 
 /**
- * Which place a card dragged from place `from` by `dx` pixels is over, when
- * the places are `step` pixels apart and `count` are open: the nearest.
+ * How far past halfway to the next place, as a share of a place, a dragged
+ * card must go before that place is the one it is over. Without it, a pointer
+ * resting near halfway — as a hand does, slowing to drop — flipped the place
+ * back and forth with every pixel of tremor, and the other cards started for
+ * one place and turned back for the other, over and over: the jitter Noah saw
+ * (2026-11-25, Plan round 2).
  */
-export function placeUnder(from: number, dx: number, step: number, count: number): number {
+export const PLACE_HOLD = 0.2;
+
+/**
+ * Which place a card dragged from place `from` by `dx` pixels is over, when
+ * the places are `step` pixels apart and `count` are open. It stays `now`, the
+ * place it was last over (where it started, unless said), until it is
+ * `PLACE_HOLD` past halfway to another; then it is the nearest.
+ */
+export function placeUnder(from: number, dx: number, step: number, count: number, now: number = from): number {
   if (!(step > 0) || count <= 0) return from;
-  return Math.max(0, Math.min(count - 1, Math.round(from + dx / step)));
+  const at = from + dx / step;
+  if (Math.abs(at - now) < 0.5 + PLACE_HOLD) return Math.max(0, Math.min(count - 1, now));
+  return Math.max(0, Math.min(count - 1, Math.round(at)));
 }

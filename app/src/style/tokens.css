@@ -738,6 +738,13 @@
   /** How far the pushed-out card slides: the width of the desk, so it is off the window. */
   --size-plan-room-width: 100cqw;
   --opacity-plan-panel-gone: 0;
+  /**
+   * How far an open card is from its place when it is not being dragged:
+   * nowhere. Its drag offset rests here, so the rule that places it always has
+   * one — without it, a card pressed on its grip was drawn at the first place
+   * until the pointer moved (Plan round 2).
+   */
+  --size-plan-panel-still: 0px;
   /** A card being dragged by its top edge is drawn over the others. */
   --layer-plan-panel-drag: 1;
   /**

@@ -384,17 +384,32 @@ describe("Plan's open cards, beside the Structure button", () => {
     expect(box).toContain("display: grid");
     expect(box).toContain("flex: 0 1 auto");
     expect(box).toContain("min-height: 0");
-    expect(box).toContain("overflow-y: auto");
-    expect(box).toContain("scrollbar-width: none");
-    expect(rule(PLAN, ".plan__description-box::-webkit-scrollbar")).toContain("display: none");
     const shared = rule(PLAN, ".plan__description, .plan__description-box::after");
     expect(shared).toContain("grid-area: 1 / 1");
     expect(shared).toContain("min-height: var(--size-plan-description)");
     expect(shared).toContain("white-space: pre-wrap");
     expect(rule(PLAN, ".plan__description-box::after")).toContain('content: attr(data-value) " "');
     expect(rule(PLAN, ".plan__description-box::after")).toContain("visibility: hidden");
-    expect(rule(PLAN, ".plan__description")).toContain("overflow: hidden");
     expect(rule(PLAN, ".plan__description")).toContain("resize: none");
+  });
+
+  it("scrolls the description in the field itself, the one scroller the wheel and the caret share, to its start and its end (round 2)", () => {
+    // In round 1 the box scrolled, with the field shrunk to the visible height inside it: the wheel
+    // slid the field away over blank room, and the caret scrolled the field where the wheel never reached.
+    const box = rule(PLAN, ".plan__description-box");
+    // The box only clips; its one row gives way to it, so the field is the visible height and holds the rest.
+    expect(box).toContain("grid-template-rows: minmax(0, 1fr)");
+    expect(box).toContain("overflow: clip");
+    expect(box).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+    const field = rule(PLAN, ".plan__description");
+    expect(field).toContain("height: 100%");
+    expect(field).toContain("overflow-y: auto");
+    expect(field).not.toMatch(/overflow(-y)?:\s*hidden/);
+    // No scrollbar drawn.
+    expect(field).toContain("scrollbar-width: none");
+    expect(rule(PLAN, ".plan__description::-webkit-scrollbar")).toContain("display: none");
+    // Nothing in code scrolls the box behind the field's back.
+    expect(readFileSync(join(app, "workspaces", "plan", "plan.ts"), "utf8")).not.toMatch(/descriptionBox\.scroll/);
   });
 
   it("is compact, and wears the card's own tinted face and edge", () => {
@@ -442,6 +457,9 @@ describe("Plan's open cards, beside the Structure button", () => {
     // While dragged it follows the pointer at once, over the others; let go, it slides into its place.
     const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
     expect(dragging).toContain("transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--plan-drag-x)))");
+    // It always has an offset, so that rule is never left without one: nothing at rest (round 2's snap to the first place).
+    expect(panel).toContain("--plan-drag-x: var(--size-plan-panel-still)");
+    expect(token("--size-plan-panel-still")).toBe("0px");
     expect(dragging).not.toMatch(/transition:[^;]*transform/);
     expect(dragging).toContain("z-index: var(--layer-plan-panel-drag)");
     expect(sheet(PLAN)).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.plan__panel \{\s*transition: none;/);
