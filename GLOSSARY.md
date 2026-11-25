@@ -322,8 +322,16 @@ _Avoid_: app, chrome, frame, layout
 A full screen the writer switches to, one at a time. The Editor, where the in-progress
 draft is written, is a workspace like any other. Notes, Plan, Log, Outline and Characters
 are candidates rather than a fixed set: the set is open, and new workspaces are added as
-they prove useful. Each declares itself to the shell through a manifest.
+they prove useful. Each declares itself to the shell through a manifest, and is given a
+*toolbox*.
 _Avoid_: panel, pane, tab, tool, sidebar, view
+
+**Toolbox**:
+The one versioned object a workspace is given when it is mounted, through which it reaches
+everything the application already does — its own files, the writer's place, spellcheck, the
+pills, hotkeys, settings, menus and dialogs — and nothing else (ADR-0045). A public contract: calls
+are added freely and removed or renamed only by a dated amendment. `docs/WORKSPACES.md` is the guide.
+_Avoid_: API, SDK, context, plugin host, services
 
 **Editor**:
 The workspace the in-progress draft is written in, running the project's surface. A

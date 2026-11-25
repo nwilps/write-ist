@@ -58,6 +58,14 @@ off never touches its files (`plan.md`, the `notes/` folder).
 > (`workspace-places.txt`), never in the bundle (ADR-0009, ADR-0012). Turning Notes off never
 > touches the folder.
 
+> **Amended 2026-11-25 (ADR-0045).** A workspace's files are those its manifest declares, and its
+> toolbox reaches those and no others. Notes declares `notes/` **and the old `notes.md`**, which it
+> moves into the folder once; Plan declares `plan.md`. A delete removes one file directly in a
+> declared folder (ADR-0044, amended the same day), whatever its extension. **`details.md` may also
+> hold a workspace's own per-project settings**, a line each, `Setting <workspace>.<setting>: yes`
+> or `no`, after the others — none today, since no workspace declares one. A line for a workspace
+> this version does not offer is kept as it is.
+
 **Every other sidecar file is written in the same Pandoc Markdown subset the prose surface uses**
 (ADR-0023), with each record as a section: the writer's words in the body, the application's
 bookkeeping in a short labelled header beneath the heading.
