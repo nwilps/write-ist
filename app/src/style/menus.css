@@ -73,7 +73,8 @@
   outline: none;
 }
 
-.drop-menu__item:disabled {
+.drop-menu__item:disabled,
+.drop-menu__item[aria-disabled="true"] {
   color: var(--colour-faint);
 }
 
@@ -94,6 +95,20 @@
   background: var(--colour-border);
 }
 
+/*
+ * Greyed but reachable, because it keeps a second action (a closed note in
+ * Notes' folder menu with five tabs open): the pointer does not light it, and
+ * focus shows only as the row's ground, the label staying faint.
+ */
+.drop-menu__item[aria-disabled="true"]:hover {
+  background: none;
+}
+
+.drop-menu__item[aria-disabled="true"]:hover,
+.drop-menu__item[aria-disabled="true"]:focus {
+  color: var(--colour-faint);
+}
+
 /* An item that is on or off shows a tick while it is on. */
 .drop-menu__check {
   width: var(--size-icon);
@@ -104,6 +119,31 @@
 
 .drop-menu__check[hidden] {
   display: none;
+}
+
+/*
+ * An item's second action, at its end (Delete beside a note's name): faint
+ * until the pointer is on it, then lit, and in the alarm colour when it destroys.
+ */
+.drop-menu__aside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-row);
+  height: var(--size-row);
+  margin-left: auto;
+  margin-right: calc(var(--space-row-label) / -2);
+  border-radius: var(--radius-slight);
+  color: var(--colour-faint);
+}
+
+.drop-menu__aside:hover {
+  background: var(--colour-raised);
+  color: var(--colour-text);
+}
+
+.drop-menu__aside--alarm:hover {
+  color: var(--colour-alarm);
 }
 
 /*

@@ -1,0 +1,303 @@
+/*
+ * Notes: plain-text notes in a window floating on the desk, with a bar of
+ * pills above it (`notes.ts`). **Every value here is a token** (ADR-0030).
+ *
+ * The window is shaped like a laptop's screen: seven tenths of the workspace's
+ * width and 16:9, centred. It never grows with a note — a long one scrolls
+ * inside it, with no scrollbar drawn — and on a short window it shrinks, still
+ * 16:9, to stay clear of the workspace bar and the pills. It wears what every
+ * floating surface on the desk wears: the raised colour, a border, the float
+ * corner and shadow. The writing is in the interface's face, not the
+ * manuscript's: Courier Prime is the screenplay's and nothing else's.
+ *
+ * The bar above it is **never wider than the window**: the folder pill at its
+ * left, then the tabs — every one the same width — and + right beside the
+ * last of them, so + moves as tabs open and close. When the tabs are more than
+ * the window holds, their strip scrolls sideways, with no scrollbar, and +
+ * stays at the window's edge. Between every pill, and between the bar and the
+ * window, is the bottom pills' gap (`--space-pill-gap`).
+ */
+
+/*
+ * The desk fills the workspace exactly, and is the container the window is
+ * measured against: its content never sizes it, so the workspace never scrolls.
+ */
+.notes-desk {
+  flex: 1 0 auto;
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The bar and the notepad under it, one width: the notepad's. */
+.notes-window {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-pill-gap);
+  flex: none;
+  min-width: 0;
+  /* As wide as its share of the desk, unless the desk is too short for 16:9 at
+     that width with the bar above: then as wide as the height left allows. */
+  width: min(
+    calc(var(--size-notes-room-width) * var(--fraction-notes-width)),
+    calc(
+      (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) *
+        var(--ratio-notes)
+    )
+  );
+}
+
+/* --- The bar ------------------------------------------------------------------ */
+
+.notes-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-pill-gap);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--size-notes-bar);
+}
+
+/* The folder and +: small square pills, as the save pill is. */
+.notes-bar__pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size-notes-bar);
+  height: var(--size-notes-bar);
+  padding: 0;
+  box-sizing: border-box;
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-muted);
+  cursor: default;
+}
+
+.notes-bar__pill:hover:not(:disabled),
+.notes-bar__pill:focus-visible,
+.notes-bar__pill[aria-expanded="true"] {
+  color: var(--colour-text);
+  outline: none;
+}
+
+/* + with five tabs open: there, greyed, and doing nothing until one closes. */
+.notes-bar__pill:disabled {
+  opacity: var(--opacity-unavailable);
+}
+
+.notes-bar__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+/*
+ * The tabs: a row as wide as its tabs, so + sits right after the last, which
+ * gives way only when the window is too narrow for them all — then it scrolls
+ * sideways and draws no scrollbar, a gap short of the folder and of +, so a
+ * tab cut off by the edge never touches them. With no tab open it is not
+ * drawn at all, and + sits beside the folder. Its padding above and below
+ * leaves room for the pills' shadows, which a scrolling box would otherwise
+ * cut off, and the same margin taken back keeps the bar its height; the
+ * padding is not the strip's to press on, so it passes the pointer through.
+ */
+.notes-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-pill-gap);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: var(--space-notes-tab-shadow) 0;
+  margin: calc(var(--space-notes-tab-shadow) * -1) 0;
+  pointer-events: none;
+}
+
+.notes-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.notes-tabs:empty {
+  display: none;
+}
+
+/*
+ * A tab is always the same width. Its name is centred on the whole tab, not
+ * on the room beside the ×: the padding on the left is the × and its gap, so
+ * the two sides match.
+ */
+.notes-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-hair);
+  flex: none;
+  width: var(--measure-notes-tab);
+  height: var(--size-notes-bar);
+  box-sizing: border-box;
+  padding: 0 var(--space-hair) 0 calc(var(--space-hair) * 2 + var(--size-notes-tab-close));
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-muted);
+  font-size: var(--size-label);
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: default;
+  outline: none;
+}
+
+.notes-tab:hover,
+.notes-tab:focus-visible {
+  color: var(--colour-text);
+}
+
+/* The note in front: the accent, as the workspace bar's tab in front is. */
+.notes-tab[aria-selected="true"] {
+  color: var(--colour-accent);
+}
+
+.notes-tab__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notes-tab__rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--rule-thin) solid var(--colour-accent);
+  color: var(--colour-text);
+  caret-color: var(--colour-accent);
+  font: inherit;
+  outline: none;
+}
+
+.notes-tab__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size-notes-tab-close);
+  height: var(--size-notes-tab-close);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-round);
+  color: var(--colour-faint);
+  cursor: default;
+}
+
+.notes-tab__close:hover {
+  background: var(--colour-overlay);
+  color: var(--colour-text);
+}
+
+.notes-tab__close .notes-bar__icon {
+  width: var(--size-chip-icon);
+  height: var(--size-chip-icon);
+}
+
+/* --- The notepad --------------------------------------------------------------- */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: var(--ratio-notes);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: var(--space-notes-y) var(--space-notes-x);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+.notes::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * The shell's fades belong to the paper. Notes has none under them, so with
+ * the moving background on they would be bands of paper colour over the desk.
+ */
+.shell:has(> .shell__view > .workspace[data-workspace="notes"]:not([hidden])) > .paper-fade {
+  display: none;
+}
+
+.notes__reading {
+  margin: 0;
+  color: var(--colour-faint);
+}
+
+/* No note open: said quietly, in the middle of the window. */
+.notes__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-tight);
+  flex: 1 0 auto;
+  color: var(--colour-faint);
+  font-size: var(--size-label);
+  text-align: center;
+}
+
+.notes__empty[hidden] {
+  display: none;
+}
+
+.notes__empty p {
+  margin: 0;
+}
+
+.notes__empty-lead {
+  color: var(--colour-muted);
+  font-size: var(--size-body);
+}
+
+.notes__text {
+  flex: 1 0 auto;
+  font-family: var(--face-interface);
+  font-size: var(--size-notes);
+  line-height: var(--leading-body);
+  color: var(--colour-text);
+  caret-color: var(--colour-accent);
+  /* The writer's spaces and tabs are drawn as typed, and long lines wrap. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: var(--count-notes-tab);
+  outline: none;
+}
+
+.notes__text[hidden] {
+  display: none;
+}
+
+.notes__text ::selection {
+  background: color-mix(in srgb, var(--colour-accent) 30%, transparent);
+}
+
+/* Spellcheck's line, as on the paper (`spellcheck.css`). */
+.notes__text .spell-error {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--colour-misspelling);
+}

@@ -1,0 +1,608 @@
+/*
+ * Plan: cards on a grid (`plan.ts`). **Every value here is a token**
+ * (ADR-0030), and the look is Write-ist's — the raised panels, corners and
+ * two-layer shadows of the desk — not the prototype's.
+ *
+ * Where a card or a beat goes is said by its element in whole cells and lanes
+ * (`--card-cell`, `--card-lane`, `--card-cells`, `--beat-cell`, `--beat-row`),
+ * and the stylesheet turns those into room by the cell's size. No length is
+ * set from code.
+ */
+
+/*
+ * The grid panel is the same room from the workspace bar above it as from the
+ * window's left and right edges (`--space-plan-edge`), and the Structure
+ * button and the selected card are as far under it. Plan's host is held to
+ * that room at its sides.
+ */
+.workspace[data-workspace="plan"] {
+  padding: 0 var(--space-plan-edge);
+}
+
+/*
+ * The desk fills the workspace exactly, so the card under the grid can grow
+ * down to the bottom pills' margin and no further: its content never sizes it.
+ */
+.plan-desk {
+  flex: 1 0 auto;
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-plan-edge);
+  padding: var(--space-plan-top) 0 var(--space-desk-edge);
+  box-sizing: border-box;
+}
+
+.plan__reading {
+  margin: 0 auto;
+  color: var(--colour-faint);
+}
+
+/* --- The board: the grid in a raised panel, scrolling along -------------- */
+
+.plan__board {
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  outline: none;
+}
+
+.plan__board:focus-visible {
+  border-color: var(--colour-border-strong);
+}
+
+.plan__surface {
+  position: relative;
+  /* Its layers (dots, lines, cards) are its own: none is ever drawn over the
+     workspace bar or the pills when the board passes under them. */
+  isolation: isolate;
+  width: calc(var(--plan-columns) * var(--size-plan-cell));
+  font-size: var(--size-hint);
+  color: var(--colour-faint);
+  user-select: none;
+}
+
+.plan__ruler {
+  position: relative;
+  height: var(--size-plan-ruler);
+}
+
+.plan__tick {
+  position: absolute;
+  bottom: var(--space-hair);
+  left: calc(var(--tick) * var(--size-plan-cell));
+  padding-left: var(--space-hair);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__grid {
+  position: relative;
+  height: calc(var(--plan-lanes) * var(--size-plan-cell));
+  border-radius: var(--radius-slight);
+  cursor: default;
+}
+
+/*
+ * The grid is a dot at each corner of its squares, drawn once, on the lowest
+ * layer: under the lines and under every card.
+ *
+ * **Each column of dots is a box of its own**, a dot wide and centred on a
+ * square's edge, filled with a dot every square down. A beat line and the end
+ * of the target are boxes over exactly the same span (`--size-plan-line`), so
+ * the browser rounds a line and the dots under it to the same device pixels at
+ * any display scale and wherever the board sits. Drawn as one tiled image
+ * across the grid, the dots were resampled to a slightly different width and
+ * place at 1.25×, and a line could never sit dead centre on them (#164).
+ *
+ * Opaque, so a dot is the same dot over the board and over the squares past
+ * the target. Nothing here changes while a card moves: the grid is drawn again
+ * only once it is dropped.
+ */
+.plan__dots {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-plan-dots);
+  pointer-events: none;
+}
+
+.plan__dot-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--dot-cell) * var(--size-plan-cell) - var(--size-plan-dot) / 2);
+  width: var(--size-plan-dot);
+  background-image: var(--image-plan-dot);
+  background-size: 100% var(--size-plan-cell);
+  background-position: 0 calc(var(--size-plan-dot) / -2);
+}
+
+/* Past the target: still room to put a card, drawn as beyond the whole. */
+.plan__past {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--plan-length) * var(--size-plan-cell));
+  right: 0;
+  background: var(--colour-plan-past);
+  pointer-events: none;
+}
+
+/*
+ * The end of the target: a line over the dots, under the cards. Like every
+ * line on the board it spans exactly the column of dots on its edge — half a
+ * dot either side — so it sits dead centre on them at any display scale.
+ */
+.plan__end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--plan-length) * var(--size-plan-cell) - var(--size-plan-line) / 2);
+  width: var(--size-plan-line);
+  z-index: var(--layer-plan-lines);
+  background: var(--colour-plan-end);
+  pointer-events: none;
+}
+
+/* --- Cards ------------------------------------------------------------------ */
+
+.plan__card,
+.plan__title-edit {
+  position: absolute;
+  box-sizing: border-box;
+  left: calc(var(--card-cell) * var(--size-plan-cell) + var(--space-plan-card));
+  top: calc(var(--card-lane) * var(--size-plan-cell) + var(--space-plan-card));
+  width: calc(var(--card-cells) * var(--size-plan-cell) - var(--space-plan-card) * 2);
+  height: calc(var(--size-plan-cell) - var(--space-plan-card) * 2);
+}
+
+.plan__card {
+  --card-tint: var(--colour-plan-plain);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-tight);
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
+  border: var(--rule-thin) solid color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
+  border-radius: var(--radius-slight);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-text);
+  font-size: var(--size-label);
+  cursor: grab;
+  /* Over the dots and the lines: nothing of the grid is ever drawn on a card. */
+  z-index: var(--layer-plan-cards);
+}
+
+.plan__card[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__card[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__card[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__card[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__card[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__card[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__card[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
+.plan__card[data-colour="green"] { --card-tint: var(--colour-plan-green); }
+
+.plan__card[data-selected="true"] {
+  border-color: var(--colour-accent);
+}
+
+/*
+ * Dragged, it is lifted over the other cards, and stays opaque: drawn
+ * see-through, it showed the grid through itself, so the squares under it
+ * changed as it passed. The dots under it are not drawn again as it moves.
+ */
+.plan__card[data-dragging="true"] {
+  z-index: var(--layer-plan-drag);
+  cursor: grabbing;
+}
+
+.plan__card[data-invalid="true"] {
+  border-color: var(--colour-alarm);
+}
+
+.plan__card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The right edge lengthens the card. */
+.plan__card-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--size-plan-grip);
+  cursor: ew-resize;
+}
+
+.plan__title-edit {
+  z-index: var(--layer-plan-drag);
+  min-width: calc(var(--size-plan-cell) * var(--count-plan-title-cells));
+  padding: 0 var(--space-tight);
+  background: var(--colour-base);
+  border: var(--rule-thin) solid var(--colour-accent);
+  border-radius: var(--radius-slight);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: var(--size-label);
+  outline: none;
+}
+
+/* --- Structure beats, band under band ---------------------------------------- */
+
+.plan__beats {
+  position: relative;
+  height: calc(var(--plan-beat-rows) * var(--size-plan-beat-row) + var(--space-snug));
+}
+
+/*
+ * A beat's line runs up from its label through the grid, on a whole square's
+ * edge (`layoutBeats` rounds every beat to one), spanning exactly the column
+ * of dots there, as the end of the target does. Over the dots, under the cards.
+ */
+.plan__beat {
+  position: absolute;
+  z-index: var(--layer-plan-lines);
+  bottom: calc(100% - var(--space-snug) - var(--beat-row) * var(--size-plan-beat-row));
+  left: calc(var(--beat-cell) * var(--size-plan-cell) - var(--size-plan-line) / 2);
+  width: 0;
+  height: calc(var(--plan-lanes) * var(--size-plan-cell) + var(--space-snug) + var(--beat-row) * var(--size-plan-beat-row));
+  border-left: var(--size-plan-line) dashed var(--colour-plan-beat);
+  pointer-events: none;
+}
+
+.plan__beat-label {
+  position: absolute;
+  top: calc(var(--space-snug) + var(--beat-row) * var(--size-plan-beat-row));
+  left: calc(var(--beat-cell) * var(--size-plan-cell));
+  display: flex;
+  gap: var(--space-tight);
+  height: calc(var(--size-plan-beat-row) - var(--space-hair));
+  align-items: center;
+  padding: 0 var(--space-tight);
+  white-space: nowrap;
+  color: var(--colour-muted);
+}
+
+.plan__beat-label--span {
+  box-sizing: border-box;
+  width: calc(var(--beat-cells) * var(--size-plan-cell));
+  overflow: hidden;
+  background: var(--colour-plan-past);
+  border-radius: var(--radius-slight);
+}
+
+.plan__beat-page {
+  color: var(--colour-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Under the board ---------------------------------------------------------- */
+
+/*
+ * The Structure button, and the selected card right beside it: as far apart
+ * as the button is from the window's edge, and both as far under the grid.
+ * The row runs down to the desk's foot, which is the bottom pills' margin
+ * from the window's: the card may grow that far, and no further.
+ */
+.plan__under {
+  display: flex;
+  gap: var(--space-plan-edge);
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.plan__controls {
+  display: flex;
+  flex: none;
+  align-self: flex-start;
+  gap: var(--space-snug);
+}
+
+/* Where the card hangs: as tall as the row, so the card's room is the row's. */
+.plan__card-slot {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.plan__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-pill);
+  padding: 0 var(--space-roomy);
+  background: var(--colour-raised);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  color: var(--colour-muted);
+  font: inherit;
+  font-size: var(--size-label);
+  cursor: default;
+}
+
+.plan__control:hover,
+.plan__control:focus-visible {
+  color: var(--colour-text);
+  outline: none;
+}
+
+.plan__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+/*
+ * The selected card, larger, to write on: the same tinted face and edge as the
+ * card on the grid, a little rounder, and compact. Its title and description
+ * are typed straight onto it: at rest they are the card's own text, with no
+ * box round them; a pointer over one gives it a faint tint and hairline, and
+ * while it is being typed in it is a shade deeper with a firmer edge. It is
+ * as tall as what is written on it, up to the row's height; past that the
+ * description scrolls inside it.
+ */
+.plan__panel {
+  --card-tint: var(--colour-plan-plain);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  width: min(var(--measure-plan-panel), 100%);
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: var(--space-tight);
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
+  border: var(--rule-thin) solid color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
+  border-radius: var(--radius-round);
+  box-shadow: var(--shadow-float);
+}
+
+.plan__panel[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__panel[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__panel[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__panel[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__panel[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__panel[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__panel[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
+.plan__panel[data-colour="green"] { --card-tint: var(--colour-plan-green); }
+
+.plan__panel[hidden] {
+  display: none;
+}
+
+.plan__panel-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/*
+ * Along the foot: the colour picker at the left, the card's pages in the
+ * middle of the card, and Delete at the right. Icons and figures, no words.
+ */
+.plan__panel-foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex: none;
+  padding: var(--space-hair) var(--space-tight) 0;
+}
+
+.plan__panel-title,
+.plan__description-box {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  border: var(--rule-thin) solid transparent;
+  border-radius: var(--radius-slight);
+  transition:
+    background-color var(--duration-quick) ease-out,
+    border-color var(--duration-quick) ease-out;
+}
+
+.plan__panel-title,
+.plan__description {
+  padding: var(--space-hair) var(--space-tight);
+  color: var(--colour-text);
+  caret-color: var(--colour-accent);
+  font: inherit;
+  outline: none;
+  cursor: text;
+}
+
+.plan__panel-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--size-body);
+}
+
+/*
+ * The description, and an unseen copy of its text, share one cell: the box is
+ * as tall as what is written (three lines at the least), and the field fills
+ * it. Once the card is as tall as it may be, the box gives way and scrolls,
+ * with no scrollbar drawn.
+ */
+.plan__description-box {
+  display: grid;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.plan__description-box::-webkit-scrollbar {
+  display: none;
+}
+
+.plan__description,
+.plan__description-box::after {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  min-height: var(--size-plan-description);
+  margin: 0;
+  padding: var(--space-hair) var(--space-tight);
+  border: 0;
+  font: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.plan__description-box::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+}
+
+.plan__description {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+  resize: none;
+}
+
+.plan__panel-title:hover,
+.plan__description-box:hover {
+  background: var(--colour-plan-field-hover);
+  border-color: var(--colour-plan-field-edge);
+}
+
+.plan__panel-title:focus,
+.plan__description-box:focus-within {
+  background: var(--colour-plan-field-focus);
+  border-color: color-mix(in srgb, var(--card-tint) var(--mix-plan-card-edge), var(--colour-border-strong));
+}
+
+.plan__panel-title::placeholder,
+.plan__description::placeholder {
+  color: var(--colour-faint);
+  opacity: 1;
+}
+
+/*
+ * The colour picker: the palette icon, and over the card when it is open, the
+ * nine colours three by three, in a small panel that wears the menus' look.
+ */
+.plan__palette {
+  position: relative;
+  display: flex;
+  justify-self: start;
+}
+
+.plan__palette-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-tight));
+  left: 0;
+  z-index: var(--layer-menu);
+  display: grid;
+  grid-template-columns: repeat(var(--count-plan-palette-columns), var(--size-plan-swatch));
+  gap: var(--space-snug);
+  padding: var(--space-snug);
+  background: var(--colour-raised);
+  border: var(--rule-menu) solid var(--colour-base);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+}
+
+.plan__palette-menu[hidden] {
+  display: none;
+}
+
+.plan__swatch {
+  --card-tint: var(--colour-plan-plain);
+  width: var(--size-plan-swatch);
+  height: var(--size-plan-swatch);
+  padding: 0;
+  background: color-mix(in srgb, var(--card-tint) var(--mix-plan-swatch), var(--colour-overlay));
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-round);
+  cursor: default;
+}
+
+.plan__swatch[data-colour="yellow"] { --card-tint: var(--colour-plan-yellow); }
+.plan__swatch[data-colour="orange"] { --card-tint: var(--colour-plan-orange); }
+.plan__swatch[data-colour="red"] { --card-tint: var(--colour-plan-red); }
+.plan__swatch[data-colour="purple"] { --card-tint: var(--colour-plan-purple); }
+.plan__swatch[data-colour="blue"] { --card-tint: var(--colour-plan-blue); }
+.plan__swatch[data-colour="sand"] { --card-tint: var(--colour-plan-sand); }
+.plan__swatch[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
+.plan__swatch[data-colour="green"] { --card-tint: var(--colour-plan-green); }
+
+.plan__swatch[aria-checked="true"] {
+  border-color: var(--colour-accent);
+  box-shadow: 0 0 0 var(--rule-thin) var(--colour-accent);
+}
+
+.plan__swatch:hover,
+.plan__swatch:focus-visible {
+  outline: var(--focus-width) solid var(--colour-plan-field-edge);
+  outline-offset: var(--focus-offset);
+}
+
+.plan__stepper {
+  display: flex;
+  align-items: center;
+  justify-self: center;
+  gap: var(--space-hair);
+  color: var(--colour-muted);
+  font-size: var(--size-hint);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__step,
+.plan__icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-plan-step);
+  height: var(--size-plan-step);
+  padding: 0;
+  background: transparent;
+  border: var(--rule-thin) solid transparent;
+  border-radius: var(--radius-slight);
+  color: var(--colour-muted);
+  font: inherit;
+  font-size: var(--size-hint);
+  cursor: default;
+}
+
+.plan__step {
+  color: var(--colour-text);
+}
+
+.plan__delete {
+  justify-self: end;
+}
+
+.plan__step:hover:not(:disabled),
+.plan__step:focus-visible,
+.plan__icon-button:hover,
+.plan__icon-button:focus-visible,
+.plan__palette-button[aria-expanded="true"] {
+  background: var(--colour-plan-field-hover);
+  border-color: var(--colour-plan-field-edge);
+  color: var(--colour-text);
+  outline: none;
+}
+
+.plan__step:disabled {
+  opacity: var(--opacity-unavailable);
+}
+
+.plan__delete:hover,
+.plan__delete:focus-visible {
+  color: var(--colour-alarm);
+}

@@ -620,6 +620,169 @@
   --opacity-unavailable: 0.4;
 }
 
+/* --- Notes (`app/src/workspaces/notes/`) ------------------------------------ */
+
+:root {
+  /** The notepad's text: the interface's face, a little larger than its labels. */
+  --size-notes: var(--size-body);
+  /**
+   * The notepad is a window floating on the desk, shaped like a laptop's
+   * screen (Noah, 2026-11-23): seven tenths of the workspace's width — a
+   * twentieth smaller than the three quarters it was first — and 16:9.
+   */
+  --fraction-notes-width: 0.7;
+  --ratio-notes: 16 / 9;
+  /**
+   * The room the notepad is measured against: the Notes desk's own width and
+   * height, which is a size container (`notes.css`), not the window's.
+   */
+  --size-notes-room-width: 100cqw;
+  --size-notes-room-height: 100cqh;
+  /**
+   * The desk kept clear above and below the notepad: past the workspace bar
+   * and the fade at the top, and the pills and the fade at the foot. On a
+   * short window the notepad shrinks, still 16:9, rather than run into them.
+   */
+  --space-notes-inset: var(--space-panel-top);
+  /** Room between the notepad's edge and the writing. */
+  --space-notes-y: var(--space-loose);
+  --space-notes-x: var(--space-vast);
+  /** How many spaces wide a tab is drawn. */
+  --count-notes-tab: 4;
+  /**
+   * The bar of pills above the window — the folder, the tabs, + — is the
+   * bottom pills' height. There is no gap of its own: between the pills, and
+   * between the bar and the window, is the bottom pills' gap
+   * (`--space-pill-gap`), so the two can never drift apart (Noah, 2026-11-23).
+   */
+  --size-notes-bar: var(--size-pill);
+  /**
+   * Every tab's width, whatever its name and however many are open: a name
+   * longer than this is cut short with an ellipsis. Five tabs, the folder, +
+   * and the gaps between them fit in the window at 1920 × 1080.
+   */
+  --measure-notes-tab: 24ch;
+  /** A tab's ×. */
+  --size-notes-tab-close: 20px;
+  /**
+   * Room round the scrolling row of tabs for the pills' shadows, which reach
+   * this far below a pill (`--shadow-float`), so the row does not cut them off.
+   */
+  --space-notes-tab-shadow: 20px;
+}
+
+/* --- Plan (`app/src/workspaces/plan/`) -------------------------------------- */
+
+:root {
+  /** One square of the grid: a cell across, a lane down. */
+  --size-plan-cell: 32px;
+  /** The numbers above the grid. */
+  --size-plan-ruler: 20px;
+  /** One row of structure beat labels under it. */
+  --size-plan-beat-row: 20px;
+  /** The gap a card keeps inside its squares. */
+  --space-plan-card: var(--space-hair);
+  /** The strip at a card's right edge that lengthens it. */
+  --size-plan-grip: var(--space-tight);
+  /** How wide a title being typed is at least, in cells. */
+  --count-plan-title-cells: 6;
+  /**
+   * The selected card's panel (Noah, 2026-11-23: compact, and the card itself
+   * to write on rather than a form): its width, its colour swatches, the
+   * buttons along its foot, and the description's height at rest (three lines).
+   */
+  --measure-plan-panel: 46ch;
+  --size-plan-swatch: 14px;
+  --size-plan-step: 20px;
+  /**
+   * The room round Plan's grid panel, the same on three sides: from the
+   * workspace's left and right edges, and below the workspace bar (Noah,
+   * 2026-11-23). The left and right are the workspace's own sides
+   * (`.workspace`), which Plan's host is held to (`plan.css`). The Structure
+   * button and the selected card sit under the grid this far apart, and as far
+   * below it as the button is.
+   */
+  --space-plan-edge: var(--space-roomy);
+  /** How far the grid panel's top is from the window's: under the workspace bar, and the room above. */
+  --space-plan-top: calc(var(--space-desk-edge) + var(--size-pill) + var(--space-plan-edge));
+  /** The colour picker's swatches: three across, three down. */
+  --count-plan-palette-columns: 3;
+  --size-plan-description: calc(var(--size-label) * var(--leading-body) * 3 + var(--space-hair) * 2 + var(--rule-thin) * 2);
+  /**
+   * The title and description on the panel: clear at rest, a faint tint and
+   * hairline under the pointer, a shade deeper while typed in, edged in the
+   * card's own colour.
+   */
+  --colour-plan-field-hover: color-mix(in srgb, var(--colour-text) 5%, transparent);
+  --colour-plan-field-edge: color-mix(in srgb, var(--colour-text) 12%, transparent);
+  --colour-plan-field-focus: color-mix(in srgb, var(--colour-base) 45%, transparent);
+  /**
+   * The board's layers, bottom to top, inside the board's own stacking context
+   * (`plan.css`): the dots, then the beat lines and the end of the target, then
+   * the cards, then a card being dragged or its title being typed. **A card is
+   * always over the grid**, so no dot or line is ever drawn on or through one;
+   * each card is opaque, so nothing under it shows either.
+   */
+  --layer-plan-dots: 1;
+  --layer-plan-lines: 2;
+  --layer-plan-cards: 3;
+  --layer-plan-drag: 4;
+  /**
+   * A dot at each corner of the squares: square, a whole number of pixels, and
+   * centred on the corner by half of it. Opaque, so it is the same colour over
+   * any background and at any pixel alignment. Quiet (Noah, 2026-11-23): a
+   * little lighter than the board, so the beat lines, the end of the target and
+   * the cards are what the eye finds first.
+   */
+  --size-plan-dot: 2px;
+  --colour-plan-dot: color-mix(in srgb, var(--colour-faint) 24%, var(--colour-raised));
+  /**
+   * A beat line and the end of the target are **exactly as wide as a column of
+   * dots, and drawn over the same span**: from half a dot before a square's edge
+   * to half a dot after it. Sharing the dots' edges is what keeps a line dead
+   * centre on its column at every display scale — a line of another width, or
+   * one starting at the edge, rounds to device pixels differently from the
+   * dots, and was off by up to a pixel and a quarter (#164).
+   */
+  --size-plan-line: var(--size-plan-dot);
+  /**
+   * One square's height of a column of dots: a dot at its top, the rest clear.
+   * Across, it fills the column's box, so its edges are the box's own.
+   */
+  --image-plan-dot: linear-gradient(
+    to bottom,
+    var(--colour-plan-dot) var(--size-plan-dot),
+    transparent var(--size-plan-dot)
+  );
+  /** The squares past the end of the target. */
+  --colour-plan-past: color-mix(in srgb, var(--colour-base) 45%, transparent);
+  --colour-plan-end: var(--colour-faint);
+  /**
+   * A structure beat's line. Opaque, as the dots are: a see-through line
+   * changes shade over a card's shadow as the card moves past it.
+   */
+  --colour-plan-beat: color-mix(in srgb, var(--colour-faint) 55%, var(--colour-raised));
+  /**
+   * A card's nine colours, three by three in the colour picker: the palette
+   * the app already speaks in, and the rest of its family (gruvbox's bright
+   * row) — orange, purple and aqua — and sand, the family's pale ink, so the
+   * last of the nine is a light card rather than a second grey. Each is drawn
+   * as a tint over the card's grey so a page of cards stays quiet.
+   */
+  --colour-plan-plain: var(--colour-border-strong);
+  --colour-plan-yellow: var(--colour-accent);
+  --colour-plan-orange: #fe8019;
+  --colour-plan-red: var(--colour-alarm);
+  --colour-plan-purple: #d3869b;
+  --colour-plan-blue: var(--colour-info);
+  --colour-plan-aqua: #8ec07c;
+  --colour-plan-green: var(--colour-affirm);
+  --colour-plan-sand: var(--colour-text);
+  --mix-plan-card: 22%;
+  --mix-plan-card-edge: 55%;
+  --mix-plan-swatch: 70%;
+}
+
 /* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */
 
 :root {

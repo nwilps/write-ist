@@ -18,6 +18,12 @@
  * The roles are `menu`, `menuitem` and `separator`, so a screen reader hears a
  * menu.
  *
+ * **An item may carry a second action at its end** (`aside`: Delete beside a
+ * note's name in Notes' folder menu) — a small icon of its own, chosen by the
+ * pointer, or by Delete or Backspace while its item has focus. An item that is
+ * unavailable keeps its second action: it is greyed and does nothing itself,
+ * but can still be reached, so its icon can still be chosen.
+ *
  * **A row of steps** (View ▸ Zoom) is an item with − and + at its end and a dot
  * for each step between them. Choosing − or + steps and leaves the menu open,
  * so the writer sees each step land; with the row focused, Left and Right press
@@ -39,13 +45,31 @@ export interface MenuItem {
   /** A Lucide icon drawn before the label (ADR-0035). */
   readonly icon?: IconNode;
   readonly act: () => void;
-  /** Drawn and doing nothing, and skipped by the arrow keys. */
+  /**
+   * Drawn and doing nothing, and skipped by the arrow keys — unless it has an
+   * `aside`, which still works: then it is greyed, and the arrows still stop on it.
+   */
   readonly unavailable?: boolean;
   /**
    * An item that is on or off (Spellcheck). Asked each time the menu opens, so
    * the mark is true when the writer looks.
    */
   readonly checked?: () => boolean;
+  /**
+   * A second action, drawn as a small icon at the item's end: chosen by the
+   * pointer on the icon, or by Delete or Backspace on the item. `alarm` draws
+   * it in the alarm colour under the pointer, for an action that destroys.
+   */
+  readonly aside?: MenuAside;
+}
+
+/** An item's second action (`MenuItem.aside`). */
+export interface MenuAside {
+  /** What a screen reader calls it: "Delete Ideas". */
+  readonly label: string;
+  readonly icon: IconNode;
+  readonly act: () => void;
+  readonly alarm?: boolean;
 }
 
 /** A rule between two groups of items. */
@@ -154,7 +178,10 @@ export function menuList(
     }
     const button = element("button", { type: "button", className: "drop-menu__item", role: "menuitem" });
     button.tabIndex = -1;
-    button.disabled = entry.unavailable === true;
+    // Unavailable with a second action: greyed but reachable, so the action can still be chosen.
+    const greyed = entry.unavailable === true && entry.aside !== undefined;
+    button.disabled = entry.unavailable === true && !greyed;
+    if (greyed) button.setAttribute("aria-disabled", "true");
     if (entry.icon !== undefined) {
       const icon = createElement(entry.icon, { class: "drop-menu__icon" });
       icon.setAttribute("aria-hidden", "true");
@@ -183,7 +210,33 @@ export function menuList(
         shown.hidden = shown.textContent === "";
       });
     }
+    const { aside } = entry;
+    if (aside !== undefined) {
+      // A span, not a button: a button cannot be inside another.
+      const end = element("span", {
+        className: aside.alarm === true ? "drop-menu__aside drop-menu__aside--alarm" : "drop-menu__aside",
+        role: "button",
+        ariaLabel: aside.label,
+      });
+      end.append(createElement(aside.icon, { class: "drop-menu__icon", "aria-hidden": "true" }));
+      end.addEventListener("mousedown", (event) => event.preventDefault());
+      end.addEventListener("click", (event) => {
+        // The icon's own, not the item's.
+        event.stopPropagation();
+        close(true);
+        aside.act();
+      });
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "Delete" && event.key !== "Backspace") return;
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+        aside.act();
+      });
+      button.append(end);
+    }
     button.addEventListener("click", () => {
+      if (greyed) return;
       // Focus goes back first so that an action which moves it elsewhere wins.
       close(true);
       entry.act();

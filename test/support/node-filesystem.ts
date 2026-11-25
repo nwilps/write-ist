@@ -7,7 +7,7 @@
  * above them in `src/project/`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { access, lstat, mkdir, open, readdir, readFile, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
+import { access, link, lstat, mkdir, open, readdir, readFile, realpath, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { DirectoryEntry, Filesystem } from "../../src/project/filesystem.ts";
@@ -133,6 +133,29 @@ export const nodeFilesystem: Filesystem = {
   async removeEmptyFolder(path: string): Promise<void> {
     // `rmdir`, as `remove_empty_folder` does: it cannot take a folder with anything in it.
     await rmdir(path);
+  },
+
+  async moveFile(from: string, to: string): Promise<void> {
+    // The steps `move_file_within` takes in `src-tauri/src/folders.rs`: linked
+    // under the new name first, which fails if anything is there, then the old
+    // name dropped. Nothing is ever replaced.
+    if (!(await lstat(from)).isFile()) throw new Error(`${from} is not a file.`);
+    await link(from, to);
+    await unlink(from);
+  },
+
+  async removeNote(path: string): Promise<void> {
+    // The checks `remove_note_within` makes, every one before the delete.
+    if (!isAbsolute(path) || path.split(/[\\/]/).some((part) => part === ".." || part === ".")) {
+      throw new Error(`${path} is not a plain path.`);
+    }
+    const name = basename(path);
+    const folder = dirname(path);
+    if (name.startsWith(".") || !name.toLowerCase().endsWith(".md")) throw new Error(`${path} is not a note.`);
+    if (basename(folder) !== "notes" || !(await lstat(folder)).isDirectory()) throw new Error(`${path} is not in a notes folder.`);
+    if (!(await lstat(path)).isFile()) throw new Error(`${path} is not a file.`);
+    if (!(await lstat(join(dirname(folder), "project.md"))).isFile()) throw new Error(`${path} is not in a project.`);
+    await unlink(path);
   },
 
   async exileFromGraveyard(path: string, projectId: string): Promise<void> {

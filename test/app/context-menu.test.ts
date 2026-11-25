@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Trash2 } from "lucide";
 import { TextSelection, type EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { openContextMenu, placeMenu, type ContextMenu } from "../../app/src/menus/context-menu.ts";
@@ -445,5 +446,65 @@ describe("the paper wires it", () => {
     // Both ways down: before the manuscript was read, and after.
     expect(unmount.match(/contextMenu\?\.close\(false\)/g)?.length).toBe(2);
     expect(unmount.match(/removeEventListener\("contextmenu"/g)?.length).toBe(2);
+  });
+});
+
+describe("an item's second action (Notes' folder menu: Delete beside a note)", () => {
+  const entries = (): { main: ReturnType<typeof vi.fn>; aside: ReturnType<typeof vi.fn>; items: MenuEntry[] } => {
+    const main = vi.fn();
+    const aside = vi.fn();
+    return { main, aside, items: [{ label: "Ideas", act: main, aside: { label: "Delete Ideas", icon: Trash2, alarm: true, act: aside } }] };
+  };
+
+  it("is a small icon at the item's end, named for a screen reader, that does its own thing and not the item's", () => {
+    const { main, aside, items: list } = entries();
+    const { menu } = open(list);
+    const end = document.querySelector<HTMLElement>(".drop-menu__aside")!;
+    expect(end.getAttribute("role")).toBe("button");
+    expect(end.getAttribute("aria-label")).toBe("Delete Ideas");
+    expect(end.classList.contains("drop-menu__aside--alarm")).toBe(true);
+    end.click();
+    expect(aside).toHaveBeenCalledTimes(1);
+    expect(main).not.toHaveBeenCalled();
+    expect(menu.isOpen()).toBe(false);
+  });
+
+  it("is chosen by Delete or Backspace on its item; the item itself still opens with a click", () => {
+    const { main, aside, items: list } = entries();
+    open(list);
+    const item = document.querySelector<HTMLButtonElement>('.drop-menu--context [role="menuitem"]')!;
+    item.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }));
+    expect(aside).toHaveBeenCalledTimes(1);
+    open(entries().items);
+    const again = document.querySelectorAll<HTMLButtonElement>('.drop-menu--context [role="menuitem"]');
+    again[again.length - 1]!.click();
+    expect(main).not.toHaveBeenCalled();
+  });
+
+  it("still works on a greyed item, which does nothing itself but is not skipped, so Delete can reach it", () => {
+    const main = vi.fn();
+    const aside = vi.fn();
+    const { menu, list, choices } = open([
+      { label: "Open", act: vi.fn() },
+      { label: "Closed", act: main, unavailable: true, aside: { label: "Delete Closed", icon: Trash2, alarm: true, act: aside } },
+    ]);
+    const greyed = choices()[1]!;
+    expect(greyed.disabled).toBe(false);
+    expect(greyed.getAttribute("aria-disabled")).toBe("true");
+    greyed.click();
+    expect(main).not.toHaveBeenCalled();
+    expect(menu.isOpen()).toBe(true);
+    // The arrows stop on it, and Delete there is its second action.
+    key(list, "ArrowDown");
+    key(choices()[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(greyed);
+    key(greyed, "Delete");
+    expect(aside).toHaveBeenCalledTimes(1);
+    expect(menu.isOpen()).toBe(false);
+    // And by the pointer.
+    const again = open([{ label: "Closed", act: main, unavailable: true, aside: { label: "Delete Closed", icon: Trash2, act: aside } }]);
+    again.list.querySelector<HTMLElement>(".drop-menu__aside")!.click();
+    expect(aside).toHaveBeenCalledTimes(2);
+    expect(main).not.toHaveBeenCalled();
   });
 });

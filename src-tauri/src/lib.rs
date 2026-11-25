@@ -128,6 +128,22 @@ fn exile_project(app: tauri::AppHandle, path: String, project_id: String) -> Res
     folders::exile_within(&root, Path::new(&path), &project_id).map_err(|error| error.to_string())
 }
 
+/// Move a file inside the projects folder, never over another
+/// (`folders::move_file_within`): renaming a note.
+#[tauri::command(async)]
+fn move_file(app: tauri::AppHandle, from: String, to: String) -> Result<(), String> {
+    let root = projects_folder(&app)?;
+    folders::move_file_within(&root, Path::new(&from), Path::new(&to)).map_err(|error| error.to_string())
+}
+
+/// Delete one note in a project's `notes` folder, and nothing else
+/// (`folders::remove_note_within`).
+#[tauri::command(async)]
+fn remove_note(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let root = projects_folder(&app)?;
+    folders::remove_note_within(&root, Path::new(&path)).map_err(|error| error.to_string())
+}
+
 fn projects_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     use tauri::Manager;
     Ok(app
@@ -222,6 +238,8 @@ pub fn run() {
             move_folder,
             remove_empty_folder,
             exile_project,
+            move_file,
+            remove_note,
             spell_misspelled,
             spell_suggest,
             spell_add_word,

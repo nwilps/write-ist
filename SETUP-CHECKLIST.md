@@ -253,8 +253,8 @@ Opening a project from the list shows its manuscript. The **Editor** is a worksp
 through a manifest and hosted by the **shell**, which knows nothing about what it hosts
 (ADR-0005) — a rule with a test that fails on it, over `app/src/shell/`: no `"screenplay"`, no
 element type by name, no import from a surface. It is the only real workspace. *Since then:* the
-workspace bar is drawn (#110), with temporary **Notes** and **Plan** placeholder tabs
-(`app/src/workspaces/placeholders.ts`) that it cannot yet switch to.
+workspace bar is drawn (#110), with temporary **Notes** and **Plan** placeholder tabs, since
+replaced by the real workspaces (see *Done: Notes and Plan* below).
 
 - The editing engine is **ProseMirror** (ADR-0024), its document mapped from the existing model
   and back to it (`src/screenplay/schema.ts`, `src/screenplay/editor.ts`). Nothing in `src/`
@@ -426,9 +426,8 @@ Nothing reads it yet; it exists so the history exists.
 
 ### Done: the desk around the paper (#110, #111, #114, #115)
 
-- **The workspace bar** (#110): a floating tab pill at the top — **Editor**, plus temporary **Notes**
-  and **Plan** placeholder tabs (`app/src/workspaces/placeholders.ts`). The placeholders have no
-  behaviour and the bar cannot yet switch to them.
+- **The workspace bar** (#110): a floating tab pill at the top — **Editor**, plus what were then
+  placeholder **Notes** and **Plan** tabs, now real workspaces (below).
 - **Search** (#111): Alt+Enter opens a dialog over the paper; a case-insensitive find over the
   visible text, each match with its page, Enter to jump (`src/screenplay/search.ts`). On Open
   Project the same dialog finds projects.
@@ -486,11 +485,38 @@ completion animations.
       window on Linux (WebKitGTK).
 - [ ] **#103** — a full pass from start to finish, with the numbers the spec names.
 
+### Done: Notes and Plan
+
+Both are workspaces of their own, each a manifest in `app/src/workspaces/registry.ts` and a folder
+(`app/src/workspaces/notes/`, `app/src/workspaces/plan/`, with `src/notes/` and `src/plan/`); the
+shell changed only in ways that name no workspace. A workspace is mounted the first time its tab is
+chosen and kept mounted, out of sight, while another is on screen; turning one off takes it down
+(saving it) and leaves its file alone.
+
+- **Notes**: plain-text notes, each a `.md` file in the project's `notes/` folder, exactly as typed,
+  in a window floating on the desk (16:9, seven tenths of the workspace's width, scrolling inside
+  itself). A bar of pills never wider than the window, the bottom pills' gap between each and under
+  it: a folder menu of every note (open, or delete after an alarm-coloured confirmation), tabs (all
+  one width; five at most, + and the closed notes in the menu greyed while five are open; they
+  scroll sideways on a narrow window; double-click the one in front to rename it and its file; ×
+  closes and keeps it), and + beside the last tab for `Untitled`, `Untitled 2`…; with no tab open, a
+  quiet empty state. An old `notes.md` is moved in once as `notes/Notes.md` (never
+  over a note already there; `src/notes/notes-folder.ts`). Autosave as the manuscript's
+  (`src/project/workspace-file.ts`), per note: undo and redo, Write-ist's own right-click menu,
+  spellcheck on demand from the same dictionary (a plain-text pass, `src/notes/spelling.ts`). Open
+  tabs, the one in front, and each note's caret and scroll kept in app data
+  (`workspace-places.txt`, `src/project/workspace-places.ts`, format in its header).
+- **Plan**: cards on a grid of quiet dots (the beats and the end of the target drawn as lines dead
+  centre on a column of dots at any display scale, the cards over all of it) whose length is the project's target page count (100 with none),
+  stored in `plan.md` as shares of the whole, so a new target moves nothing; free lanes; nine
+  colours from a palette picker; four structure sheets, one drawn at a time as bands. The selected
+  card sits beside the Structure button under the grid and grows with its description to the
+  bottom pills' margin; the project name pill is hidden on Plan (its manifest's `showsProjectName`). Nothing in it reads the manuscript (ADR-0013).
+
 ### Not started, and deliberately above this layer
 
 Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), the prose surface in the
-application (novels; chapters as ranges), and the rest of the workspaces — real Notes and Plan,
-not the placeholder tabs. Recorded for later: Write-ist drawing every context menu itself (#105).
+application (novels; chapters as ranges), and the rest of the workspaces (the Log). Recorded for later: Write-ist drawing every context menu itself (#105).
 
 Open questions live in GitHub Issues and nowhere else. Slice 1's parent is #37; Slice 2's is #86.
 The early list's last question, #15 (leading whitespace), was decided 2026-10-30: normalised

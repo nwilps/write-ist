@@ -105,8 +105,6 @@ export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
   name: "Editor",
   // The Editor is the workspace bar's first tab, as it is in the prototype.
-  // Notes and Plan sit beside it as temporary placeholders
-  // (`../placeholders.ts`): selecting one leaves the Editor where it is.
   key: "1",
   icon: PenLine,
   // The manuscript is written here, so a project always has it.
@@ -133,6 +131,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
   let fitCaretRoom: (() => void) | undefined;
+  // Out of sight behind another workspace (`hide`): still mounted, answering no
+  // window keys, and its zoom measured again when it comes back.
+  let hidden = false;
+  let zoomStale = false;
 
   // View ▸ Zoom: the paper drawn at the level this run of the app last left it
   // (`paper-zoom.ts`), its size measured from the window as it is now, and
@@ -148,6 +150,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     fitCaretRoom?.();
   };
   const redrawZoom = (): void => {
+    // A hidden paper has no size to measure against.
+    if (hidden) {
+      zoomStale = true;
+      return;
+    }
     if (view === undefined) drawZoom();
     else holdCaretWhile(view, drawZoom);
     const scroller = scrollerOf(page);
@@ -580,6 +587,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
       // Capture, so the editor's own Enter handling never sees it.
       const asksForSearch = (event: KeyboardEvent): void => {
+        // Another workspace is on screen, and the keys are its.
+        if (hidden) return;
         // A key Settings is recording is the writer's new key, not a command.
         if (isCapturedKey(event)) return;
         const asked = commandForKey(event, "window");
@@ -608,6 +617,26 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   return {
     focus: () => view?.focus(),
+    // Another workspace's tab: the manuscript saved now, as on switching away
+    // (ADR-0028), the caret's place kept, and the paper's menus put away.
+    hide: () => {
+      hidden = true;
+      contextMenu?.close(false);
+      searching?.close();
+      shortcuts?.close();
+      void session?.save();
+      void keepPlace();
+    },
+    show: () => {
+      hidden = false;
+      if (zoomStale) {
+        zoomStale = false;
+        redrawZoom();
+      }
+      view?.focus();
+    },
+    // A rename asked for in another workspace waits its turn with the saves.
+    relocate: (move) => (session === undefined ? move() : session.moveProject(move)),
     unmount: async () => {
       // Still reading, so there is nothing to save and nothing but a line of
       // text to take down. The read's own continuation sees this and stops.

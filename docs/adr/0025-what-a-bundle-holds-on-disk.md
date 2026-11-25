@@ -13,7 +13,8 @@ The Pilot/
   drafts.md            the draft index — lock dates, what follows each draft
   plan.md              Plan: cards
   log.md               the Log: entries, tasks, pushes
-  notes.md             notes
+  notes/               notes: one plain-text .md file a note (amended 2026-11-23)
+    Ideas.md
   names.txt            the characters and locations the writer added to or removed from the lists by hand
   goals.md             the daily goal, the weekdays that count, and the words written each day
   details.md           the target page count and which workspaces the project shows
@@ -40,7 +41,22 @@ which keeps its four things: the marker decides whether a folder is a bundle at 
 written only when a project is made or renamed, never on a toggle. A project without the file shows
 every workspace and has no target; one whose file cannot be read shows the same and the file is
 never written over (ADR-0008 rule 3). Project-level, and never frozen at lock. Turning a workspace
-off never touches its files (`plan.md`, `notes.md`).
+off never touches its files (`plan.md`, the `notes/` folder).
+
+> **Amended 2026-11-23 (Noah, PR #164). Notes is a folder, `notes/`, not one `notes.md`.** Each
+> note is its own plain-text `.md` file in it, named for the note (`notes/Ideas.md`) — exactly as
+> typed, with no Markdown drawn — opened in tabs in the Notes workspace: new ones as `Untitled`,
+> `Untitled 2`…, renamed by the writer (a name is made safe for every disk and numbered if taken,
+> quietly), and deleted from the folder menu after a confirmation. A rename is a move that never
+> replaces another file; a delete is the writer's, confirmed, and removes only a `.md` file directly
+> in a project's `notes/` (see ADR-0044's note of the same date). Each note saves as a workspace
+> file does (ADR-0028, ADR-0031): a change made elsewhere is kept beside the note *in `notes/`*.
+> **An older project's `notes.md` is moved, once, into the folder** as `notes/Notes.md` — or
+> `Notes 2.md` and on, if that name is taken, so nothing is ever written over — the first time Notes
+> opens; if the move fails it stays where it is and is tried again. Which notes were open, which was
+> in front, and each note's caret and scroll are session memory in app data
+> (`workspace-places.txt`), never in the bundle (ADR-0009, ADR-0012). Turning Notes off never
+> touches the folder.
 
 **Every other sidecar file is written in the same Pandoc Markdown subset the prose surface uses**
 (ADR-0023), with each record as a section: the writer's words in the body, the application's
@@ -53,7 +69,7 @@ bookkeeping in a short labelled header beneath the heading.
 **Markdown, and specifically the prose subset**, for three reasons that stack. ADR-0012
 requires a lossless parser for any sidecar format holding the writer's prose — so this way
 Write-ist writes **one prose parser, not two**. ADR-0012's readability standard is a diagnosis
-argument, not an aesthetic one, and the file that survived v1's data loss was `notes.md`, plain
+argument, not an aesthetic one, and the file that survived v1's data loss was v1's `notes.md`, plain
 Markdown anchored to nothing. And it satisfies ADR-0012's specific instruction that *"prose
 embedded in a structured record stays plain, never escaped past recognition"* — the writer's
 words sit in a document body rather than inside a quoted string.
