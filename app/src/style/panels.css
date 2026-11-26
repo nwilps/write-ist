@@ -13,6 +13,8 @@
  */
 
 .desk {
+  /* The comment cards' layer is laid over the whole desk (`comments.css`). */
+  position: relative;
   display: grid;
   /* The paper as drawn, zoomed or not (`--paper-zoom`), centred in the window,
      which never scrolls sideways (`.shell__view`). */
@@ -131,15 +133,6 @@
 
 .panel__format:hover {
   background: var(--colour-overlay);
-}
-
-/* Drawn, and waiting for the feature (the comment slot). */
-.panel__format[aria-disabled="true"] {
-  color: var(--colour-faint);
-}
-
-.panel__format[aria-disabled="true"]:hover {
-  background: none;
 }
 
 .panel--scenes {
