@@ -18,7 +18,9 @@ GitHub Issues, never a doc.
   `plan.md`) as workspaces of their own, through the registry.
 - **Left in Slice 2:** #92 (the caret at sheet seams, checked on Linux/WebKitGTK) and #103 (a full
   start-to-finish pass, and the numbers the spec names).
-- **Not started:** drafts and locking, the registry, the prose surface in the app, and the Log.
+- **Also built:** drafts and locking — File ▸ Lock this Draft… and Draft Tree…, several open
+  drafts, a locked draft read on the paper (ADR-0002, ADR-0025, amended 2026-11-26).
+- **Not started:** the registry, the prose surface in the app, and the Log.
   #105 is recorded later work.
 
 Before proposing work, read `SETUP-CHECKLIST.md` Phase 5. The round-trip gate is the acceptance

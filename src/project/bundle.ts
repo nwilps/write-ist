@@ -1,9 +1,10 @@
 /**
  * A bundle: the folder a project lives in (ADR-0025).
  *
- * Slice 1 writes two of its files. The rest — `drafts/`, `drafts.md`,
- * `plan.md`, `log.md`, the `notes/` folder — arrive with the workspaces that own them,
- * so they are named in ADR-0025 and not here.
+ * The files every project has are named here. The rest are named by what owns
+ * them: `drafts/`, `drafts.md` and the open drafts on branches by
+ * `drafts.ts`; `plan.md` and the `notes/` folder by their workspaces; `log.md`
+ * when the Log arrives.
  */
 import type { ProjectMarker } from "./marker.ts";
 
@@ -11,9 +12,10 @@ import type { ProjectMarker } from "./marker.ts";
 export const MARKER_FILE = "project.md";
 
 /**
- * The in-progress draft. The extension says which surface, so a stranger
- * double-clicking it gets a sensible handler (ADR-0025); the prose surface's
- * is `manuscript.md`, and is not built in this slice.
+ * The trunk's open draft — the one every project has, and the only one a
+ * project made before drafts has (`drafts.ts`). The extension says which
+ * surface, so a stranger double-clicking it gets a sensible handler
+ * (ADR-0025); the prose surface's is `manuscript.md`, and is not built yet.
  */
 export const MANUSCRIPT_FILE = "manuscript.fountain";
 
