@@ -20,6 +20,10 @@ The Pilot/
   details.md           the target page count and which workspaces the project shows
 ```
 
+> **Amended 2026-11-26 (drafts, below).** `manuscript.fountain` is the **trunk's open draft**;
+> each branch's open draft sits beside it as `manuscript 2a.fountain`; and `drafts.md` says which
+> open draft the writer is in, as well as each lock's date and note.
+
 **`names.txt` is the exception (slice 2, step 8).** It holds only names the writer confirmed,
 plain text, a kind on a line and one indented name under it — kept trivial so its format can
 change cheaply. It is project-level and never frozen at lock, like the other sidecar files.
@@ -124,3 +128,71 @@ naming rule.
 - **Retention for locked drafts is still open.** ADR-0002 deferred it — *"disk growth is bounded
   by how often the writer locks, which they control"* — and this layout makes the cost visible:
   one full manuscript per lock in `drafts/`. Nothing here decides it.
+
+## Amended 2026-11-26: drafts, open drafts and `drafts.md`, as built (Noah)
+
+ADR-0002 (amended the same day) allows several **open drafts** — the trunk's, and one at the tip
+of each branch. On disk:
+
+```
+The Pilot/
+  manuscript.fountain        the trunk's open draft — every project has it
+  manuscript 2a.fountain     the open draft on branch 2a; one file a branch, named for the branch
+  manuscript 2b.fountain
+  drafts/
+    1.fountain               a locked draft, under its own name; never written again
+    1.1.fountain
+    2.fountain
+    2a.fountain
+  drafts.md                  which open draft the writer is in; each lock's date and note
+```
+
+- **An open draft keeps one file for its life.** A branch's open draft is named for the branch
+  (`manuscript 2a.fountain`), not for its next lock, so locking 2a, 2a.1 and 2a-2 never renames
+  or moves it. Moving between open drafts writes nothing but which one is in front: there is no
+  swapping of files, so there is no half-swapped bundle after a crash. The trunk's stays
+  `manuscript.fountain`, so a stranger double-clicking the obvious file gets the trunk, and every
+  tool that already reads it — export, the projects list, ADR-0028's changed-elsewhere copy —
+  goes on working. A copy kept beside a branch's open draft is named for it:
+  `manuscript 2a changed elsewhere 2026-11-26 10.00.00.fountain`, which can never be mistaken
+  for an open draft, because a branch's name has no spaces.
+- **A locked draft is `drafts/<name>.fountain`** (`.md` on the prose surface), written once, landing
+  whole or not at all (ADR-0008 rule 5), and never over a file already there.
+- **`drafts.md`** is a sidecar in this ADR's shape:
+
+  ```
+  # Drafts
+
+  Writing in: manuscript 2a.fountain
+
+  ## 1
+
+  Locked: 2026-11-20
+
+  First pass, for Sam.
+
+  ## 1.1
+
+  Locked: 2026-11-22
+  ```
+
+  `Writing in` is the open draft the project opens in; each lock has a section, its day in the
+  writer's own time in the header, and the writer's one-line note (at most 120 characters, put
+  right quietly) as its body. A section it does not recognise is kept as it was found.
+- **Everything that says which draft is which is a file name**, as ADR-0014 requires: the line of
+  drafts, their order, what an open draft continues from and what its next lock will be called
+  are all read from the names in `drafts/` and the open drafts' files. **Losing `drafts.md` costs
+  the dates, the notes and which open draft was in front** — the project then opens on the trunk —
+  and never a draft.
+- **A lock lands whole or not at all.** The locked file is written first, then `drafts.md`; if
+  `drafts.md` cannot be written, the locked file is removed again (one file, directly in
+  `drafts/`, through the one narrow delete), so a failed lock leaves the bundle as it was and the
+  open draft untouched. Each lock, branch or move reads the folder afresh first.
+- **A `drafts.md` that will not read is never written** (ADR-0008 rule 3). The writer is told when
+  the project opens; locked drafts can still be read, and nothing can be locked, branched or
+  moved between until the file reads (a move is recorded there).
+- **An older bundle** — `project.md` and `manuscript.fountain`, no `drafts/`, no `drafts.md` — is
+  read as one open draft on the trunk, which is the one written in, and whose first lock is
+  **Draft 1**. Nothing is written to it until the writer locks or branches.
+- Plan, Notes, the Log, goals, names and details stay project-level and are never copied at a lock
+  (ADR-0014).

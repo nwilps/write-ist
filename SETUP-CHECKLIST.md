@@ -538,9 +538,25 @@ draws the cards, the tint and the connectors, and `comment-layout.ts` is where t
 The file format is the spike's, unchanged: comments were already read, written byte-exact and
 stripped from counts, pagination and both exports. Clearing comments at the lock waits for drafts.
 
+### Done: drafts, locking and the Draft Tree (ADR-0002, ADR-0018 and ADR-0025, amended 2026-11-26)
+
+File ▸ **Lock this Draft…** copies the open draft backward into `drafts/<name>.fountain`, never to
+be written again, and dates it in `drafts.md` with an optional one-line note. The dialog says the
+exact name: the first lock on a line asks nothing (Draft 1, or a branch's own 2b); after that the
+writer chooses Revision (1.1, 2a.1) or New Draft (2, 2a-2). *Carry comments forward* is on for a
+revision and off for a new draft; the locked copy keeps its comments either way, and off takes them
+out of the open draft only (that is what "clearing comments at the lock" became). File ▸ **Draft
+Tree…** draws the trunk, revisions, branches and every open draft — several may be open at once,
+the trunk's in `manuscript.fountain` and each branch's in `manuscript 2a.fountain` — and moves
+between them, saving first. A locked draft opens on the paper read-only, with a card in the right
+column (Return to live, Branch from here) rather than a bar. A project with only
+`manuscript.fountain` is one open draft that locks as 1. `src/project/drafts.ts` is the disk;
+`lock-dialog.ts`, `draft-tree-dialog.ts` and `editor.ts` the window; `test/project/drafts.test.ts`
+and `test/app/drafts-from-editor.test.ts` the proof. Retention of locked drafts is still deferred.
+
 ### Not started, and deliberately above this layer
 
-Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), the prose surface in the
+The registry (ADR-0015/0016), the prose surface in the
 application (novels; chapters as ranges), and the rest of the workspaces (the Log). Workspaces
 loaded at runtime, a permission sandbox for them, and installing and signing them (ADR-0045, *Not
 yet*). Recorded for later: Write-ist drawing every context menu itself (#105).

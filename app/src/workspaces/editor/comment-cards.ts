@@ -30,6 +30,9 @@
  *
  * **Resolve** deletes the comment and keeps its words (`resolveComment`), and
  * puts the writer back on the paper, where Ctrl+Z brings it back.
+ *
+ * **On a locked draft** the cards are read and never written in: no caret in
+ * them and no Resolve, since a locked draft never changes (ADR-0002).
  */
 import { Check, createElement, type IconNode } from "lucide";
 import { TextSelection, type EditorState } from "prosemirror-state";
@@ -64,7 +67,8 @@ const SVG = "http://www.w3.org/2000/svg";
 export interface CommentCards {
   /** The layer the cards are drawn in: put in the desk, after the paper and before the right column. */
   readonly layer: HTMLElement;
-  readonly attach: (view: EditorView) => void;
+  /** Draw for this paper: written in, or only read (a locked draft). A new paper starts with no cards. */
+  readonly attach: (view: EditorView, readOnly?: boolean) => void;
   /** The state changed: draw again, in the next frame, if anything a card shows did. */
   readonly update: (state: EditorState) => void;
   /**
@@ -116,6 +120,7 @@ export function commentCards(parts: {
   let drawnDoc: unknown;
   let drawnKey = "";
   let pause: ReturnType<typeof setTimeout> | undefined;
+  let readOnly = false;
 
   const typed = (card: Card): string => card.text.textContent ?? "";
 
@@ -166,8 +171,9 @@ export function commentCards(parts: {
   const make = (comment: ShownComment): Card => {
     const text = element("div", { className: "comment-card__text" });
     // Plain text only: a remark is a line of words in the file (ADR-0018).
-    text.setAttribute("contenteditable", "plaintext-only");
-    text.setAttribute("role", "textbox");
+    // A locked draft's is read only, so it takes no caret at all.
+    if (!readOnly) text.setAttribute("contenteditable", "plaintext-only");
+    text.setAttribute("role", readOnly ? "note" : "textbox");
     text.setAttribute("aria-label", "Comment");
     text.spellcheck = false;
     const resolve = element("button", { type: "button", className: "comment-card__resolve" }, [
@@ -176,7 +182,7 @@ export function commentCards(parts: {
     ]);
     const root = element("div", { className: "comment-card" }, [
       text,
-      element("div", { className: "comment-card__foot" }, [resolve]),
+      ...(readOnly ? [] : [element("div", { className: "comment-card__foot" }, [resolve])]),
     ]);
     const path = document.createElementNS(SVG, "path");
     const line = document.createElementNS(SVG, "svg");
@@ -195,7 +201,7 @@ export function commentCards(parts: {
         event.preventDefault();
         return;
       }
-      if (event.target !== text) {
+      if (event.target !== text && !readOnly) {
         event.preventDefault();
         caretAtEnd(text);
       }
@@ -396,8 +402,21 @@ export function commentCards(parts: {
 
   return {
     layer,
-    attach: (editor) => {
+    attach: (editor, locked = false) => {
+      if (view !== editor) {
+        // Another paper: the last one's cards go with it.
+        clearTimeout(pause);
+        for (const card of cards.values()) {
+          card.root.remove();
+          card.line.remove();
+          card.dot.remove();
+        }
+        cards.clear();
+        drawnDoc = undefined;
+        drawnKey = "";
+      }
       view = editor;
+      readOnly = locked;
       schedule();
     },
     update: (state) => {
@@ -410,7 +429,7 @@ export function commentCards(parts: {
       schedule();
     },
     add: () => {
-      if (view === undefined || editing()) return false;
+      if (view === undefined || readOnly || editing()) return false;
       const tr = startComment(view.state);
       if (tr === null) return false;
       view.dispatch(tr);

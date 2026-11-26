@@ -30,6 +30,15 @@
  * serialiser from the model, *never* from ProseMirror's own format and never
  * from the DOM.
  *
+ * ## Drafts
+ *
+ * The paper shows one draft at a time (ADR-0002, amended 2026-11-26): an open
+ * one, written in, or a locked one, read and never changed. Moving between
+ * them closes the paper — the open draft saved first, as on leaving — and
+ * opens it again on the other file. A locked draft is shown with a small card
+ * in the right-hand column, never a bar across the top, and nothing typed
+ * reaches it. What is on disk is `src/project/drafts.ts`'s.
+ *
  * ## It will not come down over a save it could not finish
  *
  * `unmount` answers whether the workspace came down, and answers `false` when
@@ -43,6 +52,23 @@ import { Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { EXPORT_FORMATS, exportScript } from "../../../../src/project/export-formats.ts";
 import { MANUSCRIPT_FILE } from "../../../../src/project/bundle.ts";
+import {
+  branchFrom,
+  CannotChangeDrafts,
+  chooseOpenDraft,
+  localDay,
+  lockDraft,
+  lockedDraftFile,
+  lockNames,
+  readDrafts,
+  TRUNK,
+  type LockedDraft,
+  type OpenDraft,
+} from "../../../../src/project/drafts.ts";
+import { exportScreenplay } from "../../../../src/screenplay/import.ts";
+import { clearComments } from "../../../../src/screenplay/comment-editing.ts";
+import { openLockDialog, type LockChoice } from "./lock-dialog.ts";
+import { dayWords, openDraftTree } from "./draft-tree-dialog.ts";
 import type { CourierPrimeFaces } from "../../../../src/pdf/render.ts";
 import {
   manuscriptSession,
@@ -108,6 +134,11 @@ const PLACE_REST_MS = 5_000;
  */
 const ADD_COMMENT: Chord = { key: "m", mod: true };
 
+/** What the paper shows: an open draft, written in, or a locked one, read with the open one waiting. */
+type Showing =
+  | { readonly kind: "open"; readonly open: OpenDraft }
+  | { readonly kind: "locked"; readonly draft: LockedDraft; readonly live: OpenDraft };
+
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
   name: "Editor",
@@ -144,6 +175,13 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // window keys, and its zoom measured again when it comes back.
   let hidden = false;
   let zoomStale = false;
+  // Which draft is on the paper, once one is; and whether the paper is being
+  // changed over to another, which nothing else may start meanwhile.
+  let showing: Showing | undefined;
+  let switching = false;
+  /** The open draft being written in, or waiting while a locked one is read. */
+  const live = (): OpenDraft => (showing === undefined ? TRUNK : showing.kind === "open" ? showing.open : showing.live);
+  const readOnly = (): boolean => showing?.kind === "locked";
 
   // View ▸ Zoom: the paper drawn at the level this run of the app last left it
   // (`paper-zoom.ts`), its size measured from the window as it is now, and
@@ -328,7 +366,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       titlePage: titlePageOf(writing.state.doc),
       save: (titlePage) => view?.dispatch(setTitlePage(writing.state, titlePage)),
       closed: () => view?.focus(),
-      opensOn,
+      // A locked draft's title page is read, as the rest of it is.
+      opensOn: readOnly() ? "view" : opensOn,
     });
   };
   // ADR-0040: the Goals dialog, from the Edit menu, the counts pill or the Goal
@@ -398,7 +437,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     clearTimeout(placeRest);
     placeRest = undefined;
     const places = context.places();
-    if (places === undefined || session === undefined) return;
+    // Where the writer is writing, never where they are reading.
+    if (places === undefined || session === undefined || showing?.kind !== "open") return;
     const place = caretPlaceOf(session.state.doc, session.state.selection.head);
     if (place === undefined) return;
     const key = JSON.stringify(place);
@@ -422,6 +462,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const host: CommandHost = {
     save: saveNow,
     exportAs,
+    lockDraft: () => openLock(),
+    draftTree: () => openTree(),
+    readOnly,
     toProjects: context.leave.toProjects,
     editProjectDetails,
     openSettings,
@@ -445,7 +488,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     undo: () => undoOrRedo("undo"),
     redo: () => undoOrRedo("redo"),
     openContextMenu: openContextAtCaret,
-    addComment: () => void cards?.add(),
+    addComment: () => {
+      if (!readOnly()) void cards?.add();
+    },
     misspellingAt: (at) => {
       const writing = session;
       const editing = view;
@@ -500,143 +545,361 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   };
   document.addEventListener("scroll", holdCentred, true);
 
-  void (async () => {
+  // The window's keys: search, zoom, Hotkeys, wherever focus is. Capture, so
+  // the editor's own Enter handling never sees them.
+  const asksForSearch = (event: KeyboardEvent): void => {
+    // Another workspace is on screen, and the keys are its.
+    if (hidden) return;
+    // A key Settings is recording is the writer's new key, not a command.
+    if (isCapturedKey(event)) return;
+    const asked = commandForKey(event, "window");
+    if (asked === undefined) {
+      if (keyTakenAway(event, "window")) event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    // Not a held key: a dialog this opens must not flicker while it is
+    // down. A zoom steps on while its key is held.
+    if (!event.repeat || asked.repeats === true) runCommand(asked, host);
+  };
+  window.addEventListener("keydown", asksForSearch, true);
+  stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);
+
+  // A locked draft on the paper is said by a card at the head of the right-hand
+  // column, the panels' own surface, never by a bar across the window: what it
+  // is, when it was locked, its note, and the two ways on from it.
+  const lockedCard = element("section", { className: "panel locked-draft", ariaLabel: "Locked draft" });
+  const drawLockedCard = (): void => {
+    if (showing?.kind !== "locked") {
+      lockedCard.remove();
+      return;
+    }
+    const { draft } = showing;
+    const action = (label: string, act: () => void): HTMLButtonElement => {
+      const button = element("button", { type: "button", className: "panel__row locked-draft__action", textContent: label });
+      button.addEventListener("click", act);
+      return button;
+    };
+    lockedCard.replaceChildren(
+      element("h2", { className: "locked-draft__title", textContent: `Locked · Draft ${draft.name}` }),
+      ...(draft.locked === undefined ? [] : [element("p", { className: "locked-draft__line", textContent: dayWords(draft.locked) })]),
+      ...(draft.note === undefined ? [] : [element("p", { className: "locked-draft__line locked-draft__note", textContent: draft.note })]),
+      element("div", { className: "locked-draft__actions" }, [
+        action("Return to live", () => void returnToLive()),
+        action("Branch from here", () => void branchHere()),
+      ]),
+    );
+    panels.right.prepend(lockedCard);
+  };
+
+  /**
+   * Read a draft and put it on the paper: an open one to write in, or a locked
+   * one to read. Answers whether it is there; when it is not, the writer has
+   * been told, and nothing was written.
+   */
+  const openPaper = async (target: Showing, place: CaretPlace | undefined): Promise<boolean> => {
+    page.prepend(reading);
+    const file = target.kind === "open" ? target.open.file : lockedDraftFile(target.draft.name);
+    let read: Awaited<ReturnType<typeof readManuscript>>;
+    let details: Awaited<ReturnType<typeof readDetails>>;
     try {
-      const [read, place, details] = await Promise.all([
-        readManuscript(context.filesystem, context.project, context.report),
-        recallPlace(context),
+      [read, details] = await Promise.all([
+        readManuscript(context.filesystem, context.project, context.report, file),
         // The project's own formatting (`details.md`); never throws.
         readDetails(context.filesystem, context.project.path),
       ]);
-      // Closed while the file was being read. A view mounted now would be a
-      // view nobody takes down.
-      if (gone) return;
-      formatting = formattingOf(details.details);
-
-      const writing = manuscriptSession(
-        {
-          filesystem: context.filesystem,
-          project: context.project,
-          report: context.report,
-          setSaved: context.setSaved,
-          setStatus: context.setStatus,
-          setGoal: context.setGoal,
-          ledger: context.ledger,
-          whenSwitchedAway: context.whenSwitchedAway,
-          whenSwitchedBack: context.whenSwitchedBack,
-          spellEngine: tauriSpellEngine,
-          drawSeam: drawSheetBreak,
-          drawOffer,
-          placeOffer,
-          formatting,
-          reloaded: (spellingWasOn) => {
-            view?.updateState(writing.state);
-            if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
-            shown(writing);
-          },
-        },
-        read,
-      );
-      session = writing;
-      reading.remove();
-
-      // Back where the writer left the caret, if that place is still in this
-      // script; otherwise the top of the script, where the session started it.
-      const resumed = place === undefined ? undefined : selectionAtPlace(writing.state.doc, place);
-      if (resumed !== undefined) writing.apply(writing.state.tr.setSelection(resumed));
-      placeKept = place === undefined ? undefined : JSON.stringify(place);
-
-      // #48 / #49 — page count from the model, never the DOM. Open and reload
-      // take a full paginate; each edit re-packs from the affected page onward.
-      view = new EditorView(page, {
-        state: writing.state,
-        dispatchTransaction: (transaction) => {
-          writing.apply(transaction);
-          view?.updateState(writing.state);
-          shown(writing);
-          if (transaction.docChanged || transaction.selectionSet) restPlace();
-        },
-        // The explicit save ADR-0028 pairs with autosave, and the other keys
-        // the Editor answers while the paper has focus — all from the command
-        // table. They are held here rather than in the surface's keymap because
-        // *when to save* belongs to the workspace that owns the project, not to
-        // the screenplay surface.
-        handleKeyDown: (_editor, event) => {
-          // The Menu key and Shift+F10 open the right-click menu at the caret,
-          // as a native one would (ADR-0034's accessibility cost). Ctrl+Alt+Enter,
-          // or the writer's own key for it, is the table's `context-menu`.
-          if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
-            event.preventDefault();
-            openContextAtCaret();
-            return true;
-          }
-          const asked = commandForKey(event, "editor");
-          // A key the writer took away does nothing, not what the surface did with it.
-          if (asked === undefined) return keyTakenAway(event, "editor");
-          runCommand(asked, host);
-          return true;
-        },
-        decorations: () => writing.seams,
-        handleScrollToSelection: scrollCaretIntoView,
-        // The title page is in the document and not on the paper. A forced
-        // page break's `===` is, faintly, and the seam to a new sheet after it.
-        nodeViews: hiddenTitlePage,
-        // Courier Prime and the page's geometry come from the stylesheet
-        // (ADR-0030); this is only the hook it selects on.
-        // The webview's own spellcheck is off: spelling is Write-ist's, on
-        // demand, from the dictionaries inside the application (ADR-0032).
-        // The project's own formatting is the stylesheet's to draw, by these.
-        attributes: { class: "manuscript", spellcheck: "false", ...formattingAttributes(formatting) },
-      });
-      // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
-      const editing = view;
-      // Measured again when the zoom is redrawn, which a resize does too.
-      fitCaretRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom, scale)));
-      fitCaretRoom();
-      // The writer can start typing at once, unless a menu opened while the
-      // script was being read has the keys.
-      const active = document.activeElement;
-      if (active === null || active === document.body) editing.focus();
-      // And the caret it opened at is on screen: where the writer left it, in
-      // the middle of the window, at once rather than gliding down from the top
-      // (`caret-centre.ts`); at the top of the script, with the usual room.
-      // Asked for directly: ProseMirror's `scrollIntoView` does nothing for a
-      // view without focus.
-      if (resumed !== undefined) centreCaretLine(editing, { smooth: false });
-      else scrollCaretIntoView(editing);
-      panels.attach(view);
-      commentLayer.attach(view);
-      shown(writing);
-      writing.showCounts();
-      writing.showGoal();
-
-      // Capture, so the editor's own Enter handling never sees it.
-      const asksForSearch = (event: KeyboardEvent): void => {
-        // Another workspace is on screen, and the keys are its.
-        if (hidden) return;
-        // A key Settings is recording is the writer's new key, not a command.
-        if (isCapturedKey(event)) return;
-        const asked = commandForKey(event, "window");
-        if (asked === undefined) {
-          if (keyTakenAway(event, "window")) event.preventDefault();
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        // Not a held key: a dialog this opens must not flicker while it is
-        // down. A zoom steps on while its key is held.
-        if (!event.repeat || asked.repeats === true) runCommand(asked, host);
-      };
-      window.addEventListener("keydown", asksForSearch, true);
-      stopListeningForSearch = () => window.removeEventListener("keydown", asksForSearch, true);
     } catch (error) {
-      if (gone) return;
       reading.remove();
+      if (gone) return false;
       // Words about their file, never a stack trace. Nothing was written,
       // because the failure was a read (ADR-0008 rule 3).
       context.report(
-        `Write-ist could not read this project's screenplay, so nothing has been changed. ${message(error)}`,
+        target.kind === "open"
+          ? `Write-ist could not read this project's screenplay, so nothing has been changed. ${message(error)}`
+          : `Write-ist could not read Draft ${target.draft.name}, so it is not shown. Nothing has been changed. ${message(error)}`,
       );
+      return false;
+    }
+    // Closed while the file was being read. A view mounted now would be a
+    // view nobody takes down.
+    if (gone) return false;
+    formatting = formattingOf(details.details);
+    const locked = target.kind === "locked";
+
+    const writing = manuscriptSession(
+      {
+        filesystem: context.filesystem,
+        project: context.project,
+        report: context.report,
+        setSaved: context.setSaved,
+        setStatus: context.setStatus,
+        setGoal: context.setGoal,
+        ledger: context.ledger,
+        whenSwitchedAway: context.whenSwitchedAway,
+        whenSwitchedBack: context.whenSwitchedBack,
+        spellEngine: tauriSpellEngine,
+        drawSeam: drawSheetBreak,
+        drawOffer,
+        placeOffer,
+        formatting,
+        readOnly: locked,
+        reloaded: (spellingWasOn) => {
+          view?.updateState(writing.state);
+          if (spellingWasOn && view !== undefined) writing.spellcheck.setOn(view, true);
+          shown(writing);
+        },
+      },
+      read,
+    );
+    session = writing;
+    showing = target;
+    reading.remove();
+
+    // Back where the writer left the caret, if that place is still in this
+    // script; otherwise the top of the script, where the session started it.
+    const resumed = place === undefined ? undefined : selectionAtPlace(writing.state.doc, place);
+    if (resumed !== undefined) writing.apply(writing.state.tr.setSelection(resumed));
+    if (!locked) placeKept = place === undefined ? undefined : JSON.stringify(place);
+
+    // #48 / #49 — page count from the model, never the DOM. Open and reload
+    // take a full paginate; each edit re-packs from the affected page onward.
+    view = new EditorView(page, {
+      state: writing.state,
+      // A locked draft takes no typing at all (ADR-0002): no caret, no input.
+      // The session refuses any change that reaches it some other way.
+      editable: () => !locked,
+      dispatchTransaction: (transaction) => {
+        writing.apply(transaction);
+        view?.updateState(writing.state);
+        shown(writing);
+        if (!locked && (transaction.docChanged || transaction.selectionSet)) restPlace();
+      },
+      // The explicit save ADR-0028 pairs with autosave, and the other keys
+      // the Editor answers while the paper has focus — all from the command
+      // table. They are held here rather than in the surface's keymap because
+      // *when to save* belongs to the workspace that owns the project, not to
+      // the screenplay surface.
+      handleKeyDown: (_editor, event) => {
+        // The Menu key and Shift+F10 open the right-click menu at the caret,
+        // as a native one would (ADR-0034's accessibility cost). Ctrl+Alt+Enter,
+        // or the writer's own key for it, is the table's `context-menu`.
+        if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+          event.preventDefault();
+          openContextAtCaret();
+          return true;
+        }
+        const asked = commandForKey(event, "editor");
+        // A key the writer took away does nothing, not what the surface did with it.
+        if (asked === undefined) return keyTakenAway(event, "editor");
+        runCommand(asked, host);
+        return true;
+      },
+      decorations: () => writing.seams,
+      handleScrollToSelection: scrollCaretIntoView,
+      // The title page is in the document and not on the paper. A forced
+      // page break's `===` is, faintly, and the seam to a new sheet after it.
+      nodeViews: hiddenTitlePage,
+      // Courier Prime and the page's geometry come from the stylesheet
+      // (ADR-0030); this is only the hook it selects on.
+      // The webview's own spellcheck is off: spelling is Write-ist's, on
+      // demand, from the dictionaries inside the application (ADR-0032).
+      // The project's own formatting is the stylesheet's to draw, by these.
+      attributes: { class: `manuscript${locked ? " manuscript--locked" : ""}`, spellcheck: "false", ...formattingAttributes(formatting) },
+    });
+    // Typing and the arrows keep the caret clear of the fades (`caret-margin.ts`).
+    const editing = view;
+    // Measured again when the zoom is redrawn, which a resize does too.
+    fitCaretRoom = (): void => editing.setProps(caretScrolling(measureCaretRoom(editing.dom, scale)));
+    fitCaretRoom();
+    // The writer can start typing at once, unless a menu opened while the
+    // script was being read has the keys.
+    const active = document.activeElement;
+    if (active === null || active === document.body) editing.focus();
+    // And the caret it opened at is on screen: where the writer left it, in
+    // the middle of the window, at once rather than gliding down from the top
+    // (`caret-centre.ts`); at the top of the script, with the usual room.
+    // Asked for directly: ProseMirror's `scrollIntoView` does nothing for a
+    // view without focus.
+    if (resumed !== undefined) centreCaretLine(editing, { smooth: false });
+    else scrollCaretIntoView(editing);
+    panels.attach(view);
+    commentLayer.attach(view, locked);
+    drawLockedCard();
+    shown(writing);
+    writing.showCounts();
+    writing.showGoal();
+    return true;
+  };
+
+  /**
+   * Take the paper down, to put another draft on it: an open draft's last
+   * words saved first, as on leaving (ADR-0028). Answers `false` — the paper
+   * still up, and the writer told — when that save failed.
+   */
+  const closePaper = async (): Promise<boolean> => {
+    const writing = session;
+    if (writing === undefined) return true;
+    commentLayer.flush();
+    // The day is recorded on the way, as on closing; trouble with the ledger is closing's to say.
+    if (!(await writing.leave({ quiet: true }))) return false;
+    await keepPlace();
+    contextMenu?.close(false);
+    searching?.close();
+    session = undefined;
+    fitCaretRoom = undefined;
+    view?.destroy();
+    view = undefined;
+    return true;
+  };
+
+  /**
+   * Put another draft on the paper, at the place the writer is now if it is in
+   * that draft too. If the new one will not read, the one before comes back.
+   */
+  const switchTo = async (target: Showing): Promise<boolean> => {
+    if (switching || gone) return false;
+    switching = true;
+    try {
+      const previous = showing;
+      const place = session === undefined ? undefined : caretPlaceOf(session.state.doc, session.state.selection.head);
+      if (!(await closePaper())) return false;
+      if (await openPaper(target, place)) return true;
+      if (previous !== undefined && !gone) await openPaper(previous, place);
+      return false;
+    } finally {
+      switching = false;
+    }
+  };
+
+  /** Read a locked draft on the paper; the open draft waits, saved. */
+  const readLocked = async (draft: LockedDraft): Promise<string | undefined> => {
+    await switchTo({ kind: "locked", draft, live: live() });
+    return undefined;
+  };
+  /** Write in another open draft, the one the project opens in from now on. */
+  const moveTo = async (open: OpenDraft): Promise<string | undefined> => {
+    if (showing?.kind === "open" && showing.open.file === open.file) return undefined;
+    const before = live();
+    try {
+      await chooseOpenDraft(context.filesystem, context.project, open);
+    } catch (error) {
+      return error instanceof CannotChangeDrafts
+        ? error.message
+        : `Write-ist could not move to that draft, so you are where you were. ${message(error)}`;
+    }
+    if (!(await switchTo({ kind: "open", open }))) {
+      // Still in the one before, so the project opens there too.
+      await chooseOpenDraft(context.filesystem, context.project, before).catch(() => {});
+    }
+    return undefined;
+  };
+  /** The locked card's Return to live: back to the open draft, where the writer was. */
+  const returnToLive = async (): Promise<void> => {
+    if (showing?.kind !== "locked") return;
+    await switchTo({ kind: "open", open: showing.live });
+  };
+  /** The locked card's Branch from here: a new open draft from this one (2a), written in at once. */
+  const branchHere = async (): Promise<void> => {
+    if (showing?.kind !== "locked" || switching) return;
+    const from = showing.draft.name;
+    let open: OpenDraft;
+    try {
+      open = await branchFrom(context.filesystem, context.project, from);
+    } catch (error) {
+      context.report(
+        error instanceof CannotChangeDrafts
+          ? error.message
+          : `Write-ist could not branch from Draft ${from}, so nothing has been changed. ${message(error)}`,
+      );
+      return;
+    }
+    await switchTo({ kind: "open", open });
+  };
+
+  /**
+   * Lock the open draft as `choice.name`: its latest words saved, then copied
+   * aside with its comments, and its comments taken out of the open draft
+   * only if the writer said so (ADR-0018). The writer goes on where they were.
+   */
+  const lockNow = async (choice: LockChoice): Promise<string | undefined> => {
+    const writing = session;
+    const editing = view;
+    if (showing?.kind !== "open" || writing === undefined || editing === undefined) return "Only an open draft can be locked.";
+    const open = showing.open;
+    commentLayer.flush();
+    await writing.save();
+    if (writing.unsaved()) return "Write-ist could not save your latest words, so nothing was locked. Your draft is as it was.";
+    try {
+      await lockDraft(context.filesystem, context.project, {
+        open,
+        name: choice.name,
+        bytes: exportScreenplay(writing.manuscript()),
+        note: choice.note,
+        today: localDay(new Date()),
+      });
+    } catch (error) {
+      return error instanceof CannotChangeDrafts ? error.message : `Nothing was locked, and your draft is as it was. ${message(error)}`;
+    }
+    if (!choice.carry && session === writing) {
+      const cleared = clearComments(editing.state);
+      if (cleared !== null) {
+        editing.dispatch(cleared);
+        void writing.save();
+      }
+    }
+    return undefined;
+  };
+
+  // File ▸ Lock this Draft…: for the open draft, never over a locked one or another dialog.
+  const openLock = (): void => {
+    if (session === undefined || view === undefined || switching || showing?.kind !== "open") return;
+    if (into.querySelector("dialog[open]") !== null) return;
+    const open = showing.open;
+    void readDrafts(context.filesystem, context.project).then(
+      (drafts) => {
+        if (gone || showing?.kind !== "open" || showing.open !== open || into.querySelector("dialog[open]") !== null) return;
+        openLockDialog(into, { names: lockNames(drafts, open), lock: lockNow, closed: () => view?.focus() });
+      },
+      (error: unknown) => context.report(`Write-ist could not read this project's drafts. ${message(error)}`),
+    );
+  };
+
+  // File ▸ Draft Tree…: every draft, to read a locked one or write in another open one.
+  const openTree = (): void => {
+    if (session === undefined || switching || into.querySelector("dialog[open]") !== null) return;
+    void readDrafts(context.filesystem, context.project).then(
+      (drafts) => {
+        if (gone || into.querySelector("dialog[open]") !== null) return;
+        openDraftTree(into, {
+          drafts,
+          live: live(),
+          reading: showing?.kind === "locked" ? showing.draft.name : undefined,
+          read: readLocked,
+          moveTo,
+          lock: showing?.kind === "open" ? openLock : undefined,
+          closed: () => view?.focus(),
+        });
+      },
+      (error: unknown) => context.report(`Write-ist could not read this project's drafts. ${message(error)}`),
+    );
+  };
+
+  void (async () => {
+    // The open draft the writer was last in (`drafts.md`); the trunk's when
+    // there is no saying — a project made before drafts has only that one.
+    let first: OpenDraft = TRUNK;
+    try {
+      const drafts = await readDrafts(context.filesystem, context.project);
+      if (drafts.trouble !== undefined) context.report(drafts.trouble);
+      first = drafts.active;
+    } catch {
+      // The folder would not list; the manuscript's own read says so if it matters.
+    }
+    const place = await recallPlace(context);
+    if (gone) return;
+    if (!(await openPaper({ kind: "open", open: first }, place)) && first !== TRUNK && !gone) {
+      await openPaper({ kind: "open", open: TRUNK }, place);
     }
   })();
 
@@ -673,6 +936,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         clearInterval(goalClock);
         stopListeningForGoals();
         stopListeningForDetails();
+        stopListeningForSearch?.();
         page.removeEventListener("contextmenu", onContextMenu);
         stopMarginClicks();
         contextMenu?.close(false);
@@ -685,7 +949,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         return true;
       }
       // The final save first, and it decides: the paper comes down only once
-      // the writer's last sentence is on disk, a card's words included.
+      // the writer's last sentence is on disk, a card's words included. A
+      // locked draft on the paper has nothing to save: the open draft was
+      // saved when it went.
       commentLayer.flush();
       if (!(await session.leave())) return false;
       await keepPlace();

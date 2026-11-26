@@ -42,7 +42,7 @@ function press(key: string, held: Partial<Record<"alt" | "ctrl" | "meta" | "shif
 /** A host whose every action is a spy, and whose editor is the one given. */
 function host(view?: EditorView): CommandHost & Record<string, ReturnType<typeof vi.fn>> {
   const names = [
-    "save", "exportAs", "toProjects", "editProjectDetails", "openSettings", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
+    "save", "exportAs", "lockDraft", "draftTree", "toProjects", "editProjectDetails", "openSettings", "toHome", "editTitlePage", "viewTitlePage", "editGoals",
     "toggleSpellcheck", "keyboardShortcuts", "search", "undo", "redo", "zoomIn", "zoomOut", "resetZoom",
   ] as const;
   const spies = Object.fromEntries(names.map((name) => [name, vi.fn()]));
@@ -207,6 +207,9 @@ describe("the Editor's menus", () => {
         "Save Project[Ctrl + S]",
         "Export As…",
         "---",
+        "Lock this Draft…",
+        "Draft Tree…",
+        "---",
         "Open Project",
         "Edit Project Details…",
         "---",
@@ -240,6 +243,8 @@ describe("the Editor's menus", () => {
     if (zoom === undefined || !("less" in zoom)) throw new Error("Zoom");
     choose("Save Project");
     choose("Export As…");
+    choose("Lock this Draft…");
+    choose("Draft Tree…");
     choose("Open Project");
     choose("Edit Project Details…");
     choose("Settings…");
@@ -256,6 +261,8 @@ describe("the Editor's menus", () => {
     expect(zoom.at()).toEqual({ index: 2, count: 5 });
     expect(act["save"]).toHaveBeenCalledOnce();
     expect(act["exportAs"]).toHaveBeenCalledOnce();
+    expect(act["lockDraft"]).toHaveBeenCalledOnce();
+    expect(act["draftTree"]).toHaveBeenCalledOnce();
     expect(act["toProjects"]).toHaveBeenCalledOnce();
     expect(act["editProjectDetails"]).toHaveBeenCalledOnce();
     expect(act["openSettings"]).toHaveBeenCalledOnce();

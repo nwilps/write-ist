@@ -16,18 +16,42 @@ format, one surface, one or more drafts.
 _Avoid_: document, file
 
 **Draft**:
-A numbered state of the work. Exactly one draft is in progress at any moment; every other
-draft is locked. Work continues into a new draft rather than reopening a locked one, so a
-draft is only ever read once it is locked — never restored over live work. A draft's name
-records its lineage: plain numbers run along the trunk (1, 2, 3) and a letter marks a
-departure from a locked draft, so 2a and 2b are two departures from draft 2.
+A numbered state of the work. A draft is either **open** — written in, and not yet locked — or
+locked. Several may be open at once: the trunk's, and one on each branch; the writer writes in
+one of them at a time and moves between them from the Draft Tree. Work continues into an open
+draft rather than reopening a locked one, so a locked draft is only ever read — never restored
+over live work. A draft's name records its lineage: plain numbers run along the trunk (1, 2, 3),
+a letter marks a branch departing from a locked draft (2a and 2b are two departures from draft
+2), a branch's later drafts carry a hyphen (2a-2), and a revision a point (1.1, 2a.1)
+(ADR-0002, amended 2026-11-26).
 _Avoid_: snapshot, version, pass, copy, Draft as the name of a workspace (that is the Editor)
 
+**Open draft**:
+A draft that is written in and has not been locked: the trunk's (`manuscript.fountain`) or a
+branch's (`manuscript 2a.fountain`). It stays open until the writer locks it, and locking does
+not close it — the locked copy is taken aside and the writer goes on in the same open draft.
+Before its first lock it is called by the name that lock will give it (Draft 1, Draft 2b).
+_Avoid_: in-progress draft (one of several now), working copy, current draft
+
+**Trunk**:
+The line of plain-numbered drafts, 1, 2, 3, and its open draft. Every project has one.
+Writer-facing words say "Draft 3", never "trunk".
+_Avoid_: main, mainline, master
+
+**Branch**:
+A line of drafts departing from a locked draft, named for it and a letter — 2a from 2, 1.1a from
+1.1 — with its own open draft, revisions (2a.1) and later drafts (2a-2). Made by *Branch from
+here* on a locked draft; making one never locks or disturbs any other open draft. Writer-facing
+words say "Draft 2a", never "branch".
+_Avoid_: fork, copy, alternate
+
 **Lock**:
-Declaring a draft finished. Locking is permanent and archival: the draft's manuscript and
-sidecar freeze together and never change again. At the moment of locking the writer says
-what follows — a *revision* of the same draft (1 becomes 1.1) or a new *draft* (1.1
-becomes 2). Locking is the only thing that mints a number.
+Declaring a draft finished. Locking is permanent and archival: a copy of the open draft's
+manuscript, comments and all, is taken aside under its name and never changes again; the rest
+of the sidecar is project-level and does not freeze (ADR-0014). At the moment of locking — never
+at the start of a draft — the writer says what this lock is: a *revision* (1.1 after 1) or a new
+*draft* (2 after 1.1). The first lock on a line has only one name, so nothing is asked. Locking
+is the only thing that mints a number.
 _Avoid_: publish, finalise, freeze, commit, save
 
 **Undo/redo**:
@@ -39,7 +63,7 @@ any name it put on a list.
 _Avoid_: history, versions, rollback
 
 **Autosave**:
-Writing the in-progress draft to disk without the writer asking — a couple of seconds after they
+Writing the open draft being written in to disk without the writer asking — a couple of seconds after they
 stop typing, when they switch away, and when they close the project. Autosave preserves the
 present; it never creates a draft and never appears in history. It never writes over a file that
 something else has changed since Write-ist last touched it: if the writer has typed too, it keeps
@@ -54,17 +78,19 @@ project Write-ist already holds is not an import.
 _Avoid_: open (that is a project Write-ist already holds), convert, load
 
 **Chain**:
-The sequence of locked drafts leading to the draft in progress — 1, 2 and 2a are on it while
-2a is being written, leaving 3 and 4 set aside. Membership is computed from where work is
-happening now, never stored on a draft, so resuming from a different locked draft redraws
-the chain without renaming or rewriting anything.
-_Avoid_: line (that is a line of text, and pagination needs the word), branch, trunk,
-mainline, path, history
+The sequence of locked drafts leading to the open draft being written in — 1, 2 and 2a are on
+it while 2a's open draft is being written, leaving 3 and 4 set aside. Membership is computed
+from where work is happening now, never stored on a draft, so moving to another open draft, or
+branching from a different locked draft, redraws the chain without renaming or rewriting
+anything.
+_Avoid_: line (that is a line of text, and pagination needs the word), branch (that is one
+line of drafts, not the run to the one being written), mainline, path, history
 
 **Set aside**:
-A locked draft that is not on the current chain. Being set aside is a relationship to present
-work, not a verdict on the draft and not a permanent state — resuming from a set-aside draft
-makes it current and sets aside whatever chain was running before.
+A locked draft that is not on the chain of the open draft being written in. Being set aside is
+a relationship to present work, not a verdict on the draft and not a permanent state — moving
+to an open draft whose chain runs through it makes it current, and sets aside whatever chain
+was running before.
 _Avoid_: superseded, abandoned, deprecated, obsolete, dead
 
 **Revision**:
@@ -320,8 +346,8 @@ any workspace is. The surface runs inside the Editor workspace.
 _Avoid_: app, chrome, frame, layout
 
 **Workspace**:
-A full screen the writer switches to, one at a time. The Editor, where the in-progress
-draft is written, is a workspace like any other. Notes, Plan, Log, Outline and Characters
+A full screen the writer switches to, one at a time. The Editor, where the open drafts are
+written, is a workspace like any other. Notes, Plan, Log, Outline and Characters
 are candidates rather than a fixed set: the set is open, and new workspaces are added as
 they prove useful. Each declares itself to the shell through a manifest, and is given a
 *toolbox*.
@@ -335,8 +361,8 @@ are added freely and removed or renamed only by a dated amendment. `docs/WORKSPA
 _Avoid_: API, SDK, context, plugin host, services
 
 **Editor**:
-The workspace the in-progress draft is written in, running the project's surface. A
-workspace like any other, not a frame around the others.
+The workspace the open drafts are written in, and a locked one read, running the project's
+surface. A workspace like any other, not a frame around the others.
 _Avoid_: Draft, draft view, writing mode
 
 **Manuscript session**:

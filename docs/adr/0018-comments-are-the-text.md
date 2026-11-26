@@ -84,7 +84,7 @@ byte-identical. That is invisible to the writer and is not a product constraint.
   the next draft by default; the lock dialog, where the writer already chooses revision or
   draft (ADR-0002), also offers to clear them. That offer is safe only because the frozen copy
   keeps its comments regardless (ADR-0014), so clearing affects the draft being carried forward
-  and destroys nothing.
+  and destroys nothing. *(Amended 2026-11-26, below: the default now follows the choice.)*
 - **Copying a commented span copies its comment.** ADR-0008 rule 1's existing paste behaviour
   applies unchanged: ids regenerate on collision, so the pasted text carries an independent
   comment with the same words. Two copies of a line get two comments, which is what a writer
@@ -202,3 +202,20 @@ above is unchanged.
   Cards scroll with the script and slide under the fixed side panels, the panels of a column
   counted as one solid block; a card under them is drawn at 15%, with no blur.
 
+## Amended 2026-11-26: Carry comments forward, as built (Noah)
+
+The lock dialog's offer is a switch, **Carry comments forward**:
+
+- **On for a revision, off for a new draft.** A revision continues the same draft, so its
+  comments are still about it; a new draft is a fresh pass, and most of a draft's comments are
+  done with by then. A first lock, which has no choice to make, starts on. Changing the choice
+  puts the switch back to that choice's default; the writer can flip it either way before
+  locking.
+- **The locked copy always keeps its comments.** The copy is taken from the open draft as it
+  stands, comments and all, before anything is cleared. The switch never reaches it.
+- **Off takes the comments out of the open draft only** — the words they covered stay — once the
+  locked copy is safely on disk. It is one undo step on the paper, so Ctrl+Z straight after
+  brings them back, and the open draft saves as any edit does. A lock that failed clears nothing.
+- **A locked draft's comments are shown, never changed.** Read on the paper, its cards have no
+  caret and no Resolve, and Add Comment does nothing, because a locked draft never changes
+  (ADR-0002).

@@ -1,0 +1,159 @@
+/*
+ * Drafts (ADR-0002): Lock this Draft, the Draft Tree, and the card that says a
+ * locked draft is on the paper. `.new-project-dialog` and its parts dress the
+ * two dialogs, as they dress Edit Project Details; this is only what they add.
+ * **Every value here is a token** (ADR-0030).
+ */
+
+/* --- The Draft Tree ------------------------------------------------------ */
+
+.new-project-dialog.draft-tree {
+  width: var(--measure-draft-tree);
+}
+
+/* The rows, one under another; past a Settings section's height they scroll. */
+.draft-tree__list {
+  display: grid;
+  align-content: start;
+  gap: var(--space-hair);
+  max-height: var(--size-draft-tree);
+  overflow-y: auto;
+}
+
+/* A row: the mark, the name and what it is on one line, its note beneath. A
+   branch or a revision is stepped in, a step for each level (`--draft-depth`). */
+.draft-tree__row {
+  display: grid;
+  gap: var(--space-hair);
+  width: 100%;
+  min-height: var(--size-row);
+  padding: var(--space-hair) var(--space-row-label);
+  padding-inline-start: calc(var(--space-row-label) + var(--space-draft-indent) * var(--draft-depth));
+  border: 0;
+  border-radius: var(--radius-slight);
+  background: none;
+  font: inherit;
+  font-size: var(--size-label);
+  line-height: var(--leading-label);
+  color: var(--colour-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.draft-tree__row:hover,
+.draft-tree__row:focus {
+  outline: none;
+  background: var(--colour-overlay);
+}
+
+.draft-tree__row:disabled {
+  cursor: default;
+}
+
+.draft-tree__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  min-height: var(--size-row);
+}
+
+.draft-tree__title {
+  color: var(--colour-text);
+}
+
+/* A revision is a compact sub-step of its draft: smaller, and quieter. */
+.draft-tree__row--revision .draft-tree__head {
+  min-height: var(--leading-label);
+  font-size: var(--size-caption);
+}
+
+.draft-tree__row--revision .draft-tree__title {
+  color: var(--colour-muted);
+}
+
+/* The open draft being written in, and the row the keys are on, are gold. */
+.draft-tree__row[aria-current="true"] .draft-tree__title,
+.draft-tree__row:focus .draft-tree__title {
+  color: var(--colour-accent);
+}
+
+.draft-tree__status {
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--colour-faint);
+}
+
+/* The note, under the name: past the mark, so it lines up with the words. */
+.draft-tree__note {
+  padding-inline-start: calc(var(--size-icon) + var(--space-tight));
+  color: var(--colour-faint);
+  overflow-wrap: anywhere;
+}
+
+.draft-tree__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+  color: var(--colour-faint);
+}
+
+/* An open draft's mark: a ring in the icon's room, filled for the one written in. */
+.draft-tree__dot {
+  display: grid;
+  place-items: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+.draft-tree__dot::before {
+  content: "";
+  width: var(--size-draft-dot);
+  height: var(--size-draft-dot);
+  box-sizing: border-box;
+  border: var(--rule-thin) solid var(--colour-muted);
+  border-radius: 50%;
+}
+
+.draft-tree__dot--live::before {
+  border-color: var(--colour-accent);
+  background: var(--colour-accent);
+}
+
+/* --- The locked card, at the head of the right-hand column ------------------ */
+
+.locked-draft {
+  gap: var(--space-tight);
+}
+
+.locked-draft__title {
+  margin: 0;
+  padding: 0 var(--space-row-label);
+  font-size: var(--size-label);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-label);
+  color: var(--colour-text);
+}
+
+.locked-draft__line {
+  margin: 0;
+  padding: 0 var(--space-row-label);
+  color: var(--colour-faint);
+  overflow-wrap: anywhere;
+}
+
+.locked-draft__actions {
+  display: grid;
+  gap: var(--space-hair);
+}
+
+.locked-draft__action {
+  width: 100%;
+  cursor: pointer;
+}
+
+.locked-draft__action:focus-visible {
+  outline: none;
+  background: var(--colour-overlay);
+  color: var(--colour-text);
+}
