@@ -57,7 +57,19 @@ export interface CommentSyntax {
   readonly readRemark: (written: string) => string;
   readonly writeOpen: (id: string, remark: string) => string;
   readonly writeClose: (id: string) => string;
+  /**
+   * A remark as the writer typed it in a card, put right quietly so that the
+   * delimiter holding it reads back as the same remark (ADR-0018, amended
+   * 2026-11-25). Applied when a card is written, never on reading a file.
+   */
+  readonly fitRemark: (typed: string) => string;
 }
+
+/**
+ * Both surfaces: a remark is one line, because a delimiter is read a line at
+ * a time, and its ends are not kept blank.
+ */
+const oneLine = (typed: string): string => typed.replace(/\s*[\r\n]+\s*/g, " ").trim();
 
 /**
  * Fountain: each delimiter is a complete note on its own, so every other tool
@@ -69,6 +81,9 @@ export const SCREENPLAY_COMMENTS: CommentSyntax = {
   readRemark: (written) => written,
   writeOpen: (id, remark) => `[[c:${id}${remark === "" ? "" : ` ${remark}`}]]`,
   writeClose: (id) => `[[/c:${id}]]`,
+  // A note ends at the first `]]`, so a remark never holds one, nor ends in a
+  // `]` that would make one with the note's own: a space goes between.
+  fitRemark: (typed) => oneLine(typed).replace(/\](?=\])/g, "] ").replace(/\]$/, "] "),
 };
 
 /**
@@ -87,6 +102,8 @@ export const PROSE_COMMENTS: CommentSyntax = {
   writeOpen: (id, remark) =>
     `<!--c:${id}${remark === "" ? "" : ` ${remark.replaceAll("-->", "--&gt;")}`}-->`,
   writeClose: (id) => `<!--/c:${id}-->`,
+  // `-->` is already escaped on the way out; one line is all that is left.
+  fitRemark: oneLine,
 };
 
 /** Where a lifted delimiter was, in the line with the delimiters cut out. */

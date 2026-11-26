@@ -4,61 +4,25 @@
  * `src/screenplay/editor.ts` maps the model into the editor's document and
  * back. This file is what happens **between** those two — the state a writer
  * types into, and the one thing that does not take care of itself while they
- * do.
+ * do: the comments, which `./comment-editing.ts` keeps on their words.
  *
- * ## Why a comment needs looking after and a mark does not
- *
- * A mark is stored inside the element it covers (ADR-0027), so ProseMirror
- * carries it: the element is a textblock, the mark is on its text, and an
- * insertion in the middle of a marked run widens the run without anybody
- * asking. A **comment** is different, and ADR-0018 is why: it may open in one
- * element and close in another, it has exactly one remark, so it is held once
- * **on the document** as a pair of `{ element, offset }` ends. Nothing in
- * ProseMirror knows those numbers mean anything, so nothing in ProseMirror
- * moves them.
- *
- * Until this ticket nothing had to: `SETUP-CHECKLIST.md` records comment ends
- * as *"element indices, which nothing moves while nothing edits"*, and
+ * Until #41 nothing had to: `SETUP-CHECKLIST.md` records comment ends as
+ * *"element indices, which nothing moves while nothing edits"*, and
  * `fromEditorDocument` throws rather than letting one land on the wrong words.
  * Typing is what makes them move, so typing is where they are moved — and the
  * failure this is written against is v1's, where a sidecar record quietly came
  * to describe the wrong text and the feature was abandoned rather than
  * debugged (ADR-0008).
- *
- * ## Positions, not indices, while the project is open
- *
- * The plugin holds each end as a **document position**, because that is the
- * one form ProseMirror will map for us: every transaction carries a mapping
- * from the positions before it to the positions after it, and mapping `c`
- * comments costs `c` — it does not walk the manuscript.
- *
- * That is not a micro-optimisation, it is the rule ADR-0019's last consequence
- * and `docs/STANDARDS.md`'s *Measure the measurer* both state: derived data is
- * computed incrementally and **never for the whole document on every
- * keystroke**. The element-and-offset form the model and the serialiser want
- * is rebuilt from those positions after each change, which costs `c` resolves
- * and no scan.
- *
- * ## Which side of a boundary typed text lands on
- *
- * A comment's start maps forward and its end maps backward, so text typed
- * exactly at either boundary lands **outside** the comment and the remark goes
- * on covering the words it was left on.
- *
- * The same two biases give ADR-0018's deletion rule for free: delete every
- * character a comment covers and its two ends arrive at the same position, so
- * the comment is empty, and an empty comment is dropped rather than left
- * pointing at a seam. *"Deleting all the text a comment covers removes the
- * comment with it."*
  */
-import { Plugin, PluginKey, type Command, type EditorState as State } from "prosemirror-state";
+import type { Command, EditorState as State } from "prosemirror-state";
 import { EditorState } from "prosemirror-state";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { toggleMark } from "prosemirror-commands";
 import { autocomplete, type AutocompleteOptions } from "./autocomplete.ts";
 import type { Spellcheck } from "./spellcheck.ts";
-import { clipboard, pastedComments } from "./clipboard.ts";
+import { clipboard } from "./clipboard.ts";
+import { maintainComments } from "./comment-editing.ts";
 import { dualCaretKey } from "./dual-dialogue.ts";
 import { elementKeys, endsUndoStep, keepHiddenSyntax } from "./element-keys.ts";
 import { HISTORY_DEPTH, PAUSE_MS, undoGrouping } from "./undo-grouping.ts";
@@ -69,69 +33,7 @@ import type { Element, ScreenplayDocument } from "./document.ts";
 import { fromEditorDocument, toEditorDocument } from "./editor.ts";
 import { keepTitlePageOut, startOfScript } from "./title-page-editing.ts";
 import { outsidePageBreak, pageBreaksFollowText } from "./page-break-editing.ts";
-import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { screenplaySchema } from "./schema.ts";
-
-/**
- * A comment while the project is open: its remark, and its two ends as
- * document positions.
- *
- * The positions are the working form and die with the session, exactly like
- * element identity (ADR-0019). Nothing here is ever written to a file — the
- * serialiser reads the `{ element, offset }` ends off the document.
- */
-interface PlacedComment {
-  readonly id: string;
-  readonly remark: string;
-  readonly start: number;
-  readonly end: number;
-}
-
-const placedComments = new PluginKey<readonly PlacedComment[]>("write-ist:comments");
-
-/**
- * Keep every comment on the words it was left on, through every edit
- * (ADR-0018).
- *
- * The plugin's own state is the positions; the document's `comments` attribute
- * is rebuilt from them after any change, so everything downstream — the model,
- * the serialiser, the round-trip gate — keeps reading comments in exactly the
- * form it already read them in.
- */
-export const maintainComments = new Plugin<readonly PlacedComment[]>({
-  key: placedComments,
-  state: {
-    init: (_config, state) => placeComments(state.doc),
-    apply: (transaction, placed) => {
-      if (!transaction.docChanged) return placed;
-      const moved: PlacedComment[] = [];
-      for (const comment of placed) {
-        // Start forward, end backward: typed text at either boundary lands
-        // outside the comment, and a deleted span collapses the two onto each
-        // other.
-        const start = transaction.mapping.map(comment.start, 1);
-        const end = transaction.mapping.map(comment.end, -1);
-        // Every character it covered is gone, so the remark is about nothing.
-        if (end <= start) continue;
-        moved.push({ ...comment, start, end });
-      }
-      // A paste brings its comments already placed in the new document (#47);
-      // they join in the order they open.
-      const pasted = transaction.getMeta(pastedComments) as readonly PlacedComment[] | undefined;
-      if (pasted === undefined) return moved;
-      return [...moved, ...pasted].sort((a, b) => a.start - b.start);
-    },
-  },
-  appendTransaction: (transactions, _old, state) => {
-    if (!transactions.some((transaction) => transaction.docChanged)) return null;
-
-    const placed = placedComments.getState(state) ?? [];
-    const rebuilt = commentsFrom(state.doc, placed);
-    const held = state.doc.attrs["comments"];
-    if (Array.isArray(held) && same(held as readonly Comment[], rebuilt)) return null;
-    return state.tr.setDocAttribute("comments", rebuilt);
-  },
-});
 
 /**
  * Undo and redo (#45): a stack over the editor's transactions that lives in the
@@ -221,83 +123,6 @@ export function editorStateFor(document: ScreenplayDocument, options: EditorOpti
 function withALineToTypeOn(document: ScreenplayDocument): ScreenplayDocument {
   if (document.elements.length > 0) return document;
   return { ...document, elements: [{ type: "action", text: "", forced: false }] };
-}
-
-/* ------------------------------------------------------- ends ↔ positions */
-
-/**
- * Each comment's two ends as document positions, read off the document once
- * when the project opens.
- *
- * This is the one pass over the manuscript, and it is at load rather than per
- * keystroke: from here on the positions are mapped.
- */
-function placeComments(doc: EditorNode): readonly PlacedComment[] {
-  const held = doc.attrs["comments"];
-  if (!Array.isArray(held) || held.length === 0) return [];
-  const comments = held as readonly Comment[];
-
-  let elements = 0;
-  doc.forEach((child) => {
-    if (child.type.name === "element") elements += 1;
-  });
-
-  const placed: PlacedComment[] = [];
-  for (const comment of comments) {
-    const start = positionOfElement(doc, paperIndex(comment.start.element), comment.start.offset);
-    const end = positionOfElement(doc, paperIndex(comment.end.element), comment.end.offset);
-    // Loud rather than silently dropped (ADR-0008 rule 4). `fromEditorDocument`
-    // makes the same check for the same reason; a comment whose end is not a
-    // place in the manuscript is a bug upstream, not a comment to discard.
-    if (start === undefined || end === undefined) {
-      throw new Error(
-        `comment ${comment.id} is anchored outside a manuscript of ${elements} elements`,
-      );
-    }
-    placed.push({ id: comment.id, remark: comment.remark, start, end });
-  }
-  return placed;
-}
-
-/**
- * The comments as the model holds them, rebuilt from the positions.
- *
- * The index is the on-page one, blank lines counted. `manuscriptOf` is what
- * drops the blanks, and it relocates these ends when it does. Using the
- * manuscript numbering here would move a remark before the file was written.
- */
-function commentsFrom(doc: EditorNode, placed: readonly PlacedComment[]): readonly Comment[] {
-  if (placed.length === 0) return [];
-
-  const comments: Comment[] = [];
-  for (const comment of placed) {
-    const start = elementAt(doc, comment.start);
-    const end = elementAt(doc, comment.end);
-    // Both ends were mapped out of every element there is — the manuscript no
-    // longer holds the words the remark was about.
-    if (start === undefined || end === undefined) continue;
-    comments.push({
-      id: comment.id,
-      remark: comment.remark,
-      start: { element: start.element, offset: start.offset },
-      end: { element: end.element, offset: end.offset },
-    });
-  }
-  return comments;
-}
-
-function same(held: readonly Comment[], rebuilt: readonly Comment[]): boolean {
-  if (held.length !== rebuilt.length) return false;
-  return held.every((comment, index) => {
-    const other = rebuilt[index]!;
-    return (
-      comment.id === other.id &&
-      comment.start.element === other.start.element &&
-      comment.start.offset === other.start.offset &&
-      comment.end.element === other.end.element &&
-      comment.end.offset === other.end.offset
-    );
-  });
 }
 
 /* ----------------------------------------------- the manuscript, as the file has it */
