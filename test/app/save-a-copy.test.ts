@@ -15,7 +15,7 @@ describe("the Fountain copy, through Export As…", () => {
   it("is reached from the File menu, which no longer has an item of its own for it", () => {
     const exportAs = vi.fn();
     const file = editorMenus({
-      save: vi.fn(), exportAs, toProjects: vi.fn(), editProjectDetails: vi.fn(), openContextMenu: vi.fn(), addComment: vi.fn(), openSettings: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
+      save: vi.fn(), exportAs, toProjects: vi.fn(), editProjectDetails: vi.fn(), lockDraft: vi.fn(), draftTree: vi.fn(), openContextMenu: vi.fn(), addComment: vi.fn(), openSettings: vi.fn(), toHome: vi.fn(), editTitlePage: vi.fn(),
       viewTitlePage: vi.fn(), editGoals: vi.fn(), editNameList: vi.fn(),
       toggleSpellcheck: vi.fn(), spellcheckOn: () => false, keyboardShortcuts: vi.fn(), search: vi.fn(), view: () => undefined,
       zoomIn: vi.fn(), zoomOut: vi.fn(), resetZoom: vi.fn(), zoomLevel: () => 2,

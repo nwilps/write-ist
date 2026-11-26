@@ -26,6 +26,7 @@ import "./style/export.css";
 import "./style/shortcuts.css";
 import "./style/panels.css";
 import "./style/comments.css";
+import "./style/drafts.css";
 import "./style/menus.css";
 import "./style/title-page.css";
 import "./style/home.css";

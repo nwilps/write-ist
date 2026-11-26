@@ -47,6 +47,8 @@ import {
   FolderOpen,
   House,
   Keyboard,
+  ListTree,
+  Lock,
   MapPin,
   MessageSquareText,
   Pencil,
@@ -89,6 +91,10 @@ export interface EditorActions {
   readonly save: () => void;
   /** Open the Export As dialog, which offers every format the script can leave in. */
   readonly exportAs: () => void;
+  /** Open Lock this Draft (ADR-0002): the open draft locked, under the name the dialog shows. */
+  readonly lockDraft: () => void;
+  /** Open the Draft Tree: every draft, locked and open, to read one or move to another. */
+  readonly draftTree: () => void;
   readonly toProjects: () => void;
   /** Open Edit Project Details: the name, type, target page count and workspaces. */
   readonly editProjectDetails: () => void;
@@ -128,6 +134,8 @@ export interface EditorActions {
   readonly openContextMenu: () => void;
   /** Add Comment: a card over the selection, or the caret's line, ready to type in (`comment-cards.ts`). */
   readonly addComment: () => void;
+  /** Whether the paper is a locked draft, read and never changed: what changes it is not offered. */
+  readonly readOnly?: () => boolean;
 }
 
 /** A word the spelling pass has underlined, and what can be done about it. */
@@ -229,6 +237,9 @@ export interface Command {
 /** Whether the writer has anything selected: what Cut and Copy need. */
 const hasSelection = (host: CommandHost): boolean => host.view()?.state.selection.empty === false;
 
+/** Whether the paper may be changed: not while a locked draft is being read. */
+const writable = (host: CommandHost): boolean => host.readOnly?.() !== true;
+
 /** The labels of the element types, which the table's rows and the panel both draw. */
 const ELEMENT_LABELS: Readonly<Record<string, string>> = {
   "scene-heading": "Scene Heading",
@@ -263,7 +274,7 @@ function atPlace(
     context,
     available: (host, at) => {
       const view = host.view();
-      return view !== undefined && can(view.state, at);
+      return view !== undefined && writable(host) && can(view.state, at);
     },
     run: (host, at) => {
       const view = host.view();
@@ -278,6 +289,9 @@ export const COMMANDS: readonly Command[] = [
   // File
   { id: "save", label: "Save Project", icon: Save, chord: { key: "s", mod: true }, fixed: true, menu: { name: "File", group: "save" }, run: (host) => host.save() },
   { id: "export-as", label: "Export As…", icon: FileOutput, menu: { name: "File", group: "save" }, run: (host) => host.exportAs() },
+  // Drafts (ADR-0002): from the File menu only, with no pill on the desk (Noah).
+  { id: "lock-draft", label: "Lock this Draft…", icon: Lock, menu: { name: "File", group: "drafts" }, run: (host) => host.lockDraft() },
+  { id: "draft-tree", label: "Draft Tree…", icon: ListTree, menu: { name: "File", group: "drafts" }, run: (host) => host.draftTree() },
   { id: "to-projects", label: "Open Project", icon: FolderOpen, menu: { name: "File", group: "project" }, run: (host) => host.toProjects() },
   { id: "edit-project-details", label: "Edit Project Details…", icon: Pencil, menu: { name: "File", group: "project" }, run: (host) => host.editProjectDetails() },
   // No key, by Noah's choice: Home's [s] and this item open it. (Ctrl+, is the
@@ -359,9 +373,9 @@ export const COMMANDS: readonly Command[] = [
   // The clipboard and selection. The keys are the webview's and the surface's
   // (`clipboard.ts`): the table knows them to draw the hint, and the items
   // reach that same code through the host (ADR-0034).
-  { id: "cut", label: "Cut", icon: Scissors, chord: { key: "x", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: hasSelection, run: (host) => host.cut() },
+  { id: "cut", label: "Cut", icon: Scissors, chord: { key: "x", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: (host) => writable(host) && hasSelection(host), run: (host) => host.cut() },
   { id: "copy", label: "Copy", icon: Copy, chord: { key: "c", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: hasSelection, run: (host) => host.copy() },
-  { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.paste() },
+  { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, available: writable, run: (host) => host.paste() },
   { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.selectAll() },
 
   // A comment over the selection, or the caret's line (ADR-0018). Its key,
@@ -375,7 +389,7 @@ export const COMMANDS: readonly Command[] = [
     context: { group: "comment" },
     available: (host, at) => {
       const view = host.view();
-      return view !== undefined && commentRange(view.state, at) !== undefined;
+      return view !== undefined && writable(host) && commentRange(view.state, at) !== undefined;
     },
     run: (host) => host.addComment(),
   },

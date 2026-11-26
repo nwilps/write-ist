@@ -202,8 +202,12 @@ export interface ManuscriptSession {
   /**
    * Finish and let go: the last save, then the ledger. Answers `false` — and
    * says why — when the save failed, in which case nothing has been let go of.
+   *
+   * `quiet` is for moving to another draft rather than closing the project:
+   * the day is still recorded, but a ledger that is not there or will not
+   * take it is left for closing to say, rather than said at every move.
    */
-  readonly leave: () => Promise<boolean>;
+  readonly leave: (options?: { readonly quiet?: boolean }) => Promise<boolean>;
   /**
    * Rename the project under the open manuscript: run `move`, which moves its
    * folder, once nothing is being written into that folder, and write there
@@ -482,7 +486,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   const stopSwitchingAway = readOnly ? () => {} : ports.whenSwitchedAway(() => void saving.now());
   const stopSwitchingBack = readOnly ? () => {} : ports.whenSwitchedBack(() => void saving.now());
 
-  const leave = async (): Promise<boolean> => {
+  const leave = async ({ quiet = false }: { readonly quiet?: boolean } = {}): Promise<boolean> => {
     // Read, never written: there is nothing to save and no day to record.
     if (readOnly) return true;
     // Closing the project (ADR-0028), through the same routine as every
@@ -505,10 +509,12 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     // costs a chart, never the manuscript — so the project still leaves.
     const ledger = ports.ledger();
     if (ledger === undefined) {
-      ports.report(
-        `Write-ist could not record today's writing in the ledger. ` +
-          `Your screenplay is saved. The record of your writing days did not start.`,
-      );
+      if (!quiet) {
+        ports.report(
+          `Write-ist could not record today's writing in the ledger. ` +
+            `Your screenplay is saved. The record of your writing days did not start.`,
+        );
+      }
     } else {
       try {
         await ledger.recordDay(
@@ -516,10 +522,12 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
           manuscriptOf(state.doc),
         );
       } catch (error) {
-        ports.report(
-          `Write-ist could not record today's writing in the ledger. ` +
-            `Your screenplay is saved. ${message(error)}`,
-        );
+        if (!quiet) {
+          ports.report(
+            `Write-ist could not record today's writing in the ledger. ` +
+              `Your screenplay is saved. ${message(error)}`,
+          );
+        }
       }
     }
     // The day's words, with the goal beside them. A failure is said and the

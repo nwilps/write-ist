@@ -918,6 +918,19 @@
   --measure-name-list-actions: 168px;
 }
 
+/* --- Drafts: Lock this Draft, the Draft Tree and the locked card (ADR-0002) ------ */
+
+:root {
+  /** The Draft Tree: as wide as a Settings section, which it sits beside in the File menu. */
+  --measure-draft-tree: var(--measure-settings-pane);
+  /** Its rows, before they scroll: as tall as a Settings section. */
+  --size-draft-tree: var(--size-settings-pane);
+  /** A branch, or a draft's revisions, a step in from where they hang: one step a level. */
+  --space-draft-indent: 20px;
+  /** An open draft's mark: a ring, filled for the one being written in. */
+  --size-draft-dot: 8px;
+}
+
 /*
  * Settings ▸ General ▸ Appearance's corners, set on the root by `applyAppearance`.
  * Sharp interface corners square every rounded thing but the paper, which
