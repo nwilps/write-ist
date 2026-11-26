@@ -365,7 +365,8 @@ describe("Plan's open cards, beside the Structure button", () => {
     expect(desk).toContain("gap: var(--space-plan-edge)");
     expect(rule(PLAN, ".plan__controls")).toContain("align-self: flex-start");
     expect(panel).toContain("top: 0");
-    expect(panel).toContain("left: 0");
+    // The first place (0) is the slot's own left edge.
+    expect(panel).toMatch(/left: calc\(var\(--plan-position\) \* /);
     expect(rule(PLAN, ".plan__card-slot")).toContain("position: relative");
   });
 
@@ -423,10 +424,11 @@ describe("Plan's open cards, beside the Structure button", () => {
     expect(MOST_OPEN_CARDS).toBe(3);
     expect(token("--space-plan-panels")).toBe("var(--space-plan-edge)");
     expect(panel).toContain(
-      "width: min( var(--measure-plan-panel), calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards)) )",
+      "--plan-panel-width: min( var(--measure-plan-panel), calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards)) )",
     );
+    expect(panel).toContain("width: var(--plan-panel-width)");
     // A place is the card's own width and a gap along.
-    expect(panel).toContain("transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels))))");
+    expect(panel).toContain("left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)))");
     // Worked through: the slot is the workspace less its sides, the Structure button and the gap beside it.
     const gap = pixels("--space-plan-edge");
     const compact = 46 * 0.6 * pixels("--size-body");
@@ -442,13 +444,13 @@ describe("Plan's open cards, beside the Structure button", () => {
 
   it("slides a card to its new place, eased, and the pushed-out card off the window to the right, fading", () => {
     expect(panel).toContain(
-      "transition: transform var(--duration-plan-panel) var(--ease-plan-panel), opacity var(--duration-plan-panel) var(--ease-plan-panel)",
+      "transition: left var(--duration-plan-panel) var(--ease-plan-panel), opacity var(--duration-plan-panel) var(--ease-plan-panel)",
     );
     expect(token("--duration-plan-panel")).toBe("240ms");
     expect(token("--ease-plan-panel")).toMatch(/^cubic-bezier\(/);
     const leaving = rule(PLAN, '.plan__panel[data-leaving="true"]');
     expect(leaving).toContain(
-      "transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--size-plan-room-width)))",
+      "left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--size-plan-room-width))",
     );
     expect(token("--size-plan-room-width")).toBe("100cqw");
     expect(leaving).toContain("opacity: var(--opacity-plan-panel-gone)");
@@ -456,13 +458,24 @@ describe("Plan's open cards, beside the Structure button", () => {
     expect(leaving).toContain("pointer-events: none");
     // While dragged it follows the pointer at once, over the others; let go, it slides into its place.
     const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
-    expect(dragging).toContain("transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--plan-drag-x)))");
+    expect(dragging).toContain("left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--plan-drag-x))");
     // It always has an offset, so that rule is never left without one: nothing at rest (round 2's snap to the first place).
     expect(panel).toContain("--plan-drag-x: var(--size-plan-panel-still)");
     expect(token("--size-plan-panel-still")).toBe("0px");
-    expect(dragging).not.toMatch(/transition:[^;]*transform/);
+    expect(dragging).not.toMatch(/transition:[^;]*left/);
     expect(dragging).toContain("z-index: var(--layer-plan-panel-drag)");
     expect(sheet(PLAN)).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.plan__panel \{\s*transition: none;/);
+  });
+
+  it("places and slides an open card by left, never by transform, so WebKitGTK never draws it back at its old place", () => {
+    // Round 3: slid by a transform, a card was handed to WebKitGTK's compositor, which drew one
+    // frame at its old place as the slide ended — it arrived, jumped back, settled. Measured on
+    // the screen's pixels: two or three such frames a run with transform, none with left.
+    for (const selector of [".plan__panel", '.plan__panel[data-dragging="true"]', '.plan__panel[data-leaving="true"]']) {
+      expect(rule(PLAN, selector)).not.toMatch(/(^|[\s;])transform:/);
+      expect(rule(PLAN, selector)).not.toMatch(/transition:[^;]*transform/);
+      expect(rule(PLAN, selector)).not.toContain("will-change");
+    }
   });
 
   it("has a grip on its top edge, centred and faint, brighter under the pointer", () => {

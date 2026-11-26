@@ -355,25 +355,33 @@
  * or a third of the slot less the gaps where three of that would not fit, so
  * all three always fit beside the button. A place is the card's own width
  * and a gap along, and a card moving to another place slides there.
+ *
+ * **It is placed, and slides, by `left`, never by `transform`** (Plan round
+ * 3). WebKitGTK hands a sliding transform to its compositor, and on handing
+ * it back drew one frame with the card at its old place: the card arrived,
+ * jumped back, and settled. A card placed by `left` is drawn where the page
+ * lays it out, every frame, and there is no hand-back to get wrong. Both its
+ * width and its place are measured against the slot, so a place is still the
+ * card's own width and a gap along.
  */
 .plan__panel {
   --card-tint: var(--colour-plan-plain);
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-hair);
-  width: min(
+  --plan-panel-width: min(
     var(--measure-plan-panel),
     calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards))
   );
+  position: absolute;
+  top: 0;
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  width: var(--plan-panel-width);
   max-height: 100%;
   /* At rest it is not dragged: the drag's own offset is set only while it is, and the rule below never goes without one. */
   --plan-drag-x: var(--size-plan-panel-still);
-  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels))));
   transition:
-    transform var(--duration-plan-panel) var(--ease-plan-panel),
+    left var(--duration-plan-panel) var(--ease-plan-panel),
     opacity var(--duration-plan-panel) var(--ease-plan-panel);
   box-sizing: border-box;
   padding: var(--space-tight);
@@ -395,13 +403,13 @@
 /* Dragged by its top edge: it follows the pointer from its place, over the others, at once. */
 .plan__panel[data-dragging="true"] {
   z-index: var(--layer-plan-panel-drag);
-  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--plan-drag-x)));
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--plan-drag-x));
   transition: opacity var(--duration-plan-panel) var(--ease-plan-panel);
 }
 
 /* Pushed out of the third place by a card opened: it slides off the window to the right, fading. */
 .plan__panel[data-leaving="true"] {
-  transform: translateX(calc(var(--plan-position) * (100% + var(--space-plan-panels)) + var(--size-plan-room-width)));
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--size-plan-room-width));
   opacity: var(--opacity-plan-panel-gone);
   pointer-events: none;
 }
