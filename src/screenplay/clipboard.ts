@@ -36,7 +36,7 @@ import {
   type Transaction,
 } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import type { Comment } from "../comments.ts";
+import { pastedRemark, SCREENPLAY_COMMENTS, type Comment } from "../comments.ts";
 import { elementAt, paperIndex, positionOfElement } from "./numbering.ts";
 import { normaliseSource } from "../normalise.ts";
 import { toEditorDocument, fromEditorDocument } from "./editor.ts";
@@ -255,7 +255,9 @@ function placeComments(
     let id = comment.id;
     while (taken.has(id)) id = mintId();
     taken.add(id);
-    placed.push({ id, remark: comment.remark, start, end });
+    // A comment pasted in is written into this file: a remark past the limit
+    // is cut to it, as one typed in a card would be.
+    placed.push({ id, remark: pastedRemark(SCREENPLAY_COMMENTS, comment.remark), start, end });
   }
   if (placed.length > 0) tr.setMeta(pastedComments, placed);
 }

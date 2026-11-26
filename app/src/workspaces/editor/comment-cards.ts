@@ -24,7 +24,9 @@
  * paper — Esc never goes Home from a card — and so does clicking away. Words
  * typed are put in the remark when the writer leaves the card, or pauses as
  * long as ends an undo step on the paper (`PAUSE_MS`), each time one undo step.
- * A new comment left with nothing in it quietly goes.
+ * A new comment left with nothing in it quietly goes. A remark is at most
+ * `REMARK_MAX` characters: typing stops there and a paste goes in as far as
+ * there is room, with nothing said about it.
  *
  * **Resolve** deletes the comment and keeps its words (`resolveComment`), and
  * puts the writer back on the paper, where Ctrl+Z brings it back.
@@ -43,6 +45,7 @@ import {
   startComment,
   type ShownComment,
 } from "../../../../src/screenplay/comment-editing.ts";
+import { cappedRemark, REMARK_MAX } from "../../../../src/comments.ts";
 import { PAUSE_MS } from "../../../../src/screenplay/undo-grouping.ts";
 import { element } from "../../screens/element.ts";
 import {
@@ -202,7 +205,25 @@ export function commentCards(parts: {
       // Written in: out from under the panels (`draw`).
       schedule();
     });
-    text.addEventListener("input", () => {
+    text.addEventListener("beforeinput", (event) => {
+      // At most REMARK_MAX, quietly: typing stops, and a paste goes in as far
+      // as there is room. A remark already longer, from a file, can be cut
+      // down but not added to.
+      if (event.isComposing || !event.inputType.startsWith("insert")) return;
+      const adding = event.data ?? event.dataTransfer?.getData("text/plain") ?? "";
+      const room = REMARK_MAX - (typed(card).length - selectedLength(text));
+      if (adding.length <= room) return;
+      event.preventDefault();
+      const fits = room > 0 ? cappedRemark(adding, room) : "";
+      if (fits !== "") insertAtCaret(text, fits);
+    });
+    text.addEventListener("input", (event) => {
+      // Whatever got past the above — a word chosen from an input method —
+      // is cut to fit here; the model caps it again when it is written.
+      if ((event as InputEvent).inputType?.startsWith("insert") && typed(card).length > REMARK_MAX) {
+        text.textContent = cappedRemark(typed(card));
+        caretAtEnd(text);
+      }
       // A remark is one line: a line break pasted in is a space by the time it is kept.
       clearTimeout(pause);
       if (card.id !== DRAFT_ID) pause = setTimeout(() => write(card), PAUSE_MS);
@@ -476,6 +497,31 @@ function icon(node: IconNode): SVGElement {
 }
 
 /** Focus a card's words with the caret after the last of them. */
+/** How many of the card's characters the selection in it covers. */
+function selectedLength(text: HTMLElement): number {
+  const selection = text.ownerDocument.getSelection();
+  if (selection === null || selection.rangeCount === 0) return 0;
+  const range = selection.getRangeAt(0);
+  return text.contains(range.commonAncestorContainer) ? range.toString().length : 0;
+}
+
+/** Put words in where the caret is, over any selection, as typing would, and say so as typing does. */
+function insertAtCaret(text: HTMLElement, words: string): void {
+  const selection = text.ownerDocument.getSelection();
+  if (selection === null || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!text.contains(range.commonAncestorContainer)) return;
+  range.deleteContents();
+  const node = text.ownerDocument.createTextNode(words);
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  text.normalize();
+  text.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: words }));
+}
+
 function caretAtEnd(text: HTMLElement): void {
   text.focus();
   const selection = text.ownerDocument.getSelection();

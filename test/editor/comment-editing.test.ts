@@ -10,7 +10,7 @@
 import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
 import { redo, undo, undoDepth } from "prosemirror-history";
 import { describe, expect, it } from "vitest";
-import { PROSE_COMMENTS, SCREENPLAY_COMMENTS } from "../../src/comments.ts";
+import { PROSE_COMMENTS, REMARK_MAX, SCREENPLAY_COMMENTS } from "../../src/comments.ts";
 import { wordCount } from "../../src/project/ledger.ts";
 import {
   activateComment,
@@ -196,6 +196,53 @@ describe("a remark the file can hold", () => {
       expect(covered(reread, "1")).toBe("Maya pushes the door open and steps into the light.");
       expect(serialise(reread)).toBe(fileOf(state));
     }
+  });
+});
+
+describe("a remark's length", () => {
+  const exactly = "a".repeat(REMARK_MAX);
+
+  it("is at most 240 characters: 240 is kept whole, 241 is quietly cut to 240", () => {
+    expect(REMARK_MAX).toBe(240);
+    for (const syntax of [SCREENPLAY_COMMENTS, PROSE_COMMENTS]) {
+      expect(syntax.fitRemark(exactly)).toBe(exactly);
+      expect(syntax.fitRemark(`${exactly}b`)).toBe(exactly);
+      expect(syntax.fitRemark("word ".repeat(100))).toHaveLength(239);
+    }
+  });
+
+  it("is cut after the line breaks and brackets are put right, and never ends in a ] or half an emoji", () => {
+    // 238 letters then `]]`: spaced to `] ] ` and cut back to fit, the last `]` given up.
+    const bracketed = SCREENPLAY_COMMENTS.fitRemark(`${"a".repeat(REMARK_MAX - 2)}]]`);
+    expect(bracketed).toBe(`${"a".repeat(REMARK_MAX - 2)}] `);
+    expect(bracketed.length).toBeLessThanOrEqual(REMARK_MAX);
+    expect(bracketed.endsWith("]")).toBe(false);
+    // An emoji is two UTF-16 units; one straddling the limit goes whole.
+    const emoji = SCREENPLAY_COMMENTS.fitRemark(`${"a".repeat(REMARK_MAX - 1)}🌧`);
+    expect(emoji).toBe("a".repeat(REMARK_MAX - 1));
+  });
+
+  it("caps a new comment made from the card, in the file and read back", () => {
+    const state = commented(caretAt(opened(), LAST, 0), `${exactly}b`);
+    expect(parse(fileOf(state)).comments[0]!.remark).toBe(exactly);
+    expect(fileOf(state)).toContain(`[[c:1 ${exactly}]]Maya pushes`);
+  });
+
+  it("caps a reworded remark", () => {
+    const made = commented(caretAt(opened(), LAST, 0), "Too easy.");
+    const reworded = run(made, setRemark(made, "1", `${exactly}${"b".repeat(60)}`));
+    expect(parse(fileOf(reworded)).comments[0]!.remark).toBe(exactly);
+  });
+
+  it("opens a file whose remark is longer, keeps it whole, and saves the file byte for byte", () => {
+    const long = "x".repeat(300);
+    const text = `Rain.\n\n[[c:a1 ${long}]]Crows lift off the fence.[[/c:a1]]\n`;
+    const state = opened(text);
+    expect(shownComments(state)[0]!.remark).toBe(long);
+    expect(fileOf(state)).toBe(text);
+    // Once the writer rewords it, it is capped like any other.
+    const reworded = run(state, setRemark(state, "a1", `${long}!`));
+    expect(parse(fileOf(reworded)).comments[0]!.remark).toBe("x".repeat(REMARK_MAX));
   });
 });
 

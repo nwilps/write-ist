@@ -193,4 +193,18 @@ describe("comments", () => {
     const outside = paste(select(opened(COMMENTED), [1, 5]), { text: `${clip.text}\n\nMore.` }, () => "z7");
     expect(manuscriptOf(outside.doc).comments.map((c) => c.id)).toEqual(["k1", "z7"]);
   });
+
+  it("cuts a pasted comment's remark to 240 characters, and keeps one of 240 whole", () => {
+    const exactly = "r".repeat(240);
+    for (const [remark, kept] of [[exactly, exactly], [`${exactly}s`, exactly]] as const) {
+      const text = `She [[c:k1 ${remark}]]waits[[/c:k1]] here.\n\nHe goes.`;
+      const state = paste(select(opened("Rain.\n"), [0, 5]), { text }, () => "z1");
+      expect(manuscriptOf(state.doc).comments.map((c) => c.remark)).toEqual([kept]);
+      // From inside Write-ist too: a copy of a longer remark opened from a file.
+      let inside = select(opened(`${text}\n`), [0, 4], [0, 9]);
+      const clip = copy(inside);
+      inside = paste(select(inside, [1, 2]), clip, () => "k2");
+      expect(manuscriptOf(inside.doc).comments.map((c) => c.remark)).toEqual([remark, kept]);
+    }
+  });
 });

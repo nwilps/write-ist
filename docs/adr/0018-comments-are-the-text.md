@@ -188,6 +188,12 @@ above is unchanged.
   make `]]` with the next character gets a space after it. Both are applied as the card is
   written, never when a file is read — a file edited elsewhere is read as it is. The prose
   surface's one escape (`-->`) is unchanged.
+- **A remark is at most 240 characters** (Noah, 2026-11-25). Capped quietly as the card is
+  written: typing stops at 240, and a paste goes in as far as there is room. Nothing says so — no
+  toast, no message, no counter. A comment pasted with its words is cut to 240 too. Like the rules
+  above it is applied when a remark is written, never when a file is read: a longer remark written
+  elsewhere opens whole and saves byte for byte, and is cut to 240 only once the writer rewords
+  it. The limit is `REMARK_MAX` in `src/comments.ts`.
 - **The cards.** They use both side columns, whichever has room nearest the commented words.
   Cards that would overlap stack and push each other down, and the connector bends to follow,
   only in the strip of desk between the paper and the column, so it never crosses words: it

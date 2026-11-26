@@ -163,6 +163,30 @@ function key(target: HTMLElement, name: string): KeyboardEvent {
   return event;
 }
 
+/**
+ * What the window does when a key or a paste puts words in a card: it asks
+ * first (`beforeinput`) and, unless told no, puts them in at the caret.
+ */
+function insert(text: HTMLElement, words: string, inputType: "insertText" | "insertFromPaste" = "insertText"): void {
+  const init: InputEventInit = { bubbles: true, cancelable: true, inputType };
+  const asking = new InputEvent("beforeinput", inputType === "insertText" ? { ...init, data: words } : init);
+  if (inputType === "insertFromPaste") {
+    // As WebKit gives a paste: no `data`, the words on `dataTransfer`.
+    Object.defineProperty(asking, "dataTransfer", { value: { getData: (kind: string) => (kind === "text/plain" ? words : "") } });
+  }
+  if (!text.dispatchEvent(asking)) return;
+  const selection = document.getSelection()!;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const node = document.createTextNode(words);
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  text.dispatchEvent(new InputEvent("input", { bubbles: true, inputType, data: words }));
+}
+
 const textOf = (layer: HTMLElement): HTMLElement => layer.querySelector<HTMLElement>(".comment-card__text")!;
 
 describe("adding a comment", () => {
@@ -346,6 +370,83 @@ describe("a comment's card", () => {
     expect([...layer.querySelectorAll(".comment-card__text")].map((text) => text.textContent)).toEqual(["Crows feel familiar.", "Too quiet?"]);
   });
 });
+
+describe("a card holds at most 240 characters, quietly", () => {
+  const exactly = "a".repeat(240);
+
+  it("stops typing at 240, with nothing said, and the comment made holds the 240", () => {
+    const { view, cards, layer, file } = desk();
+    caretIn(view, 2);
+    cards.add();
+    const text = textOf(layer);
+    insert(text, "a".repeat(239));
+    insert(text, "a");
+    expect(text.textContent).toBe(exactly);
+    insert(text, "b");
+    expect(text.textContent).toBe(exactly);
+    key(text, "Escape");
+    expect(file()).toContain(`[[c:1 ${exactly}]]Maya pushes`);
+    expect(document.querySelector("dialog, .trouble, [title]")).toBeNull();
+  });
+
+  it("lets a paste in as far as there is room, at the caret", () => {
+    const { view, cards, layer, file } = desk();
+    caretIn(view, 1);
+    cards.add();
+    const text = textOf(layer);
+    insert(text, "a".repeat(230));
+    insert(text, " pasted words that run on well past the end", "insertFromPaste");
+    expect(text.textContent).toBe(`${"a".repeat(230)} pasted wo`);
+    key(text, "Enter");
+    expect(parse(file()).comments[0]!.remark).toBe(text.textContent);
+  });
+
+  it("lets a paste replace a selection when what is left fits", () => {
+    const { view, cards, layer } = desk();
+    caretIn(view, 1);
+    cards.add();
+    const text = textOf(layer);
+    insert(text, exactly);
+    // Select the last ten and paste twelve over them: room for ten.
+    const range = document.createRange();
+    range.setStart(text.firstChild!, 230);
+    range.setEnd(text.firstChild!, 240);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+    insert(text, "bbbbbbbbbbbb", "insertFromPaste");
+    expect(text.textContent).toBe(`${"a".repeat(230)}${"b".repeat(10)}`);
+  });
+
+  it("opens a longer remark whole, takes no more words in it, and caps it once reworded", () => {
+    const long = "x".repeat(300);
+    const before = `Rain.\n\n[[c:a1 ${long}]]Crows lift off the fence.[[/c:a1]]\n`;
+    const { view, layer, cards, file } = desk(before);
+    cards.redraw();
+    const text = textOf(layer);
+    expect(text.textContent).toBe(long);
+    expect(file()).toBe(before);
+    text.focus();
+    caretAtEndOf(text);
+    insert(text, "y");
+    expect(text.textContent).toBe(long);
+    view.focus();
+    // Nothing changed, so nothing was written: the file is as it was opened.
+    expect(file()).toBe(before);
+    // Deleting a word is rewording it: the remark is cut to 240.
+    text.focus();
+    type(text, `${long.slice(0, 290)}`);
+    view.focus();
+    expect(parse(file()).comments[0]!.remark).toBe("x".repeat(240));
+  });
+});
+
+function caretAtEndOf(text: HTMLElement): void {
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  range.collapse(false);
+  document.getSelection()!.removeAllRanges();
+  document.getSelection()!.addRange(range);
+}
 
 describe("the look is the design's, in tokens (ADR-0030)", () => {
   const style = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src", "style");
