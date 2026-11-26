@@ -105,8 +105,8 @@ export interface Filesystem {
   removeEmptyFolder(path: string): Promise<void>;
 
   /**
-   * Move a file to a path where nothing is: renaming a note, or bringing an
-   * old `notes.md` into the `notes` folder. **Never replaces anything**: rejects,
+   * Move a file to a path where nothing is: renaming a workspace's file (a
+   * note), or bringing an old `notes.md` into the `notes` folder. **Never replaces anything**: rejects,
    * leaving both paths as they were, when anything at all is at `to`, and when
    * `from` is not a file. In the application the file is linked under its new
    * name before the old name goes, so the words are never under no name, and
@@ -116,12 +116,15 @@ export interface Filesystem {
   moveFile(from: string, to: string): Promise<void>;
 
   /**
-   * Delete one note, for good — the writer chose Delete on it and confirmed.
-   * Only a real `.md` file directly inside a project's `notes` folder; rejects,
-   * touching nothing, for anything else (`remove_note_within`,
-   * `src-tauri/src/folders.rs`).
+   * Delete one file, for good, directly inside the project's folder called
+   * `folder` — a folder a workspace declared in its manifest (`files`,
+   * ADR-0045). The writer chose Delete on it and confirmed. Only a real file,
+   * not hidden, directly inside a real folder of exactly that name, directly
+   * inside a project; rejects, touching nothing, for anything else
+   * (`remove_file_within`, `src-tauri/src/folders.rs`). Never replaces
+   * anything, and reaches nothing outside that one folder.
    */
-  removeNote(path: string): Promise<void>;
+  removeWorkspaceFile(path: string, folder: string): Promise<void>;
 
   /**
    * Erase one project in the Graveyard, for good: **Exile**, the one erase

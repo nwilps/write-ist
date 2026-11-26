@@ -21,6 +21,12 @@ cheap enough to be generous with.
   first appears: the set of workspaces is deliberately open, and new ones will keep being
   invented after v2 ships. Get this right and a new workspace is a manifest; get it wrong
   and every workspace is surgery in the shell.
+
+  > **Amended 2026-11-25 (ADR-0045).** The doorway runs both ways: a workspace is given one
+  > versioned **toolbox** when it is mounted, and reaches the application through it and nothing
+  > else — files, the writer's place, spellcheck, pills, hotkeys, settings, menus, dialogs. The
+  > shell still knows nothing of any workspace, and now no list in the application names one by
+  > hand either: the Hotkeys lists, Settings and Edit Project Details read the registry.
 - **The testable form of that rule: the shell source must not contain the string
   `"screenplay"` anywhere.** A declared seam is not a seam. v1's own architecture document
   already said modes must never be hard-coded into the shell, and v1 still produced a

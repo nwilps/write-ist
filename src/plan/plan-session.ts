@@ -12,15 +12,9 @@
  * Details changes it. Nothing about the plan is written when it changes: cards
  * keep their place as a share of the whole (`plan.ts`).
  */
-import type { Clock } from "../project/autosave.ts";
 import type { Project } from "../project/bundle.ts";
-import type { Filesystem } from "../project/filesystem.ts";
-import {
-  readWorkspaceFile,
-  workspaceFileSession,
-  type FileSaveState,
-  type WorkspaceFileRead,
-} from "../project/workspace-file.ts";
+import type { WorkspaceFileRead } from "../project/workspace-file.ts";
+import type { WorkspaceFiles } from "../project/workspace-files.ts";
 import {
   EMPTY_PLAN,
   NEW_CARD_CELLS,
@@ -54,8 +48,8 @@ export interface PlanRead {
  * Read a project's plan. An absent `plan.md` is an empty plan; one that is
  * there and is not a plan **rejects**, so it is never opened for writing over.
  */
-export async function readPlan(filesystem: Filesystem, project: Project): Promise<PlanRead> {
-  const file = await readWorkspaceFile(filesystem, project, PLAN_FILE);
+export async function readPlan(files: Pick<WorkspaceFiles, "read">): Promise<PlanRead> {
+  const file = await files.read(PLAN_FILE);
   if (file.bytes === undefined) return { file, document: { plan: EMPTY_PLAN, heading: PLAN_HEADING, extra: [] } };
   const document = parsePlan(file.text);
   if (document === null) throw new Error(`${PLAN_FILE} is not a plan Write-ist can read, so it has been left as it is.`);
@@ -63,19 +57,19 @@ export async function readPlan(filesystem: Filesystem, project: Project): Promis
 }
 
 export interface PlanSessionPorts {
-  readonly filesystem: Filesystem;
-  readonly project: Project;
+  /**
+   * Plan's files (`toolbox.files`, ADR-0045): `plan.md` is opened through
+   * them, so its saving — safe, automatic, quiet about outside changes, and
+   * told to the save pill — is the toolbox's.
+   */
+  readonly files: Pick<WorkspaceFiles, "open">;
   /** The project's target page count; 0 for none. */
   readonly targetPages: number;
-  readonly report: (trouble: string) => void;
-  readonly setSaved: (state: FileSaveState) => void;
   /** The counts pill: how many cards. */
   readonly setStatus: (text: string) => void;
-  readonly whenSwitchedAway: (act: () => void) => () => void;
-  readonly whenSwitchedBack: (act: () => void) => () => void;
   /** The plan was replaced from outside: the file changed elsewhere and was loaded. */
   readonly redraw: () => void;
-  readonly clock?: Clock;
+  /** For joining typing into one step to undo. The system clock unless a test is it. */
   readonly now?: () => Date;
 }
 
@@ -121,11 +115,9 @@ export function planSession(ports: PlanSessionPorts, read: PlanRead): PlanSessio
     ports.setStatus(`${count} ${count === 1 ? "card" : "cards"}`);
   };
 
-  const file = workspaceFileSession(
+  const file = ports.files.open(
+    PLAN_FILE,
     {
-      filesystem: ports.filesystem,
-      project: ports.project,
-      file: PLAN_FILE,
       noun: "your plan",
       text: () => serialisePlan(plan, kept),
       reload: (text) => {
@@ -141,12 +133,6 @@ export function planSession(ports: PlanSessionPorts, read: PlanRead): PlanSessio
         ports.redraw();
         return true;
       },
-      report: ports.report,
-      setSaved: ports.setSaved,
-      whenSwitchedAway: ports.whenSwitchedAway,
-      whenSwitchedBack: ports.whenSwitchedBack,
-      ...(ports.clock === undefined ? {} : { clock: ports.clock }),
-      ...(ports.now === undefined ? {} : { now: ports.now }),
     },
     read.file,
   );

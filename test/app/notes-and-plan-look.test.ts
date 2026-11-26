@@ -16,7 +16,7 @@
  * (That nothing is drawn again mid-drag is `notes-and-plan.test.ts`.)
  *
  * Plan's grid panel is as far below the workspace bar as it is from the
- * window's sides; under it, the Structure button and the selected card beside
+ * window's sides; under it, the Structure button and up to three open cards beside
  * it, the card growing down to the bottom pills' margin and no further, with
  * its colours in a three-by-three picker of nine.
  */
@@ -24,6 +24,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { MOST_OPEN_NOTES } from "../../src/notes/tabs.ts";
+import { MOST_OPEN_CARDS } from "../../src/plan/open-cards.ts";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "app", "src");
 
@@ -55,6 +57,54 @@ function pixels(name: string): number {
   return Number(found[1]);
 }
 
+/** One declaration's value in a rule as `rule` gives it. */
+function declared(body: string, property: string): string {
+  const found = new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+);`).exec(body);
+  if (found === null) throw new Error(`no ${property} in ${body}`);
+  return found[1]!.trim();
+}
+
+/** What no token says: set from code (the place, the drag), or the window's own width (the room). */
+const GIVEN: Record<string, keyof Lengths> = { "--plan-position": "position", "--plan-drag-x": "drag", "--size-plan-room-width": "room" };
+
+/** A value with every `var()` followed — first to the rule's own custom properties, then to the tokens — but the given ones. */
+function expanded(value: string, local = ""): string {
+  const followable = (text: string): boolean => [...text.matchAll(/var\((--[\w-]+)\)/g)].some((found) => !(found[1]! in GIVEN));
+  let out = value;
+  for (let depth = 0; followable(out); depth++) {
+    if (depth > 20) throw new Error(`var()s that never end: ${value}`);
+    out = out.replace(/var\((--[\w-]+)\)/g, (all, name: string) => {
+      if (name in GIVEN) return all;
+      return local.includes(`${name}:`) ? declared(local, name) : token(name);
+    });
+  }
+  return out;
+}
+
+interface Lengths {
+  /** What 100% is: the containing block's width. */
+  readonly percent: number;
+  readonly ch: number;
+  /** The rule whose own custom properties the value may use. */
+  readonly local?: string;
+  readonly position?: number;
+  readonly drag?: number;
+  readonly room?: number;
+}
+
+/** A length as the stylesheet writes it, worked out in pixels: `calc()`, `min()`, px, %, ch and plain numbers. */
+function cssLength(value: string, lengths: Lengths): number {
+  const sum = expanded(value, lengths.local)
+    .replace(/var\((--[\w-]+)\)/g, (_, name: string) => `(${lengths[GIVEN[name]!] ?? 0})`)
+    .replace(/(\d+(?:\.\d+)?)px\b/g, "$1")
+    .replace(/(\d+(?:\.\d+)?)%/g, `($1*${lengths.percent}/100)`)
+    .replace(/(\d+(?:\.\d+)?)ch\b/g, `($1*${lengths.ch})`)
+    .replace(/\bcalc\(/g, "(")
+    .replace(/\bmin\(/g, "Math.min(");
+  if (!/^(?:[\d.\s+\-*/(),]|Math\.min)*$/.test(sum)) throw new Error(`not a length this can work out: ${sum}`);
+  return Number(new Function(`return ${sum};`)());
+}
+
 const NOTES = "workspaces/notes/notes.css";
 const PLAN = "workspaces/plan/plan.css";
 
@@ -69,8 +119,9 @@ describe("Notes, a floating window", () => {
     expect(token("--size-notes-room-height")).toBe("100cqh");
     expect(rule(NOTES, ".notes-desk")).toContain("container-type: size");
     expect(rule(NOTES, ".notes-desk")).toMatch(/align-items: center;.*justify-content: center/);
-    expect(window).toContain(
-      "width: min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
+    expect(window).toContain("width: var(--size-notes-window-width)");
+    expect(token("--size-notes-window-width")).toBe(
+      "min( calc(var(--size-notes-room-width) * var(--fraction-notes-width)), " +
         "calc( (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) * var(--ratio-notes) ) )",
     );
     expect(notes).toContain("width: 100%");
@@ -185,22 +236,40 @@ describe("Notes' bar of pills", () => {
     expect(rule(NOTES, ".notes-tab__rename")).toContain("text-align: center");
   });
 
-  it("fits five tabs, the folder, + and their gaps in the window at 1920 × 1080; narrower, the tabs keep their width and scroll", () => {
-    // 24ch of the interface's face at the label size: a column is 0.6em.
-    expect(token("--measure-notes-tab")).toBe("24ch");
+  it("measures the tabs so six of them, the folder, + and their gaps are exactly the window's width, at any window", () => {
+    // Six, as many as may be open, in the stylesheet and in the code.
+    expect(token("--count-notes-tabs")).toBe(String(MOST_OPEN_NOTES));
+    expect(MOST_OPEN_NOTES).toBe(6);
+    // From the window's own width token, the one the window is drawn at, so the two cannot drift.
+    expect(token("--measure-notes-tab-fit")).toBe(
+      "calc( (var(--size-notes-window-width) - var(--size-notes-bar) * 2 - var(--space-pill-gap) * (var(--count-notes-tabs) + 1)) / var(--count-notes-tabs) )",
+    );
+    expect(token("--measure-notes-tab")).toBe("max(var(--measure-notes-tab-least), var(--measure-notes-tab-fit))");
     expect(rule(NOTES, ".notes-tab")).toContain("font-size: var(--size-label)");
-    const tabWidth = 24 * 0.6 * pixels("--size-label");
+    // Worked through: the window as drawn, the tab as measured from it, and the bar they make.
     const gap = pixels("--space-pill-gap");
-    const barFor = (tabs: number) => pixels("--size-notes-bar") * 2 + tabs * tabWidth + (tabs + 1) * gap;
-    // The window as drawn: the workspace less its sides, the height less the window's frame.
+    const pill = pixels("--size-notes-bar");
+    const least = 12 * 0.6 * pixels("--size-label");
+    expect(token("--measure-notes-tab-least")).toBe("12ch");
     const windowAt = (width: number, height: number) => {
       const room = { width: width - pixels("--space-roomy") * 2, height };
-      return Math.min(room.width * 0.7, (room.height - pixels("--space-notes-inset") * 2 - pixels("--size-notes-bar") - gap) * (16 / 9));
+      return Math.min(room.width * 0.7, (room.height - pixels("--space-notes-inset") * 2 - pill - gap) * (16 / 9));
     };
-    expect(barFor(5)).toBeCloseTo(1072, 6);
-    expect(barFor(5)).toBeLessThanOrEqual(windowAt(1920, 1080 - 40));
-    // A 1440-wide laptop's window is too narrow for five: the strip scrolls rather than the tabs shrinking.
-    expect(barFor(5)).toBeGreaterThan(windowAt(1440, 900 - 40));
+    const tabAt = (window: number) => Math.max(least, (window - pill * 2 - gap * 7) / 6);
+    const barAt = (window: number, tabs: number) => pill * 2 + tabs * tabAt(window) + (tabs + 1) * gap;
+    // 1920 × 1080, 1440 × 900, 1280 × 800 and a short 1600 × 600: six tabs fill the window to the pixel.
+    for (const [width, height] of [[1920, 1040], [1440, 860], [1280, 760], [1600, 600]] as const) {
+      const window = windowAt(width, height);
+      expect(barAt(window, 6)).toBeCloseTo(window, 9);
+      expect(tabAt(window)).toBeGreaterThan(least);
+    }
+    // Fewer open: the same width each, + beside the last, short of the window's edge.
+    expect(tabAt(windowAt(1920, 1040))).toBeCloseTo((windowAt(1920, 1040) - pill * 2 - gap * 7) / 6, 9);
+    expect(barAt(windowAt(1920, 1040), 3)).toBeLessThan(windowAt(1920, 1040));
+    // The smallest window Write-ist opens: the tabs stop at their least width, and the strip scrolls inside the window.
+    const smallest = windowAt(560, 420);
+    expect(tabAt(smallest)).toBe(least);
+    expect(barAt(smallest, 6)).toBeGreaterThan(smallest);
     expect(strip).toContain("overflow-x: auto");
     expect(rule(NOTES, ".notes-tab")).toContain("flex: none");
   });
@@ -229,7 +298,7 @@ describe("Notes' bar of pills", () => {
     expect(rule(NOTES, '.notes-tab[aria-selected="true"]')).toContain("color: var(--colour-accent)");
   });
 
-  it("greys + while five tabs are open, as an unavailable button is greyed elsewhere", () => {
+  it("greys + while six tabs are open, as an unavailable button is greyed elsewhere", () => {
     expect(rule(NOTES, ".notes-bar__pill:disabled")).toContain("opacity: var(--opacity-unavailable)");
     expect(rule(NOTES, ".notes-bar__pill:hover:not(:disabled), .notes-bar__pill:focus-visible, .notes-bar__pill[aria-expanded=\"true\"]")).toContain(
       "color: var(--colour-text)",
@@ -330,7 +399,7 @@ describe("Plan's grid panel, placed", () => {
   });
 });
 
-describe("Plan's selected card, beside the Structure button", () => {
+describe("Plan's open cards, beside the Structure button", () => {
   const panel = rule(PLAN, ".plan__panel");
   const under = rule(PLAN, ".plan__under");
   const desk = rule(PLAN, ".plan-desk");
@@ -344,7 +413,8 @@ describe("Plan's selected card, beside the Structure button", () => {
     expect(desk).toContain("gap: var(--space-plan-edge)");
     expect(rule(PLAN, ".plan__controls")).toContain("align-self: flex-start");
     expect(panel).toContain("top: 0");
-    expect(panel).toContain("left: 0");
+    // The first place (0) is the slot's own left edge.
+    expect(panel).toMatch(/left: calc\(var\(--plan-position\) \* /);
     expect(rule(PLAN, ".plan__card-slot")).toContain("position: relative");
   });
 
@@ -363,24 +433,156 @@ describe("Plan's selected card, beside the Structure button", () => {
     expect(box).toContain("display: grid");
     expect(box).toContain("flex: 0 1 auto");
     expect(box).toContain("min-height: 0");
-    expect(box).toContain("overflow-y: auto");
-    expect(box).toContain("scrollbar-width: none");
-    expect(rule(PLAN, ".plan__description-box::-webkit-scrollbar")).toContain("display: none");
     const shared = rule(PLAN, ".plan__description, .plan__description-box::after");
     expect(shared).toContain("grid-area: 1 / 1");
     expect(shared).toContain("min-height: var(--size-plan-description)");
     expect(shared).toContain("white-space: pre-wrap");
     expect(rule(PLAN, ".plan__description-box::after")).toContain('content: attr(data-value) " "');
     expect(rule(PLAN, ".plan__description-box::after")).toContain("visibility: hidden");
-    expect(rule(PLAN, ".plan__description")).toContain("overflow: hidden");
     expect(rule(PLAN, ".plan__description")).toContain("resize: none");
   });
 
+  it("scrolls the description in the field itself, the one scroller the wheel and the caret share, to its start and its end (round 2)", () => {
+    // In round 1 the box scrolled, with the field shrunk to the visible height inside it: the wheel
+    // slid the field away over blank room, and the caret scrolled the field where the wheel never reached.
+    const box = rule(PLAN, ".plan__description-box");
+    // The box only clips; its one row gives way to it, so the field is the visible height and holds the rest.
+    expect(box).toContain("grid-template-rows: minmax(0, 1fr)");
+    expect(box).toContain("overflow: clip");
+    expect(box).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+    const field = rule(PLAN, ".plan__description");
+    expect(field).toContain("height: 100%");
+    expect(field).toContain("overflow-y: auto");
+    expect(field).not.toMatch(/overflow(-y)?:\s*hidden/);
+    // No scrollbar drawn.
+    expect(field).toContain("scrollbar-width: none");
+    expect(rule(PLAN, ".plan__description::-webkit-scrollbar")).toContain("display: none");
+    // Nothing in code scrolls the box behind the field's back.
+    expect(readFileSync(join(app, "workspaces", "plan", "plan.ts"), "utf8")).not.toMatch(/descriptionBox\.scroll/);
+  });
+
   it("is compact, and wears the card's own tinted face and edge", () => {
-    expect(panel).toContain("width: min(var(--measure-plan-panel), 100%)");
     expect(panel).toContain("padding: var(--space-tight)");
     expect(panel).toContain("background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay))");
     expect(rule(PLAN, '.plan__panel[data-colour="blue"]')).toContain("--card-tint: var(--colour-plan-blue)");
+  });
+
+  it("has three places side by side, each card compact, all three always fitting beside the Structure button", () => {
+    expect(token("--count-plan-open-cards")).toBe(String(MOST_OPEN_CARDS));
+    expect(MOST_OPEN_CARDS).toBe(3);
+    expect(token("--space-plan-panels")).toBe("var(--space-plan-edge)");
+    // The slot is three compact cards and their gaps wide, or the room beside the button where that is less.
+    expect(rule(PLAN, ".plan__card-slot")).toContain(
+      "max-width: calc( var(--measure-plan-panel) * var(--count-plan-open-cards) + var(--space-plan-panels) * (var(--count-plan-open-cards) - 1) )",
+    );
+    // Each card is a third of it less the gaps.
+    expect(panel).toContain(
+      "--plan-panel-width: calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards))",
+    );
+    expect(panel).toContain("width: var(--plan-panel-width)");
+    // A place is the card's own width and a gap along.
+    expect(panel).toContain("left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)))");
+  });
+
+  it("works each card's place out from the stylesheet itself: side by side, the normal gap between, inside the slot, at every window (round 4)", () => {
+    // Worked through from the rules as written: the workspace less its sides, the Structure button and the gap
+    // beside it is the room; the slot is that room or three compact cards and their gaps, whichever is less.
+    const gap = pixels("--space-plan-edge");
+    const ch = 0.6 * pixels("--size-body");
+    const compact = 46 * ch;
+    const button = 130;
+    const slotRule = rule(PLAN, ".plan__card-slot");
+    const leaving = rule(PLAN, '.plan__panel[data-leaving="true"]');
+    const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
+    const roomAt = (window: number): number => window - gap * 2 - button - gap;
+    for (const window of [1920, 1899, 1637, 1440, 1280, 1024, 882, 800, 560]) {
+      const room = roomAt(window);
+      const slot = Math.min(room, cssLength(declared(slotRule, "max-width"), { percent: room, ch }));
+      const width = cssLength(declared(panel, "width"), { percent: slot, ch, local: panel });
+      const lefts = [0, 1, 2].map((at) => cssLength(declared(panel, "left"), { percent: slot, ch, local: panel, position: at }));
+      // The first beside the button, each next one its width and the normal gap along: never over another.
+      expect(lefts[0]).toBe(0);
+      for (const at of [1, 2]) expect(lefts[at]! - (lefts[at - 1]! + width)).toBeCloseTo(gap, 9);
+      // All three inside the slot, and so inside the workspace.
+      expect(lefts[2]! + width).toBeLessThanOrEqual(slot + 1e-9);
+      expect(width).toBeGreaterThan(0);
+      // Compact where three of that fit; a third of the room less the gaps where they do not.
+      if (room >= compact * 3 + gap * 2) expect(width).toBeCloseTo(compact, 9);
+      else expect(width).toBeCloseTo((room - gap * 2) / 3, 9);
+      // Dragged, it is its place plus the drag; pushed out, its place plus the room's width.
+      expect(cssLength(declared(dragging, "left"), { percent: slot, ch, local: panel, position: 1, drag: -37 })).toBeCloseTo(lefts[1]! - 37, 9);
+      expect(cssLength(declared(leaving, "left"), { percent: slot, ch, local: panel, position: 2, room: window })).toBeCloseTo(lefts[2]! + window, 9);
+    }
+    // At 1920, the compact width: 414px with the body's 15px. At 1440 a third of the room less the gaps, 410px (round 1).
+    const slotAt = (window: number): number => Math.min(roomAt(window), compact * 3 + gap * 2);
+    expect(cssLength(declared(panel, "width"), { percent: slotAt(1920), ch, local: panel })).toBeCloseTo(414, 9);
+    expect(cssLength(declared(panel, "width"), { percent: slotAt(1440), ch, local: panel })).toBeCloseTo(410, 9);
+  });
+
+  it("never nests a min() in a calc() for an open card, which WebKitGTK scales twice when the desktop's text is scaled (round 4)", () => {
+    // Round 4: with the text scaled (the page zoomed 1.16), the place was `calc(n * (min(…) + gap))` and the
+    // width `min(…)`. WebKitGTK scaled the nested min() a second time, so the places drifted from the widths:
+    // measured on a 1200px slot, the third place at 940px, not 811px — the cards overlapped or stood apart.
+    for (const selector of [".plan__panel", '.plan__panel[data-dragging="true"]', '.plan__panel[data-leaving="true"]']) {
+      for (const property of ["left", "width"]) {
+        const value = rule(PLAN, selector).includes(`${property}:`) ? expanded(declared(rule(PLAN, selector), property), panel) : "";
+        expect(value).not.toMatch(/calc\([^]*\b(min|max|clamp)\(/);
+      }
+    }
+  });
+
+  it("slides a card to its new place, eased, and the pushed-out card off the window to the right, fading", () => {
+    expect(panel).toContain(
+      "transition: left var(--duration-plan-panel) var(--ease-plan-panel), opacity var(--duration-plan-panel) var(--ease-plan-panel)",
+    );
+    expect(token("--duration-plan-panel")).toBe("240ms");
+    expect(token("--ease-plan-panel")).toMatch(/^cubic-bezier\(/);
+    const leaving = rule(PLAN, '.plan__panel[data-leaving="true"]');
+    expect(leaving).toContain(
+      "left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--size-plan-room-width))",
+    );
+    expect(token("--size-plan-room-width")).toBe("100cqw");
+    expect(leaving).toContain("opacity: var(--opacity-plan-panel-gone)");
+    expect(token("--opacity-plan-panel-gone")).toBe("0");
+    expect(leaving).toContain("pointer-events: none");
+    // While dragged it follows the pointer at once, over the others; let go, it slides into its place.
+    const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
+    expect(dragging).toContain("left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--plan-drag-x))");
+    // It always has an offset, so that rule is never left without one: nothing at rest (round 2's snap to the first place).
+    expect(panel).toContain("--plan-drag-x: var(--size-plan-panel-still)");
+    expect(token("--size-plan-panel-still")).toBe("0px");
+    expect(dragging).not.toMatch(/transition:[^;]*left/);
+    expect(dragging).toContain("z-index: var(--layer-plan-panel-drag)");
+    expect(sheet(PLAN)).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.plan__panel \{\s*transition: none;/);
+  });
+
+  it("places and slides an open card by left, never by transform, so WebKitGTK never draws it back at its old place", () => {
+    // Round 3: slid by a transform, a card was handed to WebKitGTK's compositor, which drew one
+    // frame at its old place as the slide ended — it arrived, jumped back, settled. Measured on
+    // the screen's pixels: two or three such frames a run with transform, none with left.
+    for (const selector of [".plan__panel", '.plan__panel[data-dragging="true"]', '.plan__panel[data-leaving="true"]']) {
+      expect(rule(PLAN, selector)).not.toMatch(/(^|[\s;])transform:/);
+      expect(rule(PLAN, selector)).not.toMatch(/transition:[^;]*transform/);
+      expect(rule(PLAN, selector)).not.toContain("will-change");
+    }
+  });
+
+  it("has a grip on its top edge, centred and faint, brighter under the pointer", () => {
+    const grip = rule(PLAN, ".plan__panel-grip");
+    expect(grip).toContain("justify-content: center");
+    expect(grip).toContain("margin-top: calc(var(--space-tight) * -1)");
+    expect(grip).toContain("color: var(--colour-plan-panel-grip)");
+    expect(grip).toContain("cursor: grab");
+    expect(token("--colour-plan-panel-grip")).toBe("var(--colour-faint)");
+    expect(rule(PLAN, ".plan__panel-grip:hover")).toContain("color: var(--colour-plan-panel-grip-hover)");
+    expect(token("--colour-plan-panel-grip-hover")).toBe("var(--colour-muted)");
+  });
+
+  it("draws the description a step quieter than the title", () => {
+    expect(rule(PLAN, ".plan__panel-title, .plan__description")).toContain("color: var(--colour-text)");
+    expect(rule(PLAN, ".plan__description")).toContain("color: var(--colour-plan-description)");
+    expect(token("--colour-plan-description")).toBe("var(--colour-muted)");
+    expect(rule(PLAN, ".plan__panel-title::placeholder, .plan__description::placeholder")).toContain("color: var(--colour-faint)");
   });
 
   it("has a title and description with no box at rest, a hairline under the pointer, and a firmer edge while typed in", () => {
@@ -430,6 +632,6 @@ describe("Plan's selected card, beside the Structure button", () => {
         expect(rule(PLAN, `.plan__${kind}[data-colour="${name}"]`)).toContain(`--card-tint: var(--colour-plan-${name})`);
       }
     }
-    expect(tokens.match(/--colour-plan-(?!field|dot|past|end|beat)[\w]+:/g)).toHaveLength(9);
+    expect(tokens.match(/--colour-plan-(?!field|dot|past|end|beat|description|panel)[\w]+:/g)).toHaveLength(9);
   });
 });

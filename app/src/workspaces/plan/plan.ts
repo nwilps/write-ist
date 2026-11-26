@@ -17,30 +17,62 @@
  * drag the empty grid to pan. Right-click is Write-ist's own menu (ADR-0034),
  * and every gesture has a key.
  *
- * Under the grid, the Structure button, and right beside it the selected card,
- * larger, to write on. The card grows down as its description does, until its
- * foot reaches the bottom pills' margin; past that the description scrolls
- * inside it. One structure sheet is drawn under the grid at a time.
+ * **The keys are at the golden outline** (Plan round 3; `src/plan/grid-outline.ts`):
+ * the selected card's gold, on a square of the grid, or lighting the card on
+ * it. The arrows move it a square at a time, on the grid only — never down into
+ * the open cards — and a click moves it too. Enter on an empty square makes a
+ * card there, opens it, and puts the caret in its title; from the title, Enter
+ * or Tab goes on to the description. Enter on a card opens it (where it is, if
+ * it is open) with the caret at the end of its description. Escape in an open
+ * card's field comes back to the outline on that card; Escape on the grid goes
+ * Home, as everywhere, and the outline stays where it was — it is kept with the
+ * writer's place. F2 renames, Delete deletes, Shift and an arrow move the card,
+ * Ctrl and Left or Right make it a page shorter or longer.
+ *
+ * Under the grid, the Structure button, and right beside it **up to three
+ * cards, open**, larger, to write on (Noah, 2026-11-25; `src/plan/open-cards.ts`).
+ * A card clicked on the grid opens in the first place, beside the button, and
+ * the open ones move a place along; the third, if there was one, slides off to
+ * the right, fading, and closes. A card already open stays where it is. An
+ * open card is dragged by its top edge to another place, and is put in there,
+ * the others moving over — not swapped. Each grows down as its description
+ * does, until its foot reaches the bottom pills' margin; past that the
+ * description scrolls inside it. One structure sheet is drawn under the grid
+ * at a time.
  *
  * The project name pill is not drawn while Plan is on screen
- * (`showsProjectName`): the card has the foot of the desk.
+ * (`showsProjectName`): the card has the foot of the desk. Nor are the
+ * paper's fades at the window's top and bottom (`showsPaperFade`): there is
+ * no paper here, and they faded the cards' text.
  *
  * This file draws a **plan session** (`src/plan/plan-session.ts`) and hands it
  * what the writer did; the session decides what fits and what is stored, and
  * saves `plan.md`.
+ *
+ * **Everything it asks of the application is a toolbox call** (ADR-0045): its
+ * file (`toolbox.files`, which keep it to `plan.md`), the writer's place
+ * (`toolbox.memory`), the project's details, the pills and its menus. It
+ * imports nothing else of the application's.
  */
-import { createElement, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
-import { readDetails } from "../../../../src/project/details.ts";
+import { createElement, GripHorizontal, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
+import { cardAt, outlineStep, squareOnGrid, type Square } from "../../../../src/plan/grid-outline.ts";
+import { closeCard, moveCard, openCard, placeUnder } from "../../../../src/plan/open-cards.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
 import { STRUCTURE_SHEETS, layoutBeats } from "../../../../src/plan/structure.ts";
-import type { WorkspacePlace } from "../../../../src/project/workspace-places.ts";
-import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
-import { claimMenu, releaseMenu, type MenuEntry } from "../../menus/drop-menu.ts";
-import { element } from "../../screens/element.ts";
-import { chordHint, chordMatches, isCapturedKey, type Chord } from "../../screens/shortcuts.ts";
-import { message } from "../../screens/trouble.ts";
-import type { MountedWorkspace, WorkspaceContext, WorkspaceManifest } from "../../shell/workspace.ts";
+import {
+  chordHint,
+  chordMatches,
+  element,
+  isCapturedKey,
+  message,
+  type Chord,
+  type ContextMenu,
+  type MenuEntry,
+  type MountedWorkspace,
+  type Toolbox,
+  type WorkspaceManifest,
+} from "../../toolbox/index.ts";
 import "./plan.css";
 
 /** How long the view rests before its place is kept. Leaving keeps it too. */
@@ -61,6 +93,14 @@ const COLOUR_NAMES: Readonly<Record<CardColour, string>> = {
   green: "Green",
 };
 
+/** The arrows, as a step along the grid (a page) and across it (a lane). */
+const ARROWS: Readonly<Record<string, readonly [number, number]>> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
 /** The colour picker's swatches across a row; the arrows move by one, or by a row. */
 const PALETTE_COLUMNS = 3;
 
@@ -69,9 +109,12 @@ const KEYS = {
   undo: { key: "z", mod: true },
   redo: { key: "y", mod: true },
   contextMenu: { key: "Enter", mod: true, alt: true },
-  rename: { key: "Enter" },
+  // Enter opens the card under the outline, or makes one on an empty square; F2 renames, as a note's tab does.
+  open: { key: "Enter" },
+  rename: { key: "F2" },
   remove: { key: "Delete", alsoKeys: ["Backspace"] },
 } as const satisfies Record<string, Chord>;
+
 
 /** The webview's own zoom keys, which would zoom the whole window: answered with nothing. */
 const WINDOW_ZOOM: readonly Chord[] = [
@@ -88,10 +131,12 @@ export const planWorkspace: WorkspaceManifest = {
   files: [PLAN_FILE],
   // The selected card has the foot of the desk, where the name pill would be.
   showsProjectName: false,
+  // The paper's fades are the Editor's: over Plan they faded the open cards' text at the foot of the desk.
+  showsPaperFade: false,
   mount,
 };
 
-function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
+function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   const surface = element("div", { className: "plan__surface" });
   const board = element("div", { className: "plan__board", tabIndex: 0 });
   board.setAttribute("aria-label", "Plan");
@@ -102,41 +147,49 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     element("span", { textContent: "Structure" }),
   ]);
   const controls = element("div", { className: "plan__controls" }, [structureButton]);
-  const inspector = cardPanel();
-  // Under the grid: the Structure button, and the selected card beside it.
-  const under = element("div", { className: "plan__under" }, [controls, element("div", { className: "plan__card-slot" }, [inspector.element])]);
+  // Under the grid: the Structure button, and the open cards beside it.
+  const slot = element("div", { className: "plan__card-slot" });
+  const under = element("div", { className: "plan__under" }, [controls, slot]);
   const desk = element("div", { className: "plan-desk" }, [reading]);
   into.replaceChildren(desk);
 
   let session: PlanSession | undefined;
   let gone = false;
   let hidden = false;
+  /** The card lit on the grid: the one under the outline, if there is one. */
   let selected: string | undefined;
+  /** The golden outline: the square the keys are at (`src/plan/grid-outline.ts`). None until there is one to show. */
+  let outline: Square | undefined;
+  /** The open cards, the first place (beside the Structure button) first. */
+  let open: string[] = [];
+  const panels = new Map<string, CardPanel>();
   let menu: ContextMenu | undefined;
   let pendingAcross: number | undefined;
 
-  // --- Where the writer was: how far along the grid. ---
+  // --- Where the writer was: how far along the grid, and the outline. ---
   let placeRest: ReturnType<typeof setTimeout> | undefined;
-  let placeKept: number | undefined;
+  let placeKept: string | undefined;
   let across = 0;
   const keepPlace = async (): Promise<void> => {
     clearTimeout(placeRest);
     placeRest = undefined;
-    const places = context.workspacePlaces();
-    const now = Math.round(across);
-    if (places === undefined || session === undefined || now === placeKept) return;
+    const now = { across: Math.round(across), ...(outline === undefined ? {} : { cell: outline.cell, lane: outline.lane }) };
+    const key = JSON.stringify(now);
+    if (session === undefined || key === placeKept) return;
     try {
-      await places.remember(context.project.marker.projectId, "plan", { across: now });
-      placeKept = now;
+      if (await toolbox.memory.remember(now)) placeKept = key;
     } catch {
       // Only where the view was: Plan opens at the start next time.
     }
   };
+  const restPlace = (): void => {
+    clearTimeout(placeRest);
+    placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
+  };
   board.addEventListener("scroll", () => {
     if (hidden) return;
     across = board.scrollLeft;
-    clearTimeout(placeRest);
-    placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
+    restPlace();
   });
 
   // --- Drawing. ---
@@ -151,7 +204,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     if (session === undefined) return;
     const layout = session.layout();
     const plan = session.plan();
-    if (selected !== undefined && !plan.cards.some((card) => card.id === selected)) selected = undefined;
+    if (outline !== undefined) outline = squareOnGrid(layout, outline);
+    selected = outline === undefined ? undefined : cardAt(layout, outline)?.card.id;
+    open = open.filter((id) => layout.placed.some((placed) => placed.card.id === id));
     surface.style.setProperty("--plan-columns", String(layout.columns));
     surface.style.setProperty("--plan-lanes", String(layout.lanes));
     surface.style.setProperty("--plan-length", String(layout.length));
@@ -200,8 +255,74 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       grid,
       element("div", { className: "plan__beats" }, beats.flat()),
     );
-    drawPanel();
+    drawOutline();
+    drawPanels();
   };
+
+  /**
+   * Draw the golden outline where it is: the card under it lit, or, on an
+   * empty square, a square of its own in the same gold.
+   */
+  const drawOutline = (): void => {
+    const layout = session?.layout();
+    selected = outline === undefined || layout === undefined ? undefined : cardAt(layout, outline)?.card.id;
+    for (const card of surface.querySelectorAll<HTMLElement>(".plan__card")) {
+      if (card.dataset["id"] === selected) card.dataset["selected"] = "true";
+      else delete card.dataset["selected"];
+    }
+    const grid = surface.querySelector<HTMLElement>(".plan__grid");
+    let ring = grid?.querySelector<HTMLElement>(".plan__outline") ?? null;
+    if (grid === null || outline === undefined || selected !== undefined) {
+      ring?.remove();
+      return;
+    }
+    if (ring === null) {
+      ring = element("div", { className: "plan__outline", ariaHidden: "true" });
+      grid.append(ring);
+    }
+    place(ring, outline.cell, outline.lane, 1);
+  };
+
+  /** Move the outline, and keep it as the writer's place once they rest. Brought into view when the keys moved it. */
+  const moveOutline = (to: Square | undefined, reveal = false): void => {
+    const layout = session?.layout();
+    outline = to === undefined || layout === undefined ? undefined : squareOnGrid(layout, to);
+    drawOutline();
+    if (reveal) revealOutline();
+    restPlace();
+  };
+
+  /** The outline on a card: at the square pressed, or where it already is on the card, or else its first square. */
+  const outlineCard = (id: string, at: Square | undefined = outline): void => {
+    const layout = session?.layout();
+    const placed = layout?.placed.find((each) => each.card.id === id);
+    if (layout === undefined || placed === undefined) return;
+    const onIt = at !== undefined && cardAt({ ...layout, placed: [placed] }, at) !== undefined;
+    moveOutline(onIt ? at : { cell: placed.cell, lane: placed.lane });
+  };
+
+  /** Where the grid starts inside the board's scrolled content, in pixels. */
+  const gridStart = (): number => {
+    const grid = surface.querySelector<HTMLElement>(".plan__grid");
+    if (grid === null) return 0;
+    return grid.getBoundingClientRect().left - board.getBoundingClientRect().left - board.clientLeft + board.scrollLeft;
+  };
+
+  /** Scroll the board along just enough that the outline's square is in view. */
+  const revealOutline = (): void => {
+    const width = board.clientWidth;
+    if (outline === undefined || width <= 0) return;
+    const size = cellSize();
+    const left = gridStart() + outline.cell * size;
+    if (left < board.scrollLeft) board.scrollLeft = left;
+    else if (left + size > board.scrollLeft + width) board.scrollLeft = left + size - width;
+  };
+
+  /** The first square in view, in the top lane: where the outline starts when there was none. */
+  const firstSquareInView = (): Square => ({
+    cell: Math.max(0, Math.ceil((board.scrollLeft - gridStart()) / cellSize())),
+    lane: 0,
+  });
 
   const cardElement = (placed: PlacedCard): HTMLElement => {
     const card = element("div", { className: "plan__card" }, [
@@ -218,25 +339,119 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     return card;
   };
 
-  // --- The card panel: the selected card's title, colour, length and description. ---
-  function drawPanel(): void {
-    const card = session?.plan().cards.find((each) => each.id === selected);
-    const placed = session?.layout().placed.find((each) => each.card.id === selected);
-    inspector.element.hidden = card === undefined;
-    if (card === undefined || placed === undefined || session === undefined) {
-      inspector.closePalette();
-      return;
+  // --- The open cards: each one's title, colour, length and description. ---
+  /** Draw every open card in its place, making the newly opened and taking away the closed. */
+  function drawPanels(): void {
+    for (const [id, panel] of panels) {
+      if (open.includes(id)) continue;
+      panel.closePalette();
+      panel.element.remove();
+      panels.delete(id);
     }
-    inspector.show(card, placed, session.layout());
+    if (session === undefined) return;
+    const layout = session.layout();
+    open.forEach((id, at) => {
+      const card = session!.plan().cards.find((each) => each.id === id);
+      const placed = layout.placed.find((each) => each.card.id === id);
+      if (card === undefined || placed === undefined) return;
+      let panel = panels.get(id);
+      if (panel === undefined) {
+        panel = cardPanel(toolbox, id, panelActions);
+        panels.set(id, panel);
+        slot.append(panel.element);
+      }
+      panel.element.style.setProperty("--plan-position", String(at));
+      panel.show(card, placed, layout);
+    });
   }
 
-  const select = (id: string | undefined): void => {
-    selected = id;
-    for (const card of surface.querySelectorAll<HTMLElement>(".plan__card")) {
-      if (card.dataset["id"] === id) card.dataset["selected"] = "true";
-      else delete card.dataset["selected"];
-    }
-    drawPanel();
+  /**
+   * Select a card: the outline on it, lit on the grid, and open under it — in
+   * the first place if it was not open, pushing the third out; where it is if
+   * it was. A new card made on the grid comes in the same way. Nothing closes
+   * the open cards but a fourth pushing one out, or deleting one: a press on
+   * the empty grid only moves the outline there (Noah, 2026-11-25).
+   */
+  const select = (id: string, at?: Square): void => {
+    outlineCard(id, at);
+    const opened = openCard(open, id);
+    open = opened.open;
+    if (opened.out !== undefined) pushOut(opened.out);
+    drawPanels();
+  };
+
+  /** The card in the third place, pushed out by a new one: it slides off to the right, fading, and is gone. */
+  const pushOut = (id: string): void => {
+    const panel = panels.get(id);
+    if (panel === undefined) return;
+    panels.delete(id);
+    panel.closePalette();
+    const leaving = panel.element;
+    if (leaving.contains(document.activeElement)) board.focus({ preventScroll: true });
+    leaving.dataset["leaving"] = "true";
+    leaving.inert = true;
+    const gone = (): void => leaving.remove();
+    leaving.addEventListener("transitionend", (event) => {
+      if (event.target === leaving && event.propertyName === "opacity") gone();
+    });
+    setTimeout(gone, tokenMilliseconds("--duration-plan-panel", 240));
+  };
+
+  /**
+   * An open card dragged by its top edge: it follows the pointer, and the
+   * others move over to show where it would go in. Dropped, it is put in at
+   * the place it is over — the others moved over, never swapped.
+   *
+   * **Nothing here may throw a card back to where it was** (Plan round 2).
+   * The press itself is the drag's first position, so the card is never drawn
+   * without its offset; and the place it is over changes only once it is
+   * clearly past halfway (`placeUnder`), so the others never turn back and
+   * forth while the pointer rests near the line.
+   */
+  const dragPanel = (id: string, event: PointerEvent): void => {
+    const panel = panels.get(id);
+    const from = open.indexOf(id);
+    if (event.button !== 0 || panel === undefined || from < 0) return;
+    event.preventDefault();
+    if (selected !== id) outlineCard(id);
+    const handle = event.currentTarget as HTMLElement;
+    handle.setPointerCapture?.(event.pointerId);
+    const step = panel.element.getBoundingClientRect().width + tokenPixels("--space-plan-panels", 16);
+    const startX = event.clientX;
+    const before = open;
+    let under = from;
+    let order = open;
+    const move = (next: PointerEvent): void => {
+      const dx = next.clientX - startX;
+      panel.element.style.setProperty("--plan-drag-x", `${dx}px`);
+      const now = placeUnder(from, dx, step, before.length, under);
+      if (now === under && order !== before) return;
+      under = now;
+      order = moveCard(before, id, under);
+      order.forEach((each, at) => {
+        if (each !== id) panels.get(each)?.element.style.setProperty("--plan-position", String(at));
+      });
+    };
+    // Its offset first, then lifted: lifted with no offset, it was drawn at the first place until the pointer moved.
+    move(event);
+    panel.element.dataset["dragging"] = "true";
+    const up = (): void => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      handle.removeEventListener("lostpointercapture", up);
+      if (panel.element.dataset["dragging"] === undefined) return;
+      delete panel.element.dataset["dragging"];
+      panel.element.style.setProperty("--plan-drag-x", "");
+      // Only the cards still open: one may have been closed under the drag.
+      open = order.filter((each) => open.includes(each));
+      drawPanels();
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+    // Let go outside the window, the drag still ends: the card is never left following nothing.
+    handle.addEventListener("lostpointercapture", up);
   };
 
   const changed = (): void => {
@@ -285,13 +500,40 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   const createAt = (cell: number, lane: number): void => {
     const id = session?.add(cell, lane);
     if (id === undefined) return;
-    selected = id;
+    outline = { cell, lane };
     changed();
     editTitle(id);
   };
 
-  /** A drag on the empty grid moves the view along it; a press without one clears the selection. */
+  /**
+   * Enter on an empty square: a card made there, opened in the first place
+   * (the others moved along, the third pushed out), and its title ready to be
+   * typed — on the open card, not on the grid.
+   */
+  const createAndOpen = (at: Square): void => {
+    const id = session?.add(at.cell, at.lane);
+    if (id === undefined) return;
+    outline = at;
+    changed();
+    select(id, at);
+    panels.get(id)?.focusTitle();
+  };
+
+  /**
+   * Enter on a card: opened in the first place if it was not open, left where
+   * it is if it was, and the caret put in it to write.
+   */
+  const openToWrite = (id: string): void => {
+    select(id);
+    panels.get(id)?.focusWriting();
+  };
+
+  /**
+   * A drag on the empty grid moves the view along it; a press without one
+   * moves the outline to the square pressed, and leaves the open cards open.
+   */
   const pan = (event: PointerEvent): void => {
+    const pressed = squareAt(event);
     const startX = event.clientX;
     const startLeft = board.scrollLeft;
     let moved = false;
@@ -307,7 +549,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       grid.removeEventListener("pointermove", move);
       grid.removeEventListener("pointerup", up);
       grid.removeEventListener("pointercancel", up);
-      if (!moved) select(undefined);
+      if (!moved) moveOutline(pressed);
     };
     grid.addEventListener("pointermove", move);
     grid.addEventListener("pointerup", up);
@@ -331,7 +573,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       editTitle(id);
       return;
     }
-    select(id);
+    select(id, squareAt(event));
     const size = cellSize();
     const startX = event.clientX;
     const startY = event.clientY;
@@ -362,8 +604,11 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       delete card.dataset["dragging"];
       delete card.dataset["invalid"];
       const moved = cell !== placed.cell || lane !== placed.lane || cells !== placed.cells;
-      if (moved && ok && (resizing ? writing.resize(id, cells) : writing.move(id, cell, lane))) changed();
-      else place(card, placed.cell, placed.lane, placed.cells);
+      if (moved && ok && (resizing ? writing.resize(id, cells) : writing.move(id, cell, lane))) {
+        // The outline goes with the card it is on.
+        if (!resizing) outline = { cell, lane };
+        changed();
+      } else place(card, placed.cell, placed.lane, placed.cells);
     };
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
@@ -411,7 +656,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // --- Write-ist's own right-click menu (ADR-0034). ---
   const openMenu = (items: MenuEntry[], x: number, y: number, fromKeyboard: boolean): void => {
     menu?.close(false);
-    menu = openContextMenu({ label: "Plan", items, x, y, fromKeyboard, restoreFocus: () => board.focus({ preventScroll: true }) });
+    menu = toolbox.menus.open({ label: "Plan", items, x, y, fromKeyboard, restoreFocus: () => board.focus({ preventScroll: true }) });
   };
   const cardMenu = (id: string): MenuEntry[] => {
     const card = session?.plan().cards.find((each) => each.id === id);
@@ -436,7 +681,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     if (session === undefined) return;
     const card = (event.target as HTMLElement).closest<HTMLElement>(".plan__card");
     if (card !== null) {
-      select(card.dataset["id"]);
+      select(card.dataset["id"]!);
       openMenu(cardMenu(card.dataset["id"]!), event.clientX, event.clientY, false);
       return;
     }
@@ -455,7 +700,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
 
   const removeCard = (id: string): void => {
     session?.remove(id);
-    if (selected === id) selected = undefined;
+    open = closeCard(open, id);
     changed();
     board.focus({ preventScroll: true });
   };
@@ -509,9 +754,9 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       return;
     }
     // A title or a description being typed has its own keys, Undo among them; so has the colour picker.
-    const target = event.target as HTMLElement | null;
+    const target = event.target instanceof Element ? event.target : null;
     if (target !== null && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
-    if (target?.closest?.(".plan__palette") != null) return;
+    if (target?.closest(".plan__palette") != null) return;
     const writing = session;
     const step = (act: () => boolean): void => {
       event.preventDefault();
@@ -519,16 +764,38 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     };
     if (chordMatches(KEYS.undo, event)) return step(() => (event.shiftKey ? writing.redo() : writing.undo()));
     if (chordMatches(KEYS.redo, event)) return step(writing.redo);
-    if (selected === undefined) return;
-    const id = selected;
-    const placed = writing.layout().placed.find((each) => each.card.id === id);
-    if (placed === undefined) return;
-    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) || chordMatches(KEYS.contextMenu, event)) {
+    // The grid's own keys are the grid's: not an open card's buttons, which have Enter and the arrows of their own.
+    if (!(target === null || target === document.body || board.contains(target))) return;
+    const layout = writing.layout();
+    const arrow = ARROWS[event.key];
+    if (arrow !== undefined && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      // The arrows move the outline, square by square, on the grid only.
       event.preventDefault();
-      const box = surface.querySelector<HTMLElement>(`.plan__card[data-id="${id}"]`)?.getBoundingClientRect();
-      openMenu(cardMenu(id), box?.left ?? 0, box?.bottom ?? 0, true);
+      const [dx, dy] = arrow;
+      moveOutline(outline === undefined ? firstSquareInView() : outlineStep(layout, outline, dx, dy), true);
       return;
     }
+    if (outline === undefined) return;
+    const at = outline;
+    const placed = cardAt(layout, at);
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) || chordMatches(KEYS.contextMenu, event)) {
+      event.preventDefault();
+      const box = (surface.querySelector<HTMLElement>(placed === undefined ? ".plan__outline" : `.plan__card[data-id="${placed.card.id}"]`))?.getBoundingClientRect();
+      const items: MenuEntry[] =
+        placed === undefined
+          ? [{ label: "New Card", icon: Plus, ...(fits(layout, at.cell, at.lane, 1) ? {} : { unavailable: true }), act: () => createAndOpen(at) }]
+          : cardMenu(placed.card.id);
+      openMenu(items, box?.left ?? 0, box?.bottom ?? 0, true);
+      return;
+    }
+    if (chordMatches(KEYS.open, event)) {
+      event.preventDefault();
+      if (placed === undefined) createAndOpen(at);
+      else openToWrite(placed.card.id);
+      return;
+    }
+    if (placed === undefined) return;
+    const id = placed.card.id;
     if (chordMatches(KEYS.rename, event)) {
       event.preventDefault();
       editTitle(id);
@@ -539,88 +806,88 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       removeCard(id);
       return;
     }
-    if (event.key === "Escape") {
-      // Let go of the card first; Escape again goes Home, as everywhere.
-      event.preventDefault();
-      event.stopPropagation();
-      select(undefined);
-      return;
-    }
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-    const arrow = arrows[event.key];
-    if (arrow === undefined) return;
-    event.preventDefault();
+    // Escape is not Plan's here: from the grid it goes Home, as everywhere, and the outline stays where it is.
+    if (arrow === undefined || event.altKey) return;
     const [dx, dy] = arrow;
-    // Shift and Left or Right: shorter or longer. The arrows alone: move it.
-    if (event.shiftKey && dy === 0) {
+    const mod = event.ctrlKey || event.metaKey;
+    if (event.shiftKey && !mod) {
+      // Shift and an arrow: the card moves a square, and the outline with it.
+      event.preventDefault();
+      const cell = Math.max(0, placed.cell + dx);
+      const lane = placed.lane + dy;
+      if (writing.move(id, cell, lane)) {
+        outline = { cell: at.cell + cell - placed.cell, lane };
+        changed();
+      }
+    } else if (mod && !event.shiftKey && dy === 0) {
+      // Ctrl and Left or Right: a page shorter or longer.
+      event.preventDefault();
       if (writing.resize(id, Math.max(1, placed.cells + dx))) changed();
-    } else if (writing.move(id, Math.max(0, placed.cell + dx), placed.lane + dy)) changed();
+    }
   };
   window.addEventListener("keydown", keys, true);
 
   // File ▸ Edit Project Details is the name pill's, here as in the Editor.
-  const stopListeningForDetails = context.whenDetailsAsked(() => {
+  const stopListeningForDetails = toolbox.details.whenAsked(() => {
     if (session === undefined || into.querySelector("dialog[open]") !== null) return;
-    context.editProjectDetails({ into, carryOut: session.relocate, closed: () => board.focus({ preventScroll: true }) });
+    toolbox.details.edit({ into, carryOut: session.relocate, closed: () => board.focus({ preventScroll: true }) });
   });
   // A new target page count: the grid takes it, the cards keep their places.
-  const stopListeningForTarget = context.whenDetailsChanged((details) => {
+  const stopListeningForTarget = toolbox.details.whenChanged((details) => {
     session?.setTargetPages(details.targetPages);
     draw();
   });
 
-  // --- The card panel's own wiring. ---
-  inspector.onTitle((title) => {
-    if (selected === undefined || session === undefined) return;
-    session.setTitle(selected, title);
-    const shown = surface.querySelector<HTMLElement>(`.plan__card[data-id="${selected}"] .plan__card-title`);
-    if (shown !== null) shown.textContent = title.trim();
-  });
-  inspector.onTitleDone(() => draw());
-  inspector.onDescription((text) => {
-    if (selected !== undefined) session?.setDescription(selected, text);
-  });
-  inspector.onColour((colour) => {
-    if (selected === undefined) return;
-    session?.setColour(selected, colour);
-    changed();
-  });
-  inspector.onLength((cells) => {
-    if (selected !== undefined && session?.resize(selected, cells) === true) changed();
-  });
-  inspector.element.addEventListener("plan-panel-left", () => board.focus({ preventScroll: true }));
-  inspector.onDelete(() => {
-    if (selected !== undefined) removeCard(selected);
-  });
+  // --- What the open cards do. ---
+  const panelActions: PanelActions = {
+    title: (id, title) => {
+      session?.setTitle(id, title);
+      const shown = surface.querySelector<HTMLElement>(`.plan__card[data-id="${id}"] .plan__card-title`);
+      if (shown !== null) shown.textContent = title.trim();
+    },
+    titleDone: () => draw(),
+    description: (id, text) => session?.setDescription(id, text),
+    colour: (id, colour) => {
+      session?.setColour(id, colour);
+      changed();
+    },
+    length: (id, cells) => {
+      if (session?.resize(id, cells) === true) changed();
+    },
+    remove: (id) => removeCard(id),
+    // Escape from an open card's field: back to the grid, the outline on that card. Plan stays on screen.
+    left: (id) => {
+      outlineCard(id);
+      revealOutline();
+      board.focus({ preventScroll: true });
+    },
+    // Writing on an open card puts the outline on it on the grid; it stays in its place among the open ones.
+    touched: (id) => {
+      if (selected !== id) outlineCard(id);
+    },
+    drag: dragPanel,
+  };
 
   void (async () => {
     try {
-      const [read, details, place] = await Promise.all([
-        readPlan(context.filesystem, context.project),
-        readDetails(context.filesystem, context.project.path),
-        recallPlace(context),
-      ]);
+      const [read, details, place] = await Promise.all([readPlan(toolbox.files), toolbox.details.read(), toolbox.memory.recall()]);
       if (gone) return;
       session = planSession(
         {
-          filesystem: context.filesystem,
-          project: context.project,
-          targetPages: details.details.targetPages,
-          report: context.report,
-          setSaved: context.setSaved,
-          setStatus: context.setStatus,
-          whenSwitchedAway: context.whenSwitchedAway,
-          whenSwitchedBack: context.whenSwitchedBack,
+          files: toolbox.files,
+          targetPages: details.targetPages,
+          setStatus: toolbox.pills.setStatus,
           redraw: () => draw(),
         },
         read,
       );
       desk.replaceChildren(board, under);
+      const [cell, lane] = [place?.["cell"], place?.["lane"]];
+      if (typeof cell === "number" && typeof lane === "number") outline = squareOnGrid(session.layout(), { cell, lane });
       draw();
       const at = place?.["across"];
       if (typeof at === "number") {
-        placeKept = at;
+        placeKept = JSON.stringify(place);
         across = at;
         if (hidden) pendingAcross = at;
         else board.scrollLeft = at;
@@ -630,7 +897,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     } catch (error) {
       if (gone) return;
       reading.textContent = "";
-      context.report(`Write-ist could not read this project's plan, so nothing has been changed. ${message(error)}`);
+      toolbox.report(`Write-ist could not read this project's plan, so nothing has been changed. ${message(error)}`);
     }
   })();
 
@@ -639,7 +906,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     clearTimeout(placeRest);
     window.removeEventListener("keydown", keys, true);
     desk.removeEventListener("contextmenu", quietMenu);
-    inspector.closePalette();
+    for (const panel of panels.values()) panel.closePalette();
     stopListeningForDetails();
     stopListeningForTarget();
     menu?.close(false);
@@ -650,7 +917,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     hide: () => {
       hidden = true;
       menu?.close(false);
-      inspector.closePalette();
+      for (const panel of panels.values()) panel.closePalette();
       // A title being typed is kept, as a click away would keep it.
       (surface.querySelector(".plan__title-edit") as HTMLInputElement | null)?.blur();
       void session?.save();
@@ -687,19 +954,41 @@ function place(item: HTMLElement, cell: number, lane: number, cells: number): vo
   item.style.setProperty("--card-cells", String(cells));
 }
 
+/** What an open card asks of the workspace, each for the card it is. */
+interface PanelActions {
+  title(id: string, title: string): void;
+  titleDone(): void;
+  description(id: string, text: string): void;
+  colour(id: string, colour: CardColour): void;
+  length(id: string, cells: number): void;
+  remove(id: string): void;
+  /** Escape in a field: back to the grid, the outline on this card. */
+  left(id: string): void;
+  /** Pressed or written on. */
+  touched(id: string): void;
+  /** Pressed on its top edge, to drag it to another place. */
+  drag(id: string, event: PointerEvent): void;
+}
+
+type CardPanel = ReturnType<typeof cardPanel>;
+
 /**
- * The selected card, larger, to write on, beside the Structure button under
- * the grid: its title and description typed straight onto it, in its own
- * colour, and along its foot the colour picker, its pages, and Delete — each
- * an icon or a figure, no words. The description grows as it is written and,
- * once the card is as tall as it may be, scrolls inside it. Hidden while no
- * card is selected.
+ * An open card, larger, to write on, beside the Structure button under the
+ * grid: along its top edge the grip it is dragged to another place by, its
+ * title and description typed straight onto it, in its own colour, and along
+ * its foot the colour picker, its pages, and Delete — each an icon or a
+ * figure, no words. The description grows as it is written and, once the card
+ * is as tall as it may be, scrolls inside it. Its place among the open cards
+ * is `--plan-position`, which the stylesheet turns into room.
  *
  * **The colour picker is Write-ist's own** (ADR-0034): the palette icon opens
  * a small grid of the nine colours, three by three, over the card. The arrows
  * move in it, Enter or a click chooses, Escape or a press outside closes it.
  */
-function cardPanel() {
+function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
+  const grip = element("div", { className: "plan__panel-grip" }, [icon(GripHorizontal)]);
+  grip.setAttribute("aria-hidden", "true");
+  grip.addEventListener("pointerdown", (event) => actions.drag(id, event));
   const title = element("input", { className: "plan__panel-title", type: "text", autocomplete: "off", placeholder: "Untitled" });
   title.setAttribute("aria-label", "Card title");
   title.spellcheck = false;
@@ -726,11 +1015,13 @@ function cardPanel() {
   description.setAttribute("aria-label", "Card description");
   description.spellcheck = false;
   // The description is as tall as what is written in it: an unseen copy of
-  // its text beside it sizes them both, and the box round them scrolls once
-  // the card can grow no further.
+  // its text beside it sizes the box round them both. Once the card can grow
+  // no further the box stops growing, and **the field itself scrolls**, the
+  // one scroller for the wheel and the caret alike (Plan round 2).
   const descriptionBox = element("div", { className: "plan__description-box" }, [description]);
   const mirror = (): void => void (descriptionBox.dataset["value"] = description.value);
-  const panel = element("section", { className: "plan__panel", hidden: true }, [
+  const panel = element("section", { className: "plan__panel" }, [
+    grip,
     element("div", { className: "plan__panel-head" }, [title]),
     descriptionBox,
     element("div", { className: "plan__panel-foot" }, [
@@ -740,35 +1031,40 @@ function cardPanel() {
     ]),
   ]);
   panel.setAttribute("aria-label", "Card");
+  panel.dataset["id"] = id;
+  panel.addEventListener("pointerdown", () => actions.touched(id));
+  panel.addEventListener("focusin", () => actions.touched(id));
 
   let cells = 1;
-  let shown: string | undefined;
-  let titleListener: (title: string) => void = () => {};
-  let titleDone: () => void = () => {};
-  let descriptionListener: (text: string) => void = () => {};
-  let colourListener: (colour: CardColour) => void = () => {};
-  let lengthListener: (cells: number) => void = () => {};
-  let deleteListener: () => void = () => {};
-  title.addEventListener("input", () => titleListener(title.value));
-  title.addEventListener("change", () => titleDone());
+  let fresh = true;
+  title.addEventListener("input", () => actions.title(id, title.value));
+  title.addEventListener("change", () => actions.titleDone());
+  /** The caret into the description: at its start when it is empty, or else at the end of what is written. */
+  const writeDescription = (): void => {
+    description.focus();
+    const end = description.value.length;
+    description.setSelectionRange(end, end);
+  };
+  // From the title, Enter or Tab goes on to the description. In the description they are its own: a new line, and on.
   title.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") title.blur();
+    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (event.key !== "Enter" && event.key !== "Tab") return;
+    event.preventDefault();
+    writeDescription();
   });
-  // Escape in a field leaves the field, back to the grid; it is not Home.
+  // Escape in a field leaves the field, back to the grid with the outline on this card; it is not Home.
   for (const field of [title, description] as HTMLElement[]) {
     field.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       field.blur();
-      panel.dispatchEvent(new Event("plan-panel-left", { bubbles: true }));
+      actions.left(id);
     });
   }
   description.addEventListener("input", () => {
     mirror();
-    // Writing at the end of a description taller than the card keeps the end in sight.
-    if (description.selectionEnd === description.value.length) descriptionBox.scrollTop = descriptionBox.scrollHeight;
-    descriptionListener(description.value);
+    actions.description(id, description.value);
   });
 
   // --- The colour picker. ---
@@ -782,12 +1078,12 @@ function cardPanel() {
       paletteMenu.hidden = true;
       paletteButton.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", outsidePress, true);
-      releaseMenu(palette);
+      toolbox.menus.release(palette);
       if (returnFocus) paletteButton.focus();
     },
   };
   const openPalette = (fromKeyboard: boolean): void => {
-    claimMenu(palette);
+    toolbox.menus.claim(palette);
     paletteMenu.hidden = false;
     paletteButton.setAttribute("aria-expanded", "true");
     document.addEventListener("pointerdown", outsidePress, true);
@@ -827,27 +1123,22 @@ function cardPanel() {
   swatches.forEach((swatch) =>
     swatch.addEventListener("click", () => {
       palette.close();
-      colourListener(swatch.dataset["colour"] as CardColour);
+      actions.colour(id, swatch.dataset["colour"] as CardColour);
     }),
   );
 
-  shorter.addEventListener("click", () => lengthListener(Math.max(1, cells - 1)));
-  longer.addEventListener("click", () => lengthListener(cells + 1));
-  remove.addEventListener("click", () => deleteListener());
+  shorter.addEventListener("click", () => actions.length(id, Math.max(1, cells - 1)));
+  longer.addEventListener("click", () => actions.length(id, cells + 1));
+  remove.addEventListener("click", () => actions.remove(id));
 
   return {
     element: panel,
     show: (card: PlacedCard["card"], placed: PlacedCard, layout: PlanLayout) => {
       // What the writer is typing into is theirs: it is not written over under them.
-      const fresh = shown !== card.id;
-      shown = card.id;
       if (fresh || document.activeElement !== title) title.value = card.title;
       if (fresh || document.activeElement !== description) description.value = card.description;
       mirror();
-      if (fresh) {
-        descriptionBox.scrollTop = 0;
-        palette.close(false);
-      }
+      fresh = false;
       panel.dataset["colour"] = card.colour;
       swatches.forEach((swatch) => swatch.setAttribute("aria-checked", String(swatch.dataset["colour"] === card.colour)));
       cells = placed.cells;
@@ -859,12 +1150,19 @@ function cardPanel() {
       where.textContent = first === last ? `${first}` : `${first}–${last}`;
     },
     closePalette: () => palette.close(false),
-    onTitle: (act: (title: string) => void) => void (titleListener = act),
-    onTitleDone: (act: () => void) => void (titleDone = act),
-    onDescription: (act: (text: string) => void) => void (descriptionListener = act),
-    onColour: (act: (colour: CardColour) => void) => void (colourListener = act),
-    onLength: (act: (cells: number) => void) => void (lengthListener = act),
-    onDelete: (act: () => void) => void (deleteListener = act),
+    /** The title, to type a new card's name straight away. */
+    focusTitle: () => {
+      title.focus();
+      title.select();
+    },
+    /** In to write: the end of the description; with none, the title if it has none either, or else the description. */
+    focusWriting: () => {
+      if (description.value === "" && title.value === "") {
+        title.focus();
+        return;
+      }
+      writeDescription();
+    },
   };
 }
 
@@ -881,17 +1179,16 @@ function range(from: number, to: number, by: number): number[] {
   return out;
 }
 
+/** A duration token's value in milliseconds, or `fallback` where there is no stylesheet. */
+function tokenMilliseconds(name: string, fallback: number): number {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount < 0 || value === "") return fallback;
+  return value.endsWith("ms") ? amount : value.endsWith("s") ? amount * 1000 : fallback;
+}
+
 /** A pixel token's value as a number, or `fallback` where there is no stylesheet. */
 function tokenPixels(name: string, fallback: number): number {
   const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-/** Where Plan was left in this project, or `undefined`. */
-async function recallPlace(context: WorkspaceContext): Promise<WorkspacePlace | undefined> {
-  try {
-    return await context.workspacePlaces()?.recall(context.project.marker.projectId, "plan");
-  } catch {
-    return undefined;
-  }
 }

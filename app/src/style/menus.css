@@ -97,7 +97,7 @@
 
 /*
  * Greyed but reachable, because it keeps a second action (a closed note in
- * Notes' folder menu with five tabs open): the pointer does not light it, and
+ * Notes' folder menu with six tabs open): the pointer does not light it, and
  * focus shows only as the row's ground, the label staying faint.
  */
 .drop-menu__item[aria-disabled="true"]:hover {

@@ -116,6 +116,8 @@ export async function createProject(
             boldTransitions: defaults.boldTransitions,
             blankLinesBeforeSceneHeadings: defaults.blankLinesBeforeSceneHeadings,
           },
+          // The workspaces' own per-project settings, as the defaults set them (ADR-0045).
+          ...(defaults.workspaceSettings === undefined ? {} : { workspaceSettings: defaults.workspaceSettings }),
         }),
       ),
     );

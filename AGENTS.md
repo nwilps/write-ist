@@ -43,7 +43,7 @@ ADR-0020's tenth entry).
 ### What to read
 
 **Read the ticket, its parent spec, and the decisions they cite — not the whole record.** There are
-forty-four ADRs (through ADR-0044), some 3,900 lines of them, and a ticket about keyboard shortcuts has no use for the one
+forty-five ADRs (through ADR-0045), some 4,000 lines of them, and a ticket about keyboard shortcuts has no use for the one
 about the ledger. The tickets cite what applies; follow the citations and stop there.
 
 So, before starting:
@@ -105,7 +105,8 @@ In this order:
    0003 (local-first) → 0004 (Fountain) → 0010 and 0011 (prose) → 0019 and 0020 (the
    document model, and what the app may change in a writer's file), with 0008 (sidecar
    integrity) explaining why v2 is a rewrite. 0019 onward are the most load-bearing
-   for implementation; 0032–0044 are the newest, made during Slice 2.
+   for implementation; 0032–0045 are the newest, made during Slice 2. A new workspace starts
+   from 0045 and `docs/WORKSPACES.md`.
 3. **`docs/STANDARDS.md`** — the rules, which are not decisions. Each one names the bug that
    produced it. Short; read it whole.
 4. **`SETUP-CHECKLIST.md`** — where the work has got to, and the rule that the setup is

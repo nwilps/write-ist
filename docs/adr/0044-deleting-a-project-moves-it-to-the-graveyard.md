@@ -19,6 +19,17 @@ real project inside the projects folder (`remove_note_within`, `src-tauri/src/fo
 touches a project, the Graveyard, or anything else. If notes should one day go somewhere
 recoverable instead, this is the one place to change.
 
+> **Amended 2026-11-25 (ADR-0045): the second erase is any workspace's, and no wider.** The
+> note-only delete is replaced by a generic one, `Filesystem.removeWorkspaceFile(path, folder)`
+> (`remove_workspace_file`, `folders::remove_file_within`): one real file, not a link and not
+> hidden, directly in a real folder (not a link) of the name a workspace declared in its manifest's
+> `files`, directly in a real project inside the projects folder; a plain path, no `..`, nothing
+> replaced. The folder's name is passed in rather than written as `notes`, and the file need no
+> longer end `.md`. A workspace reaches it only through its toolbox (`toolbox.files.remove`), only
+> for a folder it declared, and only after asking with the toolbox's confirm. It still never
+> touches a project, the Graveyard, or anything outside that one folder; Exile is still the only
+> erase of a project.
+
 **Update, 2026-11-21 (PR #162, Noah): the row menu's first item is Edit Project Details**, the same
 dialog File ▸ Edit Project Details… opens in the Editor, for the row's project. A rename is its name
 field, through the same `renameProject`; the rename-only dialog is gone.

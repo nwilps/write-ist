@@ -40,9 +40,9 @@ vi.mock("prosemirror-view", async (actual) => {
 // The Rust dictionary is not here; the fake stands in for it.
 vi.mock("../../app/src/spell-tauri.ts", () => ({ tauriSpellEngine: fakeEngine() }));
 const { editorWorkspace } = await import("../../app/src/workspaces/editor/editor.ts");
-const { notesManifest } = await import("../../app/src/workspaces/notes/notes.ts");
+const { notesWorkspace } = await import("../../app/src/workspaces/notes/notes.ts");
 const { planWorkspace } = await import("../../app/src/workspaces/plan/plan.ts");
-const WORKSPACES = [editorWorkspace, notesManifest({ spellEngine: fakeEngine() }), planWorkspace];
+const WORKSPACES = [editorWorkspace, notesWorkspace, planWorkspace];
 const CHOICES: readonly WorkspaceChoice[] = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
 
 // jsdom has no modal dialog.
@@ -105,6 +105,7 @@ async function editing() {
     whenSwitchedBack: quiet,
     ledger: () => undefined,
     places: () => undefined,
+    spellEngine: fakeEngine(),
     chooseCopyLocation: async () => undefined,
     openSettings: () => {},
     choosePdfLocation: async () => undefined,

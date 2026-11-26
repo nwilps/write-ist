@@ -12,9 +12,11 @@
  *
  * The bar above it is **never wider than the window**: the folder pill at its
  * left, then the tabs — every one the same width — and + right beside the
- * last of them, so + moves as tabs open and close. When the tabs are more than
- * the window holds, their strip scrolls sideways, with no scrollbar, and +
- * stays at the window's edge. Between every pill, and between the bar and the
+ * last of them, so + moves as tabs open and close. The tabs are measured so
+ * that six of them, the folder, + and the gaps are exactly the window's width
+ * (`--measure-notes-tab`). On a window so narrow that would make a tab
+ * too small, the tabs keep a least width and their strip scrolls sideways,
+ * with no scrollbar, + staying at the window's edge. Between every pill, and between the bar and the
  * window, is the bottom pills' gap (`--space-pill-gap`).
  */
 
@@ -39,13 +41,7 @@
   min-width: 0;
   /* As wide as its share of the desk, unless the desk is too short for 16:9 at
      that width with the bar above: then as wide as the height left allows. */
-  width: min(
-    calc(var(--size-notes-room-width) * var(--fraction-notes-width)),
-    calc(
-      (var(--size-notes-room-height) - var(--space-notes-inset) * 2 - var(--size-notes-bar) - var(--space-pill-gap)) *
-        var(--ratio-notes)
-    )
-  );
+  width: var(--size-notes-window-width);
 }
 
 /* --- The bar ------------------------------------------------------------------ */
@@ -85,7 +81,7 @@
   outline: none;
 }
 
-/* + with five tabs open: there, greyed, and doing nothing until one closes. */
+/* + with six tabs open: there, greyed, and doing nothing until one closes. */
 .notes-bar__pill:disabled {
   opacity: var(--opacity-unavailable);
 }
@@ -234,14 +230,6 @@
   display: none;
 }
 
-/*
- * The shell's fades belong to the paper. Notes has none under them, so with
- * the moving background on they would be bands of paper colour over the desk.
- */
-.shell:has(> .shell__view > .workspace[data-workspace="notes"]:not([hidden])) > .paper-fade {
-  display: none;
-}
-
 .notes__reading {
   margin: 0;
   color: var(--colour-faint);
@@ -283,7 +271,7 @@
   /* The writer's spaces and tabs are drawn as typed, and long lines wrap. */
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  tab-size: var(--count-notes-tab);
+  tab-size: var(--count-notes-tab-stop);
   outline: none;
 }
 

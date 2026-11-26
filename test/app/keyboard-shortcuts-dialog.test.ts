@@ -20,6 +20,8 @@ import {
   hintOf,
   hintsOf,
   useKeyBindings,
+  withWorkspaceTabs,
+  type Command,
   type CommandHost,
 } from "../../app/src/workspaces/editor/commands.ts";
 import {
@@ -39,6 +41,10 @@ import { fakeEngine } from "../support/spell-engine.ts";
 // The Rust dictionary is not here; the fake stands in for it.
 vi.mock("../../app/src/spell-tauri.ts", () => ({ tauriSpellEngine: fakeEngine() }));
 const { editorWorkspace } = await import("../../app/src/workspaces/editor/editor.ts");
+const { WORKSPACES } = await import("../../app/src/workspaces/registry.ts");
+const { offerWorkspaces } = await import("../../app/src/shell/hotkeys.ts");
+// The workspaces the application offers, as `main.ts` says them at launch: their tabs' keys are listed from here.
+beforeEach(() => offerWorkspaces(WORKSPACES));
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const style = join(root, "app", "src", "style");
@@ -95,15 +101,16 @@ const drawnGroups = (modal: HTMLElement): Record<string, [string, string][]> =>
   );
 
 describe("the list, generated from the command table", () => {
-  const keyed = COMMANDS.filter((command) => hintOf(command) !== undefined);
+  // The table, with the registry's workspace tabs where the Hotkeys list puts them.
+  const keyed = (): Command[] => withWorkspaceTabs().filter((command) => hintOf(command) !== undefined);
 
   it("lists every command with a key, once, the hint the menus draw first and then any other key", () => {
     const { modal } = opened();
     const rows = Object.values(drawnGroups(modal)).flat();
-    expect(rows).toHaveLength(keyed.length);
-    expect(new Set(rows.map(([label]) => label))).toEqual(new Set(keyed.map((command) => command.label)));
+    expect(rows).toHaveLength(keyed().length);
+    expect(new Set(rows.map(([label]) => label))).toEqual(new Set(keyed().map((command) => command.label)));
     for (const [label, hint] of rows) {
-      const command = COMMANDS.find((one) => one.label === label)!;
+      const command = withWorkspaceTabs().find((one) => one.label === label)!;
       expect(hint.startsWith(hintOf(command)!), label).toBe(true);
       expect(hint, label).toBe(hintsOf(command).join(""));
     }
@@ -138,7 +145,7 @@ describe("the list, generated from the command table", () => {
     const ids = (name: string): string[] =>
       shortcutGroups()
         .find((group) => group.name === name)!
-        .rows.map((row) => COMMANDS.find((command) => command.label === row.label)!.id);
+        .rows.map((row) => withWorkspaceTabs().find((command) => command.label === row.label)!.id);
     expect(shortcutGroups().map((group) => group.name)).toEqual(["File", "Edit", "View", "Writing"]);
     expect(ids("File")).toEqual(["save", "to-home"]);
     expect(ids("Edit")).toEqual(["undo", "redo", "cut", "copy", "paste", "select-all"]);
@@ -148,9 +155,8 @@ describe("the list, generated from the command table", () => {
       "zoom-out",
       "reset-zoom",
       "keyboard-shortcuts",
-      "workspace-editor",
-      "workspace-notes",
-      "workspace-plan",
+      // One for each workspace in the registry, by its id: never written in the table.
+      ...WORKSPACES.map((workspace) => `workspace-${workspace.id}`),
       "previous-workspace",
       "next-workspace",
     ]);
@@ -173,9 +179,7 @@ describe("the list, generated from the command table", () => {
       ["Zoom Out", "[Ctrl + -]"],
       ["Reset Zoom", "[Ctrl + 0]"],
       ["Hotkeys", "[Ctrl + K]"],
-      ["Editor", "[Alt + 1]"],
-      ["Notes", "[Alt + 2]"],
-      ["Plan", "[Alt + 3]"],
+      ...WORKSPACES.map((workspace) => [workspace.name, `[Alt + ${workspace.key}]`]),
       ["Previous Workspace", "[Alt + Left]"],
       ["Next Workspace", "[Alt + Right]"],
     ]);
@@ -207,7 +211,7 @@ describe("the list, generated from the command table", () => {
 
   it("shows no key the table does not answer", () => {
     const { modal } = opened();
-    const known = new Set(keyed.map((command) => hintsOf(command).join("")));
+    const known = new Set(keyed().map((command) => hintsOf(command).join("")));
     for (const [label, hint] of Object.values(drawnGroups(modal)).flat()) expect(known.has(hint), label).toBe(true);
     expect(modal.textContent).not.toContain("Shift + Z");
   });
@@ -497,7 +501,7 @@ describe("the keys, drawn as the menus' hints", () => {
     const { modal } = opened();
     const keys = [...modal.querySelectorAll(".shortcuts__key")];
     // One for each key of each command (Search has two), and Tab and Shift+Tab.
-    expect(keys).toHaveLength(COMMANDS.reduce((count, command) => count + hintsOf(command).length, 0) + 2);
+    expect(keys).toHaveLength(withWorkspaceTabs().reduce((count, command) => count + hintsOf(command).length, 0) + 2);
     expect(keys.map((key) => key.textContent)).toEqual(expect.arrayContaining(["[Ctrl + S]", "[Tab]", "[Shift + Tab]"]));
     for (const key of keys) {
       expect(key.className, key.textContent!).toBe("shortcuts__key");

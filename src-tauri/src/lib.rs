@@ -136,12 +136,13 @@ fn move_file(app: tauri::AppHandle, from: String, to: String) -> Result<(), Stri
     folders::move_file_within(&root, Path::new(&from), Path::new(&to)).map_err(|error| error.to_string())
 }
 
-/// Delete one note in a project's `notes` folder, and nothing else
-/// (`folders::remove_note_within`).
+/// Delete one file, for good, directly inside the folder `folder` of a
+/// project — a folder a workspace declared in its manifest (ADR-0045) — and
+/// nothing else (`folders::remove_file_within`).
 #[tauri::command(async)]
-fn remove_note(app: tauri::AppHandle, path: String) -> Result<(), String> {
+fn remove_workspace_file(app: tauri::AppHandle, path: String, folder: String) -> Result<(), String> {
     let root = projects_folder(&app)?;
-    folders::remove_note_within(&root, Path::new(&path)).map_err(|error| error.to_string())
+    folders::remove_file_within(&root, Path::new(&path), &folder).map_err(|error| error.to_string())
 }
 
 fn projects_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -239,7 +240,7 @@ pub fn run() {
             remove_empty_folder,
             exile_project,
             move_file,
-            remove_note,
+            remove_workspace_file,
             spell_misspelled,
             spell_suggest,
             spell_add_word,

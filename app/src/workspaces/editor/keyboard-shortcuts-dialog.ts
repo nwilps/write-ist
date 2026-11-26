@@ -2,7 +2,8 @@
  * Hotkeys: a glance at the keys that matter while writing.
  *
  * Read-only: keys are changed in Settings ▸ Hotkeys. Every row is
- * generated from the command table (`commands.ts`) when the dialog opens: a
+ * generated from the command table (`commands.ts`) — with the workspace tabs'
+ * keys read from the registry (`withWorkspaceTabs`) — when the dialog opens: a
  * command with a key is listed, under the group it belongs to, with every key
  * that asks for it now, the writer's own included (`hintsOf`), the first being
  * the hint the menus draw. A command with no key is not, and nothing is listed
@@ -13,6 +14,10 @@
  * the screenplay surface's own `TAB_CYCLE`. It is its own section and its own
  * helper, so it can be taken out whole.
  *
+ * Keys a workspace added through its toolbox (`toolbox.hotkeys.add`,
+ * ADR-0045) are listed after View, under the workspace's own name. None of
+ * the workspaces adds one today, so the dialog is the four groups.
+ *
  * New Project's dialog, built from its pieces, its shared button and keys among
  * them: a modal `<dialog>` with no heading, Escape closes it natively, and it
  * opens with nothing focused, as Goals does. Its own key closes it again.
@@ -21,8 +26,9 @@ import { TAB_CYCLE } from "../../../../src/screenplay/element-keys.ts";
 import { dialogAction } from "../../screens/dialog-action.ts";
 import { dialogKeys } from "../../screens/dialog-keys.ts";
 import { element } from "../../screens/element.ts";
-import { chordMatches } from "../../screens/shortcuts.ts";
-import { chordsOf, COMMANDS, commandById, hintsOf, type Command } from "./commands.ts";
+import { chordHint, chordMatches } from "../../screens/shortcuts.ts";
+import { addedGroups } from "../../shell/hotkeys.ts";
+import { chordsOf, commandById, hintsOf, withWorkspaceTabs, type Command } from "./commands.ts";
 
 export interface KeyboardShortcutsDialogOptions {
   readonly closed: () => void;
@@ -38,7 +44,8 @@ export interface ShortcutRow {
 }
 
 export interface ShortcutGroup {
-  readonly name: ShortcutGroupName;
+  /** One of the four, or the name of a workspace that added keys of its own. */
+  readonly name: string;
   readonly rows: readonly ShortcutRow[];
 }
 
@@ -57,16 +64,19 @@ function groupOf(command: Command): ShortcutGroupName {
   return "Writing";
 }
 
-/** Every command with a key, grouped, in table order within each group. */
+/** Every command with a key, grouped, in table order within each group; then each workspace's own keys. */
 export function shortcutGroups(): readonly ShortcutGroup[] {
   const names: readonly ShortcutGroupName[] = ["File", "Edit", "View", "Writing"];
-  return names.map((name) => ({
+  const commands = withWorkspaceTabs();
+  const own = names.map((name) => ({
     name,
-    rows: COMMANDS.flatMap((command) => {
+    rows: commands.flatMap((command) => {
       const hints = hintsOf(command);
       return hints.length === 0 || groupOf(command) !== name ? [] : [{ label: command.label, hints }];
     }),
   }));
+  const added = addedGroups().map((group) => ({ name: group.name, rows: group.rows.map((row) => ({ label: row.label, hints: [chordHint(row.chord)] })) }));
+  return [...own.slice(0, 3), ...added, ...own.slice(3)];
 }
 
 /** The element types Tab steps through, by the names the command table gives them. */
@@ -140,6 +150,8 @@ function drawTabOrder(): HTMLElement {
 export function openKeyboardShortcutsDialog(into: HTMLElement, options: KeyboardShortcutsDialogOptions): HTMLDialogElement {
   const groups = shortcutGroups();
   const group = (name: ShortcutGroupName): ShortcutGroup => groups.find((one) => one.name === name)!;
+  // A workspace's own keys go under File, Edit and View, under its name.
+  const added = groups.filter((one) => !(["File", "Edit", "View", "Writing"] as readonly string[]).includes(one.name));
   const column = (children: readonly HTMLElement[]): HTMLElement => element("div", { className: "shortcuts__column" }, children);
 
   // Esc, because it closes from anywhere; the dialog's own key is in the list.
@@ -149,7 +161,7 @@ export function openKeyboardShortcutsDialog(into: HTMLElement, options: Keyboard
   const modal = element("dialog", { className: "new-project-dialog shortcuts", ariaLabel: "Hotkeys" }, [
     element("div", { className: "new-project-dialog__form" }, [
       element("div", { className: "shortcuts__columns" }, [
-        column((["File", "Edit", "View"] as const).map((name) => drawGroup(group(name)))),
+        column([...(["File", "Edit", "View"] as const).map((name) => drawGroup(group(name))), ...added.map((one) => drawGroup(one))]),
         element("div", { className: "shortcuts__divider", role: "separator", ariaOrientation: "vertical" }),
         column([drawGroup(group("Writing"), [drawTabOrder()])]),
       ]),

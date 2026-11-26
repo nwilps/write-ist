@@ -18,7 +18,7 @@
  * closes a tab and keeps the note. With no tab open the window says so,
  * quietly, and waits.
  *
- * **Five tabs at the most** (`src/notes/tabs.ts`). With five open, + is greyed
+ * **Six tabs at the most** (`src/notes/tabs.ts`). With six open, + is greyed
  * and so are the closed notes in the folder menu, until a tab is closed; a
  * note already open is still brought forward from the menu, and any note can
  * still be deleted from it. Nothing is said: the grey is the answer.
@@ -38,6 +38,12 @@
  * Where the writer was — which tabs were open, which was in front, and each
  * note's caret and scroll — is kept in `workspace-places.txt` in app data,
  * never in the project (ADR-0009, ADR-0012).
+ *
+ * **Everything it asks of the application is a toolbox call** (ADR-0045,
+ * `docs/WORKSPACES.md`, where Notes is the worked example): its files
+ * (`toolbox.files`, which keep it to the notes folder), the writer's place
+ * (`toolbox.memory`), the dictionary (`toolbox.spelling`), the pills, its
+ * menus and the delete confirm. It imports nothing else of the application's.
  */
 import {
   BookPlus,
@@ -60,9 +66,6 @@ import { baseKeymap } from "prosemirror-commands";
 import { keymap } from "prosemirror-keymap";
 import { AllSelection, TextSelection } from "prosemirror-state";
 import { DecorationSet, EditorView } from "prosemirror-view";
-import type { Project } from "../../../../src/project/bundle.ts";
-import { readWorkspaceFile, type FileSaveState } from "../../../../src/project/workspace-file.ts";
-import type { WorkspacePlace } from "../../../../src/project/workspace-places.ts";
 import { notesSession, type NotesSession } from "../../../../src/notes/notes-session.ts";
 import {
   bringInLegacyNotes,
@@ -71,19 +74,26 @@ import {
   listNotes,
   nameForRename,
   notePath,
-  NOTES_FOLDER,
-  renameNoteFile,
+  NOTES_FILES,
 } from "../../../../src/notes/notes-folder.ts";
-import type { PlainSpellEngine } from "../../../../src/notes/spelling.ts";
 import { MOST_OPEN_NOTES, tabsToReopen } from "../../../../src/notes/tabs.ts";
 import { sliceOf, textOfSlice } from "../../../../src/notes/text.ts";
-import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
-import type { MenuEntry, MenuItem } from "../../menus/drop-menu.ts";
-import { element } from "../../screens/element.ts";
-import { showDeleteNote } from "../../screens/project-dialogs.ts";
-import { chordHint, chordMatches, type Chord } from "../../screens/shortcuts.ts";
-import { message } from "../../screens/trouble.ts";
-import type { MountedWorkspace, WorkspaceContext, WorkspaceManifest } from "../../shell/workspace.ts";
+import {
+  chordHint,
+  chordMatches,
+  element,
+  message,
+  type Chord,
+  type ContextMenu,
+  type FileSaveState,
+  type MenuEntry,
+  type MenuItem,
+  type MountedWorkspace,
+  type Project,
+  type Toolbox,
+  type WorkspaceManifest,
+  type WorkspacePlace,
+} from "../../toolbox/index.ts";
 import "./notes.css";
 
 /** How long the caret rests before its place is kept. Leaving keeps it too. */
@@ -115,22 +125,18 @@ const WINDOW_ZOOM: readonly Chord[] = [
   { key: "0", mod: true },
 ];
 
-export interface NotesDependencies {
-  /** The dictionary (the application's, inside it); without one, spellcheck is not offered. */
-  readonly spellEngine?: PlainSpellEngine;
-}
-
-/** The Notes manifest, given what it needs from the application. */
-export function notesManifest(dependencies: NotesDependencies): WorkspaceManifest {
-  return {
-    id: NOTES,
-    name: "Notes",
-    key: "2",
-    icon: StickyNote,
-    files: [`${NOTES_FOLDER}/`],
-    mount: (into, context) => mountNotes(into, context, dependencies),
-  };
-}
+/** The Notes manifest. Everything it needs of the application arrives in its toolbox. */
+export const notesWorkspace: WorkspaceManifest = {
+  id: NOTES,
+  name: "Notes",
+  key: "2",
+  icon: StickyNote,
+  // The notes folder, and the old single `notes.md`, which Notes brings into it once.
+  files: NOTES_FILES,
+  // No paper under the shell's fades: with the moving background on they would be bands over the desk.
+  showsPaperFade: false,
+  mount: (into, toolbox) => mountNotes(into, toolbox),
+};
 
 /** A note open in a tab. */
 interface OpenNote {
@@ -147,7 +153,7 @@ interface OpenNote {
   kept: string | undefined;
 }
 
-function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: NotesDependencies): MountedWorkspace {
+function mountNotes(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   // --- The window: the bar of pills, and under it the notepad, which is also what scrolls. ---
   const folderPill = element("button", { type: "button", className: "notes-bar__pill notes-bar__folder", ariaLabel: "All Notes" });
   folderPill.append(icon(Folder));
@@ -179,9 +185,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   /** Notes being opened just now, so two quick asks for one note open one tab. */
   const opening = new Map<string, Promise<OpenNote | undefined>>();
 
-  const projectId = (): string => context.project.marker.projectId;
-
-  // --- Five tabs at the most: + is greyed while there is no room for another. ---
+  // --- Six tabs at the most: + is greyed while there is no room for another. ---
   /** New notes being made just now, each on its way to a tab. */
   let making = 0;
   /** Every note open in a tab or on its way to one. */
@@ -194,22 +198,20 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   // --- The save pill: the workspace is saved only when every open note is. ---
   const showSaved = (): void => {
     const states = open.map((note) => note.saved);
-    context.setSaved(states.includes("saving") ? "saving" : states.includes("unsaved") ? "unsaved" : "saved");
+    toolbox.pills.setSaved(states.includes("saving") ? "saving" : states.includes("unsaved") ? "unsaved" : "saved");
   };
 
   // --- Where the writer was: the tabs, and each note's caret and scroll, kept in app data. ---
   let tabsKept: string | undefined;
   const keepTabs = async (): Promise<void> => {
-    const places = context.workspacePlaces();
-    if (places === undefined || !ready) return;
+    if (!ready) return;
     const place: Record<string, number | string> = { open: open.length };
     open.forEach((note, index) => (place[`tab-${index + 1}`] = note.name));
     if (active !== undefined) place["active"] = active.name;
     const key = JSON.stringify(place);
     if (key === tabsKept) return;
     try {
-      await places.remember(projectId(), NOTES, place);
-      tabsKept = key;
+      if (await toolbox.memory.remember(place)) tabsKept = key;
     } catch {
       // Only which tabs were open, never a word: Notes opens as it can next time.
     }
@@ -217,16 +219,14 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
 
   let placeRest: ReturnType<typeof setTimeout> | undefined;
   const keepPlace = async (note: OpenNote | undefined): Promise<void> => {
-    const places = context.workspacePlaces();
-    if (places === undefined || note === undefined) return;
+    if (note === undefined) return;
     if (note === active && !hidden) note.scroll = pad.scrollTop;
     const { anchor, head } = note.session.caret();
     const place = { anchor, head, scroll: Math.round(note.scroll) };
     const key = JSON.stringify(place);
     if (key === note.kept) return;
     try {
-      await places.remember(projectId(), NOTES, place, note.name);
-      note.kept = key;
+      if (await toolbox.memory.remember(place, note.name)) note.kept = key;
     } catch {
       // Only where the caret was, never a word: the note opens at the top next time.
     }
@@ -268,7 +268,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
         target.dispatch(target.state.tr.replaceSelection(sliceOf(text)).scrollIntoView());
       } catch {
         // The webview may refuse a read that no key press asked for.
-        context.report("Write-ist could not read the clipboard from the menu. Press Ctrl+V to paste.");
+        toolbox.report("Write-ist could not read the clipboard from the menu. Press Ctrl+V to paste.");
       }
     })();
   };
@@ -293,7 +293,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     const items = await menuItems(at);
     if (ask !== contextAsks || gone || view === undefined) return;
     const editing = view;
-    contextMenu = openContextMenu({ label: "Edit", items, x, y, fromKeyboard, restoreFocus: () => editing.focus() });
+    contextMenu = toolbox.menus.open({ label: "Edit", items, x, y, fromKeyboard, restoreFocus: () => editing.focus() });
   };
   const menuItems = async (at: number): Promise<MenuEntry[]> => {
     const groups: MenuItem[][] = [];
@@ -321,7 +321,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
           act: () =>
             void writing.spelling.addToDictionary(wrong.word).then(
               () => view?.focus(),
-              (error: unknown) => context.report(`Write-ist could not add that word to your dictionary. ${message(error)}`),
+              (error: unknown) => toolbox.report(`Write-ist could not add that word to your dictionary. ${message(error)}`),
             ),
         },
       ]);
@@ -383,9 +383,9 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   window.addEventListener("keydown", windowKeys, true);
 
   // File ▸ Edit Project Details is the name pill's, here as in the Editor.
-  const stopListeningForDetails = context.whenDetailsAsked(() => {
+  const stopListeningForDetails = toolbox.details.whenAsked(() => {
     if (!ready || into.querySelector("dialog[open]") !== null) return;
-    context.editProjectDetails({ into, carryOut: relocate, closed: () => focus() });
+    toolbox.details.edit({ into, carryOut: relocate, closed: () => focus() });
   });
 
   // --- The editing view: one, showing whichever note is in front. ---
@@ -475,15 +475,15 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     if (note === undefined) {
       if (view !== undefined) view.dom.hidden = true;
       empty.hidden = false;
-      context.setStatus("");
-      context.setSpellcheck(false);
+      toolbox.pills.setStatus("");
+      toolbox.pills.setSpellcheck(false);
     } else {
       empty.hidden = true;
       const editing = viewFor(note);
       editing.dom.hidden = false;
       if (note.session.spelling.available() && note.session.spelling.isOn() !== spellingOn) void note.session.spelling.toggle();
-      context.setSpellcheck(spellingOn && note.session.spelling.available());
-      context.setStatus(note.status);
+      toolbox.pills.setSpellcheck(spellingOn && note.session.spelling.available());
+      toolbox.pills.setStatus(note.status);
       if (!hidden) pad.scrollTop = note.scroll;
       note.tab.scrollIntoView?.({ block: "nearest", inline: "nearest" });
       if (focusIt && !hidden) editing.focus();
@@ -519,10 +519,10 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     const opened = (async (): Promise<OpenNote | undefined> => {
       let read;
       try {
-        read = await readWorkspaceFile(context.filesystem, context.project, notePath(name));
+        read = await toolbox.files.read(notePath(name));
       } catch (error) {
         // Words about their file. Nothing was written, because the failure was a read.
-        if (!gone) context.report(`Write-ist could not read the note “${name}”, so nothing has been changed. ${message(error)}`);
+        if (!gone) toolbox.report(`Write-ist could not read the note “${name}”, so nothing has been changed. ${message(error)}`);
         return undefined;
       }
       if (gone) return undefined;
@@ -532,10 +532,9 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       let said = "";
       const session = notesSession(
         {
-          filesystem: context.filesystem,
-          project: context.project,
+          files: toolbox.files,
           file: notePath(name),
-          report: context.report,
+          report: toolbox.report,
           setSaved: (state) => {
             if (note === undefined) return;
             note.saved = state;
@@ -545,16 +544,15 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
             said = text;
             if (note === undefined) return;
             note.status = text;
-            if (note === active) context.setStatus(text);
+            if (note === active) toolbox.pills.setStatus(text);
           },
           setSpellcheck: (on) => {
             if (note !== active) return;
             spellingOn = on;
-            context.setSpellcheck(on);
+            toolbox.pills.setSpellcheck(on);
           },
-          whenSwitchedAway: context.whenSwitchedAway,
-          whenSwitchedBack: context.whenSwitchedBack,
-          spellEngine: dependencies.spellEngine,
+          // The same dictionary as the Editor's spellcheck, and nothing else of it.
+          spellEngine: toolbox.spelling.available ? toolbox.spelling : undefined,
           redraw: () => {
             if (note !== undefined && note === active) view?.updateState(note.session.state);
           },
@@ -697,17 +695,14 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   const rename = async (note: OpenNote, typed: string): Promise<void> => {
     let to: string;
     try {
-      to = await nameForRename(context.filesystem, context.project, note.name, typed);
+      to = await nameForRename(toolbox.files, note.name, typed);
     } catch {
       return;
     }
     if (to === note.name || !open.includes(note)) return;
     const from = note.name;
     try {
-      await note.session.rename(async () => {
-        await renameNoteFile(context.filesystem, note.session.project(), from, to);
-        return notePath(to);
-      });
+      await note.session.moveTo(notePath(to));
     } catch {
       // The file is where it was, under its old name; so is the tab.
       return;
@@ -717,7 +712,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     note.tab.querySelector(".notes-tab__close")?.setAttribute("aria-label", `Close ${to}`);
     note.kept = undefined;
     try {
-      await context.workspacePlaces()?.forget(projectId(), NOTES, from, to);
+      await toolbox.memory.forget(from, to);
     } catch {
       // Only a place.
     }
@@ -730,13 +725,13 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     const ask = ++folderAsks;
     let names: string[];
     try {
-      names = await listNotes(context.filesystem, context.project);
+      names = await listNotes(toolbox.files);
     } catch (error) {
-      context.report(`Write-ist could not read this project's notes folder. ${message(error)}`);
+      toolbox.report(`Write-ist could not read this project's notes folder. ${message(error)}`);
       return;
     }
     if (ask !== folderAsks || gone) return;
-    // With five tabs open, a closed note is greyed until one closes; an open one is still brought forward.
+    // With six tabs open, a closed note is greyed until one closes; an open one is still brought forward.
     const noRoom = full();
     const items: MenuEntry[] =
       names.length === 0
@@ -750,7 +745,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
           }));
     const box = folderPill.getBoundingClientRect();
     folderList?.close(false);
-    folderList = openContextMenu({
+    folderList = toolbox.menus.open({
       label: "Notes",
       items,
       x: box.left,
@@ -772,12 +767,18 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     folderKeyed = false;
   });
 
-  /** Delete a note, once the writer has said so in the alarm-coloured dialog. */
+  /** Delete a note, once the writer has said so in the alarm-coloured confirm (`toolbox.dialogs`). */
   const askToDelete = (name: string): void => {
     if (into.querySelector("dialog[open]") !== null) return;
-    showDeleteNote(into, {
-      name,
-      onDelete: async () => {
+    toolbox.dialogs.confirm({
+      label: "Delete Note",
+      question: `Delete "${name}"?`,
+      lines: ["This permanently deletes the note from your project's notes folder. It cannot be recovered."],
+      confirm: "Delete",
+      // For good, so in the alarm colour, with Cancel under the writer's hand.
+      alarm: true,
+      failed: `“${name}” could not be deleted, so it is still in your notes.`,
+      act: async () => {
         const note = open.find((each) => each.name === name);
         if (note !== undefined) {
           // Its last words go to disk first, so a delete that fails loses nothing.
@@ -787,20 +788,20 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
           dropTab(note);
         }
         try {
-          await deleteNote(context.filesystem, context.project, name);
+          await deleteNote(toolbox.files, name);
         } catch (error) {
           // Still in the folder, so back in its tab.
           if (note !== undefined) void openNote(name, { focus: false });
           throw error;
         }
         try {
-          await context.workspacePlaces()?.forget(projectId(), NOTES, name);
+          await toolbox.memory.forget(name);
         } catch {
           // Only a place.
         }
         return undefined;
       },
-      onClose: () => focus(),
+      closed: () => focus(),
     });
   };
 
@@ -812,9 +813,9 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
     void (async () => {
       let name: string;
       try {
-        name = await createNote(context.filesystem, context.project);
+        name = await createNote(toolbox.files);
       } catch (error) {
-        context.report(`Write-ist could not make a new note. ${message(error)}`);
+        toolbox.report(`Write-ist could not make a new note. ${message(error)}`);
         return;
       } finally {
         making -= 1;
@@ -839,23 +840,23 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
   void (async () => {
     let brought: string | undefined;
     try {
-      brought = await bringInLegacyNotes(context.filesystem, context.project);
+      brought = await bringInLegacyNotes(toolbox.files);
     } catch (error) {
       if (gone) return;
-      context.report(
+      toolbox.report(
         `Write-ist could not move notes.md into this project's notes folder, so it is where it was and will be tried again. ${message(error)}`,
       );
     }
     let names: string[];
     try {
-      names = await listNotes(context.filesystem, context.project);
+      names = await listNotes(toolbox.files);
     } catch (error) {
       if (gone) return;
       reading.textContent = "";
-      context.report(`Write-ist could not read this project's notes folder, so nothing has been changed. ${message(error)}`);
+      toolbox.report(`Write-ist could not read this project's notes folder, so nothing has been changed. ${message(error)}`);
       return;
     }
-    const kept = await recall(context);
+    const kept = await toolbox.memory.recall();
     if (gone) return;
     let tabs: string[];
     let front: string | undefined;
@@ -867,7 +868,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       );
       const wanted = kept["active"];
       front = typeof wanted === "string" && tabs.includes(wanted) ? wanted : tabs[0];
-      // Kept before there was a limit: five at the most, the one in front among them.
+      // Kept before there was a limit: six at the most, the one in front among them.
       tabs = tabsToReopen(tabs, front);
     } else {
       // Never left in tabs: the old notes, brought in just now, or the first note.
@@ -877,7 +878,7 @@ function mountNotes(into: HTMLElement, context: WorkspaceContext, dependencies: 
       if (brought !== undefined && kept !== undefined && typeof kept["anchor"] === "number") legacyPlace = kept;
     }
     for (const name of tabs) {
-      const place = name === front && legacyPlace !== undefined ? legacyPlace : await recall(context, name);
+      const place = name === front && legacyPlace !== undefined ? legacyPlace : await toolbox.memory.recall(name);
       if (gone) return;
       await openNote(name, { place, front: false });
     }
@@ -948,13 +949,4 @@ function icon(node: IconNode): SVGElement {
   const drawn = createElement(node, { class: "notes-bar__icon" });
   drawn.setAttribute("aria-hidden", "true");
   return drawn;
-}
-
-/** Where Notes was left in this project — or one note in it — or `undefined`. */
-async function recall(context: WorkspaceContext, note?: string): Promise<WorkspacePlace | undefined> {
-  try {
-    return await context.workspacePlaces()?.recall(context.project.marker.projectId, NOTES, note);
-  } catch {
-    return undefined;
-  }
 }

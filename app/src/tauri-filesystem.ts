@@ -96,10 +96,11 @@ export const tauriFilesystem: Filesystem = {
     await invoke("move_file", { from, to });
   },
 
-  async removeNote(path: string): Promise<void> {
-    // A command, which deletes a note in a project's notes folder and refuses
-    // anything else (`remove_note`, `src-tauri/src/lib.rs`).
-    await invoke("remove_note", { path });
+  async removeWorkspaceFile(path: string, folder: string): Promise<void> {
+    // A command, which deletes one file directly inside a project's folder
+    // of that name and refuses anything else (`remove_workspace_file`,
+    // `src-tauri/src/lib.rs`).
+    await invoke("remove_workspace_file", { path, folder });
   },
 
   async exileFromGraveyard(path: string, projectId: string): Promise<void> {

@@ -10,7 +10,7 @@
  */
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyAppearance,
   openSettingsDialog,
@@ -19,6 +19,7 @@ import {
   type SettingsGraveyard,
 } from "../../app/src/screens/settings.ts";
 import { mountGround } from "../../app/src/background/ground.ts";
+import { offerWorkspaces } from "../../app/src/shell/hotkeys.ts";
 import { CAPTURES_KEYS, isCapturedKey } from "../../app/src/screens/shortcuts.ts";
 import {
   commandById,
@@ -30,6 +31,10 @@ import {
 } from "../../app/src/workspaces/editor/commands.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { DEFAULT_SETTINGS, settingsFrom, settingsText, type Settings } from "../../src/settings/settings.ts";
+
+// `main.ts` offers the registry's workspaces at launch, and their tabs' keys are
+// listed, and taken, from there. The Editor, always on, is the one these tests need.
+beforeEach(() => offerWorkspaces([{ id: "editor", name: "Editor", key: "1" }]));
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {

@@ -1,6 +1,8 @@
 /**
- * Spellcheck for plain text: Notes' (ADR-0032 — Write-ist's own, on demand,
- * offline, from the dictionary inside the application).
+ * Spellcheck for plain text (ADR-0032 — Write-ist's own, on demand, offline,
+ * from the dictionary inside the application): Notes', and any workspace's
+ * through the toolbox (`toolbox.spelling`, ADR-0045). Here rather than in
+ * `src/notes/` so the toolbox can offer it without knowing Notes.
  *
  * The Editor's pass (`src/screenplay/spelling.ts`) knows a screenplay: which
  * elements are prose, that a cue is a name, that `INT` is a word. None of that
@@ -16,8 +18,9 @@
  */
 
 /**
- * The dictionary, as Notes asks it. The Editor's port (`SpellEngine`) has this
- * shape and more, so the application hands Notes the same engine.
+ * The dictionary, as a plain-text workspace asks it. The Editor's port
+ * (`SpellEngine`) has this shape and more, so the application hands every
+ * workspace the same engine, and one word added is added everywhere.
  */
 export interface PlainSpellEngine {
   misspelled(words: readonly string[]): Promise<readonly string[]>;

@@ -28,9 +28,18 @@
  * `Notes 2.md` and on if that is taken. A move never replaces anything
  * (`Filesystem.moveFile`), so a project that has both keeps both. If the move
  * fails, `notes.md` stays where it is and the move is tried again next time.
+ * Notes declares `notes.md` among its files for this, and only this.
+ *
+ * ## Through the toolbox
+ *
+ * Every call here takes Notes' files (`toolbox.files`): paths inside the
+ * project, limited to what Notes' manifest declares. Nothing here can reach
+ * the manuscript or another workspace's work.
  */
-import type { Project } from "../project/bundle.ts";
-import { join, type Filesystem } from "../project/filesystem.ts";
+import type { WorkspaceFiles } from "../project/workspace-files.ts";
+
+/** What the folder is reached through: Notes' own files (`toolbox.files`, ADR-0045), and nothing else. */
+export type NotesFiles = Pick<WorkspaceFiles, "list" | "exists" | "makeFolder" | "create" | "move" | "remove">;
 
 /** The folder in a project that holds its notes. */
 export const NOTES_FOLDER = "notes";
@@ -100,10 +109,10 @@ export function freeNoteName(wanted: string, taken: Iterable<string>): string {
 const byName = new Intl.Collator("en", { sensitivity: "base", numeric: true }).compare;
 
 /** The project's notes, by name, in order. An absent folder is no notes yet. */
-export async function listNotes(filesystem: Filesystem, project: Project): Promise<string[]> {
-  const entries = await filesystem.readDirectory(join(project.path, NOTES_FOLDER));
+export async function listNotes(files: Pick<NotesFiles, "list">): Promise<string[]> {
+  const entries = await files.list(NOTES_FOLDER);
   return entries
-    .filter((entry) => !entry.isDirectory && isNoteFile(entry.name))
+    .filter((entry) => !entry.isFolder && isNoteFile(entry.name))
     .map((entry) => nameOfNote(entry.name))
     .sort(byName);
 }
@@ -112,13 +121,12 @@ export async function listNotes(filesystem: Filesystem, project: Project): Promi
  * Make a new, empty note, named `Untitled` or the next free number, and answer
  * its name. It is written at once, so it is in the folder menu from the start.
  */
-export async function createNote(filesystem: Filesystem, project: Project): Promise<string> {
-  await filesystem.createDirectory(join(project.path, NOTES_FOLDER));
-  const name = freeNoteName(UNTITLED_NOTE, await listNotes(filesystem, project));
-  const path = join(project.path, notePath(name));
+export async function createNote(files: NotesFiles): Promise<string> {
+  await files.makeFolder(NOTES_FOLDER);
+  const name = freeNoteName(UNTITLED_NOTE, await listNotes(files));
   // Asked again just before: a note made elsewhere a moment ago is never written over.
-  if (await filesystem.exists(path)) throw new Error(`${name}${NOTE_EXTENSION} appeared in the notes folder just now.`);
-  await filesystem.writeFile(path, new Uint8Array());
+  if (await files.exists(notePath(name))) throw new Error(`${name}${NOTE_EXTENSION} appeared in the notes folder just now.`);
+  await files.create(notePath(name));
   return name;
 }
 
@@ -126,23 +134,23 @@ export async function createNote(filesystem: Filesystem, project: Project): Prom
  * The name a note renamed to `typed` gets: made safe, and numbered if another
  * note has it. Answers the note's own name when that is what it comes to.
  */
-export async function nameForRename(filesystem: Filesystem, project: Project, from: string, typed: string): Promise<string> {
+export async function nameForRename(files: Pick<NotesFiles, "list">, from: string, typed: string): Promise<string> {
   const wanted = safeNoteName(typed);
   if (wanted === from) return from;
-  const others = (await listNotes(filesystem, project)).filter((name) => name !== from);
+  const others = (await listNotes(files)).filter((name) => name !== from);
   // Only the case changed: the note's own name is not "taken".
   return freeNoteName(wanted, others);
 }
 
-/** Move a note's file to its new name. Never over another file (`Filesystem.moveFile`). */
-export async function renameNoteFile(filesystem: Filesystem, project: Project, from: string, to: string): Promise<void> {
+/** Move a note's file to its new name. Never over another file (`WorkspaceFiles.move`). */
+export async function renameNoteFile(files: Pick<NotesFiles, "move">, from: string, to: string): Promise<void> {
   if (from === to) return;
-  await filesystem.moveFile(join(project.path, notePath(from)), join(project.path, notePath(to)));
+  await files.move(notePath(from), notePath(to));
 }
 
-/** Delete a note's file, for good (`Filesystem.removeNote`). */
-export async function deleteNote(filesystem: Filesystem, project: Project, name: string): Promise<void> {
-  await filesystem.removeNote(join(project.path, notePath(name)));
+/** Delete a note's file, for good (`WorkspaceFiles.remove`). The writer has been asked first. */
+export async function deleteNote(files: Pick<NotesFiles, "remove">, name: string): Promise<void> {
+  await files.remove(notePath(name));
 }
 
 /**
@@ -150,11 +158,13 @@ export async function deleteNote(filesystem: Filesystem, project: Project, name:
  * given there, or `undefined` when there was none to bring. Rejects if it is
  * there and could not be moved; it is then where it was.
  */
-export async function bringInLegacyNotes(filesystem: Filesystem, project: Project): Promise<string | undefined> {
-  const legacy = join(project.path, LEGACY_NOTES_FILE);
-  if (!(await filesystem.exists(legacy))) return undefined;
-  await filesystem.createDirectory(join(project.path, NOTES_FOLDER));
-  const name = freeNoteName(LEGACY_NOTE_NAME, await listNotes(filesystem, project));
-  await filesystem.moveFile(legacy, join(project.path, notePath(name)));
+export async function bringInLegacyNotes(files: NotesFiles): Promise<string | undefined> {
+  if (!(await files.exists(LEGACY_NOTES_FILE))) return undefined;
+  await files.makeFolder(NOTES_FOLDER);
+  const name = freeNoteName(LEGACY_NOTE_NAME, await listNotes(files));
+  await files.move(LEGACY_NOTES_FILE, notePath(name));
   return name;
 }
+
+/** What Notes' manifest declares as its files: the folder, and the old single note it brings in. */
+export const NOTES_FILES: readonly string[] = [`${NOTES_FOLDER}/`, LEGACY_NOTES_FILE];

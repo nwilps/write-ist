@@ -74,7 +74,8 @@ import { NUMBERED_TYPES, removePageBreak, setElementType } from "../../../../src
 import { canRemovePageBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
-import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE, workspaceChord } from "../../shell/workspace-keys.ts";
+import { addedGroups, workspaceRows } from "../../shell/hotkeys.ts";
+import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE } from "../../shell/workspace-keys.ts";
 import { ZOOM_LEVELS } from "./paper-zoom.ts";
 import { jumpToScene } from "./scene-jump.ts";
 
@@ -306,12 +307,10 @@ export const COMMANDS: readonly Command[] = [
   // Heard wherever focus is, so it closes the dialog it opened as well.
   { id: "keyboard-shortcuts", label: "Hotkeys", icon: Keyboard, chord: { key: "k", mod: true }, keys: "window", menu: { name: "View", group: "shortcuts" }, run: (host) => host.keyboardShortcuts() },
 
-  // The workspace bar's tabs. The shell answers these keys, from the manifests
-  // (`workspace-keys.ts`), and selects the tab as a click does; the table knows
-  // them only to list them, so there is nothing for the Editor to run.
-  ...([["Editor", "1"], ["Notes", "2"], ["Plan", "3"]] as const).map(
-    ([label, key]): Command => ({ id: `workspace-${label.toLowerCase()}`, label, chord: workspaceChord(key), keys: "elsewhere", listedUnder: "View", run: () => {} }),
-  ),
+  // The workspace bar's tabs, Alt and each manifest's key, are listed here too,
+  // just before these two — read from the registry, not written in this table
+  // (`withWorkspaceTabs`), so a workspace added or taken away is listed or not
+  // without a line here. The shell answers all of them (`workspace-keys.ts`).
   { id: "previous-workspace", label: "Previous Workspace", chord: PREVIOUS_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
   { id: "next-workspace", label: "Next Workspace", chord: NEXT_WORKSPACE, keys: "elsewhere", listedUnder: "View", run: () => {} },
 
@@ -364,6 +363,20 @@ export const COMMANDS: readonly Command[] = [
   // A forced page break, offered where the caret or the click is on its `===`.
   atPlace("remove-page-break", "Remove Page Break", { group: "page-break", contextual: true }, canRemovePageBreak, removePageBreak),
 ];
+
+/**
+ * The table as the Hotkeys lists read it: with a row for each workspace tab's
+ * key — `Notes [Alt + 2]`, from the workspaces the application offers now
+ * (`hotkeys.ts`, ADR-0045) — just before Previous Workspace. Listed only: the
+ * shell answers those keys, and there is nothing for the Editor to run.
+ */
+export function withWorkspaceTabs(): readonly Command[] {
+  const tabs = workspaceRows().map(
+    (row): Command => ({ id: row.id, label: row.label, chord: row.chord, keys: "elsewhere", listedUnder: "View", run: () => {} }),
+  );
+  const at = COMMANDS.findIndex((command) => command.id === "previous-workspace");
+  return [...COMMANDS.slice(0, at), ...tabs, ...COMMANDS.slice(at)];
+}
 
 export function commandById(id: string): Command | undefined {
   return COMMANDS.find((command) => command.id === id);
@@ -465,12 +478,25 @@ export function shortcutCommands(): readonly {
   readonly defaults: readonly Chord[];
   readonly fixed: boolean;
 }[] {
-  return COMMANDS.filter(isListed).map((command) => ({
-    id: command.id,
-    label: command.label,
-    defaults: defaultChords(command),
-    fixed: !isRebindable(command),
-  }));
+  const own = withWorkspaceTabs()
+    .filter(isListed)
+    .map((command) => ({
+      id: command.id,
+      label: command.label,
+      defaults: defaultChords(command),
+      fixed: !isRebindable(command),
+    }));
+  // The keys workspaces added through their toolbox, after the table's: theirs, so not the writer's to change here.
+  const added = addedGroups().flatMap((group) =>
+    // Named by workspace, so two workspaces' keys of one id are two rows.
+    group.rows.map((row) => ({ id: `${group.id}-${row.id}`, label: `${row.label} (${group.name})`, defaults: [row.chord], fixed: true })),
+  );
+  return [...own, ...added];
+}
+
+/** Every key the table and the writer have given its commands, for `hotkeys.ts` to refuse to a workspace. */
+export function takenKeys(): readonly { readonly label: string; readonly chord: Chord }[] {
+  return [...COMMANDS.flatMap((command) => chordsOf(command).map((chord) => ({ label: command.label, chord }))), ...RESERVED_KEYS];
 }
 
 /** The hint beside a command — `[Ctrl + S]` — or nothing if it has no key. */

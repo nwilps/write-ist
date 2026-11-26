@@ -503,7 +503,7 @@ chosen and kept mounted, out of sight, while another is on screen; turning one o
   quiet empty state. An old `notes.md` is moved in once as `notes/Notes.md` (never
   over a note already there; `src/notes/notes-folder.ts`). Autosave as the manuscript's
   (`src/project/workspace-file.ts`), per note: undo and redo, Write-ist's own right-click menu,
-  spellcheck on demand from the same dictionary (a plain-text pass, `src/notes/spelling.ts`). Open
+  spellcheck on demand from the same dictionary (a plain-text pass, `src/spelling/plain.ts`). Open
   tabs, the one in front, and each note's caret and scroll kept in app data
   (`workspace-places.txt`, `src/project/workspace-places.ts`, format in its header).
 - **Plan**: cards on a grid of quiet dots (the beats and the end of the target drawn as lines dead
@@ -513,10 +513,25 @@ chosen and kept mounted, out of sight, while another is on screen; turning one o
   card sits beside the Structure button under the grid and grows with its description to the
   bottom pills' margin; the project name pill is hidden on Plan (its manifest's `showsProjectName`). Nothing in it reads the manuscript (ADR-0013).
 
+### Done: the workspace toolbox (ADR-0045)
+
+Every workspace is given one versioned **toolbox** (`Toolbox`, `app/src/shell/workspace.ts`,
+version 1) when it is mounted, and Notes and Plan reach the application through it alone: their
+declared files (`toolbox.files`, `src/project/workspace-files.ts`), the writer's place
+(`toolbox.memory`), the shared dictionary, the pills, hotkeys, their own settings (declared in the
+manifest and drawn in Settings, Edit Project Details and New Project Defaults), menus, and the
+application's confirm. They import only `app/src/toolbox/index.ts`. The registry is a plain list;
+the Hotkeys lists read it; deleting a file is one generic, narrow command for any declared folder
+(`remove_workspace_file`, replacing the note-only one). The Editor keeps the earlier calls for now.
+`docs/WORKSPACES.md` is the guide, `app/src/workspaces/_template/` the folder to copy, and
+`test/app/toolbox.test.ts` the proof (Notes and Plan unplugged; a test-only workspace plugged in).
+
 ### Not started, and deliberately above this layer
 
 Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), the prose surface in the
-application (novels; chapters as ranges), and the rest of the workspaces (the Log). Recorded for later: Write-ist drawing every context menu itself (#105).
+application (novels; chapters as ranges), and the rest of the workspaces (the Log). Workspaces
+loaded at runtime, a permission sandbox for them, and installing and signing them (ADR-0045, *Not
+yet*). Recorded for later: Write-ist drawing every context menu itself (#105).
 
 Open questions live in GitHub Issues and nowhere else. Slice 1's parent is #37; Slice 2's is #86.
 The early list's last question, #15 (leading whitespace), was decided 2026-10-30: normalised

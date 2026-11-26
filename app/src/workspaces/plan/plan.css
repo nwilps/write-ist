@@ -12,7 +12,7 @@
 /*
  * The grid panel is the same room from the workspace bar above it as from the
  * window's left and right edges (`--space-plan-edge`), and the Structure
- * button and the selected card are as far under it. Plan's host is held to
+ * button and the open cards are as far under it. Plan's host is held to
  * that room at its sides.
  */
 .workspace[data-workspace="plan"] {
@@ -151,6 +151,7 @@
 /* --- Cards ------------------------------------------------------------------ */
 
 .plan__card,
+.plan__outline,
 .plan__title-edit {
   position: absolute;
   box-sizing: border-box;
@@ -187,6 +188,18 @@
 
 .plan__card[data-selected="true"] {
   border-color: var(--colour-accent);
+}
+
+/*
+ * The golden outline on an empty square: where the keys are on the grid
+ * (`src/plan/grid-outline.ts`). The selected card's gold, on a square of its
+ * own; on a card, the card is lit instead. Over the dots, never in the way.
+ */
+.plan__outline {
+  border: var(--rule-thin) solid var(--colour-accent);
+  border-radius: var(--radius-slight);
+  z-index: var(--layer-plan-cards);
+  pointer-events: none;
 }
 
 /*
@@ -286,7 +299,7 @@
 /* --- Under the board ---------------------------------------------------------- */
 
 /*
- * The Structure button, and the selected card right beside it: as far apart
+ * The Structure button, and the open cards right beside it: as far apart
  * as the button is from the window's edge, and both as far under the grid.
  * The row runs down to the desk's foot, which is the bottom pills' margin
  * from the window's: the card may grow that far, and no further.
@@ -305,11 +318,20 @@
   gap: var(--space-snug);
 }
 
-/* Where the card hangs: as tall as the row, so the card's room is the row's. */
+/*
+ * Where the open cards hang: as tall as the row, so a card's room is the
+ * row's; and as wide as three compact cards and the gaps between them, or the
+ * room left beside the button where that is less. Each card is a third of it
+ * less the gaps, so the narrowing happens here, once, and never inside a
+ * card's own place (below).
+ */
 .plan__card-slot {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: calc(
+    var(--measure-plan-panel) * var(--count-plan-open-cards) + var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)
+  );
 }
 
 .plan__control {
@@ -341,7 +363,7 @@
 }
 
 /*
- * The selected card, larger, to write on: the same tinted face and edge as the
+ * An open card, larger, to write on: the same tinted face and edge as the
  * card on the grid, a little rounder, and compact. Its title and description
  * are typed straight onto it: at rest they are the card's own text, with no
  * box round them; a pointer over one gives it a faint tint and hairline, and
@@ -349,16 +371,44 @@
  * as tall as what is written on it, up to the row's height; past that the
  * description scrolls inside it.
  */
+/*
+ * An open card, in one of three places side by side (`--plan-position`, set
+ * from `plan.ts`, 0 beside the Structure button). Each is a third of the
+ * slot less the gaps: the compact width, or narrower where three of that
+ * would not fit, so all three always fit beside the button. A place is the
+ * card's own width and a gap along, and a card moving to another place slides
+ * there.
+ *
+ * **It is placed, and slides, by `left`, never by `transform`** (Plan round
+ * 3). WebKitGTK hands a sliding transform to its compositor, and on handing
+ * it back drew one frame with the card at its old place: the card arrived,
+ * jumped back, and settled. A card placed by `left` is drawn where the page
+ * lays it out, every frame, and there is no hand-back to get wrong. Both its
+ * width and its place are measured against the slot, so a place is still the
+ * card's own width and a gap along.
+ *
+ * **No `min()` inside its `calc()`s** (Plan round 4). With the desktop's text
+ * scaled, WebKitGTK zooms the whole page, and it then scales a `min()` nested
+ * in a `calc()` a second time: the cards' places drifted from their widths,
+ * so they overlapped (or, at another scale, stood apart). The width and the
+ * place are plain sums of the slot, and the slot does the narrowing.
+ */
 .plan__panel {
   --card-tint: var(--colour-plan-plain);
+  --plan-panel-width: calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards));
   position: absolute;
   top: 0;
-  left: 0;
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)));
   display: flex;
   flex-direction: column;
   gap: var(--space-hair);
-  width: min(var(--measure-plan-panel), 100%);
+  width: var(--plan-panel-width);
   max-height: 100%;
+  /* At rest it is not dragged: the drag's own offset is set only while it is, and the rule below never goes without one. */
+  --plan-drag-x: var(--size-plan-panel-still);
+  transition:
+    left var(--duration-plan-panel) var(--ease-plan-panel),
+    opacity var(--duration-plan-panel) var(--ease-plan-panel);
   box-sizing: border-box;
   padding: var(--space-tight);
   background: color-mix(in srgb, var(--card-tint) var(--mix-plan-card), var(--colour-overlay));
@@ -376,8 +426,51 @@
 .plan__panel[data-colour="aqua"] { --card-tint: var(--colour-plan-aqua); }
 .plan__panel[data-colour="green"] { --card-tint: var(--colour-plan-green); }
 
-.plan__panel[hidden] {
-  display: none;
+/* Dragged by its top edge: it follows the pointer from its place, over the others, at once. */
+.plan__panel[data-dragging="true"] {
+  z-index: var(--layer-plan-panel-drag);
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--plan-drag-x));
+  transition: opacity var(--duration-plan-panel) var(--ease-plan-panel);
+}
+
+/* Pushed out of the third place by a card opened: it slides off the window to the right, fading. */
+.plan__panel[data-leaving="true"] {
+  left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)) + var(--size-plan-room-width));
+  opacity: var(--opacity-plan-panel-gone);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan__panel {
+    transition: none;
+  }
+}
+
+/* The grip along the top edge, centred: what the card is dragged to another place by. */
+.plan__panel-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: var(--size-plan-panel-grip);
+  margin-top: calc(var(--space-tight) * -1);
+  color: var(--colour-plan-panel-grip);
+  cursor: grab;
+  touch-action: none;
+}
+
+.plan__panel-grip:hover {
+  color: var(--colour-plan-panel-grip-hover);
+}
+
+.plan__panel[data-dragging="true"] .plan__panel-grip {
+  color: var(--colour-plan-panel-grip-hover);
+  cursor: grabbing;
+}
+
+.plan__panel-grip .plan__icon {
+  width: var(--size-plan-panel-grip);
+  height: var(--size-plan-panel-grip);
 }
 
 .plan__panel-head {
@@ -430,20 +523,22 @@
 /*
  * The description, and an unseen copy of its text, share one cell: the box is
  * as tall as what is written (three lines at the least), and the field fills
- * it. Once the card is as tall as it may be, the box gives way and scrolls,
- * with no scrollbar drawn.
+ * it. Once the card is as tall as it may be, the box gives way — its one row
+ * may shrink to it (`minmax(0, 1fr)`) — and **the field scrolls**, with no
+ * scrollbar drawn.
+ *
+ * The field is the only scroller, and the box only clips. In round 1 the box
+ * scrolled instead: the field had shrunk with it to the visible height, so
+ * the box's scroll came from the unseen copy alone. The wheel slid the field
+ * out of sight over blank room, and the caret scrolled the field inside
+ * itself, where the wheel never reached — text above it could not be got back.
  */
 .plan__description-box {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   flex: 0 1 auto;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.plan__description-box::-webkit-scrollbar {
-  display: none;
+  overflow: clip;
 }
 
 .plan__description,
@@ -469,7 +564,12 @@
 .plan__description {
   display: block;
   width: 100%;
-  overflow: hidden;
+  height: 100%;
+  color: var(--colour-plan-description);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   background: transparent;
   resize: none;
 }
@@ -490,6 +590,10 @@
 .plan__description::placeholder {
   color: var(--colour-faint);
   opacity: 1;
+}
+
+.plan__description::-webkit-scrollbar {
+  display: none;
 }
 
 /*
