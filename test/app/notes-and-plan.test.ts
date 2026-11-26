@@ -14,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { askToEditProjectDetails, type WorkspaceChoice } from "../../app/src/screens/project-dialogs.ts";
+import { answerKey } from "../../app/src/screens/shortcuts.ts";
 import { mountShell, type MountedShell } from "../../app/src/shell/shell.ts";
 import type { Project } from "../../src/project/bundle.ts";
 import { createProject } from "../../src/project/create.ts";
@@ -39,6 +40,10 @@ const { WORKSPACES } = await import("../../app/src/workspaces/registry.ts");
 const CHOICES: readonly WorkspaceChoice[] = WORKSPACES.map(({ id, name, alwaysOn }) => ({ id, name, alwaysOn: alwaysOn === true }));
 
 beforeAll(() => {
+  // The window's keys, answered as `main.ts` answers them: Escape is Home unless a screen kept it.
+  window.addEventListener("keydown", (event) => {
+    if (shell !== undefined && answerKey(event, { dialogOpen: document.querySelector("dialog[open]") !== null, gestures: shell.gestures })) event.preventDefault();
+  });
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -53,6 +58,8 @@ let projects: string;
 let opened: Project;
 let places: WorkspacePlaces;
 let shell: MountedShell | undefined;
+/** How many times the shell was asked to go Home (Escape, as everywhere). */
+let homes = 0;
 
 beforeEach(async () => {
   temporary = temporaryDirectory();
@@ -63,6 +70,7 @@ beforeEach(async () => {
   });
   places = openWorkspacePlaces(nodeFilesystem, join(temporary.path, "app-data"));
   views.all.length = 0;
+  homes = 0;
 });
 afterEach(async () => {
   await shell?.unmount();
@@ -82,7 +90,7 @@ async function openProject() {
     workspaces: WORKSPACES,
     shown: details.workspaces,
     onClose: () => {},
-    onHome: () => {},
+    onHome: () => void homes++,
     whenSwitchedAway: quiet,
     whenSwitchedBack: quiet,
     ledger: () => undefined,
@@ -667,7 +675,7 @@ describe("Plan", () => {
     expect(readFileSync(join(opened.path, "plan.md"), "utf8")).toBe(PLAN);
   });
 
-  it("moves the selected card with the arrows and colours it from the panel, and saves both on leaving", async () => {
+  it("moves the selected card with Shift and the arrows and colours it from the panel, and saves both on leaving", async () => {
     writeFileSync(join(opened.path, "plan.md"), PLAN);
     const into = await openProject();
     alt("3");
@@ -677,10 +685,12 @@ describe("Plan", () => {
     cardOf(into, "card-1").dispatchEvent(Object.assign(press, { pointerId: 1 }));
     cardOf(into, "card-1").dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
     expect(into.querySelector(".plan__panel")).not.toBeNull();
+    // The arrows alone move the golden outline (round 3); with Shift, the card under it, and the outline with it.
     const key = (name: string) =>
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: name, shiftKey: true, bubbles: true, cancelable: true }));
     key("ArrowRight");
     key("ArrowDown");
+    expect(cardOf(into, "card-1").dataset["selected"]).toBe("true");
     expect(cardOf(into, "card-1").style.getPropertyValue("--card-cell")).toBe("51");
     expect(cardOf(into, "card-1").style.getPropertyValue("--card-lane")).toBe("2");
     into.querySelector<HTMLButtonElement>(".plan__palette-button")!.click();
@@ -996,22 +1006,239 @@ describe("Plan", () => {
       expect(into.querySelector(".plan__card[data-selected]")).toBeNull();
     });
 
-    it("leaves the open cards open on Escape: the first lets go of the lit card, and a field's Escape only leaves the field", async () => {
+    it("goes Home on Escape from the grid, leaving the outline and the open cards as they are; a field's Escape only leaves the field", async () => {
       const into = await openPlan();
       for (const id of ["c-1", "c-2"]) selectCard(into, id);
-      const escape = () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-      escape();
+      const board = into.querySelector<HTMLElement>(".plan__board")!;
+      expect(document.activeElement).toBe(board);
+      board.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      // Home, as everywhere (round 3: the first Escape no longer lets go of the lit card).
+      expect(homes).toBe(1);
+      expect(cardOf(into, "c-2").dataset["selected"]).toBe("true");
       expect(places(into)).toEqual(["c-2", "c-1"]);
-      expect(into.querySelector(".plan__card[data-selected]")).toBeNull();
-      // Typing in an open card, Escape leaves the field for the grid; the card stays open, and Plan stays on screen.
+      // Typing in an open card, Escape leaves the field for the grid, the outline on that card; Plan stays on screen.
       const field = panelOf(into, "c-1").querySelector<HTMLTextAreaElement>(".plan__description")!;
       field.focus();
       const press = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
       field.dispatchEvent(press);
       expect(press.defaultPrevented).toBe(true);
-      expect(document.activeElement).toBe(into.querySelector(".plan__board"));
+      expect(document.activeElement).toBe(board);
+      expect(cardOf(into, "c-1").dataset["selected"]).toBe("true");
+      expect(cardOf(into, "c-2").dataset["selected"]).toBeUndefined();
       expect(places(into)).toEqual(["c-2", "c-1"]);
       expect(selected(into)).toBe("Plan");
+      expect(homes).toBe(1);
+    });
+
+    describe("the golden outline, and the keys on the grid", () => {
+      /** Where the outline is drawn on an empty square, or undefined when it is on a card (the card is lit instead). */
+      const ring = (into: HTMLElement) => {
+        const drawn = into.querySelector<HTMLElement>(".plan__outline");
+        return drawn === null ? undefined : [Number(drawn.style.getPropertyValue("--card-cell")), Number(drawn.style.getPropertyValue("--card-lane"))];
+      };
+      const lit = (into: HTMLElement) => [...into.querySelectorAll<HTMLElement>(".plan__card[data-selected]")].map((card) => card.dataset["id"]);
+      /** A key pressed where the keys are, as the writer presses it. */
+      const press = (key: string, also: KeyboardEventInit = {}) => {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...also });
+        document.activeElement!.dispatchEvent(event);
+        return event;
+      };
+      const titleOf = (into: HTMLElement, id: string) => panelOf(into, id).querySelector<HTMLInputElement>(".plan__panel-title")!;
+      const descriptionOf = (into: HTMLElement, id: string) => panelOf(into, id).querySelector<HTMLTextAreaElement>(".plan__description")!;
+
+      it("moves square by square with the arrows, on the grid only: a card under it is lit, and is one stop however long", async () => {
+        const into = await openPlan();
+        for (const id of ["c-3", "c-2"]) selectCard(into, id);
+        const board = into.querySelector<HTMLElement>(".plan__board")!;
+        const drawn = [...slot(into).querySelectorAll(".plan__panel")];
+        // A click on an empty square puts the outline there, gold, and lets go of the lit card.
+        pressGrid(into, 8, 0);
+        expect(ring(into)).toEqual([8, 0]);
+        expect(lit(into)).toEqual([]);
+        expect(document.activeElement).toBe(board);
+        expect(press("ArrowRight").defaultPrevented).toBe(true);
+        expect(ring(into)).toEqual([9, 0]);
+        // On to c-1 (squares 10 and 11 of the top lane): the card is lit, and no square is drawn over it.
+        press("ArrowRight");
+        expect(ring(into)).toBeUndefined();
+        expect(lit(into)).toEqual(["c-1"]);
+        // On from a card: the square after it, not a second press inside it.
+        press("ArrowRight");
+        expect(ring(into)).toEqual([12, 0]);
+        press("ArrowLeft");
+        expect(lit(into)).toEqual(["c-1"]);
+        press("ArrowLeft");
+        expect(ring(into)).toEqual([9, 0]);
+        // Down as far as it goes: the last lane, and never into the open cards under the grid.
+        const lanes = Number(surface(into).style.getPropertyValue("--plan-lanes"));
+        for (let i = 0; i < lanes + 5; i++) press("ArrowDown");
+        expect(ring(into)).toEqual([9, lanes - 1]);
+        expect(document.activeElement).toBe(board);
+        expect(slot(into).contains(document.activeElement)).toBe(false);
+        for (let i = 0; i < lanes + 5; i++) press("ArrowUp");
+        for (let i = 0; i < 20; i++) press("ArrowLeft");
+        expect(ring(into)).toEqual([0, 0]);
+        // The open cards neither moved nor changed.
+        expect(places(into)).toEqual(["c-2", "c-3"]);
+        expect([...slot(into).querySelectorAll(".plan__panel")]).toEqual(drawn);
+        // Typing in an open card puts the outline on it; there the arrows are the text's, and the outline stays.
+        descriptionOf(into, "c-2").focus();
+        expect(lit(into)).toEqual(["c-2"]);
+        expect(press("ArrowRight").defaultPrevented).toBe(false);
+        expect(press("ArrowDown").defaultPrevented).toBe(false);
+        expect(lit(into)).toEqual(["c-2"]);
+        expect(ring(into)).toBeUndefined();
+        // A click on a card puts the outline on it.
+        selectCard(into, "c-4");
+        expect(lit(into)).toEqual(["c-4"]);
+        expect(ring(into)).toBeUndefined();
+      });
+
+      it("shows the outline at the first square in view on the first arrow, when there was none", async () => {
+        const into = await openPlan();
+        expect(ring(into)).toBeUndefined();
+        into.querySelector<HTMLElement>(".plan__board")!.focus();
+        press("ArrowDown");
+        expect(ring(into)).toEqual([0, 0]);
+        press("ArrowDown");
+        expect(ring(into)).toEqual([0, 1]);
+      });
+
+      it("makes a card on an empty square with Enter, opens it in the first place, and puts the caret in its title", async () => {
+        const into = await openPlan();
+        for (const id of ["c-1", "c-2"]) selectCard(into, id);
+        pressGrid(into, 5, 0);
+        expect(press("Enter").defaultPrevented).toBe(true);
+        const made = places(into)[0]!;
+        expect(["c-1", "c-2", "c-3", "c-4"]).not.toContain(made);
+        expect(places(into)).toEqual([made, "c-2", "c-1"]);
+        expect(cardOf(into, made).style.getPropertyValue("--card-cell")).toBe("5");
+        expect(cardOf(into, made).style.getPropertyValue("--card-lane")).toBe("0");
+        expect(lit(into)).toEqual([made]);
+        // Typing straight away names it: on the open card, not on the grid.
+        expect(document.activeElement).toBe(titleOf(into, made));
+        expect(into.querySelector(".plan__title-edit")).toBeNull();
+        titleOf(into, made).value = "The ferry leaves";
+        titleOf(into, made).dispatchEvent(new Event("input", { bubbles: true }));
+        expect(cardOf(into, made).textContent).toBe("The ferry leaves");
+        // Enter in the title: on to the description, empty, so the caret is at its start.
+        expect(press("Enter").defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(descriptionOf(into, made));
+        expect(descriptionOf(into, made).selectionStart).toBe(0);
+        // In the description, Enter and Tab are the field's own: neither is kept from it.
+        expect(press("Enter").defaultPrevented).toBe(false);
+        expect(press("Tab").defaultPrevented).toBe(false);
+        // Escape leaves the description; the outline is back on that card's square on the grid, and Plan stays.
+        descriptionOf(into, made).focus();
+        expect(press("Escape").defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(into.querySelector(".plan__board"));
+        expect(lit(into)).toEqual([made]);
+        expect(homes).toBe(0);
+        expect(selected(into)).toBe("Plan");
+        // Another, with three open: the third is pushed out, as for any card opened. One arrow steps off the new card, however long.
+        const after = 5 + Number(cardOf(into, made).style.getPropertyValue("--card-cells"));
+        press("ArrowRight");
+        expect(ring(into)).toEqual([after, 0]);
+        press("Enter");
+        expect(places(into)).toHaveLength(3);
+        expect(places(into).slice(1)).toEqual([made, "c-2"]);
+        expect(panelOf(into, "c-1").dataset["leaving"]).toBe("true");
+        // Tab from the title goes on to the description too.
+        const second = places(into)[0]!;
+        expect(document.activeElement).toBe(titleOf(into, second));
+        expect(press("Tab").defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(descriptionOf(into, second));
+        await closeProject();
+        const saved = readFileSync(join(opened.path, "plan.md"), "utf8");
+        expect(saved).toContain("## The ferry leaves\n");
+      });
+
+      it("opens a card on the grid with Enter, in the first place unless it is open, the caret at the end of its description", async () => {
+        const into = await openPlan();
+        for (const id of ["c-1", "c-2", "c-3"]) selectCard(into, id);
+        expect(places(into)).toEqual(["c-3", "c-2", "c-1"]);
+        // Already open, in the third place: it stays there, and the caret goes to the end of what is written.
+        pressGrid(into, 11, 0);
+        expect(lit(into)).toEqual(["c-1"]);
+        press("Enter");
+        expect(places(into)).toEqual(["c-3", "c-2", "c-1"]);
+        expect(slot(into).querySelector("[data-leaving]")).toBeNull();
+        expect(document.activeElement).toBe(descriptionOf(into, "c-1"));
+        expect(descriptionOf(into, "c-1").selectionStart).toBe("What happens 1.".length);
+        expect(descriptionOf(into, "c-1").selectionEnd).toBe("What happens 1.".length);
+        // Not open: in the first place, the third pushed out.
+        press("Escape");
+        pressGrid(into, 40, 3);
+        expect(lit(into)).toEqual(["c-4"]);
+        press("Enter");
+        expect(places(into)).toEqual(["c-4", "c-3", "c-2"]);
+        expect(document.activeElement).toBe(descriptionOf(into, "c-4"));
+        expect(descriptionOf(into, "c-4").selectionStart).toBe("What happens 4.".length);
+      });
+
+      it("opens a card with no description at its title if it has none either, or else at the description", async () => {
+        const into = await openPlan();
+        pressGrid(into, 60, 0);
+        press("Enter");
+        const made = places(into)[0]!;
+        expect(document.activeElement).toBe(titleOf(into, made));
+        press("Escape");
+        expect(lit(into)).toEqual([made]);
+        // No title and no description: the title.
+        press("Enter");
+        expect(document.activeElement).toBe(titleOf(into, made));
+        titleOf(into, made).value = "Dawn";
+        titleOf(into, made).dispatchEvent(new Event("input", { bubbles: true }));
+        press("Escape");
+        // A title and no description: the description's start.
+        press("Enter");
+        expect(document.activeElement).toBe(descriptionOf(into, made));
+        expect(descriptionOf(into, made).selectionStart).toBe(0);
+      });
+
+      it("keeps the outline with the writer's place in app data, and Plan opens with it where it was left", async () => {
+        const into = await openPlan();
+        pressGrid(into, 33, 2);
+        press("ArrowRight");
+        expect(ring(into)).toEqual([34, 2]);
+        // Home and back, by Escape: the outline is not cleared.
+        press("Escape");
+        expect(homes).toBe(1);
+        expect(ring(into)).toEqual([34, 2]);
+        await closeProject();
+        // In app data, never in the project.
+        const kept = openWorkspacePlaces(nodeFilesystem, join(temporary.path, "app-data"));
+        expect(await kept.recall("id-paper-boats", "plan")).toMatchObject({ cell: 34, lane: 2 });
+        expect(readFileSync(join(opened.path, "plan.md"), "utf8")).toBe(FOUR);
+        expect(readdirSync(opened.path).join(" ")).not.toMatch(/place/);
+        const again = await openProject();
+        alt("3");
+        await vi.waitFor(() => expect(ring(again)).toEqual([34, 2]));
+        // And on a card, the card is lit when Plan opens.
+        pressGrid(again, 30, 2);
+        expect(lit(again)).toEqual(["c-3"]);
+        await closeProject();
+        const third = await openProject();
+        alt("3");
+        await vi.waitFor(() => expect(lit(third)).toEqual(["c-3"]));
+        expect(ring(third)).toBeUndefined();
+      });
+
+      it("keeps F2 for Rename, and Shift and the arrows for moving the card under the outline", async () => {
+        const into = await openPlan();
+        pressGrid(into, 20, 1);
+        expect(lit(into)).toEqual(["c-2"]);
+        press("F2");
+        expect(into.querySelector(".plan__title-edit")).not.toBeNull();
+        press("Escape");
+        expect(into.querySelector(".plan__title-edit")).toBeNull();
+        expect(homes).toBe(0);
+        press("ArrowRight", { shiftKey: true });
+        expect(cardOf(into, "c-2").style.getPropertyValue("--card-cell")).toBe("21");
+        expect(lit(into)).toEqual(["c-2"]);
+        press("ArrowRight", { ctrlKey: true });
+        expect(cardOf(into, "c-2").style.getPropertyValue("--card-cells")).toBe("3");
+      });
     });
 
     it("opens a card made on the grid in the first place, the open ones moved along, none dismissed", async () => {

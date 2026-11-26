@@ -17,6 +17,18 @@
  * drag the empty grid to pan. Right-click is Write-ist's own menu (ADR-0034),
  * and every gesture has a key.
  *
+ * **The keys are at the golden outline** (Plan round 3; `src/plan/grid-outline.ts`):
+ * the selected card's gold, on a square of the grid, or lighting the card on
+ * it. The arrows move it a square at a time, on the grid only — never down into
+ * the open cards — and a click moves it too. Enter on an empty square makes a
+ * card there, opens it, and puts the caret in its title; from the title, Enter
+ * or Tab goes on to the description. Enter on a card opens it (where it is, if
+ * it is open) with the caret at the end of its description. Escape in an open
+ * card's field comes back to the outline on that card; Escape on the grid goes
+ * Home, as everywhere, and the outline stays where it was — it is kept with the
+ * writer's place. F2 renames, Delete deletes, Shift and an arrow move the card,
+ * Ctrl and Left or Right make it a page shorter or longer.
+ *
  * Under the grid, the Structure button, and right beside it **up to three
  * cards, open**, larger, to write on (Noah, 2026-11-25; `src/plan/open-cards.ts`).
  * A card clicked on the grid opens in the first place, beside the button, and
@@ -43,6 +55,7 @@
  * imports nothing else of the application's.
  */
 import { createElement, GripHorizontal, ListChecks, Palette, Pencil, Plus, Shapes, Trash2, type IconNode } from "lucide";
+import { cardAt, outlineStep, squareOnGrid, type Square } from "../../../../src/plan/grid-outline.ts";
 import { closeCard, moveCard, openCard, placeUnder } from "../../../../src/plan/open-cards.ts";
 import { CARD_COLOURS, fits, type CardColour, type PlacedCard, type PlanLayout } from "../../../../src/plan/plan.ts";
 import { PLAN_FILE, planSession, readPlan, type PlanSession } from "../../../../src/plan/plan-session.ts";
@@ -80,6 +93,14 @@ const COLOUR_NAMES: Readonly<Record<CardColour, string>> = {
   green: "Green",
 };
 
+/** The arrows, as a step along the grid (a page) and across it (a lane). */
+const ARROWS: Readonly<Record<string, readonly [number, number]>> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
 /** The colour picker's swatches across a row; the arrows move by one, or by a row. */
 const PALETTE_COLUMNS = 3;
 
@@ -88,9 +109,12 @@ const KEYS = {
   undo: { key: "z", mod: true },
   redo: { key: "y", mod: true },
   contextMenu: { key: "Enter", mod: true, alt: true },
-  rename: { key: "Enter" },
+  // Enter opens the card under the outline, or makes one on an empty square; F2 renames, as a note's tab does.
+  open: { key: "Enter" },
+  rename: { key: "F2" },
   remove: { key: "Delete", alsoKeys: ["Backspace"] },
 } as const satisfies Record<string, Chord>;
+
 
 /** The webview's own zoom keys, which would zoom the whole window: answered with nothing. */
 const WINDOW_ZOOM: readonly Chord[] = [
@@ -132,33 +156,40 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   let session: PlanSession | undefined;
   let gone = false;
   let hidden = false;
+  /** The card lit on the grid: the one under the outline, if there is one. */
   let selected: string | undefined;
+  /** The golden outline: the square the keys are at (`src/plan/grid-outline.ts`). None until there is one to show. */
+  let outline: Square | undefined;
   /** The open cards, the first place (beside the Structure button) first. */
   let open: string[] = [];
   const panels = new Map<string, CardPanel>();
   let menu: ContextMenu | undefined;
   let pendingAcross: number | undefined;
 
-  // --- Where the writer was: how far along the grid. ---
+  // --- Where the writer was: how far along the grid, and the outline. ---
   let placeRest: ReturnType<typeof setTimeout> | undefined;
-  let placeKept: number | undefined;
+  let placeKept: string | undefined;
   let across = 0;
   const keepPlace = async (): Promise<void> => {
     clearTimeout(placeRest);
     placeRest = undefined;
-    const now = Math.round(across);
-    if (session === undefined || now === placeKept) return;
+    const now = { across: Math.round(across), ...(outline === undefined ? {} : { cell: outline.cell, lane: outline.lane }) };
+    const key = JSON.stringify(now);
+    if (session === undefined || key === placeKept) return;
     try {
-      if (await toolbox.memory.remember({ across: now })) placeKept = now;
+      if (await toolbox.memory.remember(now)) placeKept = key;
     } catch {
       // Only where the view was: Plan opens at the start next time.
     }
   };
+  const restPlace = (): void => {
+    clearTimeout(placeRest);
+    placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
+  };
   board.addEventListener("scroll", () => {
     if (hidden) return;
     across = board.scrollLeft;
-    clearTimeout(placeRest);
-    placeRest = setTimeout(() => void keepPlace(), PLACE_REST_MS);
+    restPlace();
   });
 
   // --- Drawing. ---
@@ -173,7 +204,8 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     if (session === undefined) return;
     const layout = session.layout();
     const plan = session.plan();
-    if (selected !== undefined && !plan.cards.some((card) => card.id === selected)) selected = undefined;
+    if (outline !== undefined) outline = squareOnGrid(layout, outline);
+    selected = outline === undefined ? undefined : cardAt(layout, outline)?.card.id;
     open = open.filter((id) => layout.placed.some((placed) => placed.card.id === id));
     surface.style.setProperty("--plan-columns", String(layout.columns));
     surface.style.setProperty("--plan-lanes", String(layout.lanes));
@@ -223,8 +255,74 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       grid,
       element("div", { className: "plan__beats" }, beats.flat()),
     );
+    drawOutline();
     drawPanels();
   };
+
+  /**
+   * Draw the golden outline where it is: the card under it lit, or, on an
+   * empty square, a square of its own in the same gold.
+   */
+  const drawOutline = (): void => {
+    const layout = session?.layout();
+    selected = outline === undefined || layout === undefined ? undefined : cardAt(layout, outline)?.card.id;
+    for (const card of surface.querySelectorAll<HTMLElement>(".plan__card")) {
+      if (card.dataset["id"] === selected) card.dataset["selected"] = "true";
+      else delete card.dataset["selected"];
+    }
+    const grid = surface.querySelector<HTMLElement>(".plan__grid");
+    let ring = grid?.querySelector<HTMLElement>(".plan__outline") ?? null;
+    if (grid === null || outline === undefined || selected !== undefined) {
+      ring?.remove();
+      return;
+    }
+    if (ring === null) {
+      ring = element("div", { className: "plan__outline", ariaHidden: "true" });
+      grid.append(ring);
+    }
+    place(ring, outline.cell, outline.lane, 1);
+  };
+
+  /** Move the outline, and keep it as the writer's place once they rest. Brought into view when the keys moved it. */
+  const moveOutline = (to: Square | undefined, reveal = false): void => {
+    const layout = session?.layout();
+    outline = to === undefined || layout === undefined ? undefined : squareOnGrid(layout, to);
+    drawOutline();
+    if (reveal) revealOutline();
+    restPlace();
+  };
+
+  /** The outline on a card: at the square pressed, or where it already is on the card, or else its first square. */
+  const outlineCard = (id: string, at: Square | undefined = outline): void => {
+    const layout = session?.layout();
+    const placed = layout?.placed.find((each) => each.card.id === id);
+    if (layout === undefined || placed === undefined) return;
+    const onIt = at !== undefined && cardAt({ ...layout, placed: [placed] }, at) !== undefined;
+    moveOutline(onIt ? at : { cell: placed.cell, lane: placed.lane });
+  };
+
+  /** Where the grid starts inside the board's scrolled content, in pixels. */
+  const gridStart = (): number => {
+    const grid = surface.querySelector<HTMLElement>(".plan__grid");
+    if (grid === null) return 0;
+    return grid.getBoundingClientRect().left - board.getBoundingClientRect().left - board.clientLeft + board.scrollLeft;
+  };
+
+  /** Scroll the board along just enough that the outline's square is in view. */
+  const revealOutline = (): void => {
+    const width = board.clientWidth;
+    if (outline === undefined || width <= 0) return;
+    const size = cellSize();
+    const left = gridStart() + outline.cell * size;
+    if (left < board.scrollLeft) board.scrollLeft = left;
+    else if (left + size > board.scrollLeft + width) board.scrollLeft = left + size - width;
+  };
+
+  /** The first square in view, in the top lane: where the outline starts when there was none. */
+  const firstSquareInView = (): Square => ({
+    cell: Math.max(0, Math.ceil((board.scrollLeft - gridStart()) / cellSize())),
+    lane: 0,
+  });
 
   const cardElement = (placed: PlacedCard): HTMLElement => {
     const card = element("div", { className: "plan__card" }, [
@@ -267,24 +365,15 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     });
   }
 
-  /** Light a card on the grid, without opening it or moving it among the open ones. */
-  const mark = (id: string | undefined): void => {
-    selected = id;
-    for (const card of surface.querySelectorAll<HTMLElement>(".plan__card")) {
-      if (card.dataset["id"] === id) card.dataset["selected"] = "true";
-      else delete card.dataset["selected"];
-    }
-  };
-
   /**
-   * Select a card: lit on the grid and open under it — in the first place if
-   * it was not open, pushing the third out; where it is if it was. A new card
-   * made on the grid comes in the same way. Nothing closes the open cards but
-   * a fourth pushing one out, or deleting one: a press on the empty grid, or
-   * Escape, only lets go of the card lit on the grid (Noah, 2026-11-25).
+   * Select a card: the outline on it, lit on the grid, and open under it — in
+   * the first place if it was not open, pushing the third out; where it is if
+   * it was. A new card made on the grid comes in the same way. Nothing closes
+   * the open cards but a fourth pushing one out, or deleting one: a press on
+   * the empty grid only moves the outline there (Noah, 2026-11-25).
    */
-  const select = (id: string): void => {
-    mark(id);
+  const select = (id: string, at?: Square): void => {
+    outlineCard(id, at);
     const opened = openCard(open, id);
     open = opened.open;
     if (opened.out !== undefined) pushOut(opened.out);
@@ -324,7 +413,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     const from = open.indexOf(id);
     if (event.button !== 0 || panel === undefined || from < 0) return;
     event.preventDefault();
-    mark(id);
+    if (selected !== id) outlineCard(id);
     const handle = event.currentTarget as HTMLElement;
     handle.setPointerCapture?.(event.pointerId);
     const step = panel.element.getBoundingClientRect().width + tokenPixels("--space-plan-panels", 16);
@@ -411,16 +500,40 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   const createAt = (cell: number, lane: number): void => {
     const id = session?.add(cell, lane);
     if (id === undefined) return;
-    selected = id;
+    outline = { cell, lane };
     changed();
     editTitle(id);
   };
 
   /**
-   * A drag on the empty grid moves the view along it; a press without one lets
-   * go of the card lit on the grid, and leaves the open cards open.
+   * Enter on an empty square: a card made there, opened in the first place
+   * (the others moved along, the third pushed out), and its title ready to be
+   * typed — on the open card, not on the grid.
+   */
+  const createAndOpen = (at: Square): void => {
+    const id = session?.add(at.cell, at.lane);
+    if (id === undefined) return;
+    outline = at;
+    changed();
+    select(id, at);
+    panels.get(id)?.focusTitle();
+  };
+
+  /**
+   * Enter on a card: opened in the first place if it was not open, left where
+   * it is if it was, and the caret put in it to write.
+   */
+  const openToWrite = (id: string): void => {
+    select(id);
+    panels.get(id)?.focusWriting();
+  };
+
+  /**
+   * A drag on the empty grid moves the view along it; a press without one
+   * moves the outline to the square pressed, and leaves the open cards open.
    */
   const pan = (event: PointerEvent): void => {
+    const pressed = squareAt(event);
     const startX = event.clientX;
     const startLeft = board.scrollLeft;
     let moved = false;
@@ -436,7 +549,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       grid.removeEventListener("pointermove", move);
       grid.removeEventListener("pointerup", up);
       grid.removeEventListener("pointercancel", up);
-      if (!moved) mark(undefined);
+      if (!moved) moveOutline(pressed);
     };
     grid.addEventListener("pointermove", move);
     grid.addEventListener("pointerup", up);
@@ -460,7 +573,7 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       editTitle(id);
       return;
     }
-    select(id);
+    select(id, squareAt(event));
     const size = cellSize();
     const startX = event.clientX;
     const startY = event.clientY;
@@ -491,8 +604,11 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       delete card.dataset["dragging"];
       delete card.dataset["invalid"];
       const moved = cell !== placed.cell || lane !== placed.lane || cells !== placed.cells;
-      if (moved && ok && (resizing ? writing.resize(id, cells) : writing.move(id, cell, lane))) changed();
-      else place(card, placed.cell, placed.lane, placed.cells);
+      if (moved && ok && (resizing ? writing.resize(id, cells) : writing.move(id, cell, lane))) {
+        // The outline goes with the card it is on.
+        if (!resizing) outline = { cell, lane };
+        changed();
+      } else place(card, placed.cell, placed.lane, placed.cells);
     };
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
@@ -585,7 +701,6 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
   const removeCard = (id: string): void => {
     session?.remove(id);
     open = closeCard(open, id);
-    if (selected === id) selected = undefined;
     changed();
     board.focus({ preventScroll: true });
   };
@@ -639,9 +754,9 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       return;
     }
     // A title or a description being typed has its own keys, Undo among them; so has the colour picker.
-    const target = event.target as HTMLElement | null;
+    const target = event.target instanceof Element ? event.target : null;
     if (target !== null && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
-    if (target?.closest?.(".plan__palette") != null) return;
+    if (target?.closest(".plan__palette") != null) return;
     const writing = session;
     const step = (act: () => boolean): void => {
       event.preventDefault();
@@ -649,16 +764,38 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
     };
     if (chordMatches(KEYS.undo, event)) return step(() => (event.shiftKey ? writing.redo() : writing.undo()));
     if (chordMatches(KEYS.redo, event)) return step(writing.redo);
-    if (selected === undefined) return;
-    const id = selected;
-    const placed = writing.layout().placed.find((each) => each.card.id === id);
-    if (placed === undefined) return;
-    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) || chordMatches(KEYS.contextMenu, event)) {
+    // The grid's own keys are the grid's: not an open card's buttons, which have Enter and the arrows of their own.
+    if (!(target === null || target === document.body || board.contains(target))) return;
+    const layout = writing.layout();
+    const arrow = ARROWS[event.key];
+    if (arrow !== undefined && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      // The arrows move the outline, square by square, on the grid only.
       event.preventDefault();
-      const box = surface.querySelector<HTMLElement>(`.plan__card[data-id="${id}"]`)?.getBoundingClientRect();
-      openMenu(cardMenu(id), box?.left ?? 0, box?.bottom ?? 0, true);
+      const [dx, dy] = arrow;
+      moveOutline(outline === undefined ? firstSquareInView() : outlineStep(layout, outline, dx, dy), true);
       return;
     }
+    if (outline === undefined) return;
+    const at = outline;
+    const placed = cardAt(layout, at);
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey) || chordMatches(KEYS.contextMenu, event)) {
+      event.preventDefault();
+      const box = (surface.querySelector<HTMLElement>(placed === undefined ? ".plan__outline" : `.plan__card[data-id="${placed.card.id}"]`))?.getBoundingClientRect();
+      const items: MenuEntry[] =
+        placed === undefined
+          ? [{ label: "New Card", icon: Plus, ...(fits(layout, at.cell, at.lane, 1) ? {} : { unavailable: true }), act: () => createAndOpen(at) }]
+          : cardMenu(placed.card.id);
+      openMenu(items, box?.left ?? 0, box?.bottom ?? 0, true);
+      return;
+    }
+    if (chordMatches(KEYS.open, event)) {
+      event.preventDefault();
+      if (placed === undefined) createAndOpen(at);
+      else openToWrite(placed.card.id);
+      return;
+    }
+    if (placed === undefined) return;
+    const id = placed.card.id;
     if (chordMatches(KEYS.rename, event)) {
       event.preventDefault();
       editTitle(id);
@@ -669,24 +806,24 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       removeCard(id);
       return;
     }
-    if (event.key === "Escape") {
-      // Let go of the card lit on the grid, as a press on the empty grid does,
-      // and leave the open cards open; Escape again goes Home, as everywhere.
-      event.preventDefault();
-      event.stopPropagation();
-      mark(undefined);
-      return;
-    }
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-    const arrow = arrows[event.key];
-    if (arrow === undefined) return;
-    event.preventDefault();
+    // Escape is not Plan's here: from the grid it goes Home, as everywhere, and the outline stays where it is.
+    if (arrow === undefined || event.altKey) return;
     const [dx, dy] = arrow;
-    // Shift and Left or Right: shorter or longer. The arrows alone: move it.
-    if (event.shiftKey && dy === 0) {
+    const mod = event.ctrlKey || event.metaKey;
+    if (event.shiftKey && !mod) {
+      // Shift and an arrow: the card moves a square, and the outline with it.
+      event.preventDefault();
+      const cell = Math.max(0, placed.cell + dx);
+      const lane = placed.lane + dy;
+      if (writing.move(id, cell, lane)) {
+        outline = { cell: at.cell + cell - placed.cell, lane };
+        changed();
+      }
+    } else if (mod && !event.shiftKey && dy === 0) {
+      // Ctrl and Left or Right: a page shorter or longer.
+      event.preventDefault();
       if (writing.resize(id, Math.max(1, placed.cells + dx))) changed();
-    } else if (writing.move(id, Math.max(0, placed.cell + dx), placed.lane + dy)) changed();
+    }
   };
   window.addEventListener("keydown", keys, true);
 
@@ -718,10 +855,15 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
       if (session?.resize(id, cells) === true) changed();
     },
     remove: (id) => removeCard(id),
-    left: () => board.focus({ preventScroll: true }),
-    // Writing on an open card selects it on the grid, so its keys are its own; it stays in its place.
+    // Escape from an open card's field: back to the grid, the outline on that card. Plan stays on screen.
+    left: (id) => {
+      outlineCard(id);
+      revealOutline();
+      board.focus({ preventScroll: true });
+    },
+    // Writing on an open card puts the outline on it on the grid; it stays in its place among the open ones.
     touched: (id) => {
-      if (selected !== id) mark(id);
+      if (selected !== id) outlineCard(id);
     },
     drag: dragPanel,
   };
@@ -740,10 +882,12 @@ function mount(into: HTMLElement, toolbox: Toolbox): MountedWorkspace {
         read,
       );
       desk.replaceChildren(board, under);
+      const [cell, lane] = [place?.["cell"], place?.["lane"]];
+      if (typeof cell === "number" && typeof lane === "number") outline = squareOnGrid(session.layout(), { cell, lane });
       draw();
       const at = place?.["across"];
       if (typeof at === "number") {
-        placeKept = at;
+        placeKept = JSON.stringify(place);
         across = at;
         if (hidden) pendingAcross = at;
         else board.scrollLeft = at;
@@ -818,8 +962,8 @@ interface PanelActions {
   colour(id: string, colour: CardColour): void;
   length(id: string, cells: number): void;
   remove(id: string): void;
-  /** Escape in a field: back to the grid. */
-  left(): void;
+  /** Escape in a field: back to the grid, the outline on this card. */
+  left(id: string): void;
   /** Pressed or written on. */
   touched(id: string): void;
   /** Pressed on its top edge, to drag it to another place. */
@@ -895,17 +1039,27 @@ function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
   let fresh = true;
   title.addEventListener("input", () => actions.title(id, title.value));
   title.addEventListener("change", () => actions.titleDone());
+  /** The caret into the description: at its start when it is empty, or else at the end of what is written. */
+  const writeDescription = (): void => {
+    description.focus();
+    const end = description.value.length;
+    description.setSelectionRange(end, end);
+  };
+  // From the title, Enter or Tab goes on to the description. In the description they are its own: a new line, and on.
   title.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") title.blur();
+    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (event.key !== "Enter" && event.key !== "Tab") return;
+    event.preventDefault();
+    writeDescription();
   });
-  // Escape in a field leaves the field, back to the grid; it is not Home.
+  // Escape in a field leaves the field, back to the grid with the outline on this card; it is not Home.
   for (const field of [title, description] as HTMLElement[]) {
     field.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       field.blur();
-      actions.left();
+      actions.left(id);
     });
   }
   description.addEventListener("input", () => {
@@ -996,6 +1150,19 @@ function cardPanel(toolbox: Toolbox, id: string, actions: PanelActions) {
       where.textContent = first === last ? `${first}` : `${first}–${last}`;
     },
     closePalette: () => palette.close(false),
+    /** The title, to type a new card's name straight away. */
+    focusTitle: () => {
+      title.focus();
+      title.select();
+    },
+    /** In to write: the end of the description; with none, the title if it has none either, or else the description. */
+    focusWriting: () => {
+      if (description.value === "" && title.value === "") {
+        title.focus();
+        return;
+      }
+      writeDescription();
+    },
   };
 }
 

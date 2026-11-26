@@ -151,6 +151,7 @@
 /* --- Cards ------------------------------------------------------------------ */
 
 .plan__card,
+.plan__outline,
 .plan__title-edit {
   position: absolute;
   box-sizing: border-box;
@@ -187,6 +188,18 @@
 
 .plan__card[data-selected="true"] {
   border-color: var(--colour-accent);
+}
+
+/*
+ * The golden outline on an empty square: where the keys are on the grid
+ * (`src/plan/grid-outline.ts`). The selected card's gold, on a square of its
+ * own; on a card, the card is lit instead. Over the dots, never in the way.
+ */
+.plan__outline {
+  border: var(--rule-thin) solid var(--colour-accent);
+  border-radius: var(--radius-slight);
+  z-index: var(--layer-plan-cards);
+  pointer-events: none;
 }
 
 /*
