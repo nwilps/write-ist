@@ -33,6 +33,13 @@ export interface OpenedProject {
    * if something remembers what was read.
    */
   readonly manuscript: Uint8Array;
+  /**
+   * Which file in the bundle it is: `manuscript.fountain`, an open draft on a
+   * branch (`manuscript 2a.fountain`), or a locked draft (`drafts/2.fountain`,
+   * read and never saved). The save routine writes back to this one; left
+   * out, it is the manuscript.
+   */
+  readonly file?: string;
 }
 
 /**
@@ -46,10 +53,11 @@ export interface OpenedProject {
 export async function openProject(
   filesystem: Filesystem,
   project: Project,
+  file: string = MANUSCRIPT_FILE,
 ): Promise<OpenedProject> {
-  const manuscript = await filesystem.readFile(join(project.path, MANUSCRIPT_FILE));
+  const manuscript = await filesystem.readFile(join(project.path, file));
   // The same lenient-in, strict-out decode the importer uses (ADR-0020):
   // Write-ist writes UTF-8, and a manuscript edited elsewhere and saved as
   // "Unicode" still opens with every character intact.
-  return { project, document: parse(decodeFile(manuscript).text), manuscript };
+  return { project, document: parse(decodeFile(manuscript).text), manuscript, file };
 }

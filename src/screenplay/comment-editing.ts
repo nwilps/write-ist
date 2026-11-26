@@ -312,6 +312,16 @@ export function resolveComment(state: EditorState, id: string): Transaction | nu
   );
 }
 
+/**
+ * Take every comment out and keep their words: what unticking *Carry comments
+ * forward* does to the open draft after a lock (ADR-0018). One undo step;
+ * `null` when there are none. The locked copy has already kept them.
+ */
+export function clearComments(state: EditorState): Transaction | null {
+  if (held(state.doc).length === 0) return null;
+  return state.tr.setDocAttribute("comments", []);
+}
+
 /** Light one comment, from its card, or none. Not an edit: nothing is saved or undone. */
 export function activateComment(state: EditorState, id: string | undefined): Transaction {
   const asked: Asked = { active: id };

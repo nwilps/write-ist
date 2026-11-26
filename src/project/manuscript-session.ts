@@ -108,6 +108,13 @@ export interface SessionPorts {
   readonly reloaded: (spellingWasOn: boolean) => void;
   /** Autosave's clock; a test drives it. */
   readonly autosaveClock?: Clock;
+  /**
+   * A locked draft, open to be read (ADR-0002): nothing the writer does
+   * changes it, nothing is saved, and leaving writes nothing — not the
+   * manuscript, the goals, the names or the ledger. Selections, spellcheck
+   * and comments being lit still work.
+   */
+  readonly readOnly?: boolean;
 }
 
 /** A line the caret is in: where it begins, and the name it gave when the caret arrived. */
@@ -139,8 +146,9 @@ export async function readManuscript(
   filesystem: Filesystem,
   project: Project,
   report: (trouble: string) => void,
+  file?: string,
 ): Promise<ManuscriptRead> {
-  const opened = await openProject(filesystem, project);
+  const opened = await openProject(filesystem, project, file);
   let namesByHand: ListsByHand | undefined;
   try {
     namesByHand = await readNamesFile(filesystem, project);
@@ -469,10 +477,14 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
   // Switching to another application (ADR-0028), and back — which is when
   // something else is most likely to have changed the manuscript. The save
   // compares before it writes anything (#42).
-  const stopSwitchingAway = ports.whenSwitchedAway(() => void saving.now());
-  const stopSwitchingBack = ports.whenSwitchedBack(() => void saving.now());
+  // A locked draft is never saved, so switching away has nothing to do.
+  const readOnly = ports.readOnly === true;
+  const stopSwitchingAway = readOnly ? () => {} : ports.whenSwitchedAway(() => void saving.now());
+  const stopSwitchingBack = readOnly ? () => {} : ports.whenSwitchedBack(() => void saving.now());
 
   const leave = async (): Promise<boolean> => {
+    // Read, never written: there is nothing to save and no day to record.
+    if (readOnly) return true;
     // Closing the project (ADR-0028), through the same routine as every
     // other save.
     unfinished = undefined;
@@ -579,6 +591,9 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     spellcheck,
     manuscript: () => manuscriptOf(state.doc),
     apply: (transaction) => {
+      // A locked draft is read, never changed: whatever asked to change it —
+      // a key, a paste, a command, a card — changes nothing.
+      if (readOnly && transaction.docChanged) return;
       const was = state;
       const before = state.doc;
       state = state.apply(transaction);
@@ -605,7 +620,7 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
       }
     },
     unsaved: session.unsaved,
-    save: () => saving.now(),
+    save: () => (readOnly ? Promise.resolve() : saving.now()),
     showCounts,
     showGoal,
     goalsView: () => tracker.view(words),
@@ -630,8 +645,8 @@ export function manuscriptSession(ports: SessionPorts, read: ManuscriptRead): Ma
     moveProject: (move) => inFolderTurn(() => session.relocate(move)),
     settled: () => Promise.all([writingNames, spelling]).then(() => {}),
     nameList: (kind) => names.list(kind),
-    addName,
-    removeName,
+    addName: (kind, name) => !readOnly && addName(kind, name),
+    removeName: (kind, name) => !readOnly && removeName(kind, name),
     addToDictionary: async (view, issue) => {
       // Typing before and after stays two undo steps, with this one between.
       const step = offPaper.begin(view.state);

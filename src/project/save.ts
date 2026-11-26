@@ -175,6 +175,7 @@ export function editingSession(
   { reload, keptBoth, now = () => new Date(), clock = windowClock }: ChangedElsewhere,
 ): EditingSession {
   let project = opened.project;
+  const file = opened.file ?? MANUSCRIPT_FILE;
   /**
    * Every version the manuscript on disk may hold **because of Write-ist** —
    * what it last read, what it last wrote. Anything else on disk was put there
@@ -210,7 +211,8 @@ export function editingSession(
 
   const write = async (): Promise<SaveOutcome> => {
     // Asked here rather than once: a rename moves the folder between saves.
-    const path = join(project.path, MANUSCRIPT_FILE);
+    // The open draft's own file: the trunk's, or a branch's (`drafts.ts`).
+    const path = join(project.path, file);
     // Read first, every time: the comparison ADR-0028 asks for before each
     // save. A read that fails rejects here, before anything is written.
     const found = await withinLimit(filesystem.readFile(path), clock);
@@ -290,7 +292,7 @@ export function editingSession(
     // queued behind it (#64).
     const entries = await withinLimit(filesystem.readDirectory(project.path), clock);
     const taken = new Set(entries.map((entry) => entry.name));
-    return copyNameFor(now(), taken);
+    return copyNameFor(now(), taken, file);
   };
 
   return {
