@@ -48,6 +48,7 @@ import {
   House,
   Keyboard,
   MapPin,
+  MessageSquareText,
   Pencil,
   Redo2,
   Save,
@@ -72,9 +73,10 @@ import {
 } from "../../../../src/screenplay/dual-dialogue.ts";
 import { NUMBERED_TYPES, removePageBreak, setElementType } from "../../../../src/screenplay/element-keys.ts";
 import { canRemovePageBreak } from "../../../../src/screenplay/page-break-editing.ts";
+import { commentRange } from "../../../../src/screenplay/comment-editing.ts";
 import type { NameKind } from "../../../../src/screenplay/names.ts";
 import { chordHint, chordMatches, type Chord, type KeyPress } from "../../screens/shortcuts.ts";
-import { addedGroups, workspaceRows } from "../../shell/hotkeys.ts";
+import { addedGroups, keysOf, workspaceRows } from "../../shell/hotkeys.ts";
 import { NEXT_WORKSPACE, PREVIOUS_WORKSPACE } from "../../shell/workspace-keys.ts";
 import { ZOOM_LEVELS } from "./paper-zoom.ts";
 import { jumpToScene } from "./scene-jump.ts";
@@ -124,6 +126,8 @@ export interface EditorActions {
    * menu (ADR-0034), on a key the writer can change.
    */
   readonly openContextMenu: () => void;
+  /** Add Comment: a card over the selection, or the caret's line, ready to type in (`comment-cards.ts`). */
+  readonly addComment: () => void;
 }
 
 /** A word the spelling pass has underlined, and what can be done about it. */
@@ -177,6 +181,11 @@ export interface Command {
   readonly keyless?: true;
   /** The key is another command's: shown beside this one, and answered by that one. */
   readonly sameKeyAs?: string;
+  /**
+   * The key is one the Editor added through its toolbox (`toolbox.hotkeys`,
+   * ADR-0045), under this id: shown beside this one, answered and listed there.
+   */
+  readonly addedKey?: string;
   /** Where the key is answered. Default `editor`. */
   readonly keys?: KeyPlace;
   /**
@@ -355,6 +364,22 @@ export const COMMANDS: readonly Command[] = [
   { id: "paste", label: "Paste", icon: ClipboardPaste, chord: { key: "v", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.paste() },
   { id: "select-all", label: "Select All", chord: { key: "a", mod: true }, keys: "elsewhere", fixed: true, context: { group: "clipboard" }, run: (host) => host.selectAll() },
 
+  // A comment over the selection, or the caret's line (ADR-0018). Its key,
+  // Ctrl+M, is the Editor's through its toolbox (`editor.ts`), so it is
+  // listed under the Editor and answered wherever focus is but a card.
+  {
+    id: "add-comment",
+    label: "Add Comment",
+    icon: MessageSquareText,
+    addedKey: "add-comment",
+    context: { group: "comment" },
+    available: (host, at) => {
+      const view = host.view();
+      return view !== undefined && commentRange(view.state, at) !== undefined;
+    },
+    run: (host) => host.addComment(),
+  },
+
   // Dual dialogue (ADR-0037), offered on the paper's right-click menu (ADR-0034).
   atPlace("make-dual-dialogue", "Make Dual Dialogue", { group: "dual-dialogue", contextual: true }, canMakeDualDialogue, makeDualDialogue),
   atPlace("make-normal-dialogue", "Make Normal Dialogue", { group: "dual-dialogue", contextual: true }, canMakeNormalDialogue, makeNormalDialogue),
@@ -502,7 +527,11 @@ export function takenKeys(): readonly { readonly label: string; readonly chord: 
 /** The hint beside a command — `[Ctrl + S]` — or nothing if it has no key. */
 export function hintOf(command: Command): string | undefined {
   const chord =
-    command.sameKeyAs === undefined ? chordsOf(command)[0] : chordsOf(commandById(command.sameKeyAs) ?? command)[0];
+    command.addedKey !== undefined
+      ? keysOf("editor").find((key) => key.id === command.addedKey)?.chord
+      : command.sameKeyAs === undefined
+        ? chordsOf(command)[0]
+        : chordsOf(commandById(command.sameKeyAs) ?? command)[0];
   return chord === undefined ? undefined : chordHint(chord);
 }
 

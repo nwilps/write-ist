@@ -11,9 +11,9 @@
  * the keyboard already runs; an element row sets the type the way Tab does,
  * and Ctrl+1…7 say the same thing from the keyboard. A menu row opens the menu
  * it is handed (`app/src/menus/`), and a row with none
- * is drawn and does nothing yet. Add comment is the same: a button that
- * pretended would be worse than one that is plainly waiting. A scene in the
- * Scenes list takes the caret to its heading, as Next Scene does.
+ * is drawn and does nothing yet. Add comment opens a comment's card over the
+ * selection, as Ctrl+M and the right-click menu do (`comment-cards.ts`). A
+ * scene in the Scenes list takes the caret to its heading, as Next Scene does.
  */
 import { Bold, createElement, Italic, MessageSquareText, Search, Underline, type IconNode } from "lucide";
 import { toggleMark } from "prosemirror-commands";
@@ -105,6 +105,7 @@ export function keepWheelIn(list: HTMLElement, event: WheelEvent): void {
 export function sidePanels(
   openSearch: () => void = () => {},
   menus: Readonly<Record<string, readonly MenuEntry[]>> = {},
+  addComment: () => void = () => {},
 ): Panels {
   let view: EditorView | undefined;
   const openMenus: DropMenu[] = [];
@@ -122,8 +123,10 @@ export function sidePanels(
   const format = (label: string, node: IconNode, mark?: string): HTMLButtonElement => {
     const button = element("button", { type: "button", className: "panel__format", ariaLabel: label }, [icon(node)]);
     if (mark === undefined) {
-      // Add comment: the slot is here, the feature is not.
-      button.setAttribute("aria-disabled", "true");
+      // Add comment. The selection stays on the paper for it to cover, and the
+      // card it opens takes the keys, so this hands nothing back.
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", addComment);
     } else {
       const command = toggleMark(screenplaySchema.marks[mark]!);
       acts(button, (editor) => void command(editor.state, editor.dispatch));
