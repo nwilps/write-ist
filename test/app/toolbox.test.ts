@@ -351,7 +351,9 @@ describe("Sketch, a workspace registered only in this test, through its toolbox 
   it("adds a hotkey, listed under its name in both Hotkeys lists and answered only while it is on screen", async () => {
     const { into, probe } = await withSketch();
     expect(probe.added).toBe(true);
-    expect(addedGroups()).toEqual([{ id: "sketch", name: "Sketch", rows: [{ id: "tidy", label: "Tidy Sketch", chord: { key: "j", mod: true } }] }]);
+    // The Editor's own Add Comment is listed too, under its name, first as its tab is.
+    expect(addedGroups().map((group) => group.id)).toEqual(["editor", "sketch"]);
+    expect(addedGroups().find((group) => group.id === "sketch")).toEqual({ id: "sketch", name: "Sketch", rows: [{ id: "tidy", label: "Tidy Sketch", chord: { key: "j", mod: true } }] });
     expect(shortcutGroups().find((group) => group.name === "Sketch")?.rows).toEqual([{ label: "Tidy Sketch", hints: ["[Ctrl + J]"] }]);
     expect(shortcutCommands().find((command) => command.id === "sketch-tidy")).toMatchObject({ label: "Tidy Sketch (Sketch)", fixed: true });
 
@@ -372,6 +374,7 @@ describe("Sketch, a workspace registered only in this test, through its toolbox 
     expect(add({ key: "ArrowLeft", alt: true })).toBeUndefined(); // Previous Workspace
     expect(add({ key: "k", mod: true })).toBeUndefined(); // the Editor's Hotkeys
     expect(add({ key: "b", mod: true })).toBeUndefined(); // the surface's Bold
+    expect(add({ key: "m", mod: true })).toBeUndefined(); // the Editor's Add Comment, added through its own toolbox
     expect(add({ key: "j", mod: true })).toBeUndefined(); // its own Tidy
     expect(add({ key: "q" })).toBeUndefined(); // a bare letter is typing
     expect(add({ key: "q", mod: true, alt: true })).toBeUndefined(); // AltGr's
@@ -379,7 +382,7 @@ describe("Sketch, a workspace registered only in this test, through its toolbox 
     const taken = add({ key: "F9" });
     expect(taken).toBeTypeOf("function");
     taken!();
-    expect(addedGroups()[0]!.rows.map((row) => row.id)).toEqual(["tidy"]);
+    expect(addedGroups().find((group) => group.id === "sketch")!.rows.map((row) => row.id)).toEqual(["tidy"]);
   });
 
   it("opens Write-ist's own menu, and deletes a sketch only after the destructive confirm, in its own words", async () => {
@@ -494,13 +497,17 @@ describe("Sketch, a workspace registered only in this test, through its toolbox 
 
   it("taken out of the list again, leaves nothing behind in the Hotkeys lists", async () => {
     await withSketch();
-    expect(addedGroups().map((group) => group.name)).toEqual(["Sketch"]);
+    expect(addedGroups().map((group) => group.name)).toEqual(["Editor", "Sketch"]);
     await shell!.unmount();
     shell = undefined;
     document.body.replaceChildren();
-    await openProject(WORKSPACES);
+    // Taken down with the shell, the Editor's key goes too, and comes back with it.
     expect(addedGroups()).toEqual([]);
-    expect(shortcutGroups().map((group) => group.name)).toEqual(["File", "Edit", "View", "Writing"]);
+    await openProject(WORKSPACES);
+    expect(addedGroups()).toEqual([
+      { id: "editor", name: "Editor", rows: [{ id: "add-comment", label: "Add Comment", chord: { key: "m", mod: true } }] },
+    ]);
+    expect(shortcutGroups().map((group) => group.name)).toEqual(["File", "Edit", "View", "Editor", "Writing"]);
     expect(viewRows().join("\n")).not.toContain("Sketch");
   });
 });

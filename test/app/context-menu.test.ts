@@ -20,6 +20,7 @@ import { openContextMenu, placeMenu, type ContextMenu } from "../../app/src/menu
 import { dropMenu, type MenuEntry, type MenuItem } from "../../app/src/menus/drop-menu.ts";
 import { COMMANDS, type Command, type CommandHost, type Misspelling } from "../../app/src/workspaces/editor/commands.ts";
 import { contextMenuItems, MAX_SUGGESTIONS } from "../../app/src/workspaces/editor/context-menu-items.ts";
+import { addHotkey } from "../../app/src/shell/hotkeys.ts";
 import { pasteInto } from "../../src/screenplay/clipboard.ts";
 import { editorStateFor, manuscriptOf } from "../../src/screenplay/editing.ts";
 import { parse } from "../../src/screenplay/parse.ts";
@@ -221,7 +222,7 @@ function editing(text: string, wrong?: Misspelling) {
   } as unknown as EditorView;
   const spies = Object.fromEntries(
     ["save", "exportAs", "toProjects", "editProjectDetails", "toHome", "editTitlePage", "viewTitlePage",
-      "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll"].map((name) => [name, vi.fn()]),
+      "toggleSpellcheck", "search", "cut", "copy", "paste", "selectAll", "addComment"].map((name) => [name, vi.fn()]),
   );
   const host = { ...spies, spellcheckOn: () => false, misspellingAt: () => wrong, view: () => view } as unknown as CommandHost &
     Record<string, ReturnType<typeof vi.fn>>;
@@ -250,7 +251,24 @@ describe("what the menu holds", () => {
       "~Copy[Ctrl + C]",
       "Paste[Ctrl + V]",
       "Select All[Ctrl + A]",
+      "---",
+      "Add Comment",
     ]);
+  });
+
+  it("offers Add Comment over the line or the selection, with the key the Editor added through its toolbox", async () => {
+    const writing = editing(ACTION);
+    const at = startOfElement(writing.state(), 1);
+    // The Editor adds Ctrl+M when it is mounted (`editor.ts`); here, by hand.
+    const remove = addHotkey({ id: "editor", name: "Editor" }, { id: "add-comment", label: "Add Comment", chord: { key: "m", mod: true }, act: () => {} });
+    try {
+      const entries = await contextMenuItems(writing.host, at);
+      expect(drawn(entries).slice(4)).toEqual(["---", "Add Comment[Ctrl + M]"]);
+      itemNamed(entries, "Add Comment").act();
+      expect(writing.host.addComment).toHaveBeenCalledOnce();
+    } finally {
+      remove?.();
+    }
   });
 
   it("offers Cut and Copy once something is selected", async () => {
@@ -273,13 +291,13 @@ describe("what the menu holds", () => {
   it("adds Dual Dialogue where two speeches can pair, greyed where they could not do it", async () => {
     const writing = editing(TWO);
     const entries = await contextMenuItems(writing.host, startOfElement(writing.state(), 4));
-    expect(drawn(entries).slice(4)).toEqual(["---", "Make Dual Dialogue", "~Make Normal Dialogue", "~Swap Speakers"]);
+    expect(drawn(entries).slice(4)).toEqual(["---", "Add Comment", "---", "Make Dual Dialogue", "~Make Normal Dialogue", "~Swap Speakers"]);
   });
 
   it("offers Make Normal and Swap on a pair, and not Make Dual", async () => {
     const writing = editing(PAIR);
     const entries = await contextMenuItems(writing.host, startOfElement(writing.state(), 4));
-    expect(drawn(entries).slice(4)).toEqual(["---", "~Make Dual Dialogue", "Make Normal Dialogue", "Swap Speakers"]);
+    expect(drawn(entries).slice(4)).toEqual(["---", "Add Comment", "---", "~Make Dual Dialogue", "Make Normal Dialogue", "Swap Speakers"]);
   });
 
   it("leaves Dual Dialogue out where no speech is", async () => {
@@ -300,7 +318,8 @@ describe("what the menu holds", () => {
     const BROKEN = "INT. A - DAY\n\nThey wait.\n\n===\n\nThey go.\n";
     const writing = editing(BROKEN);
     const onBreak = startOfElement(writing.state(), 2) + 2;
-    expect(drawn(await contextMenuItems(writing.host, onBreak)).slice(4)).toEqual(["---", "Remove Page Break"]);
+    // A break's `===` is syntax, not words: there is nothing on it to comment on.
+    expect(drawn(await contextMenuItems(writing.host, onBreak)).slice(4)).toEqual(["---", "~Add Comment", "---", "Remove Page Break"]);
     for (const element of [0, 1, 3]) {
       const labels = drawn(await contextMenuItems(writing.host, startOfElement(writing.state(), element) + 1)).join();
       expect(labels, `element ${element}`).not.toContain("Page Break");
@@ -412,7 +431,7 @@ describe("adding an item", () => {
 
   it("is for commands only: everything on the menu has a label and a command of its own", () => {
     const ids = COMMANDS.filter((command) => command.context !== undefined).map((command) => command.id);
-    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers", "remove-page-break"]);
+    expect(ids).toEqual(["cut", "copy", "paste", "select-all", "add-comment", "make-dual-dialogue", "make-normal-dialogue", "swap-speakers", "remove-page-break"]);
   });
 });
 

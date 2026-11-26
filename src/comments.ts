@@ -57,6 +57,42 @@ export interface CommentSyntax {
   readonly readRemark: (written: string) => string;
   readonly writeOpen: (id: string, remark: string) => string;
   readonly writeClose: (id: string) => string;
+  /**
+   * A remark as the writer typed it in a card, put right quietly so that the
+   * delimiter holding it reads back as the same remark (ADR-0018, amended
+   * 2026-11-25), and at most `REMARK_MAX` long. Applied when a card is
+   * written, never on reading a file.
+   */
+  readonly fitRemark: (typed: string) => string;
+}
+
+/**
+ * The longest remark a card writes, in characters as the card counts them
+ * (UTF-16 code units, as a text field's `maxlength` does). Noah, 2026-11-25:
+ * a comment is a note in the margin, not a page of its own. A file holding a
+ * longer one still opens with it whole; only writing in the card caps it.
+ */
+export const REMARK_MAX = 240;
+
+/**
+ * Both surfaces: a remark is one line, because a delimiter is read a line at
+ * a time, and its ends are not kept blank.
+ */
+const oneLine = (typed: string): string => typed.replace(/\s*[\r\n]+\s*/g, " ").trim();
+
+/** At most `limit` long, cut quietly: never half an emoji, never a space left at the end. */
+export const cappedRemark = (remark: string, limit = REMARK_MAX): string => {
+  if (remark.length <= limit) return remark;
+  const cut = remark.slice(0, limit);
+  return (/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut).trimEnd();
+};
+
+/**
+ * A remark arriving whole, with its comment — pasted, from this file or
+ * another — kept exactly as it is unless it runs past `REMARK_MAX`.
+ */
+export function pastedRemark(syntax: CommentSyntax, remark: string): string {
+  return remark.length <= REMARK_MAX ? remark : syntax.fitRemark(remark);
 }
 
 /**
@@ -69,6 +105,15 @@ export const SCREENPLAY_COMMENTS: CommentSyntax = {
   readRemark: (written) => written,
   writeOpen: (id, remark) => `[[c:${id}${remark === "" ? "" : ` ${remark}`}]]`,
   writeClose: (id) => `[[/c:${id}]]`,
+  // A note ends at the first `]]`, so a remark never holds one, nor ends in a
+  // `]` that would make one with the note's own: a space goes between. Cut to
+  // length after, so a cut that leaves a `]` last gets its space too, or, with
+  // no room for one, loses the `]`.
+  fitRemark: (typed) => {
+    let remark = cappedRemark(oneLine(typed).replace(/\](?=\])/g, "] ").replace(/\]$/, "] "));
+    while (remark.endsWith("]")) remark = remark.length < REMARK_MAX ? `${remark} ` : remark.slice(0, -1).trimEnd();
+    return remark;
+  },
 };
 
 /**
@@ -87,6 +132,9 @@ export const PROSE_COMMENTS: CommentSyntax = {
   writeOpen: (id, remark) =>
     `<!--c:${id}${remark === "" ? "" : ` ${remark.replaceAll("-->", "--&gt;")}`}-->`,
   writeClose: (id) => `<!--/c:${id}-->`,
+  // `-->` is already escaped on the way out; one line and the length are all
+  // that is left. The limit counts the remark as the writer sees it.
+  fitRemark: (typed) => cappedRemark(oneLine(typed)),
 };
 
 /** Where a lifted delimiter was, in the line with the delimiters cut out. */

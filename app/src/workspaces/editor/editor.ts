@@ -58,6 +58,7 @@ import { contextMenuItems } from "./context-menu-items.ts";
 import { openContextMenu, type ContextMenu } from "../../menus/context-menu.ts";
 import { editorMenus } from "./menus.ts";
 import { sidePanels } from "./panels.ts";
+import { commentCards, type CommentCards } from "./comment-cards.ts";
 import { drawOffer, placeOffer } from "./autocomplete-draw.ts";
 import { placeOnBreak } from "../../../../src/screenplay/page-break-editing.ts";
 import { formattingOf, readDetails } from "../../../../src/project/details.ts";
@@ -87,7 +88,7 @@ import { openSearch, type SearchDialog } from "./search-dialog.ts";
 import { element } from "../../screens/element.ts";
 import { tauriSpellEngine } from "../../spell-tauri.ts";
 import { message } from "../../screens/trouble.ts";
-import { isCapturedKey } from "../../screens/shortcuts.ts";
+import { isCapturedKey, type Chord } from "../../screens/shortcuts.ts";
 import type {
   MountedWorkspace,
   WorkspaceContext,
@@ -100,6 +101,12 @@ const GOAL_REFRESH_MS = 60_000;
  * this much of where the writer was. Leaving the project keeps it too.
  */
 const PLACE_REST_MS = 5_000;
+/**
+ * Add Comment's key. Ctrl+Alt+M, the other word processors' key, cannot be
+ * one here: Ctrl and Alt with a letter is AltGr typing it (`ctrlAltAllowed`).
+ * Shift is never counted, so Ctrl+M is the nearest, and nothing else has it.
+ */
+const ADD_COMMENT: Chord = { key: "m", mod: true };
 
 export const editorWorkspace: WorkspaceManifest = {
   id: "editor",
@@ -131,6 +138,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   let searching: SearchDialog | undefined;
   let stopListeningForSearch: (() => void) | undefined;
   let fitCaretRoom: (() => void) | undefined;
+  // The comments' cards (`comment-cards.ts`), made with the panels they sit under.
+  let cards: CommentCards | undefined;
   // Out of sight behind another workspace (`hide`): still mounted, answering no
   // window keys, and its zoom measured again when it comes back.
   let hidden = false;
@@ -148,6 +157,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     scale = zoomScales(measureZoomRoom(root, scrollerOf(page)))[paperZoomLevel()] ?? 1;
     drawPaperZoom(root, scale);
     fitCaretRoom?.();
+    // The words have moved on the window, and the cards go with them.
+    cards?.redraw();
   };
   const redrawZoom = (): void => {
     // A hidden paper has no size to measure against.
@@ -275,6 +286,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   };
 
   const saveNow = (): void => {
+    // Ctrl+S from a card: its words are in the manuscript before it is saved.
+    cards?.flush();
     void session?.save();
     view?.focus();
   };
@@ -432,6 +445,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     undo: () => undoOrRedo("undo"),
     redo: () => undoOrRedo("redo"),
     openContextMenu: openContextAtCaret,
+    addComment: () => void cards?.add(),
     misspellingAt: (at) => {
       const writing = session;
       const editing = view;
@@ -456,15 +470,22 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
     view: () => view,
   };
 
-  // The paper with a column of panels either side (the desk design, §2.2).
-  const panels = sidePanels(startSearch, editorMenus(host));
+  // The paper with a column of panels either side (the desk design, §2.2),
+  // and the comments' cards in those columns, under the panels.
+  const panels = sidePanels(startSearch, editorMenus(host), host.addComment);
+  const commentLayer = commentCards({ page, columns: { left: panels.left, right: panels.right } });
+  cards = commentLayer;
+  // Ctrl+M, through the toolbox (ADR-0045): listed under the Editor, answered
+  // while it is on screen, and not while a card has the keys.
+  const stopAddCommentKey = context.hotkeys?.add({ id: "add-comment", label: "Add Comment", chord: ADD_COMMENT, act: host.addComment });
   // After every change of state: the panels, and the spellcheck pill, which
   // shows only while the pass is on — however it was turned on or off.
   const shown = (writing: ManuscriptSession): void => {
     panels.update(writing.state);
+    commentLayer.update(writing.state);
     context.setSpellcheck(writing.spellcheck.isOn(writing.state));
   };
-  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, panels.right]));
+  into.replaceChildren(element("div", { className: "desk" }, [panels.left, page, commentLayer.layer, panels.right]));
   drawZoom();
   window.addEventListener("resize", redrawZoom);
   // The paper never scrolls sideways (`centrePaper`): whatever moved the window
@@ -472,7 +493,10 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
   // the way down, from whichever window the paper is in.
   const holdCentred = (event: Event): void => {
     const scroller = scrollerOf(page);
-    if (scroller !== undefined && event.target === scroller) centrePaper(page, scroller);
+    if (scroller === undefined || event.target !== scroller) return;
+    centrePaper(page, scroller);
+    // The cards scroll with the script: which are under the panels now.
+    cards?.slide();
   };
   document.addEventListener("scroll", holdCentred, true);
 
@@ -581,6 +605,7 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       if (resumed !== undefined) centreCaretLine(editing, { smooth: false });
       else scrollCaretIntoView(editing);
       panels.attach(view);
+      commentLayer.attach(view);
       shown(writing);
       writing.showCounts();
       writing.showGoal();
@@ -624,6 +649,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       contextMenu?.close(false);
       searching?.close();
       shortcuts?.close();
+      // Words typed in a card are in the manuscript before it is saved.
+      commentLayer.flush();
       void session?.save();
       void keepPlace();
     },
@@ -650,13 +677,16 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
         stopMarginClicks();
         contextMenu?.close(false);
         panels.dispose();
+        stopAddCommentKey?.();
+        commentLayer.dispose();
         window.removeEventListener("resize", redrawZoom);
         document.removeEventListener("scroll", holdCentred, true);
         drawPaperZoom(root, 1);
         return true;
       }
       // The final save first, and it decides: the paper comes down only once
-      // the writer's last sentence is on disk.
+      // the writer's last sentence is on disk, a card's words included.
+      commentLayer.flush();
       if (!(await session.leave())) return false;
       await keepPlace();
 
@@ -673,6 +703,8 @@ function mount(into: HTMLElement, context: WorkspaceContext): MountedWorkspace {
       contextMenu?.close(false);
       stopListeningForSearch?.();
       panels.dispose();
+      stopAddCommentKey?.();
+      commentLayer.dispose();
       searching?.close();
       view?.destroy();
       view = undefined;

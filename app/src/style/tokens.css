@@ -835,7 +835,7 @@
    */
   --colour-plan-plain: var(--colour-border-strong);
   --colour-plan-yellow: var(--colour-accent);
-  --colour-plan-orange: #fe8019;
+  --colour-plan-orange: var(--colour-orange);
   --colour-plan-red: var(--colour-alarm);
   --colour-plan-purple: #d3869b;
   --colour-plan-blue: var(--colour-info);
@@ -845,6 +845,66 @@
   --mix-plan-card: 22%;
   --mix-plan-card-edge: 55%;
   --mix-plan-swatch: 70%;
+}
+
+/* --- Comments (ADR-0018; the desk design, §5; `comment-cards.ts`, `comments.css`) --- */
+
+:root {
+  /**
+   * The family's bright orange: the handoff's `accents.orange`. Comments are
+   * drawn in it and nothing else on the desk is, so a remark is never taken for
+   * a heading's gold or a transition's red. Plan's orange card is this one too.
+   */
+  --colour-orange: #fe8019;
+  /** A comment's highlight, underline, connector, dot and lit card's edge. */
+  --colour-comment: var(--colour-orange);
+
+  /** The tint over a comment's words: 16% of the orange, 28% while it is lit. */
+  --mix-comment-highlight: 16%;
+  --mix-comment-highlight-active: 28%;
+  /** The 1px line under those words: 35% of the orange, all of it while lit. */
+  --mix-comment-underline: 35%;
+  --mix-comment-underline-active: 100%;
+  /** The connector from the words to the card: 15%, and 90% while lit. */
+  --opacity-comment-line: 0.15;
+  --opacity-comment-line-active: 0.9;
+  /** The dot where the connector meets the card: 20%, and solid while lit. */
+  --opacity-comment-dot: 0.2;
+  --opacity-comment-dot-active: 1;
+  --size-comment-dot: 6px;
+  /** Half the dot: how far its middle is from its edge, which the line ends at. */
+  --radius-comment-dot: calc(var(--size-comment-dot) / 2);
+
+  /** A card: as wide as the panel columns it sits in, raised like a lit row. */
+  --size-comment-card: var(--size-panel);
+  --colour-comment-card: var(--colour-overlay);
+  --colour-comment-card-edge: var(--colour-border-strong);
+  --radius-comment-card: var(--radius-float);
+  --space-comment-card: var(--space-panel);
+  --size-comment-text: var(--size-label);
+  --leading-comment: 1.4;
+  /** An unlit card is drawn whole at 45%: its words, its edge and its button. */
+  --opacity-comment-card: 0.45;
+  /**
+   * A card scrolled under the fixed panels, the stack of them one solid block:
+   * 15%, and no blur — there is no blur anywhere on the desk.
+   */
+  --opacity-comment-under-panel: 0.15;
+  /** Cards that would overlap stack down their column this far apart. */
+  --space-comment-stack: var(--space-panel-stack);
+  /**
+   * A long remark on an unlit card stops after four lines and fades out over
+   * the last of them; lit, it shows in full.
+   */
+  --size-comment-clamp: calc(var(--size-comment-text) * var(--leading-comment) * 4);
+  --size-comment-fade: calc(var(--size-comment-text) * var(--leading-comment) * 1.5);
+
+  /** Resolve: a square-cornered 24px button at the card's foot, 12px words and a check. */
+  --size-comment-resolve: var(--size-row);
+  --size-comment-resolve-text: var(--size-caption);
+  --radius-comment-resolve: 0px;
+  --space-comment-resolve: var(--space-snug);
+  --space-comment-foot: var(--space-snug);
 }
 
 /* --- Edit ▸ Character List and Location List (`name-list-dialog.ts`) ----------- */

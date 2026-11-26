@@ -25,6 +25,7 @@ import "./style/goals.css";
 import "./style/export.css";
 import "./style/shortcuts.css";
 import "./style/panels.css";
+import "./style/comments.css";
 import "./style/menus.css";
 import "./style/title-page.css";
 import "./style/home.css";

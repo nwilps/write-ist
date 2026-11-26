@@ -1,0 +1,179 @@
+/*
+ * Comments (ADR-0018; the desk design, §5): the tint over the words, the
+ * cards in the side columns, and the line between. **Every value here is a
+ * token** (ADR-0030), in `tokens.css` under Comments.
+ *
+ * Where each card and line goes is measured (`comment-cards.ts`) and handed
+ * over as numbers, `--comment-x` and `--comment-y`, which this sheet gives
+ * their unit. Positions are plain sums: no `min()`, `max()` or `clamp()`
+ * inside anything multiplied, which WebKit with the desktop's text scaled
+ * has enlarged twice before.
+ */
+
+/* --- On the paper ----------------------------------------------------------- */
+
+/*
+ * The words a comment is about: a tint of the orange and a 1px line under
+ * them, stronger while the comment is lit. The line is painted in the words'
+ * own background, along its foot, so it takes no room and moves no line of the
+ * page; and it is not a text underline, so it never meets the writer's own.
+ */
+.manuscript .comment-highlight {
+  --comment-underline: color-mix(in srgb, var(--colour-comment) var(--mix-comment-underline), transparent);
+  background-color: color-mix(in srgb, var(--colour-comment) var(--mix-comment-highlight), transparent);
+  background-image: linear-gradient(to top, var(--comment-underline) var(--rule-thin), transparent var(--rule-thin));
+}
+
+.manuscript .comment-highlight--active {
+  --comment-underline: color-mix(in srgb, var(--colour-comment) var(--mix-comment-underline-active), transparent);
+  background-color: color-mix(in srgb, var(--colour-comment) var(--mix-comment-highlight-active), transparent);
+}
+
+/* --- On the desk ------------------------------------------------------------ */
+
+/*
+ * The layer the cards are drawn in: the whole desk, so a card scrolls with
+ * the script. It sits after the paper and before the right column, and the
+ * left column is raised already (`panels.css`), so the panels are drawn over
+ * every card. Clicks go through it to the paper, except on a card.
+ */
+.comments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.comment-card {
+  position: absolute;
+  left: calc(var(--comment-x, 0) * var(--size-pixel));
+  top: calc(var(--comment-y, 0) * var(--size-pixel));
+  box-sizing: border-box;
+  width: var(--size-comment-card);
+  padding: var(--space-comment-card);
+  background: var(--colour-comment-card);
+  border: var(--rule-thin) solid var(--colour-comment-card-edge);
+  border-radius: var(--radius-comment-card);
+  font-family: var(--face-interface);
+  font-size: var(--size-comment-text);
+  line-height: var(--leading-comment);
+  color: var(--colour-muted);
+  /* Unlit: the whole card, its edge and its button too. */
+  opacity: var(--opacity-comment-card);
+  pointer-events: auto;
+  cursor: text;
+}
+
+.comment-card--active {
+  border-color: var(--colour-comment);
+  color: var(--colour-text);
+  opacity: 1;
+}
+
+/* Scrolled under the fixed panels: faint, and never blurred. */
+.comment-card--under {
+  opacity: var(--opacity-comment-under-panel);
+}
+
+/* The remark: the card's text, typed straight into. One line in the file, wrapped here. */
+.comment-card__text {
+  min-height: calc(var(--size-comment-text) * var(--leading-comment));
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: var(--colour-text);
+}
+
+/* A long remark on an unlit card stops after four lines; lit, it shows whole. */
+.comment-card:not(.comment-card--active) .comment-card__text {
+  max-height: var(--size-comment-clamp);
+  overflow: hidden;
+}
+
+/*
+ * …and fades out over its last line, so it reads as cut off rather than
+ * finished: the card's own colour drawn over the words, not a mask (nothing on
+ * the desk is masked or clipped, for the background behind it).
+ */
+.comment-card--long .comment-card__text {
+  position: relative;
+}
+
+.comment-card--long .comment-card__text::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--size-comment-fade);
+  background: linear-gradient(to bottom, transparent, var(--colour-comment-card));
+  pointer-events: none;
+}
+
+.comment-card__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-comment-foot);
+}
+
+/* Resolve: square corners, a check and the word, at the card's foot on the right. */
+.comment-card__resolve {
+  display: flex;
+  align-items: center;
+  gap: var(--space-tight);
+  height: var(--size-comment-resolve);
+  padding: 0 var(--space-comment-resolve);
+  border: var(--rule-thin) solid var(--colour-border-strong);
+  border-radius: var(--radius-comment-resolve);
+  background: none;
+  font: inherit;
+  font-size: var(--size-comment-resolve-text);
+  line-height: var(--leading-label);
+  color: inherit;
+  cursor: default;
+}
+
+.comment-card__resolve:hover {
+  border-color: var(--colour-muted);
+}
+
+.comment-card__icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  flex: none;
+}
+
+/*
+ * The connector: a 1px line in a box of its own, from the foot of the words'
+ * line to the card (`comment-layout.ts` routes it round the words).
+ */
+.comment-line {
+  position: absolute;
+  left: calc(var(--comment-x, 0) * var(--size-pixel));
+  top: calc(var(--comment-y, 0) * var(--size-pixel));
+  overflow: visible;
+  fill: none;
+  stroke: var(--colour-comment);
+  stroke-width: var(--rule-thin);
+  stroke-opacity: var(--opacity-comment-line);
+  shape-rendering: crispEdges;
+}
+
+.comment-line--active {
+  stroke-opacity: var(--opacity-comment-line-active);
+}
+
+/* The dot where the line meets the card, centred on the card's edge. */
+.comment-dot {
+  position: absolute;
+  left: calc(var(--comment-x, 0) * var(--size-pixel) - var(--radius-comment-dot));
+  top: calc(var(--comment-y, 0) * var(--size-pixel) - var(--radius-comment-dot));
+  width: var(--size-comment-dot);
+  height: var(--size-comment-dot);
+  border-radius: var(--radius-comment-dot);
+  background: var(--colour-comment);
+  opacity: var(--opacity-comment-dot);
+}
+
+.comment-dot--active {
+  opacity: var(--opacity-comment-dot-active);
+}

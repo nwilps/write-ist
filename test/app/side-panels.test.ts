@@ -103,9 +103,16 @@ describe("the side panels", () => {
     expect(panels.right.querySelector('[aria-current="true"]')?.textContent).toBe("Action[Ctrl + 2]");
   });
 
-  it("leaves the add-comment slot waiting", () => {
-    const { panels } = mounted();
-    expect(panels.left.querySelector('[aria-label="Add comment"]')?.getAttribute("aria-disabled")).toBe("true");
+  it("adds a comment from its slot, leaving the selection on the paper for it to cover", () => {
+    const asked: string[] = [];
+    const panels = sidePanels(undefined, {}, () => asked.push("add comment"));
+    const button = panels.left.querySelector<HTMLElement>('[aria-label="Add comment"]')!;
+    expect(button.hasAttribute("aria-disabled")).toBe(false);
+    const press = new MouseEvent("mousedown", { cancelable: true });
+    button.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+    button.dispatchEvent(new MouseEvent("click"));
+    expect(asked).toEqual(["add comment"]);
   });
 });
 

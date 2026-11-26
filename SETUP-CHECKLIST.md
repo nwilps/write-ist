@@ -526,6 +526,18 @@ the Hotkeys lists read it; deleting a file is one generic, narrow command for an
 `docs/WORKSPACES.md` is the guide, `app/src/workspaces/_template/` the folder to copy, and
 `test/app/toolbox.test.ts` the proof (Notes and Plan unplugged; a test-only workspace plugged in).
 
+### Done: comments in the Editor (ADR-0018, amended 2026-11-25)
+
+The writer makes a comment from the left panel's button, Ctrl+M (added through the Editor's
+toolbox) or the right-click menu; it covers the selection, or the caret's line. Its card opens in
+a side column ready to type in, and leaving it with words makes the comment, one undo step; left
+empty it quietly goes. Clicking a card rewords it; Resolve deletes it and keeps its words, and
+Ctrl+Z brings it back. `src/screenplay/comment-editing.ts` holds the comments while the project is
+open (moved out of `editing.ts`) and the commands; `app/src/workspaces/editor/comment-cards.ts`
+draws the cards, the tint and the connectors, and `comment-layout.ts` is where they go, as numbers.
+The file format is the spike's, unchanged: comments were already read, written byte-exact and
+stripped from counts, pagination and both exports. Clearing comments at the lock waits for drafts.
+
 ### Not started, and deliberately above this layer
 
 Drafts and locking (ADR-0002, ADR-0014), the registry (ADR-0015/0016), the prose surface in the

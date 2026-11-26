@@ -101,7 +101,8 @@ delimiter, so the remark and the span it is about are one construct and deleting
 takes the remark with it. Its text is stored inline in the manuscript
 file, delimited in band and matched by id — but it is not part of the work: it is stripped
 before pagination, before word and page counts, and before export, and the writer never sees
-its syntax. A comment anchors, so it belongs to one draft and freezes with it.
+its syntax. A comment anchors, so it belongs to one draft and freezes with it. *Resolving* a
+comment deletes it and keeps the words it was about (ADR-0018, amended 2026-11-25).
 _Avoid_: note (that anchors to nothing), annotation, highlight, work marker
 
 **Bundle**:

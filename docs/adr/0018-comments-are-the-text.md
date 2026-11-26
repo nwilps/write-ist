@@ -131,8 +131,9 @@ byte-identical. That is invisible to the writer and is not a product constraint.
   that is only true while the remark sits inside the span's own opening delimiter. Put it in a
   trailing construct or a block at the foot of the file and deleting the span orphans the
   remark, which is the sidecar failure this decision exists to avoid, rebuilt in band.
-- **A resolved state is deferred, deliberately, and costs nothing to defer.** Marking a comment
-  resolved rather than deleting it is a reasonable want. It is the *first* kind of data under
+- **A resolved state is deferred, deliberately, and costs nothing to defer.** *(Amended
+  2026-11-25, below: Resolve deletes the comment, so there is still no resolved state to store.)*
+  Marking a comment resolved rather than deleting it is a reasonable want. It is the *first* kind of data under
   `docs/STANDARDS.md`'s test — computable later from what is already saved — so being late
   costs a migration rather than data, unlike the ledger (ADR-0017), where being late destroys.
   No slot is reserved and no extensibility machinery is built: ADR-0004's format version is the
@@ -163,3 +164,41 @@ byte-identical. That is invisible to the writer and is not a product constraint.
 - **`GLOSSARY.md`'s **Comment** entry gains where a comment lives.** The term arrived from the
   sidecar-freeze ticket describing what a comment *is*; it now also says that its text is stored
   in the manuscript and never shown as syntax.
+
+## Amended 2026-11-25: how a comment is made, written in, and resolved (Noah)
+
+Built in the Editor. These are Noah's decisions, made when the cards were built; the storage
+above is unchanged.
+
+- **Resolve deletes the comment.** The two delimiters go and every word between them stays,
+  exactly as it was. Nothing asks first, and there is no resolved-but-kept state: the bullet
+  above deferring one still stands, and nothing is stored for it. Resolving is one undo step,
+  so Ctrl+Z brings the comment back, remark and span, byte for byte.
+- **One remark per comment, and no replies.** Consistent with *a comment carries nothing but its
+  text*.
+- **The card is where the remark is written.** Click a card and type. Add Comment — the button
+  in the left panel, Ctrl+M, or Write-ist's own right-click menu (ADR-0034) — opens the new
+  comment's card ready to type in. Esc or Enter leaves the card for the paper; Esc never goes
+  Home from a card. Clicking away leaves it too.
+- **A new comment is a draft until it has words.** Until the writer leaves its card it is drawn,
+  and is not in the document, the file, or the history. Left empty, it quietly goes: nothing is
+  made and there is nothing to undo.
+- **A remark is one line, and never holds the `]]` that ends a note.** A delimiter is read a line
+  at a time, so a line break typed or pasted into a card is kept as a space, and a `]` that would
+  make `]]` with the next character gets a space after it. Both are applied as the card is
+  written, never when a file is read — a file edited elsewhere is read as it is. The prose
+  surface's one escape (`-->`) is unchanged.
+- **A remark is at most 240 characters** (Noah, 2026-11-25). Capped quietly as the card is
+  written: typing stops at 240, and a paste goes in as far as there is room. Nothing says so — no
+  toast, no message, no counter. A comment pasted with its words is cut to 240 too. Like the rules
+  above it is applied when a remark is written, never when a file is read: a longer remark written
+  elsewhere opens whole and saves byte for byte, and is cut to 240 only once the writer rewords
+  it. The limit is `REMARK_MAX` in `src/comments.ts`.
+- **The cards.** They use both side columns, whichever has room nearest the commented words.
+  Cards that would overlap stack and push each other down, and the connector bends to follow,
+  only in the strip of desk between the paper and the column, so it never crosses words: it
+  leaves the words along the foot of their line. A long remark is cut off with a fade until its
+  card is lit, then shows in full. Clicking a card or its highlighted words lights that comment.
+  Cards scroll with the script and slide under the fixed side panels, the panels of a column
+  counted as one solid block; a card under them is drawn at 15%, with no blur.
+
