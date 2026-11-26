@@ -318,11 +318,20 @@
   gap: var(--space-snug);
 }
 
-/* Where the open cards hang: as tall as the row, so a card's room is the row's. */
+/*
+ * Where the open cards hang: as tall as the row, so a card's room is the
+ * row's; and as wide as three compact cards and the gaps between them, or the
+ * room left beside the button where that is less. Each card is a third of it
+ * less the gaps, so the narrowing happens here, once, and never inside a
+ * card's own place (below).
+ */
 .plan__card-slot {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: calc(
+    var(--measure-plan-panel) * var(--count-plan-open-cards) + var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)
+  );
 }
 
 .plan__control {
@@ -364,10 +373,11 @@
  */
 /*
  * An open card, in one of three places side by side (`--plan-position`, set
- * from `plan.ts`, 0 beside the Structure button). Each is the compact width,
- * or a third of the slot less the gaps where three of that would not fit, so
- * all three always fit beside the button. A place is the card's own width
- * and a gap along, and a card moving to another place slides there.
+ * from `plan.ts`, 0 beside the Structure button). Each is a third of the
+ * slot less the gaps: the compact width, or narrower where three of that
+ * would not fit, so all three always fit beside the button. A place is the
+ * card's own width and a gap along, and a card moving to another place slides
+ * there.
  *
  * **It is placed, and slides, by `left`, never by `transform`** (Plan round
  * 3). WebKitGTK hands a sliding transform to its compositor, and on handing
@@ -376,13 +386,16 @@
  * lays it out, every frame, and there is no hand-back to get wrong. Both its
  * width and its place are measured against the slot, so a place is still the
  * card's own width and a gap along.
+ *
+ * **No `min()` inside its `calc()`s** (Plan round 4). With the desktop's text
+ * scaled, WebKitGTK zooms the whole page, and it then scales a `min()` nested
+ * in a `calc()` a second time: the cards' places drifted from their widths,
+ * so they overlapped (or, at another scale, stood apart). The width and the
+ * place are plain sums of the slot, and the slot does the narrowing.
  */
 .plan__panel {
   --card-tint: var(--colour-plan-plain);
-  --plan-panel-width: min(
-    var(--measure-plan-panel),
-    calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards))
-  );
+  --plan-panel-width: calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards));
   position: absolute;
   top: 0;
   left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)));

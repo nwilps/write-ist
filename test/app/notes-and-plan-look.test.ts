@@ -57,6 +57,54 @@ function pixels(name: string): number {
   return Number(found[1]);
 }
 
+/** One declaration's value in a rule as `rule` gives it. */
+function declared(body: string, property: string): string {
+  const found = new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+);`).exec(body);
+  if (found === null) throw new Error(`no ${property} in ${body}`);
+  return found[1]!.trim();
+}
+
+/** What no token says: set from code (the place, the drag), or the window's own width (the room). */
+const GIVEN: Record<string, keyof Lengths> = { "--plan-position": "position", "--plan-drag-x": "drag", "--size-plan-room-width": "room" };
+
+/** A value with every `var()` followed — first to the rule's own custom properties, then to the tokens — but the given ones. */
+function expanded(value: string, local = ""): string {
+  const followable = (text: string): boolean => [...text.matchAll(/var\((--[\w-]+)\)/g)].some((found) => !(found[1]! in GIVEN));
+  let out = value;
+  for (let depth = 0; followable(out); depth++) {
+    if (depth > 20) throw new Error(`var()s that never end: ${value}`);
+    out = out.replace(/var\((--[\w-]+)\)/g, (all, name: string) => {
+      if (name in GIVEN) return all;
+      return local.includes(`${name}:`) ? declared(local, name) : token(name);
+    });
+  }
+  return out;
+}
+
+interface Lengths {
+  /** What 100% is: the containing block's width. */
+  readonly percent: number;
+  readonly ch: number;
+  /** The rule whose own custom properties the value may use. */
+  readonly local?: string;
+  readonly position?: number;
+  readonly drag?: number;
+  readonly room?: number;
+}
+
+/** A length as the stylesheet writes it, worked out in pixels: `calc()`, `min()`, px, %, ch and plain numbers. */
+function cssLength(value: string, lengths: Lengths): number {
+  const sum = expanded(value, lengths.local)
+    .replace(/var\((--[\w-]+)\)/g, (_, name: string) => `(${lengths[GIVEN[name]!] ?? 0})`)
+    .replace(/(\d+(?:\.\d+)?)px\b/g, "$1")
+    .replace(/(\d+(?:\.\d+)?)%/g, `($1*${lengths.percent}/100)`)
+    .replace(/(\d+(?:\.\d+)?)ch\b/g, `($1*${lengths.ch})`)
+    .replace(/\bcalc\(/g, "(")
+    .replace(/\bmin\(/g, "Math.min(");
+  if (!/^(?:[\d.\s+\-*/(),]|Math\.min)*$/.test(sum)) throw new Error(`not a length this can work out: ${sum}`);
+  return Number(new Function(`return ${sum};`)());
+}
+
 const NOTES = "workspaces/notes/notes.css";
 const PLAN = "workspaces/plan/plan.css";
 
@@ -423,22 +471,63 @@ describe("Plan's open cards, beside the Structure button", () => {
     expect(token("--count-plan-open-cards")).toBe(String(MOST_OPEN_CARDS));
     expect(MOST_OPEN_CARDS).toBe(3);
     expect(token("--space-plan-panels")).toBe("var(--space-plan-edge)");
+    // The slot is three compact cards and their gaps wide, or the room beside the button where that is less.
+    expect(rule(PLAN, ".plan__card-slot")).toContain(
+      "max-width: calc( var(--measure-plan-panel) * var(--count-plan-open-cards) + var(--space-plan-panels) * (var(--count-plan-open-cards) - 1) )",
+    );
+    // Each card is a third of it less the gaps.
     expect(panel).toContain(
-      "--plan-panel-width: min( var(--measure-plan-panel), calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards)) )",
+      "--plan-panel-width: calc((100% - var(--space-plan-panels) * (var(--count-plan-open-cards) - 1)) / var(--count-plan-open-cards))",
     );
     expect(panel).toContain("width: var(--plan-panel-width)");
     // A place is the card's own width and a gap along.
     expect(panel).toContain("left: calc(var(--plan-position) * (var(--plan-panel-width) + var(--space-plan-panels)))");
-    // Worked through: the slot is the workspace less its sides, the Structure button and the gap beside it.
+  });
+
+  it("works each card's place out from the stylesheet itself: side by side, the normal gap between, inside the slot, at every window (round 4)", () => {
+    // Worked through from the rules as written: the workspace less its sides, the Structure button and the gap
+    // beside it is the room; the slot is that room or three compact cards and their gaps, whichever is less.
     const gap = pixels("--space-plan-edge");
-    const compact = 46 * 0.6 * pixels("--size-body");
+    const ch = 0.6 * pixels("--size-body");
+    const compact = 46 * ch;
     const button = 130;
-    for (const window of [1920, 1440, 1280, 1024, 800, 560]) {
-      const room = window - gap * 2 - button - gap;
-      const width = Math.min(compact, (room - gap * 2) / 3);
-      expect(width * 3 + gap * 2).toBeLessThanOrEqual(room + 1e-9);
-      if (window >= 1920) expect(width).toBe(compact);
-      else expect(width).toBeGreaterThan(0);
+    const slotRule = rule(PLAN, ".plan__card-slot");
+    const leaving = rule(PLAN, '.plan__panel[data-leaving="true"]');
+    const dragging = rule(PLAN, '.plan__panel[data-dragging="true"]');
+    const roomAt = (window: number): number => window - gap * 2 - button - gap;
+    for (const window of [1920, 1899, 1637, 1440, 1280, 1024, 882, 800, 560]) {
+      const room = roomAt(window);
+      const slot = Math.min(room, cssLength(declared(slotRule, "max-width"), { percent: room, ch }));
+      const width = cssLength(declared(panel, "width"), { percent: slot, ch, local: panel });
+      const lefts = [0, 1, 2].map((at) => cssLength(declared(panel, "left"), { percent: slot, ch, local: panel, position: at }));
+      // The first beside the button, each next one its width and the normal gap along: never over another.
+      expect(lefts[0]).toBe(0);
+      for (const at of [1, 2]) expect(lefts[at]! - (lefts[at - 1]! + width)).toBeCloseTo(gap, 9);
+      // All three inside the slot, and so inside the workspace.
+      expect(lefts[2]! + width).toBeLessThanOrEqual(slot + 1e-9);
+      expect(width).toBeGreaterThan(0);
+      // Compact where three of that fit; a third of the room less the gaps where they do not.
+      if (room >= compact * 3 + gap * 2) expect(width).toBeCloseTo(compact, 9);
+      else expect(width).toBeCloseTo((room - gap * 2) / 3, 9);
+      // Dragged, it is its place plus the drag; pushed out, its place plus the room's width.
+      expect(cssLength(declared(dragging, "left"), { percent: slot, ch, local: panel, position: 1, drag: -37 })).toBeCloseTo(lefts[1]! - 37, 9);
+      expect(cssLength(declared(leaving, "left"), { percent: slot, ch, local: panel, position: 2, room: window })).toBeCloseTo(lefts[2]! + window, 9);
+    }
+    // At 1920, the compact width: 414px with the body's 15px. At 1440 a third of the room less the gaps, 410px (round 1).
+    const slotAt = (window: number): number => Math.min(roomAt(window), compact * 3 + gap * 2);
+    expect(cssLength(declared(panel, "width"), { percent: slotAt(1920), ch, local: panel })).toBeCloseTo(414, 9);
+    expect(cssLength(declared(panel, "width"), { percent: slotAt(1440), ch, local: panel })).toBeCloseTo(410, 9);
+  });
+
+  it("never nests a min() in a calc() for an open card, which WebKitGTK scales twice when the desktop's text is scaled (round 4)", () => {
+    // Round 4: with the text scaled (the page zoomed 1.16), the place was `calc(n * (min(…) + gap))` and the
+    // width `min(…)`. WebKitGTK scaled the nested min() a second time, so the places drifted from the widths:
+    // measured on a 1200px slot, the third place at 940px, not 811px — the cards overlapped or stood apart.
+    for (const selector of [".plan__panel", '.plan__panel[data-dragging="true"]', '.plan__panel[data-leaving="true"]']) {
+      for (const property of ["left", "width"]) {
+        const value = rule(PLAN, selector).includes(`${property}:`) ? expanded(declared(rule(PLAN, selector), property), panel) : "";
+        expect(value).not.toMatch(/calc\([^]*\b(min|max|clamp)\(/);
+      }
     }
   });
 
